@@ -17,12 +17,12 @@ body {
     min-height: 100vh;
     margin: 0;
     overflow-x: hidden;
-    padding-top: 70px; /* Increased for new header */
-    padding-bottom: 80px; /* Space for mobile nav */
+    padding-top: 70px;
+    padding-bottom: 80px;
 }
 
 @media (min-width: 768px) {
-    body { padding-bottom: 0; padding-right: 60px; } /* Space for desktop nav */
+    body { padding-bottom: 0; padding-right: 60px; }
 }
 
 h1, h2, h3, .heading { font-family: 'Cinzel', serif; letter-spacing: 0.1em; }
@@ -76,6 +76,7 @@ h1, h2, h3, .heading { font-family: 'Cinzel', serif; letter-spacing: 0.1em; }
     letter-spacing: 0.2em;
 }
 
+/* --- INPUT STYLING & AUTOFILL FIX --- */
 input, select, textarea {
     background: transparent;
     border: none;
@@ -86,10 +87,20 @@ input, select, textarea {
     font-family: 'IM Fell English', serif;
     font-size: 0.95rem;
 }
+
+/* Force dark background on Autofill */
+input:-webkit-autofill,
+input:-webkit-autofill:hover, 
+input:-webkit-autofill:focus, 
+input:-webkit-autofill:active{
+    -webkit-box-shadow: 0 0 0 30px #050505 inset !important;
+    -webkit-text-fill-color: white !important;
+    transition: background-color 5000s ease-in-out 0s;
+}
+
 input:focus, textarea:focus, select:focus { outline: none; border-bottom-color: var(--v-gold); background: rgba(255,255,255,0.05); }
 textarea { border: 1px solid var(--v-border); resize: none; }
 input:disabled, select:disabled, textarea:disabled { border-bottom: none; color: var(--v-parchment); opacity: 0.9; cursor: default; }
-
 select option { background: #111; color: white; }
 
 .step-container { display: none; }
@@ -105,7 +116,7 @@ select option { background: #111; color: white; }
     border-bottom: 2px solid #500;
 }
 
-/* --- MODAL STYLES (NEW) --- */
+/* --- MODAL STYLES --- */
 .modal-overlay {
     position: fixed;
     top: 0;
@@ -164,6 +175,15 @@ select option { background: #111; color: white; }
 .file-meta { font-size: 0.65rem; color: #666; font-family: sans-serif; }
 .file-row.selected .file-meta { color: #ccc; }
 
+.file-delete-btn {
+    opacity: 0;
+    transition: opacity 0.2s;
+    color: #888;
+    padding: 4px 8px;
+}
+.file-row:hover .file-delete-btn { opacity: 1; }
+.file-delete-btn:hover { color: #ff0000; text-shadow: 0 0 5px #ff0000; }
+
 /* --- RIGHT DOCK --- */
 #sheet-nav {
     position: fixed;
@@ -172,7 +192,7 @@ select option { background: #111; color: white; }
     width: 100%;
     background: rgba(5, 5, 5, 0.95);
     border-top: 1px solid #333;
-    z-index: 40; /* Below Top Bar (50) */
+    z-index: 40;
     display: flex;
     justify-content: space-around;
     padding: 0.5rem 0;
@@ -359,15 +379,14 @@ select option { background: #111; color: white; }
 }
 #sb-toggle-btn:hover { background: #d00000; }
 
-/* UPDATED LEDGER STYLES - Compact spacing */
 .cost-row { 
     display: flex; 
-    justify-content: flex-start; /* Keeps items packed left */
+    justify-content: flex-start;
     align-items: baseline; 
     font-size: 0.75rem; 
     padding: 4px 0; 
     width: 100%;
-    gap: 1rem; /* Modest gap between text and number */
+    gap: 1rem; 
 }
 .cost-row > span:first-child { 
     flex-grow: 0; 
