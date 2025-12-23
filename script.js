@@ -2,6 +2,17 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
 import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { getFirestore, doc, setDoc, getDoc, collection, getDocs, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
+// --- ERROR HANDLER (Helps us see crashes) ---
+window.onerror = function(msg, url, line) {
+    const notif = document.getElementById('notification');
+    if(notif) {
+        notif.innerText = "ERROR: " + msg;
+        notif.style.display = 'block';
+        notif.style.backgroundColor = 'red';
+    }
+    console.error("Global Error:", msg, "Line:", line);
+};
+
 // YOUR FIREBASE CONFIG
 const firebaseConfig = {
   apiKey: "AIzaSyB8qLWOiC3csqPnucbj3XOtireOgPjjL_k",
@@ -771,8 +782,8 @@ window.changeStep = function(s) {
              const steps = ["Sheet", "Traits", "Social", "Biography"];
              steps.forEach((text, i) => {
                 const it = document.createElement('div'); it.className = `nav-item ${window.state.currentPhase === (i+1) ? 'active' : ''}`;
-                const icons = ['fa-scroll', 'fa-fist-raised', 'fa-users', 'fa-book'];
-                it.innerHTML = `<i class="fas ${icons[i]}"></i><span>${text}</span>`;
+                // Fallback text added in case FontAwesome fails
+                it.innerHTML = `<i class="fas fa-scroll"></i><span style="display:block; font-size:9px; margin-top:2px;">${text}</span>`;
                 it.onclick = () => window.changeStep(i+1); nav.appendChild(it);
             });
         } else {
@@ -781,7 +792,8 @@ window.changeStep = function(s) {
                 const it = document.createElement('div'); let statusClass = '';
                 if (step.id === s) statusClass = 'active'; else if (step.id < s) statusClass = 'completed'; else if (step.id <= furthest) statusClass = 'unlocked'; else statusClass = 'locked';
                 it.className = `nav-item ${statusClass}`;
-                it.innerHTML = `<i class="fas ${step.icon}"></i><span>${step.label}</span>`;
+                // FORCE DISPLAY: Inline style to ensure visibility if icons fail
+                it.innerHTML = `<div class="flex flex-col items-center justify-center w-full h-full"><i class="fas ${step.icon}"></i><span style="display:block !important; font-size:7px; text-transform:uppercase; margin-top:2px; opacity:1;">${step.label}</span></div>`;
                 it.onclick = () => { if (step.id <= furthest) window.changeStep(step.id); };
                 nav.appendChild(it);
             });
@@ -867,12 +879,20 @@ window.togglePlayMode = function() {
     window.changeStep(1);
 };
 
-// --- INITIALIZATION ---
+// --- INITIALIZATION (Safeguarded) ---
 
 // 1. Initial UI Setup (Runs Immediately)
 try {
-    Object.keys(ATTRIBUTES).forEach(c => ATTRIBUTES[c].forEach(a => { window.state.dots.attr[a] = 1; renderRow('list-attr-'+c.toLowerCase(), a, 'attr', 1); }));
-    Object.keys(ABILITIES).forEach(c => ABILITIES[c].forEach(a => { window.state.dots.abil[a] = 0; renderRow('list-abil-'+c.toLowerCase(), a, 'abil', 0); }));
+    // --- SAFEGUARD: CHECK IF NAV EXISTS ---
+    if (!document.getElementById('sheet-nav')) throw new Error("Navigation container 'sheet-nav' is missing from HTML.");
+
+    // --- SAFEGUARD: Wrap DOM logic ---
+    const s1 = document.getElementById('list-attr-physical');
+    if (s1) {
+        Object.keys(ATTRIBUTES).forEach(c => ATTRIBUTES[c].forEach(a => { window.state.dots.attr[a] = 1; renderRow('list-attr-'+c.toLowerCase(), a, 'attr', 1); }));
+        Object.keys(ABILITIES).forEach(c => ABILITIES[c].forEach(a => { window.state.dots.abil[a] = 0; renderRow('list-abil-'+c.toLowerCase(), a, 'abil', 0); }));
+    }
+    
     renderDynamicAdvantageRow('list-disc', 'disc', DISCIPLINES);
     renderDynamicAdvantageRow('list-back', 'back', BACKGROUNDS);
     renderDynamicAdvantageRow('custom-talents', 'abil', [], true);
@@ -880,17 +900,21 @@ try {
     renderDynamicAdvantageRow('custom-knowledges', 'abil', [], true);
     renderDerangementsList();
     VIRTUES.forEach(v => { window.state.dots.virt[v] = 1; renderRow('list-virt', v, 'virt', 1); });
-    VIT.forEach(v => { const d = document.createElement('div'); d.innerHTML = `<label class="label-text">${v}</label><input type="text" id="bio-${v}">`; document.getElementById('vitals-create-inputs').appendChild(d); });
+    const vitalCont = document.getElementById('vitals-create-inputs');
+    if(vitalCont) VIT.forEach(v => { const d = document.createElement('div'); d.innerHTML = `<label class="label-text">${v}</label><input type="text" id="bio-${v}">`; vitalCont.appendChild(d); });
     renderDynamicTraitRow('merits-list-create', 'Merit', V20_MERITS_LIST);
     renderDynamicTraitRow('flaws-list-create', 'Flaw', V20_FLAWS_LIST);
     window.renderInventoryList();
-    for(let i=0; i<8; i++) {
+    
+    const otherT = document.getElementById('other-traits-rows-create');
+    if(otherT) for(let i=0; i<8; i++) {
         const d2 = document.createElement('div'); d2.className = 'flex items-center gap-2 mb-2';
         d2.innerHTML = `<input type="text" id="ot-n-${i}" placeholder="Other..." class="w-40 text-[11px] font-bold"><div class="dot-row" id="ot-dr-${i}"></div>`;
-        document.getElementById('other-traits-rows-create').appendChild(d2);
+        otherT.appendChild(d2);
         const dr = d2.querySelector('.dot-row'); dr.innerHTML = renderDots(0, 5);
         dr.onclick = (e) => { const n = document.getElementById(`ot-n-${i}`).value || `Other_${i}`; if(e.target.classList.contains('dot')) { let v = parseInt(e.target.dataset.v); const currentVal = window.state.dots.other[n] || 0; if (v === currentVal) v = v - 1; window.state.dots.other[n] = v; dr.innerHTML = renderDots(v, 5); } };
     }
+    
     document.querySelectorAll('.prio-btn').forEach(b => b.onclick = (e) => {
         const {cat, group, v} = e.target.dataset;
         const catGroups = cat === 'attr' ? ['Physical', 'Social', 'Mental'] : ['Talents', 'Skills', 'Knowledges'];
@@ -911,7 +935,8 @@ try {
     window.changeStep(1); 
 } catch(e) {
     console.error("UI Init Error:", e);
-    showNotification("UI Error: " + e.message);
+    const notif = document.getElementById('notification');
+    if(notif) { notif.innerText = "CRITICAL INIT ERROR: " + e.message; notif.style.display = 'block'; }
 }
 
 // 2. Auth & Database (Runs Async)
@@ -921,14 +946,15 @@ onAuthStateChanged(auth, async (u) => {
         document.getElementById('loading-overlay').style.display = 'none';
         try {
             const ns = document.getElementById('c-nature'), ds = document.getElementById('c-demeanor'), cs = document.getElementById('c-clan');
-            ARCHETYPES.sort().forEach(a => { ns.add(new Option(a,a)); ds.add(new Option(a,a)); });
-            CLANS.sort().forEach(c => cs.add(new Option(c,c)));
+            if(ns) ARCHETYPES.sort().forEach(a => { ns.add(new Option(a,a)); ds.add(new Option(a,a)); });
+            if(cs) CLANS.sort().forEach(c => cs.add(new Option(c,c)));
             const ps1 = document.getElementById('c-path-name');
             const ps2 = document.getElementById('c-path-name-create');
             PATHS.forEach(p => { if(ps1) ps1.add(new Option(p,p)); if(ps2) ps2.add(new Option(p,p)); });
             if(ps1) ps1.addEventListener('change', (e) => { if(ps2) ps2.value = e.target.value; if(window.state.textFields) window.state.textFields['c-path-name'] = e.target.value; });
             if(ps2) ps2.addEventListener('change', (e) => { if(ps1) ps1.value = e.target.value; if(window.state.textFields) window.state.textFields['c-path-name'] = e.target.value; });
-            document.getElementById('c-freebie-total').oninput = window.updatePools;
+            const freebieInp = document.getElementById('c-freebie-total');
+            if(freebieInp) freebieInp.oninput = window.updatePools;
             await refreshList();
         } catch (dbErr) {
             console.error("DB Init Error:", dbErr);
