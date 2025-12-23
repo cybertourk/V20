@@ -18,6 +18,7 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const appId = 'v20-neonate-sheet';
 
+// --- DATA CONSTANTS ---
 const CLANS = ["Assamite", "Brujah", "Followers of Set", "Gangrel", "Giovanni", "Lasombra", "Malkavian", "Nosferatu", "Ravnos", "Toreador", "Tremere", "Tzimisce", "Ventrue", "Caitiff"];
 const ARCHETYPES = ["Architect", "Autocrat", "Bon Vivant", "Bravo", "Capitalist", "Caregiver", "Celebrant", "Chameleon", "Child", "Competitor", "Conformist", "Conniver", "Curmudgeon", "Dabbler", "Deviant", "Director", "Enigma", "Eye of the Storm", "Fanatic", "Gallant", "Guru", "Idealist", "Judge", "Loner", "Martyr", "Masochist", "Monster", "Pedagogue", "Penitent", "Perfectionist", "Rebel", "Rogue", "Sadist", "Scientist", "Sociopath", "Soldier", "Survivor", "Thrill-Seeker", "Traditionalist", "Trickster", "Visionary"];
 const ATTRIBUTES = { Physical: ["Strength", "Dexterity", "Stamina"], Social: ["Charisma", "Manipulation", "Appearance"], Mental: ["Perception", "Intelligence", "Wits"] };
@@ -30,105 +31,27 @@ const VIT = ["age", "app-age", "dob", "rip", "hair", "eyes", "race", "nat", "hei
 const HEALTH_STATES = [{l: "Bruised", p: 0}, {l: "Hurt", p: -1}, {l: "Injured", p: -1}, {l: "Wounded", p: -2}, {l: "Mauled", p: -2}, {l: "Crippled", p: -5}, {l: "Incap", p: -99}];
 const GEN_LIMITS = { 15: {m:10,p:1}, 14: {m:10,p:1}, 13: {m:10,p:1}, 12: {m:11,p:1}, 11: {m:12,p:1}, 10: {m:13,p:1}, 9: {m:14,p:2}, 8: {m:15,p:3}, 7: {m:20,p:4}, 6: {m:30,p:6}, 5: {m:40,p:10}, 4: {m:50,p:15}, 3: {m:100,p:100} };
 
-const DERANGEMENTS = [
-    "Amnesia", "Anxiety", "Bipolar Disorder", "Bulimia", "Fugue", "Hysteria", 
-    "Megalomania", "Multiple Personalities", "Obsessive-Compulsive", 
-    "Paranoia", "Phobia", "Schizophrenia", "Sanguinary Animism"
-];
+const DERANGEMENTS = ["Amnesia", "Anxiety", "Bipolar Disorder", "Bulimia", "Fugue", "Hysteria", "Megalomania", "Multiple Personalities", "Obsessive-Compulsive", "Paranoia", "Phobia", "Schizophrenia", "Sanguinary Animism"];
+const V20_MERITS_LIST = [{ n: "Acute Sense", t: "Merit", v: 1 }, { n: "Ambidextrous", t: "Merit", v: 1 }, { n: "Catlike Balance", t: "Merit", v: 1 }, { n: "Early Riser", t: "Merit", v: 1 }, { n: "Eat Food", t: "Merit", v: 1 }, { n: "Blush of Health", t: "Merit", v: 2 }, { n: "Enchanting Voice", t: "Merit", v: 2 }, { n: "Daredevil", t: "Merit", v: 3 }, { n: "Efficient Digestion", t: "Merit", v: 3 }, { n: "Huge Size", t: "Merit", v: 4 }, { n: "Prestigious Sire", t: "Merit", v: 1 }, { n: "Natural Leader", t: "Merit", v: 1 }, { n: "Specific Interests", t: "Merit", v: 1 }, { n: "Harmless", t: "Merit", v: 1 }, { n: "Protege", t: "Merit", v: 1 }, { n: "Rep", t: "Merit", v: 1 }, { n: "Language", t: "Merit", v: 1 }, { n: "Common Sense", t: "Merit", v: 1 }, { n: "Concentration", t: "Merit", v: 1 }, { n: "Time Sense", t: "Merit", v: 1 }, { n: "Code of Honor", t: "Merit", v: 1 }, { n: "Eidetic Memory", t: "Merit", v: 2 }, { n: "Light Sleeper", t: "Merit", v: 2 }, { n: "Calm Heart", t: "Merit", v: 3 }, { n: "Iron Will", t: "Merit", v: 3 }, { n: "Medium", t: "Merit", v: 2 }, { n: "Magic Resistance", t: "Merit", v: 2 }, { n: "Oracular Ability", t: "Merit", v: 3 }, { n: "Unbondable", t: "Merit", v: 3 }, { n: "Lucky", t: "Merit", v: 3 }, { n: "True Faith", t: "Merit", v: 7 }];
+const V20_FLAWS_LIST = [{ n: "Deep Sleeper", t: "Flaw", v: 1 }, { n: "Intolerance", t: "Flaw", v: 1 }, { n: "Nightmare", t: "Flaw", v: 1 }, { n: "Prey Exclusion", t: "Flaw", v: 1 }, { n: "Overconfident", t: "Flaw", v: 1 }, { n: "Shy", t: "Flaw", v: 1 }, { n: "Soft-Hearted", t: "Flaw", v: 1 }, { n: "Speech Impediment", t: "Flaw", v: 1 }, { n: "Bad Sight", t: "Flaw", v: 2 }, { n: "One Eye", t: "Flaw", v: 2 }, { n: "Short Fuse", t: "Flaw", v: 2 }, { n: "Vengeful", t: "Flaw", v: 2 }, { n: "Amnesia", t: "Flaw", v: 2 }, { n: "Lunacy", t: "Flaw", v: 2 }, { n: "Phobia", t: "Flaw", v: 2 }, { n: "Addiction", t: "Flaw", v: 3 }, { n: "Lame", t: "Flaw", v: 3 }, { n: "Deformity", t: "Flaw", v: 3 }, { n: "Deaf", t: "Flaw", v: 4 }, { n: "Hunted", t: "Flaw", v: 4 }, { n: "Blind", t: "Flaw", v: 6 }, { n: "Enemy", t: "Flaw", v: 1, range: "1-5", variable: true }, { n: "Dark Secret", t: "Flaw", v: 1, range: "1-5", variable: true }, { n: "Cursed", t: "Flaw", v: 1, range: "1-5", variable: true }, { n: "Mistaken Identity", t: "Flaw", v: 1 }, { n: "Beacon of the Unholy", t: "Flaw", v: 2 }, { n: "Death Sight", t: "Flaw", v: 2 }, { n: "Haunted", t: "Flaw", v: 3 }, { n: "Flashbacks", t: "Flaw", v: 1, range: "1-2", variable: true }];
+const V20_WEAPONS_LIST = [{ n: "Sap / Blackjack", diff: 4, dmg: "Str+1(B)", range: "-", rate: "1", clip: "-" }, { n: "Club / Bat", diff: 4, dmg: "Str+2(B)", range: "-", rate: "1", clip: "-" }, { n: "Knife", diff: 4, dmg: "Str+1(L)", range: "-", rate: "1", clip: "-" }, { n: "Sword", diff: 6, dmg: "Str+2(L)", range: "-", rate: "1", clip: "-" }, { n: "Axe", diff: 7, dmg: "Str+3(L)", range: "-", rate: "1", clip: "-" }, { n: "Stake", diff: 6, dmg: "Str+1(L)", range: "-", rate: "1", clip: "-" }, { n: "Revolver, Lt", diff: 6, dmg: "4", range: "12", rate: "3", clip: "6" }, { n: "Revolver, Hvy", diff: 7, dmg: "6", range: "35", rate: "2", clip: "6" }, { n: "Pistol, Lt", diff: 6, dmg: "4", range: "20", rate: "4", clip: "17+1" }, { n: "Pistol, Hvy", diff: 7, dmg: "5", range: "30", rate: "3", clip: "7+1" }, { n: "Rifle", diff: 8, dmg: "8", range: "200", rate: "1", clip: "5+1" }, { n: "SMG, Small", diff: 7, dmg: "4", range: "25", rate: "3", clip: "30+1" }, { n: "SMG, Large", diff: 6, dmg: "6", range: "50", rate: "3", clip: "30+1" }, { n: "Assault Rifle", diff: 7, dmg: "7", range: "150", rate: "3", clip: "30+1" }, { n: "Shotgun", diff: 6, dmg: "8", range: "20", rate: "1", clip: "5+1" }, { n: "Shotgun, Sawed-Off", diff: 7, dmg: "8", range: "10", rate: "2", clip: "2" }];
+const V20_ARMOR_LIST = [{ n: "Class I (Reinforced Clothing)", r: 1, p: 0 }, { n: "Class II (Armor T-Shirt)", r: 2, p: 1 }, { n: "Class III (Kevlar Vest)", r: 3, p: 1 }, { n: "Class IV (Flak Jacket)", r: 4, p: 2 }, { n: "Class V (Full Riot Gear)", r: 5, p: 3 }];
+const V20_VEHICLE_LIST = [{ n: "6-Wheel Truck", safe: "60/95", max: "90/145", man: 3 }, { n: "Tank (modern)", safe: "60/95", max: "100/160", man: 4 }, { n: "Tank (WWII)", safe: "30/50", max: "40/65", man: 3 }, { n: "Bus", safe: "60/95", max: "100/160", man: 3 }, { n: "18-Wheeler", safe: "70/110", max: "110/175", man: 4 }, { n: "Sedan", safe: "70/110", max: "120/195", man: 5 }, { n: "Minivan", safe: "70/110", max: "120/195", man: 6 }, { n: "Compact", safe: "70/110", max: "130/210", man: 6 }, { n: "Sporty Compact", safe: "100/160", max: "140/225", man: 7 }, { n: "Sport Coupe", safe: "110/175", max: "150/240", man: 8 }, { n: "Sports Car", safe: "110/175", max: "160/255", man: 8 }, { n: "Exotic Car", safe: "130/210", max: "190+/305+", man: 9 }, { n: "Luxury Sedan", safe: "85/135", max: "155/250", man: 7 }, { n: "Sport Sedan", safe: "85/135", max: "165/265", man: 8 }, { n: "Midsize", safe: "75/120", max: "125/200", man: 6 }, { n: "SUV/ Crossover", safe: "70/110", max: "115/185", man: 6 }, { n: "Formula One Racer", safe: "140/225", max: "240/385", man: 10 }];
 
-const V20_MERITS_LIST = [
-    { n: "Acute Sense", t: "Merit", v: 1 }, { n: "Ambidextrous", t: "Merit", v: 1 }, { n: "Catlike Balance", t: "Merit", v: 1 },
-    { n: "Early Riser", t: "Merit", v: 1 }, { n: "Eat Food", t: "Merit", v: 1 }, { n: "Blush of Health", t: "Merit", v: 2 },
-    { n: "Enchanting Voice", t: "Merit", v: 2 }, { n: "Daredevil", t: "Merit", v: 3 }, { n: "Efficient Digestion", t: "Merit", v: 3 },
-    { n: "Huge Size", t: "Merit", v: 4 }, { n: "Prestigious Sire", t: "Merit", v: 1 }, { n: "Natural Leader", t: "Merit", v: 1 },
-    { n: "Specific Interests", t: "Merit", v: 1 }, { n: "Harmless", t: "Merit", v: 1 }, { n: "Protege", t: "Merit", v: 1 },
-    { n: "Rep", t: "Merit", v: 1 }, { n: "Language", t: "Merit", v: 1 }, { n: "Common Sense", t: "Merit", v: 1 },
-    { n: "Concentration", t: "Merit", v: 1 }, { n: "Time Sense", t: "Merit", v: 1 }, { n: "Code of Honor", t: "Merit", v: 1 },
-    { n: "Eidetic Memory", t: "Merit", v: 2 }, { n: "Light Sleeper", t: "Merit", v: 2 }, { n: "Calm Heart", t: "Merit", v: 3 },
-    { n: "Iron Will", t: "Merit", v: 3 }, { n: "Medium", t: "Merit", v: 2 }, { n: "Magic Resistance", t: "Merit", v: 2 },
-    { n: "Oracular Ability", t: "Merit", v: 3 }, { n: "Unbondable", t: "Merit", v: 3 }, { n: "Lucky", t: "Merit", v: 3 },
-    { n: "True Faith", t: "Merit", v: 7 },
-];
-
-const V20_FLAWS_LIST = [
-    { n: "Deep Sleeper", t: "Flaw", v: 1 }, { n: "Intolerance", t: "Flaw", v: 1 }, { n: "Nightmare", t: "Flaw", v: 1 },
-    { n: "Prey Exclusion", t: "Flaw", v: 1 }, { n: "Overconfident", t: "Flaw", v: 1 }, { n: "Shy", t: "Flaw", v: 1 },
-    { n: "Soft-Hearted", t: "Flaw", v: 1 }, { n: "Speech Impediment", t: "Flaw", v: 1 }, { n: "Bad Sight", t: "Flaw", v: 2 },
-    { n: "One Eye", t: "Flaw", v: 2 }, { n: "Short Fuse", t: "Flaw", v: 2 }, { n: "Vengeful", t: "Flaw", v: 2 },
-    { n: "Amnesia", t: "Flaw", v: 2 }, { n: "Lunacy", t: "Flaw", v: 2 }, { n: "Phobia", t: "Flaw", v: 2 },
-    { n: "Addiction", t: "Flaw", v: 3 }, { n: "Lame", t: "Flaw", v: 3 }, { n: "Deformity", t: "Flaw", v: 3 },
-    { n: "Deaf", t: "Flaw", v: 4 }, { n: "Hunted", t: "Flaw", v: 4 }, { n: "Blind", t: "Flaw", v: 6 },
-    { n: "Enemy", t: "Flaw", v: 1, range: "1-5", variable: true }, { n: "Dark Secret", t: "Flaw", v: 1, range: "1-5", variable: true },
-    { n: "Cursed", t: "Flaw", v: 1, range: "1-5", variable: true }, { n: "Mistaken Identity", t: "Flaw", v: 1 },
-    { n: "Beacon of the Unholy", t: "Flaw", v: 2 }, { n: "Death Sight", t: "Flaw", v: 2 }, { n: "Haunted", t: "Flaw", v: 3 },
-    { n: "Flashbacks", t: "Flaw", v: 1, range: "1-2", variable: true }
-];
-
-const V20_WEAPONS_LIST = [
-    { n: "Sap / Blackjack", diff: 4, dmg: "Str+1(B)", range: "-", rate: "1", clip: "-" },
-    { n: "Club / Bat", diff: 4, dmg: "Str+2(B)", range: "-", rate: "1", clip: "-" },
-    { n: "Knife", diff: 4, dmg: "Str+1(L)", range: "-", rate: "1", clip: "-" },
-    { n: "Sword", diff: 6, dmg: "Str+2(L)", range: "-", rate: "1", clip: "-" },
-    { n: "Axe", diff: 7, dmg: "Str+3(L)", range: "-", rate: "1", clip: "-" },
-    { n: "Stake", diff: 6, dmg: "Str+1(L)", range: "-", rate: "1", clip: "-" },
-    { n: "Revolver, Lt", diff: 6, dmg: "4", range: "12", rate: "3", clip: "6" },
-    { n: "Revolver, Hvy", diff: 7, dmg: "6", range: "35", rate: "2", clip: "6" },
-    { n: "Pistol, Lt", diff: 6, dmg: "4", range: "20", rate: "4", clip: "17+1" },
-    { n: "Pistol, Hvy", diff: 7, dmg: "5", range: "30", rate: "3", clip: "7+1" },
-    { n: "Rifle", diff: 8, dmg: "8", range: "200", rate: "1", clip: "5+1" },
-    { n: "SMG, Small", diff: 7, dmg: "4", range: "25", rate: "3", clip: "30+1" },
-    { n: "SMG, Large", diff: 6, dmg: "6", range: "50", rate: "3", clip: "30+1" },
-    { n: "Assault Rifle", diff: 7, dmg: "7", range: "150", rate: "3", clip: "30+1" },
-    { n: "Shotgun", diff: 6, dmg: "8", range: "20", rate: "1", clip: "5+1" },
-    { n: "Shotgun, Sawed-Off", diff: 7, dmg: "8", range: "10", rate: "2", clip: "2" }
-];
-
-const V20_ARMOR_LIST = [
-    { n: "Class I (Reinforced Clothing)", r: 1, p: 0 },
-    { n: "Class II (Armor T-Shirt)", r: 2, p: 1 },
-    { n: "Class III (Kevlar Vest)", r: 3, p: 1 },
-    { n: "Class IV (Flak Jacket)", r: 4, p: 2 },
-    { n: "Class V (Full Riot Gear)", r: 5, p: 3 }
-];
-
-const V20_VEHICLE_LIST = [
-    { n: "6-Wheel Truck", safe: "60/95", max: "90/145", man: 3 },
-    { n: "Tank (modern)", safe: "60/95", max: "100/160", man: 4 },
-    { n: "Tank (WWII)", safe: "30/50", max: "40/65", man: 3 },
-    { n: "Bus", safe: "60/95", max: "100/160", man: 3 },
-    { n: "18-Wheeler", safe: "70/110", max: "110/175", man: 4 },
-    { n: "Sedan", safe: "70/110", max: "120/195", man: 5 },
-    { n: "Minivan", safe: "70/110", max: "120/195", man: 6 },
-    { n: "Compact", safe: "70/110", max: "130/210", man: 6 },
-    { n: "Sporty Compact", safe: "100/160", max: "140/225", man: 7 },
-    { n: "Sport Coupe", safe: "110/175", max: "150/240", man: 8 },
-    { n: "Sports Car", safe: "110/175", max: "160/255", man: 8 },
-    { n: "Exotic Car", safe: "130/210", max: "190+/305+", man: 9 },
-    { n: "Luxury Sedan", safe: "85/135", max: "155/250", man: 7 },
-    { n: "Sport Sedan", safe: "85/135", max: "165/265", man: 8 },
-    { n: "Midsize", safe: "75/120", max: "125/200", man: 6 },
-    { n: "SUV/ Crossover", safe: "70/110", max: "115/185", man: 6 },
-    { n: "Formula One Racer", safe: "140/225", max: "240/385", man: 10 }
-];
-
+// --- STATE MANAGEMENT ---
 window.state = {
     isPlayMode: false, freebieMode: false, activePool: [], currentPhase: 1, furthestPhase: 1,
     dots: { attr: {}, abil: {}, disc: {}, back: {}, virt: {}, other: {} },
     prios: { attr: {}, abil: {} },
     status: { humanity: 7, willpower: 5, health: 0, blood: 0 },
     socialExtras: {}, textFields: {}, havens: [], bloodBonds: [], vehicles: [], customAbilityCategories: {},
-    derangements: [],
-    merits: [],
-    flaws: [],
-    inventory: [] 
+    derangements: [], merits: [], flaws: [], inventory: [] 
 };
 
 let user = null;
 
-const setSafeText = (id, val) => {
-    const el = document.getElementById(id);
-    if(el) el.innerText = val;
-};
+const setSafeText = (id, val) => { const el = document.getElementById(id); if(el) el.innerText = val; };
+function showNotification(msg) { const el = document.getElementById('notification'); if (el) { el.innerText = msg; el.style.display = 'block'; setTimeout(() => { el.style.display = 'none'; }, 3000); } }
 
 function syncInputs() {
     document.querySelectorAll('input:not([type="checkbox"]), select, textarea').forEach(el => {
@@ -137,122 +60,77 @@ function syncInputs() {
 }
 
 function hydrateInputs() {
-    Object.entries(window.state.textFields || {}).forEach(([id, val]) => {
-        const el = document.getElementById(id);
-        if (el) el.value = val;
-    });
+    Object.entries(window.state.textFields || {}).forEach(([id, val]) => { const el = document.getElementById(id); if (el) el.value = val; });
 }
 
-function showNotification(msg) {
-    const el = document.getElementById('notification');
-    if (el) { el.innerText = msg; el.style.display = 'block'; setTimeout(() => { el.style.display = 'none'; }, 3000); }
-}
+function renderDots(count, max = 5) { let h = ''; for(let i=1; i<=max; i++) h += `<span class="dot ${i <= count ? 'filled' : ''}" data-v="${i}"></span>`; return h; }
+function renderBoxes(count, checked = 0, type = '') { let h = ''; for(let i=1; i<=count; i++) h += `<span class="box ${i <= checked ? 'checked' : ''}" data-v="${i}" data-type="${type}"></span>`; return h; }
 
-function renderDots(count, max = 5) {
-    let h = ''; for(let i=1; i<=max; i++) h += `<span class="dot ${i <= count ? 'filled' : ''}" data-v="${i}"></span>`;
-    return h;
-}
+// --- CORE FUNCTIONS (Hoisted) ---
 
-function renderBoxes(count, checked = 0, type = '') {
-    let h = ''; for(let i=1; i<=count; i++) h += `<span class="box ${i <= checked ? 'checked' : ''}" data-v="${i}" data-type="${type}"></span>`;
-    return h;
-}
-
-function clearPool() {
+window.clearPool = function() {
     window.state.activePool = [];
     document.querySelectorAll('.trait-label').forEach(el => el.classList.remove('selected'));
     setSafeText('pool-display', "Select traits to build pool...");
     document.getElementById('dice-tray').classList.remove('open');
-}
-window.clearPool = clearPool;
+};
 
-function rollPool() {
+window.rollPool = function() {
     const poolSize = window.state.activePool.reduce((a,b) => a + b.val, 0);
     if (poolSize <= 0) { showNotification("Pool Empty"); return; }
-    
     const diff = parseInt(document.getElementById('roll-diff').value) || 6;
     const isSpec = document.getElementById('use-specialty').checked;
-    
-    let results = [];
-    let ones = 0;
-    let rawSuccesses = 0;
-    
+    let results = [], ones = 0, rawSuccesses = 0;
     for(let i=0; i<poolSize; i++) {
         const die = Math.floor(Math.random() * 10) + 1;
         results.push(die);
         if (die === 1) ones++;
-        if (die >= diff) {
-            if (isSpec && die === 10) { rawSuccesses += 2; } else { rawSuccesses += 1; }
-        }
+        if (die >= diff) { if (isSpec && die === 10) rawSuccesses += 2; else rawSuccesses += 1; }
     }
-
     let net = rawSuccesses - ones;
-    let outcome = "";
-    let outcomeClass = "";
-
+    let outcome = "", outcomeClass = "";
     if (rawSuccesses === 0 && ones > 0) { outcome = "BOTCH"; outcomeClass = "dice-botch"; } 
     else if (net <= 0) { outcome = "FAILURE"; outcomeClass = "text-gray-400"; } 
     else { outcome = `${net} SUCCESS${net > 1 ? 'ES' : ''}`; outcomeClass = "dice-success"; }
-
     const tray = document.getElementById('roll-results');
     const row = document.createElement('div');
     row.className = 'bg-black/60 p-2 border border-[#333] text-[10px] mb-2 animate-in fade-in slide-in-from-right-4 duration-300';
-    
     const diceRender = results.map(d => {
         let c = 'text-gray-500';
         if (d === 1) c = 'text-[#ff0000] font-bold';
-        else if (d >= diff) {
-            c = 'text-[#d4af37] font-bold';
-            if (d === 10 && isSpec) c = 'text-[#4ade80] font-black text-xs';
-        }
+        else if (d >= diff) { c = 'text-[#d4af37] font-bold'; if (d === 10 && isSpec) c = 'text-[#4ade80] font-black text-xs'; }
         return `<span class="${c}">${d}</span>`;
     }).join(' ');
-
     row.innerHTML = `<div class="flex justify-between border-b border-[#444] pb-1 mb-1"><span class="text-gray-400">Diff ${diff}${isSpec ? '*' : ''}</span><span class="${outcomeClass} font-black text-sm">${outcome}</span></div><div class="tracking-widest">${diceRender}</div>`;
     tray.insertBefore(row, tray.firstChild);
-}
-window.rollPool = rollPool;
+};
 
 function calculateTotalFreebiesSpent(tempState = window.state) {
-        let attrDots = 0; Object.keys(ATTRIBUTES).forEach(cat => ATTRIBUTES[cat].forEach(a => attrDots += (tempState.dots.attr[a] || 1)));
-        const attrCost = Math.max(0, attrDots - 24) * 5;
-
-        let abilDots = 0;
-        Object.keys(ABILITIES).forEach(cat => {
-            ABILITIES[cat].forEach(a => abilDots += (tempState.dots.abil[a] || 0));
-            if (tempState.customAbilityCategories) {
-                Object.entries(tempState.customAbilityCategories).forEach(([name, c]) => {
-                    if (c === cat && tempState.dots.abil[name]) abilDots += tempState.dots.abil[name];
-                });
-            }
-        });
-        const abilCost = Math.max(0, abilDots - 27) * 2;
-
-        let discDots = Object.values(tempState.dots.disc || {}).reduce((a,b)=>a+b,0);
-        const discCost = Math.max(0, discDots - 3) * 7;
-
-        let backDots = Object.values(tempState.dots.back || {}).reduce((a,b)=>a+b,0);
-        const backCost = Math.max(0, backDots - 5) * 1;
-
-        let virtDots = VIRTUES.reduce((a,v) => a + (tempState.dots.virt[v] || 1), 0);
-        const virtCost = Math.max(0, virtDots - 10) * 2;
-
-        const bH = (tempState.dots.virt && tempState.dots.virt.Conscience ? tempState.dots.virt.Conscience : 1) + 
-                (tempState.dots.virt && tempState.dots.virt["Self-Control"] ? tempState.dots.virt["Self-Control"] : 1);
-        const bW = (tempState.dots.virt && tempState.dots.virt.Courage ? tempState.dots.virt.Courage : 1);
-        
-        const curH = tempState.status.humanity !== undefined ? tempState.status.humanity : bH;
-        const curW = tempState.status.willpower !== undefined ? tempState.status.willpower : bW;
-        
-        const humCost = Math.max(0, curH - bH) * 2;
-        const willCost = Math.max(0, curW - bW) * 1;
-
-        let mfCost = 0, mfBonus = 0;
-        if (tempState.merits) tempState.merits.forEach(m => mfCost += (parseInt(m.val) || 0));
-        if (tempState.flaws) tempState.flaws.forEach(f => mfBonus += (parseInt(f.val) || 0));
-        
-        const cappedBonus = Math.min(mfBonus, 7);
-        return (attrCost + abilCost + discCost + backCost + virtCost + humCost + willCost + mfCost) - cappedBonus;
+    let attrDots = 0; Object.keys(ATTRIBUTES).forEach(cat => ATTRIBUTES[cat].forEach(a => attrDots += (tempState.dots.attr[a] || 1)));
+    const attrCost = Math.max(0, attrDots - 24) * 5;
+    let abilDots = 0;
+    Object.keys(ABILITIES).forEach(cat => {
+        ABILITIES[cat].forEach(a => abilDots += (tempState.dots.abil[a] || 0));
+        if (tempState.customAbilityCategories) { Object.entries(tempState.customAbilityCategories).forEach(([name, c]) => { if (c === cat && tempState.dots.abil[name]) abilDots += tempState.dots.abil[name]; }); }
+    });
+    const abilCost = Math.max(0, abilDots - 27) * 2;
+    let discDots = Object.values(tempState.dots.disc || {}).reduce((a,b)=>a+b,0);
+    const discCost = Math.max(0, discDots - 3) * 7;
+    let backDots = Object.values(tempState.dots.back || {}).reduce((a,b)=>a+b,0);
+    const backCost = Math.max(0, backDots - 5) * 1;
+    let virtDots = VIRTUES.reduce((a,v) => a + (tempState.dots.virt[v] || 1), 0);
+    const virtCost = Math.max(0, virtDots - 10) * 2;
+    const bH = (tempState.dots.virt?.Conscience || 1) + (tempState.dots.virt?.["Self-Control"] || 1);
+    const bW = (tempState.dots.virt?.Courage || 1);
+    const curH = tempState.status.humanity !== undefined ? tempState.status.humanity : bH;
+    const curW = tempState.status.willpower !== undefined ? tempState.status.willpower : bW;
+    const humCost = Math.max(0, curH - bH) * 2;
+    const willCost = Math.max(0, curW - bW) * 1;
+    let mfCost = 0, mfBonus = 0;
+    if (tempState.merits) tempState.merits.forEach(m => mfCost += (parseInt(m.val) || 0));
+    if (tempState.flaws) tempState.flaws.forEach(f => mfBonus += (parseInt(f.val) || 0));
+    const cappedBonus = Math.min(mfBonus, 7);
+    return (attrCost + abilCost + discCost + backCost + virtCost + humCost + willCost + mfCost) - cappedBonus;
 }
 
 const STEPS_CONFIG = [
@@ -271,9 +149,7 @@ function checkStepComplete(step) {
     const s = window.state;
     if (!s.prios) s.prios = { attr: {}, abil: {} };
     if (!s.dots) s.dots = { attr: {}, abil: {}, disc: {}, back: {}, virt: {} };
-
     if (step === 1) return !!(s.textFields['c-name'] && s.textFields['c-nature'] && s.textFields['c-demeanor'] && s.textFields['c-clan']);
-    
     if (step === 2) {
         const prios = Object.values(s.prios.attr || {});
         if (prios.length !== 3 || !prios.includes(7) || !prios.includes(5) || !prios.includes(3)) return false;
@@ -284,7 +160,6 @@ function checkStepComplete(step) {
             return spent === limit;
         });
     }
-    
     if (step === 3) {
         const prios = Object.values(s.prios.abil || {});
         if (prios.length !== 3 || !prios.includes(13) || !prios.includes(9) || !prios.includes(5)) return false;
@@ -296,28 +171,26 @@ function checkStepComplete(step) {
             return spent === limit;
         });
     }
-    
     if (step === 4) {
         const discSpent = Object.values(s.dots.disc || {}).reduce((a, b) => a + parseInt(b||0), 0);
         const backSpent = Object.values(s.dots.back || {}).reduce((a, b) => a + parseInt(b||0), 0);
         const virtTotal = VIRTUES.reduce((a, v) => a + parseInt(s.dots.virt[v] || 1), 0);
         return discSpent === 3 && backSpent === 5 && virtTotal === 10;
     }
-    
     return true;
 }
 
-function updateWalkthrough() {
+function checkCreationComplete() { return checkStepComplete(1) && checkStepComplete(2) && checkStepComplete(3) && checkStepComplete(4); }
+
+window.updateWalkthrough = function() {
     if (window.state.isPlayMode) { document.getElementById('walkthrough-guide').classList.add('opacity-0', 'pointer-events-none'); return; } 
     else { document.getElementById('walkthrough-guide').classList.remove('opacity-0', 'pointer-events-none'); }
-
     const current = window.state.currentPhase;
     const furthest = window.state.furthestPhase || 1;
     const isComplete = checkStepComplete(current);
     const msgEl = document.getElementById('guide-message');
     const iconEl = document.getElementById('guide-icon');
     const stepData = STEPS_CONFIG.find(s => s.id === current);
-
     if (current < furthest) {
         msgEl.innerText = `Return to Step ${furthest}`;
         msgEl.className = "bg-gray-900/90 border border-gray-500 text-gray-300 px-4 py-2 rounded text-xs font-bold shadow-lg w-48 text-right";
@@ -333,30 +206,24 @@ function updateWalkthrough() {
             iconEl.classList.remove('ready');
         }
     }
-}
-window.updateWalkthrough = updateWalkthrough;
+};
 
-function nextStep() {
+window.nextStep = function() {
     const current = window.state.currentPhase;
     const furthest = window.state.furthestPhase || 1;
-    if (current < furthest) changeStep(furthest);
-    else if (checkStepComplete(current)) { if (current < 8) changeStep(current + 1); else showNotification("Character Ready!"); } 
+    if (current < furthest) window.changeStep(furthest);
+    else if (checkStepComplete(current)) { if (current < 8) window.changeStep(current + 1); else showNotification("Character Ready!"); } 
     else showNotification("Complete current step first!");
-}
-window.nextStep = nextStep;
+};
 
-function checkCreationComplete() { return checkStepComplete(1) && checkStepComplete(2) && checkStepComplete(3) && checkStepComplete(4); }
-
-function updatePools() {
+window.updatePools = function() {
     if (!window.state.status) window.state.status = { humanity: 7, willpower: 5, health: 0, blood: 0 };
-    
     if (!window.state.freebieMode && !window.state.isPlayMode) {
         const bH = (window.state.dots.virt?.Conscience || 1) + (window.state.dots.virt?.["Self-Control"] || 1);
         const bW = (window.state.dots.virt?.Courage || 1);
         window.state.status.humanity = bH;
         window.state.status.willpower = bW;
     }
-
     const curH = window.state.status.humanity;
     const curW = window.state.status.willpower;
     const gen = parseInt(document.getElementById('c-gen')?.value) || 13;
@@ -364,17 +231,14 @@ function updatePools() {
 
     Object.keys(ATTRIBUTES).forEach(cat => {
         let cs = 0; ATTRIBUTES[cat].forEach(a => cs += ((window.state.dots.attr[a] || 1) - 1));
-        const elId = 'p-' + cat.toLowerCase().slice(0,4);
-        const targetId = elId === 'p-soci' ? 'p-social' : elId === 'p-ment' ? 'p-mental' : elId;
+        const targetId = (cat === 'Social') ? 'p-social' : (cat === 'Mental') ? 'p-mental' : 'p-phys';
         setSafeText(targetId, `[${Math.max(0, (window.state.prios.attr[cat] || 0) - cs)}]`);
     });
-
     Object.keys(ABILITIES).forEach(cat => {
         let cs = 0; ABILITIES[cat].forEach(a => cs += (window.state.dots.abil[a] || 0));
         if (window.state.customAbilityCategories) { Object.entries(window.state.customAbilityCategories).forEach(([name, c]) => { if (c === cat && window.state.dots.abil[name]) cs += window.state.dots.abil[name]; }); }
         setSafeText('p-' + cat.toLowerCase().slice(0,3), `[${Math.max(0, (window.state.prios.abil[cat] || 0) - cs)}]`);
     });
-    
     const discSpent = Object.values(window.state.dots.disc || {}).reduce((a, b) => a + b, 0);
     setSafeText('p-disc', `[${Math.max(0, 3 - discSpent)}]`);
     const backSpent = Object.values(window.state.dots.back || {}).reduce((a, b) => a + b, 0);
@@ -383,40 +247,32 @@ function updatePools() {
     setSafeText('p-virt', `[${Math.max(0, 7 - (virtTotalDots - 3))}]`);
 
     if (window.state.freebieMode) {
-            const totalSpent = calculateTotalFreebiesSpent(window.state);
-            setSafeText('f-total-top', totalSpent); 
-            
-            let attrDots = 0; Object.keys(ATTRIBUTES).forEach(cat => ATTRIBUTES[cat].forEach(a => attrDots += (window.state.dots.attr[a] || 1)));
-            setSafeText('sb-attr', Math.max(0, attrDots - 24) * 5);
-
-            let abilDots = 0; Object.keys(ABILITIES).forEach(cat => { ABILITIES[cat].forEach(a => abilDots += (window.state.dots.abil[a] || 0)); if (window.state.customAbilityCategories) { Object.entries(window.state.customAbilityCategories).forEach(([name, c]) => { if (c === cat && window.state.dots.abil[name]) abilDots += window.state.dots.abil[name]; }); } });
-            setSafeText('sb-abil', Math.max(0, abilDots - 27) * 2);
-
-            setSafeText('sb-disc', Math.max(0, discSpent - 3) * 7);
-            setSafeText('sb-back', Math.max(0, backSpent - 5) * 1);
-            setSafeText('sb-virt', Math.max(0, (virtTotalDots-3) - 7) * 2);
-            
-            const bH = (window.state.dots.virt?.Conscience || 1) + (window.state.dots.virt?.["Self-Control"] || 1);
-            const bW = (window.state.dots.virt?.Courage || 1);
-            const cH = window.state.status.humanity !== undefined ? window.state.status.humanity : bH;
-            const cW = window.state.status.willpower !== undefined ? window.state.status.willpower : bW;
-
-            setSafeText('sb-human', Math.max(0, cH - bH) * 2);
-            setSafeText('sb-will', Math.max(0, cW - bW) * 1);
-
-            let mfCost = 0, mfBonus = 0;
-            if (window.state.merits) window.state.merits.forEach(m => mfCost += (parseInt(m.val) || 0));
-            if (window.state.flaws) window.state.flaws.forEach(f => mfBonus += (parseInt(f.val) || 0));
-            const cappedBonus = Math.min(mfBonus, 7);
-
-            setSafeText('sb-merit', mfCost);
-            setSafeText('sb-flaw', `+${cappedBonus}`);
-            
-            const limit = parseInt(document.getElementById('c-freebie-total')?.value) || 15;
-            setSafeText('sb-total', limit - totalSpent);
-            document.getElementById('freebie-sidebar').classList.add('active'); 
+         const totalSpent = calculateTotalFreebiesSpent(window.state);
+         setSafeText('f-total-top', totalSpent); 
+         let attrDots = 0; Object.keys(ATTRIBUTES).forEach(cat => ATTRIBUTES[cat].forEach(a => attrDots += (window.state.dots.attr[a] || 1)));
+         setSafeText('sb-attr', Math.max(0, attrDots - 24) * 5);
+         let abilDots = 0; Object.keys(ABILITIES).forEach(cat => { ABILITIES[cat].forEach(a => abilDots += (window.state.dots.abil[a] || 0)); if (window.state.customAbilityCategories) { Object.entries(window.state.customAbilityCategories).forEach(([name, c]) => { if (c === cat && window.state.dots.abil[name]) abilDots += window.state.dots.abil[name]; }); } });
+         setSafeText('sb-abil', Math.max(0, abilDots - 27) * 2);
+         setSafeText('sb-disc', Math.max(0, discSpent - 3) * 7);
+         setSafeText('sb-back', Math.max(0, backSpent - 5) * 1);
+         setSafeText('sb-virt', Math.max(0, (virtTotalDots-3) - 7) * 2);
+         const bH = (window.state.dots.virt?.Conscience || 1) + (window.state.dots.virt?.["Self-Control"] || 1);
+         const bW = (window.state.dots.virt?.Courage || 1);
+         const cH = window.state.status.humanity !== undefined ? window.state.status.humanity : bH;
+         const cW = window.state.status.willpower !== undefined ? window.state.status.willpower : bW;
+         setSafeText('sb-human', Math.max(0, cH - bH) * 2);
+         setSafeText('sb-will', Math.max(0, cW - bW) * 1);
+         let mfCost = 0, mfBonus = 0;
+         if (window.state.merits) window.state.merits.forEach(m => mfCost += (parseInt(m.val) || 0));
+         if (window.state.flaws) window.state.flaws.forEach(f => mfBonus += (parseInt(f.val) || 0));
+         const cappedBonus = Math.min(mfBonus, 7);
+         setSafeText('sb-merit', mfCost);
+         setSafeText('sb-flaw', `+${cappedBonus}`);
+         const limit = parseInt(document.getElementById('c-freebie-total')?.value) || 15;
+         setSafeText('sb-total', limit - totalSpent);
+         document.getElementById('freebie-sidebar').classList.add('active'); 
     } else {
-            document.getElementById('freebie-sidebar').classList.remove('active');
+         document.getElementById('freebie-sidebar').classList.remove('active');
     }
 
     const fbBtn = document.getElementById('toggle-freebie-btn');
@@ -452,32 +308,29 @@ function updatePools() {
     
     const healthCont = document.getElementById('health-chart-play');
     if(healthCont && healthCont.children.length === 0) {
-            HEALTH_STATES.forEach((h, i) => {
+         HEALTH_STATES.forEach((h, i) => {
             const d = document.createElement('div'); d.className = 'flex justify-between items-center text-[10px] uppercase border-b border-[#333] py-2 font-bold';
             d.innerHTML = `<span>${h.l}</span><div class="flex gap-3"><span>${h.p !== 0 ? h.p : ''}</span><div class="box" data-v="${i+1}" data-type="health"></div></div>`;
             healthCont.appendChild(d);
         });
     }
-
-    document.querySelectorAll('#health-chart-play .box').forEach((box, i) => {
-        box.classList.toggle('checked', i < window.state.status.health);
-    });
+    document.querySelectorAll('#health-chart-play .box').forEach((box, i) => { box.classList.toggle('checked', i < window.state.status.health); });
     
     const cList = document.getElementById('combat-list-create');
     if(cList && window.state.inventory) {
         cList.innerHTML = '';
         window.state.inventory.filter(i => i.type === 'Weapon' && i.status === 'carried').forEach(w => {
-                let display = w.displayName || w.name;
-                const r = document.createElement('div');
-                r.className = "grid grid-cols-6 gap-2 text-[10px] border-b border-[#222] py-1 text-center text-white items-center";
-                r.innerHTML = `
+             let display = w.displayName || w.name;
+             const r = document.createElement('div');
+             r.className = "grid grid-cols-6 gap-2 text-[10px] border-b border-[#222] py-1 text-center text-white items-center";
+             r.innerHTML = `
                 <div class="col-span-2 text-left pl-2 font-bold text-gold truncate">${display}</div>
                 <div>${w.stats.diff}</div>
                 <div class="text-gold font-bold">${w.stats.dmg}</div>
                 <div>${w.stats.range}</div>
                 <div>${w.stats.clip}</div>
-                `;
-                cList.appendChild(r);
+             `;
+             cList.appendChild(r);
         });
         
         let totalArmor = 0; let totalPenalty = 0; let activeArmor = [];
@@ -486,15 +339,12 @@ function updatePools() {
             totalPenalty += parseInt(a.stats?.penalty) || 0;
             activeArmor.push(a.displayName || a.name);
         });
-        
         setSafeText('total-armor-rating', totalArmor);
         setSafeText('total-armor-penalty', totalPenalty);
         setSafeText('active-armor-names', activeArmor.length > 0 ? activeArmor.join(', ') : "None");
     }
-
-    updateWalkthrough();
-}
-window.updatePools = updatePools;
+    window.updateWalkthrough();
+};
 
 function setDots(name, type, val, min, max = 5) {
     if (window.state.isPlayMode) return;
@@ -503,129 +353,96 @@ function setDots(name, type, val, min, max = 5) {
         if (name === 'Humanity') window.state.status.humanity = val;
         else if (name === 'Willpower') window.state.status.willpower = val;
         if (calculateTotalFreebiesSpent(window.state) > (parseInt(document.getElementById('c-freebie-total')?.value) || 15)) { showNotification("Freebie Limit Exceeded!"); return; }
-        updatePools(); return;
+        window.updatePools(); return;
     }
-
     const currentVal = window.state.dots[type][name] || min;
     let newVal = val;
     if (val === currentVal) newVal = val - 1;
     if (newVal < min) newVal = min;
-    
     if (window.state.freebieMode) {
         const tempState = JSON.parse(JSON.stringify(window.state));
         if (!tempState.dots[type]) tempState.dots[type] = {};
         tempState.dots[type][name] = newVal;
-        
         const projectedCost = calculateTotalFreebiesSpent(tempState);
         const limit = parseInt(document.getElementById('c-freebie-total')?.value) || 15;
         if (projectedCost > limit) { showNotification("Freebie Limit Exceeded!"); return; }
     } else {
         if (type === 'attr') {
-            let group = null;
-            Object.keys(ATTRIBUTES).forEach(k => { if(ATTRIBUTES[k].includes(name)) group = k; });
+            let group = null; Object.keys(ATTRIBUTES).forEach(k => { if(ATTRIBUTES[k].includes(name)) group = k; });
             if (group) {
-                    const limit = window.state.prios.attr[group];
-                    if (limit === undefined) { showNotification(`Select priority for ${group}!`); return; }
-                    let currentSpent = 0;
-                    ATTRIBUTES[group].forEach(a => { if (a !== name) { const v = window.state.dots.attr[a] || 1; currentSpent += (v - 1); } });
-                    if (currentSpent + (newVal - 1) > limit) { showNotification("Limit Exceeded!"); return; }
+                 const limit = window.state.prios.attr[group];
+                 if (limit === undefined) { showNotification(`Select priority for ${group}!`); return; }
+                 let currentSpent = 0;
+                 ATTRIBUTES[group].forEach(a => { if (a !== name) { const v = window.state.dots.attr[a] || 1; currentSpent += (v - 1); } });
+                 if (currentSpent + (newVal - 1) > limit) { showNotification("Limit Exceeded!"); return; }
             }
-        }
-        else if (type === 'abil') {
+        } else if (type === 'abil') {
             if (newVal > 3) { showNotification("Max 3 dots in Abilities during creation!"); return; }
-            let group = null;
-            Object.keys(ABILITIES).forEach(k => { if(ABILITIES[k].includes(name)) group = k; });
+            let group = null; Object.keys(ABILITIES).forEach(k => { if(ABILITIES[k].includes(name)) group = k; });
             if (!group && window.state.customAbilityCategories && window.state.customAbilityCategories[name]) group = window.state.customAbilityCategories[name];
-
             if (group) {
                 const limit = window.state.prios.abil[group];
                 if (limit === undefined) { showNotification(`Select priority for ${group}!`); return; }
-                let currentSpent = 0;
-                ABILITIES[group].forEach(a => { if (a !== name) currentSpent += (window.state.dots.abil[a] || 0); });
+                let currentSpent = 0; ABILITIES[group].forEach(a => { if (a !== name) currentSpent += (window.state.dots.abil[a] || 0); });
                 if (window.state.customAbilityCategories) { Object.keys(window.state.dots.abil).forEach(k => { if (k !== name && window.state.customAbilityCategories[k] === group) currentSpent += (window.state.dots.abil[k] || 0); }); }
                 if (currentSpent + newVal > limit) { showNotification("Limit Exceeded!"); return; }
             }
-        }
-        else if (type === 'disc') {
-            let currentSpent = 0;
-            Object.keys(window.state.dots.disc).forEach(d => { if (d !== name) currentSpent += (window.state.dots.disc[d] || 0); });
+        } else if (type === 'disc') {
+            let currentSpent = 0; Object.keys(window.state.dots.disc).forEach(d => { if (d !== name) currentSpent += (window.state.dots.disc[d] || 0); });
             if (currentSpent + newVal > 3) { showNotification("Max 3 Creation Dots!"); return; }
-        }
-        else if (type === 'back') {
-            let currentSpent = 0;
-            Object.keys(window.state.dots.back).forEach(b => { if (b !== name) currentSpent += (window.state.dots.back[b] || 0); });
+        } else if (type === 'back') {
+            let currentSpent = 0; Object.keys(window.state.dots.back).forEach(b => { if (b !== name) currentSpent += (window.state.dots.back[b] || 0); });
             if (currentSpent + newVal > 5) { showNotification("Max 5 Creation Dots!"); return; }
-        }
-        else if (type === 'virt') {
-            let currentSpent = 0;
-            VIRTUES.forEach(v => { if (v !== name) currentSpent += (window.state.dots.virt[v] || 1); });
+        } else if (type === 'virt') {
+            let currentSpent = 0; VIRTUES.forEach(v => { if (v !== name) currentSpent += (window.state.dots.virt[v] || 1); });
             if ((currentSpent + newVal) > 10) { showNotification("Max 7 Creation Dots!"); return; }
         }
     }
-
     window.state.dots[type][name] = newVal;
-    
     if (type === 'virt' && !window.state.isPlayMode && !window.state.freebieMode) {
-            const con = window.state.dots.virt.Conscience || 1;
-            const self = window.state.dots.virt["Self-Control"] || 1;
-            const cou = window.state.dots.virt.Courage || 1;
-            window.state.status.humanity = con + self;
-            window.state.status.willpower = cou;
+         const con = window.state.dots.virt.Conscience || 1;
+         const self = window.state.dots.virt["Self-Control"] || 1;
+         const cou = window.state.dots.virt.Courage || 1;
+         window.state.status.humanity = con + self;
+         window.state.status.willpower = cou;
     }
-
     document.querySelectorAll(`.dot-row[data-n="${name}"][data-t="${type}"]`).forEach(el => el.innerHTML = renderDots(newVal, max));
-    updatePools();
+    window.updatePools();
 }
 
-function renderInventoryList() {
+window.renderInventoryList = function() {
     const listCarried = document.getElementById('inv-list-carried');
     const listOwned = document.getElementById('inv-list-owned');
     const listVehicles = document.getElementById('vehicle-list');
-    
     if(listCarried) listCarried.innerHTML = '';
     if(listOwned) listOwned.innerHTML = '';
     if(listVehicles) listVehicles.innerHTML = '';
-    
     if(!listCarried || !listOwned || !listVehicles) return;
-    
     (window.state.inventory || []).forEach((item, idx) => {
         const d = document.createElement('div');
         d.className = "flex justify-between items-center bg-black/40 border border-[#333] p-1 text-[10px] mb-1";
-        
         let displayName = item.displayName || item.name;
         if(item.type === 'Weapon' && item.baseType && item.baseType !== displayName) displayName += ` <span class="text-gray-500">[${item.baseType}]</span>`;
-
         let details = "";
         if(item.type === 'Weapon') details = `<div class="text-gray-400 text-[9px] mt-0.5 ml-1">Diff:${item.stats.diff} Dmg:${item.stats.dmg} Rng:${item.stats.range}</div>`;
         else if(item.type === 'Armor') details = `<div class="text-gray-400 text-[9px] mt-0.5 ml-1">Rating:${item.stats.rating} Penalty:${item.stats.penalty}</div>`;
         else if(item.type === 'Vehicle') details = `<div class="text-gray-400 text-[9px] mt-0.5 ml-1">Safe:${item.stats.safe} Max:${item.stats.max} Man:${item.stats.man}</div>`;
-        
         const statusColor = item.status === 'carried' ? 'text-green-400' : 'text-gray-500';
         const statusLabel = item.status === 'carried' ? 'CARRIED' : 'OWNED';
-        
         d.innerHTML = `
-            <div class="flex-1 overflow-hidden mr-2">
-                <div class="font-bold text-white uppercase truncate" title="${item.displayName || item.name}">${displayName}</div>
-                ${details}
-            </div>
+            <div class="flex-1 overflow-hidden mr-2"><div class="font-bold text-white uppercase truncate" title="${item.displayName || item.name}">${displayName}</div>${details}</div>
             <div class="flex items-center gap-2 flex-shrink-0">
                 ${item.type !== 'Vehicle' ? `<button class="${statusColor} font-bold text-[8px] border border-[#333] px-1 hover:bg-[#222]" onclick="window.toggleInvStatus(${idx})">${statusLabel}</button>` : ''}
                 <button class="text-red-500 font-bold px-1 hover:text-red-300" onclick="window.removeInventory(${idx})">&times;</button>
-            </div>
-        `;
-        
+            </div>`;
         if (item.type === 'Vehicle') listVehicles.appendChild(d);
-        else {
-            if (item.status === 'carried') listCarried.appendChild(d);
-            else listOwned.appendChild(d);
-        }
+        else { if (item.status === 'carried') listCarried.appendChild(d); else listOwned.appendChild(d); }
     });
-    updatePools();
-}
+    window.updatePools();
+};
 
-window.removeInventory = (idx) => { window.state.inventory.splice(idx, 1); renderInventoryList(); };
-window.toggleInvStatus = (idx) => { const item = window.state.inventory[idx]; item.status = item.status === 'carried' ? 'owned' : 'carried'; renderInventoryList(); };
-window.renderInventoryList = renderInventoryList;
+window.removeInventory = (idx) => { window.state.inventory.splice(idx, 1); window.renderInventoryList(); };
+window.toggleInvStatus = (idx) => { const item = window.state.inventory[idx]; item.status = item.status === 'carried' ? 'owned' : 'carried'; window.renderInventoryList(); };
 
 function renderRow(contId, label, type, min, max = 5) {
     const cont = typeof contId === 'string' ? document.getElementById(contId) : contId;
@@ -633,13 +450,12 @@ function renderRow(contId, label, type, min, max = 5) {
     const val = window.state.dots[type][label] || min;
     const div = document.createElement('div'); div.className = 'flex justify-between items-center text-[11px] py-1';
     div.innerHTML = `<span class="trait-label uppercase">${label}</span><div class="dot-row" data-n="${label}" data-t="${type}">${renderDots(val, max)}</div>`;
-    div.querySelector('.trait-label').onclick = () => { if(window.state.isPlayMode) handleTraitClick(label, type); };
+    div.querySelector('.trait-label').onclick = () => { if(window.state.isPlayMode) window.handleTraitClick(label, type); };
     div.querySelector('.dot-row').onclick = (e) => { if (e.target.dataset.v) setDots(label, type, parseInt(e.target.dataset.v), min, max); };
     cont.appendChild(div);
 }
-window.renderRow = renderRow;
 
-function handleTraitClick(name, type) {
+window.handleTraitClick = function(name, type) {
     const val = window.state.dots[type][name] || 0;
     const existingIdx = window.state.activePool.findIndex(p => p.name === name);
     if (existingIdx > -1) window.state.activePool.splice(existingIdx, 1);
@@ -650,9 +466,9 @@ function handleTraitClick(name, type) {
         setSafeText('pool-display', window.state.activePool.map(p => `${p.name} (${p.val})`).join(' + '));
         document.getElementById('dice-tray').classList.add('open');
     } else { window.clearPool(); }
-}
+};
 
-async function saveCharacter() {
+window.saveCharacter = async function() {
     if (!user) { showNotification("Authentication required"); return; }
     const filename = document.getElementById('save-filename').value.trim();
     if (!filename) return showNotification("Filename required");
@@ -663,10 +479,9 @@ async function saveCharacter() {
         showNotification("Inscribed.");
         await refreshList();
     } catch (e) { showNotification("Save Error."); console.error(e); }
-}
-window.saveCharacter = saveCharacter;
+};
 
-async function loadCharacter() {
+window.loadCharacter = async function() {
     const name = document.getElementById('char-select').value;
     if (!name || !user) return;
     try {
@@ -675,31 +490,24 @@ async function loadCharacter() {
         if (snap.exists()) {
             window.state = snap.data();
             if (!window.state.furthestPhase) window.state.furthestPhase = 1;
-            
             hydrateInputs();
-            
             const mList = document.getElementById('merits-list-create');
             if(mList) { mList.innerHTML = ''; renderDynamicTraitRow('merits-list-create', 'Merit', V20_MERITS_LIST); }
             const fList = document.getElementById('flaws-list-create');
             if(fList) { fList.innerHTML = ''; renderDynamicTraitRow('flaws-list-create', 'Flaw', V20_FLAWS_LIST); }
-            
             renderDynamicAdvantageRow('list-disc', 'disc', DISCIPLINES);
             renderDynamicAdvantageRow('list-back', 'back', BACKGROUNDS);
             renderDynamicAdvantageRow('custom-talents', 'abil', [], true);
             renderDynamicAdvantageRow('custom-skills', 'abil', [], true);
             renderDynamicAdvantageRow('custom-knowledges', 'abil', [], true);
-
-            renderInventoryList();
-            
-            updatePools();
+            window.renderInventoryList();
+            window.updatePools();
             showNotification("Recalled.");
-            
-            if (window.state.isPlayMode) { togglePlayMode(); togglePlayMode(); }
+            if (window.state.isPlayMode) { window.togglePlayMode(); window.togglePlayMode(); }
             window.changeStep(window.state.furthestPhase || 1);
         }
     } catch (e) { showNotification("Recall Error."); console.error(e); }
-}
-window.loadCharacter = loadCharacter;
+};
 
 async function refreshList() {
     if (!user) return;
@@ -712,10 +520,8 @@ async function refreshList() {
 function renderDynamicTraitRow(containerId, type, list) {
     const container = document.getElementById(containerId);
     if (!container) return;
-    
     const stateArray = type === 'Merit' ? (window.state.merits || []) : (window.state.flaws || []);
     container.innerHTML = '';
-
     const appendRow = (data = null) => {
         const row = document.createElement('div'); row.className = 'flex gap-2 items-center mb-2 trait-row';
         let options = `<option value="">-- Select ${type} --</option>`;
@@ -724,51 +530,23 @@ function renderDynamicTraitRow(containerId, type, list) {
             options += `<option value="${item.n}" data-val="${item.v}" data-var="${item.variable||false}">${item.n} ${rangeText}</option>`;
         });
         options += '<option value="Custom">-- Custom / Write-in --</option>';
-
-        row.innerHTML = `
-            <div class="flex-1 relative">
-                <select class="w-full text-[11px] font-bold uppercase bg-[#111] text-white border-b border-[#444]">${options}</select>
-                <input type="text" placeholder="Custom Name..." class="hidden w-full text-[11px] font-bold uppercase border-b border-[#444] bg-transparent text-white">
-            </div>
-            <input type="number" class="w-10 text-center text-[11px] !border !border-[#444] font-bold" min="1">
-            <div class="remove-btn">&times;</div>
-        `;
+        row.innerHTML = `<div class="flex-1 relative"><select class="w-full text-[11px] font-bold uppercase bg-[#111] text-white border-b border-[#444]">${options}</select><input type="text" placeholder="Custom Name..." class="hidden w-full text-[11px] font-bold uppercase border-b border-[#444] bg-transparent text-white"></div><input type="number" class="w-10 text-center text-[11px] !border !border-[#444] font-bold" min="1"><div class="remove-btn">&times;</div>`;
         container.appendChild(row);
-
         const selectEl = row.querySelector('select');
         const textEl = row.querySelector('input[type="text"]');
         const numEl = row.querySelector('input[type="number"]');
         const removeBtn = row.querySelector('.remove-btn');
-
         const isLocked = !window.state.freebieMode;
-        selectEl.disabled = isLocked;
-        textEl.disabled = isLocked;
-        numEl.disabled = isLocked;
-        if(isLocked) {
-            selectEl.classList.add('opacity-50', 'cursor-not-allowed');
-            textEl.classList.add('opacity-50', 'cursor-not-allowed');
-            numEl.classList.add('opacity-50', 'cursor-not-allowed');
-        }
-
+        selectEl.disabled = isLocked; textEl.disabled = isLocked; numEl.disabled = isLocked;
+        if(isLocked) { selectEl.classList.add('opacity-50'); textEl.classList.add('opacity-50'); numEl.classList.add('opacity-50'); }
         if (data) {
             const exists = list.some(l => l.n === data.name);
             if (exists) {
-                selectEl.value = data.name;
-                numEl.value = data.val;
+                selectEl.value = data.name; numEl.value = data.val;
                 const itemData = list.find(l => l.n === data.name);
                 if (itemData && !itemData.variable) { numEl.disabled = true; numEl.classList.add('opacity-50'); }
-            } else {
-                selectEl.value = "Custom";
-                selectEl.classList.add('hidden');
-                textEl.classList.remove('hidden');
-                textEl.value = data.name;
-                numEl.value = data.val;
-            }
-        } else {
-            numEl.value = "";
-            removeBtn.style.visibility = 'hidden'; 
-        }
-
+            } else { selectEl.value = "Custom"; selectEl.classList.add('hidden'); textEl.classList.remove('hidden'); textEl.value = data.name; numEl.value = data.val; }
+        } else { numEl.value = ""; removeBtn.style.visibility = 'hidden'; }
         const syncState = () => {
             const allRows = container.querySelectorAll('.trait-row');
             const newState = [];
@@ -781,18 +559,11 @@ function renderDynamicTraitRow(containerId, type, list) {
                 if (name && name !== 'Custom') newState.push({ name, val });
             });
             if (type === 'Merit') window.state.merits = newState; else window.state.flaws = newState;
-            updatePools();
+            window.updatePools();
         };
-
         selectEl.addEventListener('change', (e) => {
-            if (selectEl.value === 'Custom') {
-                selectEl.classList.add('hidden');
-                textEl.classList.remove('hidden');
-                textEl.focus();
-                numEl.value = 1;
-                numEl.disabled = false;
-                numEl.classList.remove('opacity-50');
-            } else if (selectEl.value) {
+            if (selectEl.value === 'Custom') { selectEl.classList.add('hidden'); textEl.classList.remove('hidden'); textEl.focus(); numEl.value = 1; numEl.disabled = false; numEl.classList.remove('opacity-50'); } 
+            else if (selectEl.value) {
                 const opt = selectEl.options[selectEl.selectedIndex];
                 const baseVal = opt.dataset.val;
                 const isVar = opt.dataset.var === "true";
@@ -802,22 +573,15 @@ function renderDynamicTraitRow(containerId, type, list) {
             } else { numEl.value = ""; numEl.disabled = false; }
             syncState();
         });
-
-        textEl.addEventListener('blur', () => {
-            if (textEl.value === "") { textEl.classList.add('hidden'); selectEl.classList.remove('hidden'); selectEl.value = ""; } 
-            else { if (row === container.lastElementChild) { removeBtn.style.visibility = 'visible'; appendRow(); } }
-            syncState();
-        });
-
+        textEl.addEventListener('blur', () => { if (textEl.value === "") { textEl.classList.add('hidden'); selectEl.classList.remove('hidden'); selectEl.value = ""; } else { if (row === container.lastElementChild) { removeBtn.style.visibility = 'visible'; appendRow(); } } syncState(); });
         numEl.addEventListener('change', syncState);
         removeBtn.addEventListener('click', () => { row.remove(); syncState(); });
     };
-
     if (stateArray.length > 0) stateArray.forEach(d => appendRow(d));
     appendRow();
 }
 
-// Inventory UI Setup (unchanged, just ensuring it runs)
+// Inventory UI Setup
 const invType = document.getElementById('inv-type');
 const invName = document.getElementById('inv-name');
 const invBaseWrapper = document.getElementById('inv-base-wrapper');
@@ -830,152 +594,74 @@ const addBtn = document.getElementById('add-inv-btn');
 if(invType) {
     const updateFormState = () => {
         const t = invType.value;
-        if(t === 'Weapon') {
-            invBaseWrapper.classList.remove('hidden');
-            let wOpts = `<option value="">-- Choose Base Type --</option>`;
-            V20_WEAPONS_LIST.forEach(w => wOpts += `<option value="${w.n}" data-diff="${w.diff}" data-dmg="${w.dmg}" data-range="${w.range}" data-rate="${w.rate}" data-clip="${w.clip}">${w.n}</option>`);
-            invBaseSelect.innerHTML = wOpts;
-            statsRow.classList.remove('hidden'); armorRow.classList.add('hidden'); vehicleRow.classList.add('hidden');
-        } else if(t === 'Armor') {
-            invBaseWrapper.classList.remove('hidden');
-            let aOpts = `<option value="">-- Choose Armor Class --</option>`;
-            V20_ARMOR_LIST.forEach(a => aOpts += `<option value="${a.n}" data-rating="${a.r}" data-penalty="${a.p}">${a.n}</option>`);
-            invBaseSelect.innerHTML = aOpts;
-            statsRow.classList.add('hidden'); armorRow.classList.remove('hidden'); vehicleRow.classList.add('hidden');
-        } else if(t === 'Vehicle') {
-            invBaseWrapper.classList.remove('hidden');
-            let vOpts = `<option value="">-- Choose Vehicle Type --</option>`;
-            V20_VEHICLE_LIST.forEach(v => vOpts += `<option value="${v.n}" data-safe="${v.safe}" data-max="${v.max}" data-man="${v.man}">${v.n}</option>`);
-            invBaseSelect.innerHTML = vOpts;
-            statsRow.classList.add('hidden'); armorRow.classList.add('hidden'); vehicleRow.classList.remove('hidden');
-        } else {
-            invBaseWrapper.classList.add('hidden'); statsRow.classList.add('hidden'); armorRow.classList.add('hidden'); vehicleRow.classList.add('hidden');
-        }
+        invBaseWrapper.classList.add('hidden'); statsRow.classList.add('hidden'); armorRow.classList.add('hidden'); vehicleRow.classList.add('hidden');
+        if(t === 'Weapon') { invBaseWrapper.classList.remove('hidden'); let wOpts = `<option value="">-- Choose Base Type --</option>`; V20_WEAPONS_LIST.forEach(w => wOpts += `<option value="${w.n}" data-diff="${w.diff}" data-dmg="${w.dmg}" data-range="${w.range}" data-rate="${w.rate}" data-clip="${w.clip}">${w.n}</option>`); invBaseSelect.innerHTML = wOpts; statsRow.classList.remove('hidden'); } 
+        else if(t === 'Armor') { invBaseWrapper.classList.remove('hidden'); let aOpts = `<option value="">-- Choose Armor Class --</option>`; V20_ARMOR_LIST.forEach(a => aOpts += `<option value="${a.n}" data-rating="${a.r}" data-penalty="${a.p}">${a.n}</option>`); invBaseSelect.innerHTML = aOpts; armorRow.classList.remove('hidden'); } 
+        else if(t === 'Vehicle') { invBaseWrapper.classList.remove('hidden'); let vOpts = `<option value="">-- Choose Vehicle Type --</option>`; V20_VEHICLE_LIST.forEach(v => vOpts += `<option value="${v.n}" data-safe="${v.safe}" data-max="${v.max}" data-man="${v.man}">${v.n}</option>`); invBaseSelect.innerHTML = vOpts; vehicleRow.classList.remove('hidden'); }
         invBaseSelect.value = ""; invName.value = ""; 
         document.querySelectorAll('#inv-stats-row input, #inv-armor-row input, #inv-vehicle-row input').forEach(i => i.value = "");
     };
-
     updateFormState();
     invType.addEventListener('change', updateFormState);
-
     invBaseSelect.addEventListener('change', () => {
         const t = invType.value;
         if(invBaseSelect.value) {
             const opt = invBaseSelect.options[invBaseSelect.selectedIndex];
-            if(t === 'Weapon') {
-                document.getElementById('inv-diff').value = opt.dataset.diff;
-                document.getElementById('inv-dmg').value = opt.dataset.dmg;
-                document.getElementById('inv-range').value = opt.dataset.range;
-                document.getElementById('inv-rate').value = opt.dataset.rate;
-                document.getElementById('inv-clip').value = opt.dataset.clip;
-            } else if(t === 'Armor') {
-                document.getElementById('inv-rating').value = opt.dataset.rating;
-                document.getElementById('inv-penalty').value = opt.dataset.penalty;
-            } else if(t === 'Vehicle') {
-                document.getElementById('inv-safe').value = opt.dataset.safe;
-                document.getElementById('inv-max').value = opt.dataset.max;
-                document.getElementById('inv-man').value = opt.dataset.man;
-            }
+            if(t === 'Weapon') { document.getElementById('inv-diff').value = opt.dataset.diff; document.getElementById('inv-dmg').value = opt.dataset.dmg; document.getElementById('inv-range').value = opt.dataset.range; document.getElementById('inv-rate').value = opt.dataset.rate; document.getElementById('inv-clip').value = opt.dataset.clip; } 
+            else if(t === 'Armor') { document.getElementById('inv-rating').value = opt.dataset.rating; document.getElementById('inv-penalty').value = opt.dataset.penalty; } 
+            else if(t === 'Vehicle') { document.getElementById('inv-safe').value = opt.dataset.safe; document.getElementById('inv-max').value = opt.dataset.max; document.getElementById('inv-man').value = opt.dataset.man; }
         }
     });
-
     addBtn.addEventListener('click', () => {
         const type = invType.value;
         let specificName = invName.value.trim();
         let baseType = invBaseSelect.value;
         let finalName = specificName || baseType; 
         let stats = {};
-
         if (!finalName) return showNotification("Enter a name or select a type.");
-
-        if(type === 'Weapon') {
-            stats = {
-                diff: document.getElementById('inv-diff').value,
-                dmg: document.getElementById('inv-dmg').value,
-                range: document.getElementById('inv-range').value,
-                rate: document.getElementById('inv-rate').value,
-                clip: document.getElementById('inv-clip').value
-            };
-        } else if(type === 'Armor') {
-            stats = { rating: document.getElementById('inv-rating').value || 0, penalty: document.getElementById('inv-penalty').value || 0 };
-        } else if(type === 'Vehicle') {
-            stats = { safe: document.getElementById('inv-safe').value || 0, max: document.getElementById('inv-max').value || 0, man: document.getElementById('inv-man').value || 0 };
-        }
-
+        if(type === 'Weapon') { stats = { diff: document.getElementById('inv-diff').value, dmg: document.getElementById('inv-dmg').value, range: document.getElementById('inv-range').value, rate: document.getElementById('inv-rate').value, clip: document.getElementById('inv-clip').value }; } 
+        else if(type === 'Armor') { stats = { rating: document.getElementById('inv-rating').value || 0, penalty: document.getElementById('inv-penalty').value || 0 }; } 
+        else if(type === 'Vehicle') { stats = { safe: document.getElementById('inv-safe').value || 0, max: document.getElementById('inv-max').value || 0, man: document.getElementById('inv-man').value || 0 }; }
         if(!window.state.inventory) window.state.inventory = [];
-        window.state.inventory.push({
-            name: baseType || finalName, displayName: finalName, baseType: baseType, type, stats,
-            status: document.getElementById('inv-carried').checked ? 'carried' : 'owned'
-        });
-
+        window.state.inventory.push({ name: baseType || finalName, displayName: finalName, baseType: baseType, type, stats, status: document.getElementById('inv-carried').checked ? 'carried' : 'owned' });
         invName.value = ""; invBaseSelect.value = "";
         document.querySelectorAll('#inv-stats-row input, #inv-armor-row input, #inv-vehicle-row input').forEach(i => i.value = "");
-        renderInventoryList();
+        window.renderInventoryList();
     });
 }
 
 function renderDynamicAdvantageRow(containerId, type, list, isAbil = false) {
     const container = document.getElementById(containerId);
     if (!container) return;
-    
-    // Clear existing to prevent duplicates on reload
     container.innerHTML = '';
-
-    // Identify which items from state belong in this list
     let existingItems = [];
     if (type === 'abil') {
         let category = '';
         if (containerId === 'custom-talents') category = 'Talents';
         else if (containerId === 'custom-skills') category = 'Skills';
         else if (containerId === 'custom-knowledges') category = 'Knowledges';
-        
-        if (window.state.customAbilityCategories) {
-            existingItems = Object.keys(window.state.dots.abil).filter(k => window.state.customAbilityCategories[k] === category);
-        }
-    } else {
-        if (window.state.dots[type]) {
-            existingItems = Object.keys(window.state.dots[type]);
-        }
-    }
+        if (window.state.customAbilityCategories) { existingItems = Object.keys(window.state.dots.abil).filter(k => window.state.customAbilityCategories[k] === category); }
+    } else { if (window.state.dots[type]) existingItems = Object.keys(window.state.dots[type]); }
 
     const buildRow = (name = "") => {
         const row = document.createElement('div'); row.className = 'flex flex-col gap-1 mb-2 advantage-row';
         const head = document.createElement('div'); head.className = 'flex justify-between items-center';
-        
         let inputField;
-        if (isAbil) { 
-            inputField = document.createElement('input'); 
-            inputField.type = 'text'; 
-            inputField.placeholder = "Write-in..."; 
-            inputField.className = 'flex-1 mr-4 text-[10px] font-bold uppercase !bg-black/20 !border-b !border-[#333]'; 
-            inputField.value = name;
-        } else { 
-            inputField = document.createElement('select'); 
-            inputField.className = 'flex-1 mr-4 text-[11px] font-bold uppercase'; 
-            inputField.innerHTML = `<option value="">-- Choose ${type} --</option>` + list.map(item => `<option value="${item}" ${item === name ? 'selected' : ''}>${item}</option>`).join(''); 
-        }
-
-        const dotCont = document.createElement('div'); 
-        dotCont.className = 'dot-row';
+        if (isAbil) { inputField = document.createElement('input'); inputField.type = 'text'; inputField.placeholder = "Write-in..."; inputField.className = 'flex-1 mr-4 text-[10px] font-bold uppercase !bg-black/20 !border-b !border-[#333]'; inputField.value = name; } 
+        else { inputField = document.createElement('select'); inputField.className = 'flex-1 mr-4 text-[11px] font-bold uppercase'; inputField.innerHTML = `<option value="">-- Choose ${type} --</option>` + list.map(item => `<option value="${item}" ${item === name ? 'selected' : ''}>${item}</option>`).join(''); }
+        const dotCont = document.createElement('div'); dotCont.className = 'dot-row';
         const val = name ? (window.state.dots[type][name] || 0) : 0;
         dotCont.innerHTML = renderDots(val, 5);
         if (name) { dotCont.dataset.n = name; dotCont.dataset.t = type; }
-
-        const removeBtn = document.createElement('div'); 
-        removeBtn.className = 'remove-btn'; 
-        removeBtn.innerHTML = '&times;';
+        const removeBtn = document.createElement('div'); removeBtn.className = 'remove-btn'; removeBtn.innerHTML = '&times;';
         if (!name) removeBtn.style.visibility = 'hidden';
-
         let curName = name;
         let category = null;
-        if (containerId === 'custom-talents') category = 'Talents';
-        else if (containerId === 'custom-skills') category = 'Skills';
-        else if (containerId === 'custom-knowledges') category = 'Knowledges';
-
+        if (containerId === 'custom-talents') category = 'Talents'; else if (containerId === 'custom-skills') category = 'Skills'; else if (containerId === 'custom-knowledges') category = 'Knowledges';
+        
         const onUpdate = (newVal) => {
             if (curName && curName !== newVal) { 
-                const dots = window.state.dots[type][curName]; 
-                delete window.state.dots[type][curName]; 
+                const dots = window.state.dots[type][curName]; delete window.state.dots[type][curName]; 
                 if (window.state.customAbilityCategories && window.state.customAbilityCategories[curName]) delete window.state.customAbilityCategories[curName];
                 if (newVal) window.state.dots[type][newVal] = dots || 0; 
             }
@@ -983,49 +669,28 @@ function renderDynamicAdvantageRow(containerId, type, list, isAbil = false) {
             if (newVal) { 
                 window.state.dots[type][newVal] = window.state.dots[type][newVal] || 0; 
                 dotCont.innerHTML = renderDots(window.state.dots[type][newVal], 5);
-                dotCont.dataset.n = newVal;
-                dotCont.dataset.t = type;
-
-                if (category) { 
-                    if (!window.state.customAbilityCategories) window.state.customAbilityCategories = {}; 
-                    window.state.customAbilityCategories[newVal] = category; 
-                }
-                
+                dotCont.dataset.n = newVal; dotCont.dataset.t = type;
+                if (category) { if (!window.state.customAbilityCategories) window.state.customAbilityCategories = {}; window.state.customAbilityCategories[newVal] = category; }
                 if (row === container.lastElementChild) { removeBtn.style.visibility = 'visible'; buildRow(); }
             }
-            updatePools();
+            window.updatePools();
         };
-
         if (isAbil) inputField.onblur = (e) => onUpdate(e.target.value); else inputField.onchange = (e) => onUpdate(e.target.value);
-
-        removeBtn.onclick = () => { 
-            if (curName) { delete window.state.dots[type][curName]; if (window.state.customAbilityCategories && window.state.customAbilityCategories[curName]) delete window.state.customAbilityCategories[curName]; } 
-            row.remove(); updatePools(); 
-        };
-
+        removeBtn.onclick = () => { if (curName) { delete window.state.dots[type][curName]; if (window.state.customAbilityCategories && window.state.customAbilityCategories[curName]) delete window.state.customAbilityCategories[curName]; } row.remove(); window.updatePools(); };
         dotCont.onclick = (e) => { 
             if (!curName || !e.target.dataset.v) return; 
             let val = parseInt(e.target.dataset.v);
             const currentVal = window.state.dots[type][curName] || 0;
             if (val === currentVal) val = val - 1;
-
             if (window.state.freebieMode) {
-                const tempState = JSON.parse(JSON.stringify(window.state));
-                if (!tempState.dots[type]) tempState.dots[type] = {};
-                tempState.dots[type][curName] = val;
+                const tempState = JSON.parse(JSON.stringify(window.state)); if (!tempState.dots[type]) tempState.dots[type] = {}; tempState.dots[type][curName] = val;
                 if (calculateTotalFreebiesSpent(tempState) > (parseInt(document.getElementById('c-freebie-total')?.value) || 15)) { showNotification("Freebie Limit Exceeded!"); return; }
             } else {
                 if (category) {
                     if (val > 3) { showNotification("Max 3 dots in Abilities during creation!"); return; }
                     if (window.state.prios.abil[category] === undefined) { showNotification(`Select a priority for ${category} first!`); return; }
-                    const limit = window.state.prios.abil[category];
-                    let currentSpent = 0;
-                    ABILITIES[category].forEach(t => currentSpent += (window.state.dots.abil[t] || 0));
-                    if (window.state.customAbilityCategories) {
-                        Object.keys(window.state.dots.abil).forEach(k => {
-                            if (k !== curName && window.state.customAbilityCategories[k] === category) currentSpent += (window.state.dots.abil[k] || 0);
-                        });
-                    }
+                    const limit = window.state.prios.abil[category]; let currentSpent = 0; ABILITIES[category].forEach(t => currentSpent += (window.state.dots.abil[t] || 0));
+                    if (window.state.customAbilityCategories) { Object.keys(window.state.dots.abil).forEach(k => { if (k !== curName && window.state.customAbilityCategories[k] === category) currentSpent += (window.state.dots.abil[k] || 0); }); }
                     if (currentSpent + val > limit) { showNotification("Limit exceeded!"); return; }
                 } else if (type === 'disc') {
                     const currentSpent = Object.values(window.state.dots.disc || {}).reduce((a,b)=>a+b,0) - (window.state.dots.disc[curName]||0);
@@ -1035,16 +700,11 @@ function renderDynamicAdvantageRow(containerId, type, list, isAbil = false) {
                     if (currentSpent + val > 5) { showNotification("Max 5 Creation Dots for Backgrounds!"); return; }
                 }
             }
-
-            window.state.dots[type][curName] = val; 
-            dotCont.innerHTML = renderDots(val, 5); 
-            updatePools(); 
+            window.state.dots[type][curName] = val; dotCont.innerHTML = renderDots(val, 5); window.updatePools(); 
         };
-
         head.appendChild(inputField); head.appendChild(dotCont); head.appendChild(removeBtn);
         row.appendChild(head); container.appendChild(row);
     };
-
     existingItems.forEach(item => buildRow(item));
     buildRow();
 }
@@ -1052,38 +712,17 @@ function renderDynamicAdvantageRow(containerId, type, list, isAbil = false) {
 function renderBloodBondRow() {
     const cont = document.getElementById('blood-bond-list'); if (!cont) return;
     const row = document.createElement('div'); row.className = 'flex gap-2 items-center border-b border-[#222] pb-2 advantage-row';
-    row.innerHTML = `
-        <select class="w-24 text-[10px] uppercase font-bold mr-2 border-b border-[#333] bg-transparent">
-            <option value="Bond">Bond</option>
-            <option value="Vinculum">Vinculum</option>
-        </select>
-        <input type="text" placeholder="Bound to..." class="flex-1 text-xs">
-        <input type="number" placeholder="Lvl" class="w-10 text-center text-xs" min="1" max="3">
-        <div class="remove-btn">&times;</div>
-    `;
-    const typeSel = row.querySelector('select');
-    const nI = row.querySelector('input[type="text"]'); 
-    const rI = row.querySelector('input[type="number"]'); 
-    const del = row.querySelector('.remove-btn');
-    
+    row.innerHTML = `<select class="w-24 text-[10px] uppercase font-bold mr-2 border-b border-[#333] bg-transparent"><option value="Bond">Bond</option><option value="Vinculum">Vinculum</option></select><input type="text" placeholder="Bound to..." class="flex-1 text-xs"><input type="number" placeholder="Lvl" class="w-10 text-center text-xs" min="1" max="3"><div class="remove-btn">&times;</div>`;
+    const typeSel = row.querySelector('select'); const nI = row.querySelector('input[type="text"]'); const rI = row.querySelector('input[type="number"]'); const del = row.querySelector('.remove-btn');
     if (cont.children.length === 0) del.style.visibility = 'hidden';
-    
     const onUpd = () => {
         if (typeSel.value === 'Bond') { rI.max = 3; if(parseInt(rI.value) > 3) rI.value = 3; }
         if (typeSel.value === 'Vinculum') { rI.max = 10; if(parseInt(rI.value) > 10) rI.value = 10; }
-
-        window.state.bloodBonds = Array.from(cont.querySelectorAll('.advantage-row')).map(r => ({ 
-            type: r.querySelector('select').value,
-            name: r.querySelector('input[type="text"]').value, 
-            rating: r.querySelector('input[type="number"]').value 
-        })).filter(b => b.name);
-        
+        window.state.bloodBonds = Array.from(cont.querySelectorAll('.advantage-row')).map(r => ({ type: r.querySelector('select').value, name: r.querySelector('input[type="text"]').value, rating: r.querySelector('input[type="number"]').value })).filter(b => b.name);
         if (cont.lastElementChild === row && nI.value !== "") renderBloodBondRow();
-        updatePools(); 
+        window.updatePools(); 
     };
-    
-    typeSel.onchange = onUpd; nI.onblur = onUpd; rI.onblur = onUpd;
-    del.onclick = () => { row.remove(); onUpd(); };
+    typeSel.onchange = onUpd; nI.onblur = onUpd; rI.onblur = onUpd; del.onclick = () => { row.remove(); onUpd(); };
     cont.appendChild(row);
 }
 
@@ -1092,141 +731,209 @@ function renderDynamicHavenRow() {
     const row = document.createElement('div'); row.className = 'border-b border-[#222] pb-4 advantage-row';
     row.innerHTML = `<div class="flex justify-between items-center mb-2"><input type="text" placeholder="Haven Title..." class="flex-1 text-[10px] font-bold text-gold uppercase !border-b !border-[#333]"><div class="remove-btn">&times;</div></div><input type="text" placeholder="Location..." class="text-xs mb-2 !border-b !border-[#333]"><textarea class="h-16 text-xs" placeholder="Details..."></textarea>`;
     const nameIn = row.querySelectorAll('input')[0]; const locIn = row.querySelectorAll('input')[1]; const descIn = row.querySelector('textarea'); const del = row.querySelector('.remove-btn');
-    
     if (cont.children.length === 0) del.style.visibility = 'hidden';
-    
     const onUpd = () => {
-        window.state.havens = Array.from(cont.querySelectorAll('.advantage-row')).map(r => ({
-            name: r.querySelectorAll('input')[0].value, 
-            loc: r.querySelectorAll('input')[1].value, 
-            desc: r.querySelector('textarea').value
-        })).filter(h => h.name || h.loc);
-        
+        window.state.havens = Array.from(cont.querySelectorAll('.advantage-row')).map(r => ({ name: r.querySelectorAll('input')[0].value, loc: r.querySelectorAll('input')[1].value, desc: r.querySelector('textarea').value })).filter(h => h.name || h.loc);
         if (cont.lastElementChild === row && nameIn.value !== "") renderDynamicHavenRow();
-        updatePools(); 
+        window.updatePools(); 
     };
-    
-    [nameIn, locIn, descIn].forEach(el => el.onblur = onUpd);
-    del.onclick = () => { row.remove(); onUpd(); };
+    [nameIn, locIn, descIn].forEach(el => el.onblur = onUpd); del.onclick = () => { row.remove(); onUpd(); };
     cont.appendChild(row);
 }
 
 function renderSocialProfileDescription(containerId, name) {
-    const cont = document.getElementById(containerId);
-    if (!cont) return;
+    const cont = document.getElementById(containerId); if (!cont) return;
     const safeId = 'desc-' + name.toLowerCase().replace(/[^a-z0-9]/g, '-');
-    const row = document.createElement('div'); 
-    row.className = 'mb-4 pb-2 border-b border-[#222]';
+    const row = document.createElement('div'); row.className = 'mb-4 pb-2 border-b border-[#222]';
     row.innerHTML = `<label class="label-text text-gold">${name}</label><textarea id="${safeId}" class="h-16 text-xs" placeholder="Identity details for ${name}..."></textarea>`;
     cont.appendChild(row);
 }
 
 function updateBackgroundDescriptions() {
-    const cont = document.getElementById('social-profile-list');
-    if (!cont) return;
-    cont.innerHTML = '';
-    let hasBackgrounds = false;
-    if (window.state.dots.back) {
-        Object.entries(window.state.dots.back).forEach(([name, val]) => {
-            if (val > 0) { renderSocialProfileDescription('social-profile-list', name); hasBackgrounds = true; }
-        });
-    }
+    const cont = document.getElementById('social-profile-list'); if (!cont) return;
+    cont.innerHTML = ''; let hasBackgrounds = false;
+    if (window.state.dots.back) { Object.entries(window.state.dots.back).forEach(([name, val]) => { if (val > 0) { renderSocialProfileDescription('social-profile-list', name); hasBackgrounds = true; } }); }
     if (!hasBackgrounds) cont.innerHTML = `<div class="col-span-1 md:col-span-2 text-center text-gray-500 italic py-10">Select Backgrounds in the Advantages section to add descriptions here.</div>`;
     hydrateInputs();
 }
 
+window.changeStep = function(s) {
+    if (!window.state.furthestPhase || s > window.state.furthestPhase) { if (s > (window.state.furthestPhase || 0)) window.state.furthestPhase = s; }
+    document.querySelectorAll('.step-container').forEach(c => c.classList.remove('active'));
+    const prefix = window.state.isPlayMode ? 'play-mode-' : 'phase-';
+    const target = document.getElementById(prefix + s);
+    if (target) { target.classList.add('active'); window.state.currentPhase = s; }
+    if (s === 5) updateBackgroundDescriptions();
+    const nav = document.getElementById('sheet-nav');
+    if (nav) {
+        nav.innerHTML = '';
+        if (window.state.isPlayMode) {
+             const steps = ["Sheet", "Traits", "Social", "Biography"];
+             steps.forEach((text, i) => {
+                const it = document.createElement('div'); it.className = `nav-item ${window.state.currentPhase === (i+1) ? 'active' : ''}`;
+                const icons = ['fa-scroll', 'fa-fist-raised', 'fa-users', 'fa-book'];
+                it.innerHTML = `<i class="fas ${icons[i]}"></i><span>${text}</span>`;
+                it.onclick = () => window.changeStep(i+1); nav.appendChild(it);
+            });
+        } else {
+            const furthest = window.state.furthestPhase || 1;
+            STEPS_CONFIG.forEach(step => {
+                const it = document.createElement('div'); let statusClass = '';
+                if (step.id === s) statusClass = 'active'; else if (step.id < s) statusClass = 'completed'; else if (step.id <= furthest) statusClass = 'unlocked'; else statusClass = 'locked';
+                it.className = `nav-item ${statusClass}`;
+                it.innerHTML = `<i class="fas ${step.icon}"></i><span>${step.label}</span>`;
+                it.onclick = () => { if (step.id <= furthest) window.changeStep(step.id); };
+                nav.appendChild(it);
+            });
+        }
+    }
+    window.updatePools();
+};
+
+window.toggleFreebieMode = function() {
+     window.state.freebieMode = !window.state.freebieMode;
+     document.body.classList.toggle('freebie-mode', window.state.freebieMode);
+     const fbBtn = document.getElementById('toggle-freebie-btn');
+     const fbBtnText = document.getElementById('freebie-btn-text');
+     if (fbBtnText) fbBtnText.innerText = window.state.freebieMode ? "Exit Freebies" : "Freebies";
+     if (fbBtn) { fbBtn.classList.toggle('bg-blue-900/40', window.state.freebieMode); fbBtn.classList.toggle('border-blue-500', window.state.freebieMode); fbBtn.classList.toggle('text-blue-200', window.state.freebieMode); }
+     const mMsg = document.getElementById('merit-locked-msg'); const fMsg = document.getElementById('flaw-locked-msg');
+     if(mMsg) mMsg.style.display = window.state.freebieMode ? 'none' : 'block';
+     if(fMsg) fMsg.style.display = window.state.freebieMode ? 'none' : 'block';
+     renderDynamicTraitRow('merits-list-create', 'Merit', V20_MERITS_LIST);
+     renderDynamicTraitRow('flaws-list-create', 'Flaw', V20_FLAWS_LIST);
+     window.updatePools(); 
+};
+
+window.toggleSidebarLedger = function() { document.getElementById('freebie-sidebar').classList.toggle('open'); };
+
+window.togglePlayMode = function() {
+    window.state.isPlayMode = !window.state.isPlayMode;
+    document.body.classList.toggle('play-mode', window.state.isPlayMode);
+    const pBtn = document.getElementById('play-mode-btn'); const pBtnText = document.getElementById('play-btn-text');
+    if(pBtnText) pBtnText.innerText = window.state.isPlayMode ? "Edit" : "Play";
+    document.querySelectorAll('input, select, textarea').forEach(el => {
+        if (['save-filename', 'char-select', 'roll-diff', 'use-specialty', 'c-path-name', 'c-path-name-create', 'c-bearing-name', 'c-bearing-value'].includes(el.id)) return;
+        el.disabled = window.state.isPlayMode;
+    });
+    if (window.state.isPlayMode) {
+        const row = document.getElementById('play-concept-row');
+        if (row) row.innerHTML = `<div><span class="label-text">Name:</span> <span class="text-white font-bold">${document.getElementById('c-name').value}</span></div><div><span class="label-text">Nature:</span> <span class="text-white font-bold">${document.getElementById('c-nature').value}</span></div><div><span class="label-text">Clan:</span> <span class="text-white font-bold">${document.getElementById('c-clan').value}</span></div><div><span class="label-text">Player:</span> <span class="text-white font-bold">${document.getElementById('c-player').value}</span></div><div><span class="label-text">Demeanor:</span> <span class="text-white font-bold">${document.getElementById('c-demeanor').value}</span></div><div><span class="label-text">Generation:</span> <span class="text-white font-bold">${document.getElementById('c-gen').value}</span></div>`;
+        const ra = document.getElementById('play-row-attr'); ra.innerHTML = '';
+        Object.entries(ATTRIBUTES).forEach(([c,l]) => { const s = document.createElement('div'); s.className='sheet-section !mt-0'; s.innerHTML=`<div class="column-title">${c}</div>`; l.forEach(a=>renderRow(s,a,'attr',1)); ra.appendChild(s); });
+        const rb = document.getElementById('play-row-abil'); rb.innerHTML = '';
+        Object.entries(ABILITIES).forEach(([c,l]) => { const s = document.createElement('div'); s.className='sheet-section !mt-0'; s.innerHTML=`<div class="column-title">${c}</div>`; l.forEach(a=>renderRow(s,a,'abil',0)); rb.appendChild(s); });
+        const rc = document.getElementById('play-row-adv'); rc.innerHTML = '';
+        const ds = document.createElement('div'); ds.className='sheet-section !mt-0'; ds.innerHTML='<div class="column-title">Disciplines</div>';
+        Object.entries(window.state.dots.disc).forEach(([n,v]) => { if(v>0) renderRow(ds,n,'disc',0); }); rc.appendChild(ds);
+        const bs = document.createElement('div'); bs.className='sheet-section !mt-0'; bs.innerHTML='<div class="column-title">Backgrounds</div>';
+        Object.entries(window.state.dots.back).forEach(([n,v]) => { if(v>0) renderRow(bs,n,'back',0); }); rc.appendChild(bs);
+        const vs = document.createElement('div'); vs.className='sheet-section !mt-0'; vs.innerHTML='<div class="column-title">Virtues</div>';
+        VIRTUES.forEach(v => renderRow(vs, v, 'virt', 1)); rc.appendChild(vs);
+        const pg = document.getElementById('play-social-grid'); if(pg) {
+            pg.innerHTML = ''; BACKGROUNDS.forEach(s => { const dots = window.state.dots.back[s] || 0; const safeId = 'desc-' + s.toLowerCase().replace(/[^a-z0-9]/g, '-'); const el = document.getElementById(safeId); const txt = el ? el.value : ""; if(dots || txt) pg.innerHTML += `<div class="border-l-2 border-[#333] pl-4 mb-4"><div class="flex justify-between items-center"><label class="label-text text-gold">${s}</label><div class="text-[8px] font-bold text-white">${renderDots(dots,5)}</div></div><div class="text-xs text-gray-200 mt-1">${txt || "No description."}</div></div>`; });
+        }
+        const pb = document.getElementById('play-blood-bonds'); if(pb) {
+            pb.innerHTML = ''; window.state.bloodBonds.forEach(b => { const label = b.type === 'Bond' ? (b.rating == 3 ? 'Full Bond' : `Drink ${b.rating}`) : `Vinculum ${b.rating}`; pb.innerHTML += `<div class="flex justify-between border-b border-[#222] py-1 text-xs"><span>${b.name}</span><span class="text-gold font-bold">${label}</span></div>`; });
+        }
+        const mf = document.getElementById('merit-flaw-rows-play'); if(mf) {
+            mf.innerHTML = ''; if(window.state.merits) window.state.merits.forEach(m => { mf.innerHTML += `<div class="flex justify-between text-xs py-1 border-b border-[#222]"><span>${m.name}</span><span class="text-red-400 font-bold">${m.val}</span></div>`; }); if(window.state.flaws) window.state.flaws.forEach(f => { mf.innerHTML += `<div class="flex justify-between text-xs py-1 border-b border-[#222]"><span>${f.name}</span><span class="text-green-400 font-bold">${f.val}</span></div>`; });
+        }
+        const ot = document.getElementById('other-traits-rows-play'); if(ot) {
+            ot.innerHTML = ''; Object.entries(window.state.dots.other).forEach(([n,v]) => { if(v>0) renderRow(ot, n, 'other', 0); });
+        }
+        const plv = document.getElementById('play-vitals-list'); if(plv) {
+            plv.innerHTML = ''; VIT.forEach(v => { const val = document.getElementById('bio-' + v)?.value; if(val) plv.innerHTML += `<div class="flex justify-between border-b border-[#222] py-1 font-bold"><span class="text-gray-400">${v.replace('-',' ')}:</span> <span>${val}</span></div>`; });
+        }
+        const cp = document.getElementById('combat-rows-play'); if(cp) {
+            cp.innerHTML = ''; const standards = [{n:'Bite',diff:5,dmg:'Str+1(A)'}, {n:'Clinch',diff:6,dmg:'Str(B)'}, {n:'Grapple',diff:6,dmg:'Str(B)'}, {n:'Kick',diff:7,dmg:'Str+1(B)'}, {n:'Punch',diff:6,dmg:'Str(B)'}, {n:'Tackle',diff:7,dmg:'Str+1(B)'}];
+            standards.forEach(s => { const r = document.createElement('tr'); r.className='border-b border-[#222] text-[10px] text-gray-500'; r.innerHTML = `<td class="p-2 font-bold text-white">${s.n}</td><td class="p-2">${s.diff}</td><td class="p-2">${s.dmg}</td><td class="p-2">-</td><td class="p-2">-</td><td class="p-2">-</td>`; cp.appendChild(r); });
+            if(window.state.inventory) { window.state.inventory.filter(i => i.type === 'Weapon' && i.status === 'carried').forEach(w => { let display = w.displayName || w.name; const r = document.createElement('tr'); r.className='border-b border-[#222] text-[10px]'; r.innerHTML = `<td class="p-2 font-bold text-gold">${display}</td><td class="p-2 text-white">${w.stats.diff}</td><td class="p-2 text-white">${w.stats.dmg}</td><td class="p-2">${w.stats.range}</td><td class="p-2">${w.stats.rate}</td><td class="p-2">${w.stats.clip}</td>`; cp.appendChild(r); }); }
+        }
+        if(document.getElementById('rituals-list-play')) document.getElementById('rituals-list-play').innerText = document.getElementById('rituals-list-create-ta').value;
+        let carried = []; let owned = []; if(window.state.inventory) { window.state.inventory.forEach(i => { const str = `${i.displayName || i.name} ${i.type === 'Armor' ? `(R:${i.stats.rating} P:${i.stats.penalty})` : ''}`; if(i.status === 'carried') carried.push(str); else owned.push(str); }); }
+        setSafeText('play-gear-carried', carried.join(', ')); setSafeText('play-gear-owned', owned.join(', '));
+        if(document.getElementById('play-bio-desc')) document.getElementById('play-bio-desc').innerText = document.getElementById('bio-desc').value;
+        if(document.getElementById('play-derangements')) { const pd = document.getElementById('play-derangements'); pd.innerHTML = window.state.derangements.length > 0 ? window.state.derangements.map(d => `<div>• ${d}</div>`).join('') : '<span class="text-gray-500 italic">None</span>'; }
+        if(document.getElementById('play-languages')) document.getElementById('play-languages').innerText = document.getElementById('bio-languages').value;
+        if(document.getElementById('play-goals-st')) document.getElementById('play-goals-st').innerText = document.getElementById('bio-goals-st').value;
+        if(document.getElementById('play-goals-lt')) document.getElementById('play-goals-lt').innerText = document.getElementById('bio-goals-lt').value;
+        if(document.getElementById('play-history')) document.getElementById('play-history').innerText = document.getElementById('char-history').value;
+        const feedSrc = document.getElementById('inv-feeding-grounds'); if (feedSrc) setSafeText('play-feeding-grounds', feedSrc.value);
+        if(document.getElementById('armor-rating-play')) { let totalA = 0; let totalP = 0; let names = []; if(window.state.inventory) { window.state.inventory.filter(i => i.type === 'Armor' && i.status === 'carried').forEach(a => { totalA += parseInt(a.stats?.rating)||0; totalP += parseInt(a.stats?.penalty)||0; names.push(a.displayName || a.name); }); } setSafeText('armor-rating-play', totalA); setSafeText('armor-penalty-play', totalP); setSafeText('armor-desc-play', names.join(', ')); }
+        if (document.getElementById('play-vehicles')) { const pv = document.getElementById('play-vehicles'); pv.innerHTML = ''; if (window.state.inventory) { window.state.inventory.filter(i => i.type === 'Vehicle').forEach(v => { let display = v.displayName || v.name; pv.innerHTML += `<div class="mb-2 border-b border-[#333] pb-1"><div class="font-bold text-white uppercase text-[10px]">${display}</div><div class="text-[9px] text-gray-400">Safe:${v.stats.safe} | Max:${v.stats.max} | Man:${v.stats.man}</div></div>`; }); } }
+        if (document.getElementById('play-havens-list')) { const ph = document.getElementById('play-havens-list'); ph.innerHTML = ''; window.state.havens.forEach(h => { ph.innerHTML += `<div class="border-l-2 border-gold pl-4 mb-4"><div class="flex justify-between"><div><div class="font-bold text-white uppercase text-[10px]">${h.name}</div><div class="text-[9px] text-gold italic">${h.loc}</div></div></div><div class="text-xs text-gray-400 mt-1">${h.desc}</div></div>`; }); }
+    }
+    window.changeStep(1);
+};
+
+// --- INITIALIZATION ---
+
+// 1. Initial UI Setup (Runs Immediately)
+try {
+    Object.keys(ATTRIBUTES).forEach(c => ATTRIBUTES[c].forEach(a => { window.state.dots.attr[a] = 1; renderRow('list-attr-'+c.toLowerCase(), a, 'attr', 1); }));
+    Object.keys(ABILITIES).forEach(c => ABILITIES[c].forEach(a => { window.state.dots.abil[a] = 0; renderRow('list-abil-'+c.toLowerCase(), a, 'abil', 0); }));
+    renderDynamicAdvantageRow('list-disc', 'disc', DISCIPLINES);
+    renderDynamicAdvantageRow('list-back', 'back', BACKGROUNDS);
+    renderDynamicAdvantageRow('custom-talents', 'abil', [], true);
+    renderDynamicAdvantageRow('custom-skills', 'abil', [], true);
+    renderDynamicAdvantageRow('custom-knowledges', 'abil', [], true);
+    renderDerangementsList();
+    VIRTUES.forEach(v => { window.state.dots.virt[v] = 1; renderRow('list-virt', v, 'virt', 1); });
+    VIT.forEach(v => { const d = document.createElement('div'); d.innerHTML = `<label class="label-text">${v}</label><input type="text" id="bio-${v}">`; document.getElementById('vitals-create-inputs').appendChild(d); });
+    renderDynamicTraitRow('merits-list-create', 'Merit', V20_MERITS_LIST);
+    renderDynamicTraitRow('flaws-list-create', 'Flaw', V20_FLAWS_LIST);
+    window.renderInventoryList();
+    for(let i=0; i<8; i++) {
+        const d2 = document.createElement('div'); d2.className = 'flex items-center gap-2 mb-2';
+        d2.innerHTML = `<input type="text" id="ot-n-${i}" placeholder="Other..." class="w-40 text-[11px] font-bold"><div class="dot-row" id="ot-dr-${i}"></div>`;
+        document.getElementById('other-traits-rows-create').appendChild(d2);
+        const dr = d2.querySelector('.dot-row'); dr.innerHTML = renderDots(0, 5);
+        dr.onclick = (e) => { const n = document.getElementById(`ot-n-${i}`).value || `Other_${i}`; if(e.target.classList.contains('dot')) { let v = parseInt(e.target.dataset.v); const currentVal = window.state.dots.other[n] || 0; if (v === currentVal) v = v - 1; window.state.dots.other[n] = v; dr.innerHTML = renderDots(v, 5); } };
+    }
+    document.querySelectorAll('.prio-btn').forEach(b => b.onclick = (e) => {
+        const {cat, group, v} = e.target.dataset;
+        const catGroups = cat === 'attr' ? ['Physical', 'Social', 'Mental'] : ['Talents', 'Skills', 'Knowledges'];
+        catGroups.forEach(g => {
+            if (window.state.prios[cat][g] === parseInt(v)) {
+                window.state.prios[cat][g] = null;
+                if (cat === 'attr') { ATTRIBUTES[g].forEach(a => window.state.dots.attr[a] = 1); ATTRIBUTES[g].forEach(a => { const row = document.querySelector(`.dot-row[data-n="${a}"][data-t="attr"]`); if(row) row.innerHTML = renderDots(1, 5); }); } 
+                else { ABILITIES[g].forEach(a => window.state.dots.abil[a] = 0); if (window.state.customAbilityCategories) { Object.entries(window.state.customAbilityCategories).forEach(([name, c]) => { if (c === g) window.state.dots.abil[name] = 0; }); } ABILITIES[g].forEach(a => { const row = document.querySelector(`.dot-row[data-n="${a}"][data-t="abil"]`); if(row) row.innerHTML = renderDots(0, 5); }); const allCustom = document.querySelectorAll('#custom-talents .advantage-row, #custom-skills .advantage-row, #custom-knowledges .advantage-row'); allCustom.forEach(r => { const dot = r.querySelector('.dot-row'); if(dot) dot.innerHTML = renderDots(0,5); }); }
+            }
+        });
+        window.state.prios[cat][group] = parseInt(v);
+        document.querySelectorAll(`.prio-btn[data-cat="${cat}"]`).forEach(el => { const isActive = window.state.prios[cat][el.dataset.group] == el.dataset.v; el.classList.toggle('active', isActive); });
+        window.updatePools();
+    });
+    renderBloodBondRow();
+    renderDynamicHavenRow();
+    // Render the initial UI
+    window.changeStep(1); 
+} catch(e) {
+    console.error("UI Init Error:", e);
+    showNotification("UI Error: " + e.message);
+}
+
+// 2. Auth & Database (Runs Async)
 onAuthStateChanged(auth, async (u) => {
     if(u) {
         user = u;
         document.getElementById('loading-overlay').style.display = 'none';
-        const ns = document.getElementById('c-nature'), ds = document.getElementById('c-demeanor'), cs = document.getElementById('c-clan');
-        ARCHETYPES.sort().forEach(a => { ns.add(new Option(a,a)); ds.add(new Option(a,a)); });
-        CLANS.sort().forEach(c => cs.add(new Option(c,c)));
-
-        const ps1 = document.getElementById('c-path-name');
-        const ps2 = document.getElementById('c-path-name-create');
-        PATHS.forEach(p => { if(ps1) ps1.add(new Option(p,p)); if(ps2) ps2.add(new Option(p,p)); });
-        
-        if(ps1) ps1.addEventListener('change', (e) => { if(ps2) ps2.value = e.target.value; if(window.state.textFields) window.state.textFields['c-path-name'] = e.target.value; });
-        if(ps2) ps2.addEventListener('change', (e) => { if(ps1) ps1.value = e.target.value; if(window.state.textFields) window.state.textFields['c-path-name'] = e.target.value; });
-
-        Object.keys(ATTRIBUTES).forEach(c => ATTRIBUTES[c].forEach(a => { window.state.dots.attr[a] = 1; renderRow('list-attr-'+c.toLowerCase(), a, 'attr', 1); }));
-        Object.keys(ABILITIES).forEach(c => ABILITIES[c].forEach(a => { window.state.dots.abil[a] = 0; renderRow('list-abil-'+c.toLowerCase(), a, 'abil', 0); }));
-        
-        renderDynamicAdvantageRow('list-disc', 'disc', DISCIPLINES);
-        renderDynamicAdvantageRow('list-back', 'back', BACKGROUNDS);
-        renderDynamicAdvantageRow('custom-talents', 'abil', [], true);
-        renderDynamicAdvantageRow('custom-skills', 'abil', [], true);
-        renderDynamicAdvantageRow('custom-knowledges', 'abil', [], true);
-        
-        renderDerangementsList(); 
-        VIRTUES.forEach(v => { window.state.dots.virt[v] = 1; renderRow('list-virt', v, 'virt', 1); });
-        VIT.forEach(v => { const d = document.createElement('div'); d.innerHTML = `<label class="label-text">${v}</label><input type="text" id="bio-${v}">`; document.getElementById('vitals-create-inputs').appendChild(d); });
-
-        renderDynamicTraitRow('merits-list-create', 'Merit', V20_MERITS_LIST);
-        renderDynamicTraitRow('flaws-list-create', 'Flaw', V20_FLAWS_LIST);
-        renderInventoryList();
-
-        for(let i=0; i<8; i++) {
-            const d2 = document.createElement('div'); d2.className = 'flex items-center gap-2 mb-2';
-            d2.innerHTML = `<input type="text" id="ot-n-${i}" placeholder="Other..." class="w-40 text-[11px] font-bold"><div class="dot-row" id="ot-dr-${i}"></div>`;
-            document.getElementById('other-traits-rows-create').appendChild(d2);
-            const dr = d2.querySelector('.dot-row');
-            dr.innerHTML = renderDots(0, 5);
-            dr.onclick = (e) => {
-                const n = document.getElementById(`ot-n-${i}`).value || `Other_${i}`;
-                if(e.target.classList.contains('dot')) { 
-                    let v = parseInt(e.target.dataset.v); 
-                    const currentVal = window.state.dots.other[n] || 0;
-                    if (v === currentVal) v = v - 1;
-                    window.state.dots.other[n] = v; 
-                    dr.innerHTML = renderDots(v, 5); 
-                }
-            };
-        }
-
-        document.getElementById('c-freebie-total').oninput = window.updatePools;
-
-        document.querySelectorAll('.prio-btn').forEach(b => b.onclick = (e) => {
-            const {cat, group, v} = e.target.dataset;
-            const catGroups = cat === 'attr' ? ['Physical', 'Social', 'Mental'] : ['Talents', 'Skills', 'Knowledges'];
-            catGroups.forEach(g => {
-                if (window.state.prios[cat][g] === parseInt(v)) {
-                    window.state.prios[cat][g] = null;
-                    if (cat === 'attr') {
-                        ATTRIBUTES[g].forEach(a => window.state.dots.attr[a] = 1);
-                        ATTRIBUTES[g].forEach(a => { const row = document.querySelector(`.dot-row[data-n="${a}"][data-t="attr"]`); if(row) row.innerHTML = renderDots(1, 5); });
-                    } else {
-                        ABILITIES[g].forEach(a => window.state.dots.abil[a] = 0);
-                        if (window.state.customAbilityCategories) { Object.entries(window.state.customAbilityCategories).forEach(([name, c]) => { if (c === g) window.state.dots.abil[name] = 0; }); }
-                        ABILITIES[g].forEach(a => { const row = document.querySelector(`.dot-row[data-n="${a}"][data-t="abil"]`); if(row) row.innerHTML = renderDots(0, 5); });
-                        const allCustom = document.querySelectorAll('#custom-talents .advantage-row, #custom-skills .advantage-row, #custom-knowledges .advantage-row');
-                        allCustom.forEach(r => { const dot = r.querySelector('.dot-row'); if(dot) dot.innerHTML = renderDots(0,5); });
-                    }
-                }
-            });
-            window.state.prios[cat][group] = parseInt(v);
-            document.querySelectorAll(`.prio-btn[data-cat="${cat}"]`).forEach(el => { const isActive = window.state.prios[cat][el.dataset.group] == el.dataset.v; el.classList.toggle('active', isActive); });
-            updatePools();
-        });
-
-        window.updatePools = updatePools;
-        renderBloodBondRow();
-        renderDynamicHavenRow();
-        
-        // --- SAFE INITIALIZATION ORDER ---
-        // 1. Initialize the UI first (Nav & Pools) so the user sees controls immediately
-        window.changeStep(1); 
-        updatePools();
-
-        // 2. Try to load the database list, but don't crash if it fails
         try {
+            const ns = document.getElementById('c-nature'), ds = document.getElementById('c-demeanor'), cs = document.getElementById('c-clan');
+            ARCHETYPES.sort().forEach(a => { ns.add(new Option(a,a)); ds.add(new Option(a,a)); });
+            CLANS.sort().forEach(c => cs.add(new Option(c,c)));
+            const ps1 = document.getElementById('c-path-name');
+            const ps2 = document.getElementById('c-path-name-create');
+            PATHS.forEach(p => { if(ps1) ps1.add(new Option(p,p)); if(ps2) ps2.add(new Option(p,p)); });
+            if(ps1) ps1.addEventListener('change', (e) => { if(ps2) ps2.value = e.target.value; if(window.state.textFields) window.state.textFields['c-path-name'] = e.target.value; });
+            if(ps2) ps2.addEventListener('change', (e) => { if(ps1) ps1.value = e.target.value; if(window.state.textFields) window.state.textFields['c-path-name'] = e.target.value; });
+            document.getElementById('c-freebie-total').oninput = window.updatePools;
             await refreshList();
-        } catch(e) {
-            console.warn("Could not load character list:", e);
-            // Optional: showNotification("DB Connection Issue");
+        } catch (dbErr) {
+            console.error("DB Init Error:", dbErr);
+            showNotification("DB Conn Error (UI Active)");
         }
-        // ----------------------------------
     } else {
         if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) await signInWithCustomToken(auth, __initial_auth_token);
         else await signInAnonymously(auth);
