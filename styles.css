@@ -105,6 +105,65 @@ select option { background: #111; color: white; }
     border-bottom: 2px solid #500;
 }
 
+/* --- MODAL STYLES (NEW) --- */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(4px);
+    z-index: 99999;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+.modal-overlay.active { display: flex; opacity: 1; }
+
+.modal-box {
+    background: #050505;
+    border: 1px solid var(--v-gold);
+    box-shadow: 0 0 30px rgba(0,0,0,0.9), 0 0 10px var(--v-gold);
+    padding: 2rem;
+    width: 90%;
+    max-width: 450px;
+    position: relative;
+    transform: translateY(20px);
+    transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+.modal-overlay.active .modal-box { transform: translateY(0); }
+
+/* File Browser Styles */
+.folder-header {
+    font-family: 'Cinzel', serif;
+    font-size: 0.75rem;
+    color: #888;
+    background: #111;
+    padding: 4px 8px;
+    margin-top: 8px;
+    border-bottom: 1px solid #333;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-weight: bold;
+}
+.file-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 8px;
+    border-bottom: 1px solid #1a1a1a;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+.file-row:hover { background: rgba(212, 175, 55, 0.1); }
+.file-row.selected { background: var(--v-blood); color: white; border-color: var(--v-gold); }
+.file-info { font-size: 0.8rem; font-weight: bold; }
+.file-meta { font-size: 0.65rem; color: #666; font-family: sans-serif; }
+.file-row.selected .file-meta { color: #ccc; }
+
 /* --- RIGHT DOCK --- */
 #sheet-nav {
     position: fixed;
