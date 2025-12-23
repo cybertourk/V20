@@ -3,7 +3,7 @@ import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken }
 import { getFirestore, doc, setDoc, getDoc, collection, getDocs, query, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 // --- VERSION CONTROL ---
-const APP_VERSION = "v1.6 (20-Box Blood)";
+const APP_VERSION = "v1.7 (Visible Blood Grid)";
 
 // --- ERROR HANDLER ---
 window.onerror = function(msg, url, line) {
@@ -550,10 +550,15 @@ window.updatePools = function() {
             if (i <= currentBlood) classes += " checked";
             
             // Visual locking for blood exceeding Gen limit
+            // Changed from opacity-20 to opacity-50 for better visibility per user request
+            // Added explicit styling to ensure they look like 'empty slots' rather than missing
             if (i > maxBloodForGen) {
-                // Tailwind classes for "locked" look: opacity-20, no pointer events, visually disabled
-                classes += " opacity-20 pointer-events-none border-red-900 bg-red-900/10 cursor-not-allowed";
+                classes += " cursor-not-allowed opacity-50 bg-[#1a1a1a]"; 
+            } else {
+                classes += " cursor-pointer";
             }
+            // Pointer events none prevents clicking, but we keep them visible
+            if (i > maxBloodForGen) classes += " pointer-events-none";
             
             h += `<span class="${classes}" data-v="${i}" data-type="blood"></span>`;
         }
