@@ -3,7 +3,7 @@ import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken }
 import { getFirestore, doc, setDoc, getDoc, collection, getDocs, query, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 // --- VERSION CONTROL ---
-const APP_VERSION = "v1.5 (Play Mode Pools)";
+const APP_VERSION = "v1.6 (20-Box Blood)";
 
 // --- ERROR HANDLER ---
 window.onerror = function(msg, url, line) {
@@ -537,8 +537,29 @@ window.updatePools = function() {
     // UPDATED PLAY MODE BOX RENDERING
     // Willpower: Max count = Permanent Rating (curW). Checked = Temp Rating (tempW).
     document.querySelectorAll('#willpower-boxes-play').forEach(el => el.innerHTML = renderBoxes(curW, tempW, 'wp'));
-    // Blood: Max count = Generation Limit. Checked = Current Blood.
-    document.querySelectorAll('#blood-boxes-play').forEach(el => el.innerHTML = renderBoxes(lim.m, window.state.status.blood || 0, 'blood'));
+    
+    // --- 20 BOX BLOOD POOL IMPLEMENTATION ---
+    const bpContainer = document.querySelectorAll('#blood-boxes-play');
+    bpContainer.forEach(el => {
+        let h = '';
+        const currentBlood = window.state.status.blood || 0;
+        const maxBloodForGen = lim.m;
+        
+        for (let i = 1; i <= 20; i++) {
+            let classes = "box";
+            if (i <= currentBlood) classes += " checked";
+            
+            // Visual locking for blood exceeding Gen limit
+            if (i > maxBloodForGen) {
+                // Tailwind classes for "locked" look: opacity-20, no pointer events, visually disabled
+                classes += " opacity-20 pointer-events-none border-red-900 bg-red-900/10 cursor-not-allowed";
+            }
+            
+            h += `<span class="${classes}" data-v="${i}" data-type="blood"></span>`;
+        }
+        el.innerHTML = h;
+    });
+    // ----------------------------------------
     
     const healthCont = document.getElementById('health-chart-play');
     if(healthCont && healthCont.children.length === 0) {
