@@ -6,7 +6,6 @@
     <title>V20 Official Neonate Sheet</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
-    <!-- Linked CSS File -->
     <link rel="stylesheet" href="styles.css">
 </head>
 <body class="p-2 md:p-8">
@@ -18,42 +17,29 @@
 
     <div id="notification"></div>
     
-    <!-- BRANDED TOP NAVIGATION BAR -->
     <nav id="main-menubar" class="fixed top-0 left-0 w-full h-16 bg-[#050505] border-b-2 border-[#500] z-50 flex items-center justify-between px-6 shadow-2xl">
         
-        <!-- Left: VAMPIRE Branding -->
         <div class="flex flex-col justify-center leading-none select-none cursor-default group">
             <h1 class="text-2xl text-[#af0000] font-bold tracking-[0.2em] font-cinzel group-hover:text-[#ff0000] transition-colors shadow-black drop-shadow-md">VAMPIRE</h1>
             <span class="text-[0.6rem] text-[#d4af37] tracking-[0.3em] font-serif italic uppercase opacity-80 group-hover:opacity-100 transition-opacity">The Masquerade</span>
         </div>
 
-        <!-- Center: Identity & File Controls (Grouped) -->
-        <div class="flex items-center gap-4 bg-black/40 px-6 py-1.5 rounded-full border border-[#222]">
-            <div class="flex items-center gap-2 group relative">
-                <i class="fas fa-pen-nib text-gray-600 text-xs"></i>
-                <input type="text" id="save-filename" value="Unnamed_Neonate" class="bg-transparent border-b border-transparent hover:border-[#333] focus:border-gold text-white font-bold text-sm w-32 focus:w-48 transition-all focus:outline-none placeholder-gray-600 text-center" title="Character File Name">
-            </div>
-
-            <button id="save-btn" class="text-gray-400 hover:text-white transition w-8 h-8 flex items-center justify-center rounded hover:bg-[#222]" title="Inscribe (Save)">
-                <i class="fas fa-save"></i>
+        <div class="flex items-center gap-2 bg-black/40 px-4 py-1.5 rounded-full border border-[#222]">
+            <button id="cmd-new" class="text-xs text-gray-400 font-bold uppercase hover:text-white hover:bg-[#222] px-3 py-1 rounded transition border border-transparent hover:border-[#444]">
+                <i class="fas fa-file-circle-plus mr-1"></i> New
             </button>
-
-            <div class="h-6 w-px bg-[#333]"></div>
-
-            <div class="flex items-center gap-2">
-                <select id="char-select" class="bg-transparent text-xs text-gray-400 border-none rounded px-2 py-1 w-24 focus:w-48 transition-all appearance-none cursor-pointer hover:text-white">
-                    <option value="">-- Load --</option>
-                </select>
-                <button id="load-btn" class="text-gray-400 hover:text-white transition w-8 h-8 flex items-center justify-center rounded hover:bg-[#222]" title="Recall (Load)">
-                    <i class="fas fa-folder-open"></i>
-                </button>
-            </div>
+            <div class="h-4 w-px bg-[#333]"></div>
+            <button id="cmd-save" class="text-xs text-gray-400 font-bold uppercase hover:text-white hover:bg-[#222] px-3 py-1 rounded transition border border-transparent hover:border-[#444]">
+                <i class="fas fa-save mr-1"></i> Save
+            </button>
+            <div class="h-4 w-px bg-[#333]"></div>
+            <button id="cmd-load" class="text-xs text-gray-400 font-bold uppercase hover:text-white hover:bg-[#222] px-3 py-1 rounded transition border border-transparent hover:border-[#444]">
+                <i class="fas fa-folder-open mr-1"></i> Load
+            </button>
         </div>
 
-        <!-- Right: Modes & Tools -->
         <div class="flex items-center gap-4">
             
-            <!-- Freebie Toggle -->
             <button id="toggle-freebie-btn" class="flex items-center gap-2 px-3 py-1 rounded border border-[#333] hover:border-blue-500/50 hover:bg-blue-900/20 transition text-xs font-bold text-gray-400 disabled:opacity-30 disabled:cursor-not-allowed">
                 <i class="fas fa-balance-scale"></i>
                 <span id="freebie-btn-text">Freebies</span>
@@ -63,7 +49,6 @@
                 <span id="f-total-top">0</span>/<input type="number" id="c-freebie-total" value="15" class="w-8 bg-transparent text-gold border-b border-[#333] text-center font-bold">
             </div>
 
-            <!-- Play Mode Toggle -->
             <button id="play-mode-btn" class="flex items-center gap-2 px-3 py-1 rounded border border-[#d4af37] text-[#d4af37] hover:bg-[#d4af37] hover:text-black transition text-xs font-bold uppercase tracking-wider shadow-[0_0_10px_rgba(212,175,55,0.2)]">
                 <i class="fas fa-gamepad"></i>
                 <span id="play-btn-text">Play</span>
@@ -71,7 +56,6 @@
 
             <div class="h-8 w-px bg-[#333]"></div>
 
-            <!-- Tools Dropdown (Export/Import/Print) -->
             <div class="flex gap-2 text-gray-500">
                 <button id="export-btn" class="hover:text-white w-8 h-8 rounded hover:bg-[#222] transition" title="Export JSON"><i class="fas fa-file-export"></i></button>
                 <button id="import-trigger" class="hover:text-white w-8 h-8 rounded hover:bg-[#222] transition" title="Import JSON"><i class="fas fa-file-import"></i></button>
@@ -81,7 +65,6 @@
         </div>
     </nav>
 
-    <!-- Walkthrough Guide - Moved left to avoid right-nav overlap -->
     <div id="walkthrough-guide" class="fixed bottom-24 right-20 z-40 flex items-center gap-4 translate-y-20 opacity-0 pointer-events-none md:pointer-events-auto">
         <div id="guide-message" class="bg-black/90 border border-[#d4af37] text-[#f0e6d2] px-4 py-2 rounded text-xs font-bold shadow-lg w-48 text-right">
             Initialize Character...
@@ -91,7 +74,6 @@
         </div>
     </div>
 
-    <!-- FREEBIE SIDEBAR -->
     <div id="freebie-sidebar">
         <div id="sb-toggle-btn" onclick="window.toggleSidebarLedger()">Ledger</div>
         <h3 class="heading text-gold text-sm border-b border-gold pb-2 mb-4 text-center">Freebie Ledger</h3>
@@ -130,16 +112,13 @@
         <div id="roll-results" class="max-h-52 overflow-y-auto space-y-3"></div>
     </div>
 
-    <!-- MAIN CONTENT AREA -->
     <div id="sheet-content" class="max-w-5xl mx-auto shadow-2xl bg-black/30 pb-20 border-x border-b border-[#222]">
 
         <nav id="sheet-nav" class="flex justify-center bg-black sticky top-0 z-40 border-b border-[#333]"></nav>
         
-        <!-- HEADER MOVED TO NAV BAR - Spacer added -->
         <div class="mt-8 md:mt-12"></div>
 
         <div class="p-6 md:p-12">
-            <!-- Phase 1 -->
             <div id="phase-1" class="step-container active">
                 <div class="sheet-section !mt-0">
                     <div class="section-title">Character Concept</div>
@@ -163,7 +142,6 @@
                 </div>
             </div>
 
-            <!-- Phase 2 -->
             <div id="phase-2" class="step-container">
                 <div class="sheet-section !mt-0">
                     <div class="section-title">Step Two: Attributes</div>
@@ -175,7 +153,6 @@
                 </div>
             </div>
 
-            <!-- Phase 3 -->
             <div id="phase-3" class="step-container">
                 <div class="sheet-section !mt-0">
                     <div class="section-title">Step Three: Abilities</div>
@@ -187,7 +164,6 @@
                 </div>
             </div>
 
-            <!-- Phase 4 -->
             <div id="phase-4" class="step-container">
                 <div class="sheet-section !mt-0">
                     <div class="section-title">Step Four: Advantages</div>
@@ -199,7 +175,6 @@
                 </div>
             </div>
 
-            <!-- Phase 5 -->
             <div id="phase-5" class="step-container space-y-10">
                 <div class="flex flex-col gap-8">
                     <div class="sheet-section !mt-0">
@@ -263,7 +238,6 @@
                             </div>
                         </div>
 
-                        <!-- Distinct Spots for Possessions -->
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
                             <div>
                                 <h3 class="column-title">Gear (Carried)</h3>
@@ -291,7 +265,6 @@
                 </div>
             </div>
 
-            <!-- Phase 6 -->
             <div id="phase-6" class="step-container space-y-10">
                 <div class="flex flex-col gap-10">
                     <div class="sheet-section !mt-0">
@@ -334,7 +307,6 @@
                                 <div>Range</div>
                                 <div>Clip</div>
                             </div>
-                            <!-- Standard Maneuvers (Always Visible) -->
                             <div class="grid grid-cols-6 gap-2 text-[10px] border-b border-[#222] py-1 text-center text-gray-500">
                                 <div class="col-span-2 text-left pl-2 font-bold text-white">Bite</div>
                                 <div>5</div><div>Str+1(A)</div><div>-</div><div>-</div>
@@ -360,7 +332,6 @@
                                 <div>7</div><div>Str+1(B)</div><div>-</div><div>-</div>
                             </div>
                             
-                            <!-- Dynamic Weapons from Inventory -->
                             <div id="combat-list-create" class="space-y-1 mt-2"></div>
                         </div>
                         <div class="grid grid-cols-3 gap-6 mt-6 pt-4 border-t border-[#333] text-center">
@@ -372,7 +343,6 @@
                 </div>
             </div>
 
-            <!-- Phase 7 -->
             <div id="phase-7" class="step-container space-y-10">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
                     <div class="sheet-section !mt-0"><div class="section-title">Physical Appearance</div><div id="vitals-create-inputs" class="grid grid-cols-2 gap-4"></div><div class="mt-6"><label class="label-text">Description / Sketch Notes</label><textarea id="bio-desc" class="h-32"></textarea></div></div>
@@ -380,7 +350,6 @@
                 </div>
             </div>
 
-            <!-- Phase 8 -->
             <div id="phase-8" class="step-container space-y-10">
                 <div class="sheet-section !mt-0">
                     <div class="section-title">Final Touches</div>
@@ -393,8 +362,7 @@
                                         <div class="flex flex-col flex-1 mr-4">
                                             <label class="label-text text-gold">Humanity / Path</label>
                                             <select id="c-path-name-create" class="w-full text-xs bg-transparent border-b border-[#333] text-white p-1 appearance-none cursor-pointer">
-                                                <!-- Populated by JS -->
-                                            </select>
+                                                </select>
                                         </div>
                                         <div class="dot-row" id="phase8-humanity-dots"></div>
                                     </div>
@@ -410,14 +378,12 @@
                 </div>
             </div>
 
-            <!-- Play Mode -->
             <div id="play-mode-1" class="step-container space-y-10">
                 <div id="play-concept-row" class="grid grid-cols-3 gap-6 text-[11px] uppercase border-b border-[#333] pb-6 font-bold text-gold"></div>
                 <div id="play-rows-container" class="space-y-10"><div id="play-row-attr" class="grid grid-cols-1 md:grid-cols-3 gap-10"></div><div id="play-row-abil" class="grid grid-cols-1 md:grid-cols-3 gap-10"></div><div id="play-row-adv" class="grid grid-cols-1 md:grid-cols-3 gap-10"></div></div>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-10 border-t border-[#333] pt-10"><div class="sheet-section"><div class="section-title">Humanity / Path</div><div class="flex flex-col items-center gap-4 py-2">
                     <select id="c-path-name" class="text-center text-gold font-bold uppercase tracking-widest !bg-transparent !border-b !border-[#333] mb-1 appearance-none cursor-pointer w-full text-sm">
-                        <!-- Populated by JS -->
-                    </select>
+                        </select>
                     <div id="humanity-dots-play" class="flex justify-center"></div><div class="flex items-center gap-2 mt-2"><span class="label-text text-gray-500">Bearing:</span><input type="text" id="c-bearing-name" class="w-24 text-xs !border-b !border-[#333]"><input type="number" id="c-bearing-value" class="w-10 text-center text-xs !border-b !border-[#333]" placeholder="( )"></div></div></div><div class="sheet-section"><div class="section-title">Willpower</div><div id="willpower-dots-play" class="flex justify-center mb-2"></div><div id="willpower-boxes-play" class="flex justify-center"></div></div><div class="sheet-section"><div class="section-title">Blood Pool</div><div id="blood-boxes-play" class="grid grid-cols-10 gap-1.5 justify-center mt-2"></div></div><div class="sheet-section"><div class="section-title">Health</div><div id="health-chart-play" class="space-y-1.5"></div></div></div>
             </div>
 
@@ -446,7 +412,39 @@
         </div>
     </div>
     
-    <!-- LINKED JS FILE -->
+    <div id="save-modal" class="modal-overlay">
+        <div class="modal-box">
+            <h2 class="heading text-xl text-gold mb-4 border-b border-[#333] pb-2">Inscribe Character</h2>
+            <div class="space-y-4">
+                <div>
+                    <label class="label-text">Character Name (Filename)</label>
+                    <input type="text" id="save-name-input" class="w-full text-sm font-bold bg-[#111] p-2 border border-[#333] focus:border-gold">
+                </div>
+                <div>
+                    <label class="label-text">Folder / Group</label>
+                    <input type="text" id="save-folder-input" list="folder-datalist" placeholder="e.g. Chronicle 1" class="w-full text-sm font-bold bg-[#111] p-2 border border-[#333] focus:border-gold">
+                    <datalist id="folder-datalist"></datalist>
+                </div>
+            </div>
+            <div class="flex justify-end gap-2 mt-6">
+                <button class="standard-button px-4 py-2 text-xs uppercase font-bold" onclick="document.getElementById('save-modal').classList.remove('active')">Cancel</button>
+                <button id="confirm-save-btn" class="bg-[#8b0000] text-white px-6 py-2 text-xs uppercase font-bold hover:bg-red-700 shadow-md">Inscribe</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="load-modal" class="modal-overlay">
+        <div class="modal-box w-[500px]">
+            <h2 class="heading text-xl text-gold mb-4 border-b border-[#333] pb-2">Recall Character</h2>
+            <div id="file-browser" class="h-64 overflow-y-auto bg-[#050505] border border-[#333] p-2">
+                <div class="text-center text-gray-500 italic mt-10">Connecting to Archives...</div>
+            </div>
+            <div class="flex justify-end gap-2 mt-6">
+                <button class="standard-button px-4 py-2 text-xs uppercase font-bold" onclick="document.getElementById('load-modal').classList.remove('active')">Cancel</button>
+            </div>
+        </div>
+    </div>
+
     <script type="module" src="script.js"></script>
 
 </body>
