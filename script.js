@@ -2,7 +2,10 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
 import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { getFirestore, doc, setDoc, getDoc, collection, getDocs, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-// --- ERROR HANDLER (Helps us see crashes) ---
+// --- VERSION CONTROL ---
+const APP_VERSION = "v1.1";
+
+// --- ERROR HANDLER ---
 window.onerror = function(msg, url, line) {
     const notif = document.getElementById('notification');
     if(notif) {
@@ -940,6 +943,10 @@ window.togglePlayMode = function() {
 try {
     // --- SAFEGUARD: CHECK IF NAV EXISTS ---
     if (!document.getElementById('sheet-nav')) throw new Error("Navigation container 'sheet-nav' is missing from HTML.");
+
+    // --- VERSION CHECK ---
+    const vSpan = document.getElementById('app-version');
+    if(vSpan) vSpan.innerText = APP_VERSION;
 
     // --- SAFEGUARD: Wrap DOM logic ---
     const s1 = document.getElementById('list-attr-physical');
