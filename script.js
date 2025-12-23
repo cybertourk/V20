@@ -737,6 +737,61 @@ function renderBloodBondRow() {
     cont.appendChild(row);
 }
 
+// --- MISSING FUNCTION RESTORED HERE ---
+function renderDerangementsList() {
+    const cont = document.getElementById('derangements-list');
+    if (!cont) return;
+    cont.innerHTML = '';
+
+    window.state.derangements.forEach((d, idx) => {
+        const row = document.createElement('div');
+        row.className = "flex justify-between items-center text-xs text-white border-b border-[#333] py-1";
+        row.innerHTML = `<span>${d}</span><span class="remove-btn text-red-500" onclick="window.removeDerangement(${idx})">&times;</span>`;
+        cont.appendChild(row);
+    });
+
+    const addRow = document.createElement('div');
+    addRow.className = "flex gap-2 mt-2";
+    let options = `<option value="">+ Add Derangement</option>` + DERANGEMENTS.map(d => `<option value="${d}">${d}</option>`).join('');
+    addRow.innerHTML = `
+        <select id="derangement-select" class="flex-1 text-[10px] uppercase font-bold bg-black/40 border border-[#444] text-white p-1">
+            ${options}
+            <option value="Custom">Custom...</option>
+        </select>
+        <input type="text" id="derangement-custom" class="hidden flex-1 text-[10px] bg-black/40 border border-[#444] text-white p-1" placeholder="Type name...">
+        <button id="add-derangement-btn" class="bg-[#8b0000] text-white px-2 py-1 text-[10px] font-bold hover:bg-red-700">ADD</button>
+    `;
+    cont.appendChild(addRow);
+
+    const sel = document.getElementById('derangement-select');
+    const inp = document.getElementById('derangement-custom');
+    const btn = document.getElementById('add-derangement-btn');
+
+    sel.onchange = () => {
+        if (sel.value === 'Custom') {
+            sel.classList.add('hidden');
+            inp.classList.remove('hidden');
+            inp.focus();
+        }
+    };
+
+    btn.onclick = () => {
+        let val = sel.value === 'Custom' ? inp.value : sel.value;
+        if (val && val !== 'Custom') {
+            window.state.derangements.push(val);
+            renderDerangementsList();
+            window.updatePools(); 
+        }
+    };
+}
+
+window.removeDerangement = (idx) => {
+    window.state.derangements.splice(idx, 1);
+    renderDerangementsList();
+    window.updatePools();
+};
+// -------------------------------------
+
 function renderDynamicHavenRow() {
     const cont = document.getElementById('multi-haven-list'); if (!cont) return;
     const row = document.createElement('div'); row.className = 'border-b border-[#222] pb-4 advantage-row';
@@ -898,7 +953,7 @@ try {
     renderDynamicAdvantageRow('custom-talents', 'abil', [], true);
     renderDynamicAdvantageRow('custom-skills', 'abil', [], true);
     renderDynamicAdvantageRow('custom-knowledges', 'abil', [], true);
-    renderDerangementsList();
+    renderDerangementsList(); // <--- THIS WAS CAUSING THE ERROR
     VIRTUES.forEach(v => { window.state.dots.virt[v] = 1; renderRow('list-virt', v, 'virt', 1); });
     const vitalCont = document.getElementById('vitals-create-inputs');
     if(vitalCont) VIT.forEach(v => { const d = document.createElement('div'); d.innerHTML = `<label class="label-text">${v}</label><input type="text" id="bio-${v}">`; vitalCont.appendChild(d); });
