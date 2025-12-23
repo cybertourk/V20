@@ -3,7 +3,7 @@ import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken }
 import { getFirestore, doc, setDoc, getDoc, collection, getDocs, query, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 // --- VERSION CONTROL ---
-const APP_VERSION = "v1.9 (Specialties + Big Dice)";
+const APP_VERSION = "v1.10 (Specialty Dropdowns)";
 
 // --- ERROR HANDLER ---
 window.onerror = function(msg, url, line) {
@@ -45,6 +45,52 @@ const VIT = ["age", "app-age", "dob", "rip", "hair", "eyes", "race", "nat", "hei
 const HEALTH_STATES = [{l: "Bruised", p: 0}, {l: "Hurt", p: -1}, {l: "Injured", p: -1}, {l: "Wounded", p: -2}, {l: "Mauled", p: -2}, {l: "Crippled", p: -5}, {l: "Incap", p: -99}];
 const GEN_LIMITS = { 15: {m:10,p:1}, 14: {m:10,p:1}, 13: {m:10,p:1}, 12: {m:11,p:1}, 11: {m:12,p:1}, 10: {m:13,p:1}, 9: {m:14,p:2}, 8: {m:15,p:3}, 7: {m:20,p:4}, 6: {m:30,p:6}, 5: {m:40,p:10}, 4: {m:50,p:15}, 3: {m:100,p:100} };
 
+const SPECIALTY_EXAMPLES = {
+    // Attributes
+    "Strength": ["Dead Lift", "Punch", "Jump", "Crush", "Holding On"],
+    "Dexterity": ["Speed", "Agility", "Flexibility", "Balance", "Reflexes"],
+    "Stamina": ["Endurance", "Determination", "Hold Breath", "Resilience"],
+    "Charisma": ["Smooth Talker", "Eloquent", "Outspoken", "Charming", "Command"],
+    "Manipulation": ["Persuasive", "Cunning", "Blackmailer", "Seductive"],
+    "Appearance": ["Bold", "Exotic", "Classic", "Innocent", "Alluring"],
+    "Perception": ["Insight", "Attentive", "Patient", "Uncanny"],
+    "Intelligence": ["Memory", "Research", "Analysis", "Strategy", "Logic"],
+    "Wits": ["Clever", "Ambushes", "Comebacks", "Changes in Strategy"],
+    // Talents
+    "Alertness": ["Noises", "Traps", "Ambushes", "Hidden Weapons"],
+    "Athletics": ["Acrobatics", "Climbing", "Running", "Swimming", "Throwing"],
+    "Awareness": ["Auras", "Spirits", "Magic", "Shifting"],
+    "Brawl": ["Boxing", "Wrestling", "Dirty Fighting", "Throws", "Claws"],
+    "Empathy": ["Emotions", "Personalities", "Truths", "Motives"],
+    "Expression": ["Poetry", "Acting", "Guitar", "Writing", "Oratory"],
+    "Intimidation": ["Physical", "Veiled Threats", "Social", "Stare Down"],
+    "Leadership": ["Command", "Oratory", "Military", "Motivation"],
+    "Streetwise": ["Fencing", "Drugs", "Gangs", "Rumors", "Turf"],
+    "Subterfuge": ["Lying", "Seduction", "Impeccable Logic", "The Long Con"],
+    // Skills
+    "Animal Ken": ["Dogs", "Wolves", "Cats", "Horses", "Training"],
+    "Crafts": ["Pottery", "Sewing", "Carpentry", "Blacksmithing", "Mechanics"],
+    "Drive": ["Curves", "High Speed", "Stunts", "Heavy Traffic", "Tail"],
+    "Etiquette": ["Camarilla", "Sabbat", "High Society", "Business", "Street"],
+    "Firearms": ["Pistols", "Rifles", "Shotguns", "Sniping", "Quick Draw"],
+    "Larceny": ["Lockpicking", "Pickpocket", "Safecracking", "Security"],
+    "Melee": ["Knives", "Swords", "Axes", "Clubs", "Disarm"],
+    "Performance": ["Singing", "Dancing", "Comedy", "Instrument"],
+    "Stealth": ["Shadowing", "Hiding", "Silent Movement", "Crowds"],
+    "Survival": ["Forest", "Jungle", "Desert", "Urban", "Tracking"],
+    // Knowledges
+    "Academics": ["History", "Literature", "Philosophy", "Art", "Theology"],
+    "Computer": ["Hacking", "Programming", "Hardware", "Data Retrieval"],
+    "Finance": ["Stock Market", "Laundering", "Appraisal", "Accounting"],
+    "Investigation": ["Search", "Forensics", "Research", "Interrogation"],
+    "Law": ["Criminal", "Civil", "Kindred Law", "Police Procedure"],
+    "Medicine": ["First Aid", "Surgery", "Pharmacy", "Pathology", "Poison"],
+    "Occult": ["Kindred Lore", "Magic", "Ghosts", "Demons", "Rituals"],
+    "Politics": ["City", "National", "Camarilla", "Sabbat", "Bribery"],
+    "Science": ["Biology", "Chemistry", "Physics", "Geology", "Botany"],
+    "Technology": ["Electronics", "Security", "Communications", "Invention"]
+};
+
 const DERANGEMENTS = ["Amnesia", "Anxiety", "Bipolar Disorder", "Bulimia", "Fugue", "Hysteria", "Megalomania", "Multiple Personalities", "Obsessive-Compulsive", "Paranoia", "Phobia", "Schizophrenia", "Sanguinary Animism"];
 const V20_MERITS_LIST = [{ n: "Acute Sense", t: "Merit", v: 1 }, { n: "Ambidextrous", t: "Merit", v: 1 }, { n: "Catlike Balance", t: "Merit", v: 1 }, { n: "Early Riser", t: "Merit", v: 1 }, { n: "Eat Food", t: "Merit", v: 1 }, { n: "Blush of Health", t: "Merit", v: 2 }, { n: "Enchanting Voice", t: "Merit", v: 2 }, { n: "Daredevil", t: "Merit", v: 3 }, { n: "Efficient Digestion", t: "Merit", v: 3 }, { n: "Huge Size", t: "Merit", v: 4 }, { n: "Prestigious Sire", t: "Merit", v: 1 }, { n: "Natural Leader", t: "Merit", v: 1 }, { n: "Specific Interests", t: "Merit", v: 1 }, { n: "Harmless", t: "Merit", v: 1 }, { n: "Protege", t: "Merit", v: 1 }, { n: "Rep", t: "Merit", v: 1 }, { n: "Language", t: "Merit", v: 1 }, { n: "Common Sense", t: "Merit", v: 1 }, { n: "Concentration", t: "Merit", v: 1 }, { n: "Time Sense", t: "Merit", v: 1 }, { n: "Code of Honor", t: "Merit", v: 1 }, { n: "Eidetic Memory", t: "Merit", v: 2 }, { n: "Light Sleeper", t: "Merit", v: 2 }, { n: "Calm Heart", t: "Merit", v: 3 }, { n: "Iron Will", t: "Merit", v: 3 }, { n: "Medium", t: "Merit", v: 2 }, { n: "Magic Resistance", t: "Merit", v: 2 }, { n: "Oracular Ability", t: "Merit", v: 3 }, { n: "Unbondable", t: "Merit", v: 3 }, { n: "Lucky", t: "Merit", v: 3 }, { n: "True Faith", t: "Merit", v: 7 }];
 const V20_FLAWS_LIST = [{ n: "Deep Sleeper", t: "Flaw", v: 1 }, { n: "Intolerance", t: "Flaw", v: 1 }, { n: "Nightmare", t: "Flaw", v: 1 }, { n: "Prey Exclusion", t: "Flaw", v: 1 }, { n: "Overconfident", t: "Flaw", v: 1 }, { n: "Shy", t: "Flaw", v: 1 }, { n: "Soft-Hearted", t: "Flaw", v: 1 }, { n: "Speech Impediment", t: "Flaw", v: 1 }, { n: "Bad Sight", t: "Flaw", v: 2 }, { n: "One Eye", t: "Flaw", v: 2 }, { n: "Short Fuse", t: "Flaw", v: 2 }, { n: "Vengeful", t: "Flaw", v: 2 }, { n: "Amnesia", t: "Flaw", v: 2 }, { n: "Lunacy", t: "Flaw", v: 2 }, { n: "Phobia", t: "Flaw", v: 2 }, { n: "Addiction", t: "Flaw", v: 3 }, { n: "Lame", t: "Flaw", v: 3 }, { n: "Deformity", t: "Flaw", v: 3 }, { n: "Deaf", t: "Flaw", v: 4 }, { n: "Hunted", t: "Flaw", v: 4 }, { n: "Blind", t: "Flaw", v: 6 }, { n: "Enemy", t: "Flaw", v: 1, range: "1-5", variable: true }, { n: "Dark Secret", t: "Flaw", v: 1, range: "1-5", variable: true }, { n: "Cursed", t: "Flaw", v: 1, range: "1-5", variable: true }, { n: "Mistaken Identity", t: "Flaw", v: 1 }, { n: "Beacon of the Unholy", t: "Flaw", v: 2 }, { n: "Death Sight", t: "Flaw", v: 2 }, { n: "Haunted", t: "Flaw", v: 3 }, { n: "Flashbacks", t: "Flaw", v: 1, range: "1-2", variable: true }];
@@ -57,9 +103,8 @@ window.state = {
     isPlayMode: false, freebieMode: false, activePool: [], currentPhase: 1, furthestPhase: 1,
     dots: { attr: {}, abil: {}, disc: {}, back: {}, virt: {}, other: {} },
     prios: { attr: {}, abil: {} },
-    // status.health_states: Array of 7 integers. 0=Empty, 1=Bashing(/), 2=Lethal(X), 3=Aggravated(*)
     status: { humanity: 7, willpower: 5, tempWillpower: 5, health_states: [0,0,0,0,0,0,0], blood: 0 },
-    specialties: {}, // New: Stores specialty strings
+    specialties: {}, 
     socialExtras: {}, textFields: {}, havens: [], bloodBonds: [], vehicles: [], customAbilityCategories: {},
     derangements: [], merits: [], flaws: [], inventory: [],
     meta: { filename: "", folder: "" } 
@@ -256,7 +301,7 @@ async function loadSelectedChar(data) {
     if(!confirm(`Recall ${data.meta?.filename}? Unsaved progress will be lost.`)) return;
     
     window.state = data;
-    if(!window.state.specialties) window.state.specialties = {}; // init specialties if missing
+    if(!window.state.specialties) window.state.specialties = {}; 
     if (!window.state.furthestPhase) window.state.furthestPhase = 1;
     if (window.state.status && window.state.status.tempWillpower === undefined) {
         window.state.status.tempWillpower = window.state.status.willpower || 5;
@@ -736,12 +781,23 @@ function renderRow(contId, label, type, min, max = 5) {
         </div>
     `;
     
-    // Specialty Input Logic
+    // Specialty Input Logic (V1.10 - Dropdown/Datalist)
     if (val >= 4) {
         const specDiv = document.createElement('div');
         specDiv.className = 'w-full mt-1';
         const specVal = window.state.specialties[label] || "";
-        specDiv.innerHTML = `<input type="text" class="specialty-input w-full text-[9px] bg-transparent border-b border-gray-700 text-gold italic pl-2" placeholder="Specialty..." value="${specVal}">`;
+        const listId = `list-${label.replace(/\s+/g, '')}`;
+        
+        // Dynamically create datalist options from SPECIALTY_EXAMPLES
+        let optionsHTML = '';
+        if (SPECIALTY_EXAMPLES[label]) {
+            optionsHTML = SPECIALTY_EXAMPLES[label].map(s => `<option value="${s}">`).join('');
+        }
+        
+        specDiv.innerHTML = `
+            <input type="text" list="${listId}" class="specialty-input w-full text-[9px] bg-transparent border-b border-gray-700 text-gold italic pl-2" placeholder="Specialty..." value="${specVal}">
+            <datalist id="${listId}">${optionsHTML}</datalist>
+        `;
         
         const input = specDiv.querySelector('input');
         input.onblur = (e) => {
@@ -855,7 +911,17 @@ function renderDynamicAdvantageRow(containerId, type, list, isAbil = false) {
              const specDiv = document.createElement('div');
              specDiv.className = 'w-full mt-1 ml-1';
              const specVal = window.state.specialties[curName] || "";
-             specDiv.innerHTML = `<input type="text" class="specialty-input w-full text-[9px] bg-transparent border-b border-gray-700 text-gold italic pl-2" placeholder="Specialty..." value="${specVal}">`;
+             // Use generic list for custom items or look up if name matches known ability
+             const listId = `list-${curName.replace(/[^a-zA-Z0-9]/g, '')}`;
+             let optionsHTML = '';
+             if (SPECIALTY_EXAMPLES[curName]) {
+                 optionsHTML = SPECIALTY_EXAMPLES[curName].map(s => `<option value="${s}">`).join('');
+             }
+             
+             specDiv.innerHTML = `
+                <input type="text" list="${listId}" class="specialty-input w-full text-[9px] bg-transparent border-b border-gray-700 text-gold italic pl-2" placeholder="Specialty..." value="${specVal}">
+                <datalist id="${listId}">${optionsHTML}</datalist>
+             `;
              
              const input = specDiv.querySelector('input');
              input.onblur = (e) => { window.state.specialties[curName] = e.target.value; };
