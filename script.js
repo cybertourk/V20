@@ -21,7 +21,7 @@ const appId = 'v20-neonate-sheet';
 // ------------------------------------------
 
 const CLANS = ["Assamite", "Brujah", "Followers of Set", "Gangrel", "Giovanni", "Lasombra", "Malkavian", "Nosferatu", "Ravnos", "Toreador", "Tremere", "Tzimisce", "Ventrue", "Caitiff"];
-const ARCHETYPES = ["Architect", "Autocrat", "Bon Vivant","Bravo", "Capitalist", "Caregiver", "Celebrant", "Chameleon", "Child", "Competitor", "Conformist", "Conniver", "Curmudgeon", "Dabbler", "Deviant", "Director", "Enigma", "Eye of the Storm", "Fanatic", "Gallant", "Guru", "Idealist", "Judge", "Loner", "Martyr", "Masochist", "Monster", "Pedagogue", "Penitent", "Perfectionist", "Rebel", "Rogue", "Sadist", "Scientist", "Sociopath", "Soldier", "Survivor", "Thrill-Seeker", "Traditionalist", "Trickster", "Visionary"];
+const ARCHETYPES = ["Architect", "Autocrat", "Bon Vivant", "Bravo", "Capitalist", "Caregiver", "Celebrant", "Chameleon", "Child", "Competitor", "Conformist", "Conniver", "Curmudgeon", "Dabbler", "Deviant", "Director", "Enigma", "Eye of the Storm", "Fanatic", "Gallant", "Guru", "Idealist", "Judge", "Loner", "Martyr", "Masochist", "Monster", "Pedagogue", "Penitent", "Perfectionist", "Rebel", "Rogue", "Sadist", "Scientist", "Sociopath", "Soldier", "Survivor", "Thrill-Seeker", "Traditionalist", "Trickster", "Visionary"];
 const ATTRIBUTES = { Physical: ["Strength", "Dexterity", "Stamina"], Social: ["Charisma", "Manipulation", "Appearance"], Mental: ["Perception", "Intelligence", "Wits"] };
 const ABILITIES = { Talents: ["Alertness", "Athletics", "Awareness", "Brawl", "Empathy", "Expression", "Intimidation", "Leadership", "Streetwise", "Subterfuge"], Skills: ["Animal Ken", "Crafts", "Drive", "Etiquette", "Firearms", "Larceny", "Melee", "Performance", "Stealth", "Survival"], Knowledges: ["Academics", "Computer", "Finance", "Investigation", "Law", "Medicine", "Occult", "Politics", "Science", "Technology"] };
 const BACKGROUNDS = ["Allies", "Alternate Identity", "Black Hand Membership", "Contacts", "Domain", "Fame", "Generation", "Herd", "Influence", "Mentor", "Resources", "Retainers", "Rituals", "Status"];
@@ -508,9 +508,22 @@ function updatePools() {
     const fbBtn = document.getElementById('toggle-freebie-btn');
     if (fbBtn) {
         const complete = checkCreationComplete();
-        fbBtn.disabled = !complete;
-        if (!complete && window.state.freebieMode) toggleFreebieMode(); 
+        if (!window.state.freebieMode) {
+            fbBtn.disabled = !complete;
+        } else {
+            fbBtn.disabled = false; // Always allow exiting freebie mode
+        }
     }
+
+    // Refresh all Standard Dot Rows to match state
+    document.querySelectorAll('.dot-row').forEach(el => {
+        const name = el.dataset.n;
+        const type = el.dataset.t;
+        if (name && type && window.state.dots[type]) {
+            const val = window.state.dots[type][name] || 0; 
+            el.innerHTML = renderDots(val, 5);
+        }
+    });
 
     // Render Phase 8 Dots safely
     const p8h = document.getElementById('phase8-humanity-dots');
