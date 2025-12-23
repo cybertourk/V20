@@ -3,7 +3,7 @@ import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken }
 import { getFirestore, doc, setDoc, getDoc, collection, getDocs, query, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 // --- VERSION CONTROL ---
-const APP_VERSION = "v1.2 (Folder System)";
+const APP_VERSION = "v1.3 (Delete Added)";
 
 // --- ERROR HANDLER ---
 window.onerror = function(msg, url, line) {
@@ -185,13 +185,19 @@ async function renderFileBrowser() {
                 row.className = 'file-row';
                 const date = new Date(char.lastSaved || Date.now()).toLocaleDateString();
                 row.innerHTML = `
-                    <div>
+                    <div class="flex-1">
                         <div class="file-info text-white">${char.meta?.filename || char.id}</div>
                         <div class="file-meta">${char.textFields['c-clan'] || 'Unknown Clan'} • ${char.textFields['c-nature'] || 'Unknown Nature'}</div>
                     </div>
-                    <div class="file-meta">${date}</div>
+                    <div class="flex items-center gap-3">
+                        <div class="file-meta">${date}</div>
+                        <button class="file-delete-btn" title="Delete" onclick="window.deleteCharacter('${char.id}', '${char.meta?.filename || char.id}', event)">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
                 `;
-                row.onclick = async () => {
+                row.onclick = async (e) => {
+                    if(e.target.closest('.file-delete-btn')) return; // Stop if clicking trash
                     await loadSelectedChar(char);
                 };
                 browser.appendChild(row);
@@ -205,6 +211,20 @@ async function renderFileBrowser() {
         browser.innerHTML = '<div class="text-red-500 text-center mt-10">Archive Error.</div>';
     }
 }
+
+window.deleteCharacter = async function(id, name, event) {
+    if(event) event.stopPropagation();
+    if(!confirm(`Permanently delete "${name}"? This cannot be undone.`)) return;
+    
+    try {
+        await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'characters', id));
+        showNotification("Deleted.");
+        await renderFileBrowser(); // Refresh list
+    } catch (e) {
+        console.error("Delete Error:", e);
+        showNotification("Delete Failed.");
+    }
+};
 
 async function loadSelectedChar(data) {
     if(!confirm(`Recall ${data.meta?.filename}? Unsaved progress will be lost.`)) return;
@@ -1129,24 +1149,63 @@ try {
 onAuthStateChanged(auth, async (u) => {
     if(u) {
         user = u;
-        document.getElementById('loading-overlay').style.display = 'none';
+        const loader = document.getElementById('loading-overlay');
+        if(loader) loader.style.display = 'none';
+
         try {
-            const ns = document.getElementById('c-nature'), ds = document.getElementById('c-demeanor'), cs = document.getElementById('c-clan');
-            if(ns) ARCHETYPES.sort().forEach(a => { ns.add(new Option(a,a)); ds.add(new Option(a,a)); });
-            if(cs) CLANS.sort().forEach(c => cs.add(new Option(c,c)));
+            // SAFEGUARDED UI POPULATION
+            const ns = document.getElementById('c-nature');
+            const ds = document.getElementById('c-demeanor');
+            const cs = document.getElementById('c-clan');
+
+            // Only populate if elements exist
+            if(ns && ds && typeof ARCHETYPES !== 'undefined') {
+                const sortedArch = [...ARCHETYPES].sort(); // Sort copy to be safe
+                // Clear existing to prevent duplicates on re-auth
+                ns.innerHTML = ''; ds.innerHTML = ''; 
+                sortedArch.forEach(a => { 
+                    ns.add(new Option(a,a)); 
+                    if(ds) ds.add(new Option(a,a)); 
+                });
+            }
+
+            if(cs && typeof CLANS !== 'undefined') {
+                const sortedClans = [...CLANS].sort();
+                cs.innerHTML = '';
+                sortedClans.forEach(c => cs.add(new Option(c,c)));
+            }
+
             const ps1 = document.getElementById('c-path-name');
             const ps2 = document.getElementById('c-path-name-create');
-            PATHS.forEach(p => { if(ps1) ps1.add(new Option(p,p)); if(ps2) ps2.add(new Option(p,p)); });
-            if(ps1) ps1.addEventListener('change', (e) => { if(ps2) ps2.value = e.target.value; if(window.state.textFields) window.state.textFields['c-path-name'] = e.target.value; });
-            if(ps2) ps2.addEventListener('change', (e) => { if(ps1) ps1.value = e.target.value; if(window.state.textFields) window.state.textFields['c-path-name'] = e.target.value; });
+            
+            if (typeof PATHS !== 'undefined') {
+                if(ps1) { ps1.innerHTML = ''; PATHS.forEach(p => ps1.add(new Option(p,p))); }
+                if(ps2) { ps2.innerHTML = ''; PATHS.forEach(p => ps2.add(new Option(p,p))); }
+            }
+
+            // Safe Event Listeners
+            if(ps1) ps1.addEventListener('change', (e) => { 
+                if(ps2) ps2.value = e.target.value; 
+                if(window.state.textFields) window.state.textFields['c-path-name'] = e.target.value; 
+            });
+            
+            if(ps2) ps2.addEventListener('change', (e) => { 
+                if(ps1) ps1.value = e.target.value; 
+                if(window.state.textFields) window.state.textFields['c-path-name'] = e.target.value; 
+            });
+
             const freebieInp = document.getElementById('c-freebie-total');
             if(freebieInp) freebieInp.oninput = window.updatePools;
-            // Removed auto-refresh list on init; Wait for user to click "Load"
+
+            // Note: renderFileBrowser is NOT called here anymore.
+            // It is only called when the user clicks the "Load" button.
+
         } catch (dbErr) {
             console.error("DB Init Error:", dbErr);
             showNotification("DB Conn Error (UI Active)");
         }
     } else {
+        // Anonymous Sign In
         if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) await signInWithCustomToken(auth, __initial_auth_token);
         else await signInAnonymously(auth);
     }
