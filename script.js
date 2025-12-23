@@ -255,8 +255,6 @@ function calculateTotalFreebiesSpent(tempState = window.state) {
         return (attrCost + abilCost + discCost + backCost + virtCost + humCost + willCost + mfCost) - cappedBonus;
 }
 
-// --- NEW WALKTHROUGH & VALIDATION LOGIC ---
-
 const STEPS_CONFIG = [
     { id: 1, icon: 'fa-id-card', label: 'Concept', msg: 'Define your Identity' },
     { id: 2, icon: 'fa-hand-fist', label: 'Attributes', msg: 'Assign Attribute Points' },
@@ -348,8 +346,6 @@ function nextStep() {
 window.nextStep = nextStep;
 
 function checkCreationComplete() { return checkStepComplete(1) && checkStepComplete(2) && checkStepComplete(3) && checkStepComplete(4); }
-
-// --- END NEW LOGIC ---
 
 function updatePools() {
     if (!window.state.status) window.state.status = { humanity: 7, willpower: 5, health: 0, blood: 0 };
@@ -682,19 +678,16 @@ async function loadCharacter() {
             
             hydrateInputs();
             
-            // --- UPDATED LOADING LOGIC START ---
             const mList = document.getElementById('merits-list-create');
             if(mList) { mList.innerHTML = ''; renderDynamicTraitRow('merits-list-create', 'Merit', V20_MERITS_LIST); }
             const fList = document.getElementById('flaws-list-create');
             if(fList) { fList.innerHTML = ''; renderDynamicTraitRow('flaws-list-create', 'Flaw', V20_FLAWS_LIST); }
             
-            // Force rebuild of Advantage rows based on new state
             renderDynamicAdvantageRow('list-disc', 'disc', DISCIPLINES);
             renderDynamicAdvantageRow('list-back', 'back', BACKGROUNDS);
             renderDynamicAdvantageRow('custom-talents', 'abil', [], true);
             renderDynamicAdvantageRow('custom-skills', 'abil', [], true);
             renderDynamicAdvantageRow('custom-knowledges', 'abil', [], true);
-            // --- UPDATED LOADING LOGIC END ---
 
             renderInventoryList();
             
@@ -921,7 +914,6 @@ if(invType) {
     });
 }
 
-// --- UPDATED RENDER FUNCTION WITH REBUILD LOGIC ---
 function renderDynamicAdvantageRow(containerId, type, list, isAbil = false) {
     const container = document.getElementById(containerId);
     if (!container) return;
@@ -1221,9 +1213,20 @@ onAuthStateChanged(auth, async (u) => {
         window.updatePools = updatePools;
         renderBloodBondRow();
         renderDynamicHavenRow();
-        await refreshList();
+        
+        // --- SAFE INITIALIZATION ORDER ---
+        // 1. Initialize the UI first (Nav & Pools) so the user sees controls immediately
         window.changeStep(1); 
         updatePools();
+
+        // 2. Try to load the database list, but don't crash if it fails
+        try {
+            await refreshList();
+        } catch(e) {
+            console.warn("Could not load character list:", e);
+            // Optional: showNotification("DB Connection Issue");
+        }
+        // ----------------------------------
     } else {
         if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) await signInWithCustomToken(auth, __initial_auth_token);
         else await signInAnonymously(auth);
