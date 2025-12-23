@@ -3,7 +3,7 @@ import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken }
 import { getFirestore, doc, setDoc, getDoc, collection, getDocs, query, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 // --- VERSION CONTROL ---
-const APP_VERSION = "v1.7 (Visible Blood Grid)";
+const APP_VERSION = "v1.8 (Health Cycle)";
 
 // --- ERROR HANDLER ---
 window.onerror = function(msg, url, line) {
@@ -57,8 +57,8 @@ window.state = {
     isPlayMode: false, freebieMode: false, activePool: [], currentPhase: 1, furthestPhase: 1,
     dots: { attr: {}, abil: {}, disc: {}, back: {}, virt: {}, other: {} },
     prios: { attr: {}, abil: {} },
-    // tempWillpower stores the squares, willpower stores the dots
-    status: { humanity: 7, willpower: 5, tempWillpower: 5, health: 0, blood: 0 },
+    // status.health_states: Array of 7 integers. 0=Empty, 1=Bashing(/), 2=Lethal(X), 3=Aggravated(*)
+    status: { humanity: 7, willpower: 5, tempWillpower: 5, health_states: [0,0,0,0,0,0,0], blood: 0 },
     socialExtras: {}, textFields: {}, havens: [], bloodBonds: [], vehicles: [], customAbilityCategories: {},
     derangements: [], merits: [], flaws: [], inventory: [],
     meta: { filename: "", folder: "" } 
@@ -93,16 +93,18 @@ document.addEventListener('click', function(e) {
     if (!type || isNaN(val)) return;
 
     if (type === 'wp') {
-        // Toggle Logic: If clicking the current max, reduce by 1. Otherwise set to clicked value.
         if (window.state.status.tempWillpower === val) window.state.status.tempWillpower = val - 1;
         else window.state.status.tempWillpower = val;
     } else if (type === 'blood') {
         if (window.state.status.blood === val) window.state.status.blood = val - 1;
         else window.state.status.blood = val;
     } else if (type === 'health') {
-        // Health is damage taken. Checking box 1 means 1 level of damage.
-        if (window.state.status.health === val) window.state.status.health = val - 1;
-        else window.state.status.health = val;
+        // CYCLE LOGIC: 0 (Empty) -> 1 (Bashing) -> 2 (Lethal) -> 3 (Aggravated) -> 0
+        const idx = val - 1; // data-v is 1-based, array is 0-based
+        if (window.state.status.health_states === undefined) window.state.status.health_states = [0,0,0,0,0,0,0];
+        
+        const current = window.state.status.health_states[idx] || 0;
+        window.state.status.health_states[idx] = (current + 1) % 4;
     }
     
     window.updatePools();
@@ -258,9 +260,18 @@ async function loadSelectedChar(data) {
     
     window.state = data;
     if (!window.state.furthestPhase) window.state.furthestPhase = 1;
-    // Compatibility check for old saves lacking tempWillpower
+    // Compatibility checks
     if (window.state.status && window.state.status.tempWillpower === undefined) {
         window.state.status.tempWillpower = window.state.status.willpower || 5;
+    }
+    // Upgrade old numerical health to array if needed
+    if (window.state.status && (window.state.status.health_states === undefined || !Array.isArray(window.state.status.health_states))) {
+        const oldDamage = window.state.status.health || 0;
+        window.state.status.health_states = [0,0,0,0,0,0,0];
+        // Convert old generic damage to Lethal (2) for safety
+        for(let i=0; i<oldDamage && i<7; i++) {
+            window.state.status.health_states[i] = 2;
+        }
     }
     
     // UI Refresh
@@ -441,9 +452,11 @@ window.nextStep = function() {
 };
 
 window.updatePools = function() {
-    if (!window.state.status) window.state.status = { humanity: 7, willpower: 5, tempWillpower: 5, health: 0, blood: 0 };
+    if (!window.state.status) window.state.status = { humanity: 7, willpower: 5, tempWillpower: 5, health_states: [0,0,0,0,0,0,0], blood: 0 };
     // Init temporary willpower if missing (backward compatibility)
     if (window.state.status.tempWillpower === undefined) window.state.status.tempWillpower = window.state.status.willpower || 5;
+    // Init health states if missing
+    if (window.state.status.health_states === undefined || !Array.isArray(window.state.status.health_states)) window.state.status.health_states = [0,0,0,0,0,0,0];
 
     if (!window.state.freebieMode && !window.state.isPlayMode) {
         const bH = (window.state.dots.virt?.Conscience || 1) + (window.state.dots.virt?.["Self-Control"] || 1);
@@ -575,7 +588,11 @@ window.updatePools = function() {
         });
     }
     // Update Health Boxes (Clicking box N means "Damage Level N" reached)
-    document.querySelectorAll('#health-chart-play .box').forEach((box, i) => { box.classList.toggle('checked', i < window.state.status.health); });
+    const healthStates = window.state.status.health_states || [0,0,0,0,0,0,0];
+    document.querySelectorAll('#health-chart-play .box').forEach((box, i) => {
+        box.classList.remove('checked'); // Remove old check logic
+        box.dataset.state = healthStates[i] || 0; // Apply new cycle logic
+    });
     
     const cList = document.getElementById('combat-list-create');
     if(cList && window.state.inventory) {
