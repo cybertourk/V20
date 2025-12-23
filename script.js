@@ -1,9 +1,9 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
 import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-import { getFirestore, doc, setDoc, getDoc, collection, getDocs, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+import { getFirestore, doc, setDoc, getDoc, collection, getDocs, query, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 // --- VERSION CONTROL ---
-const APP_VERSION = "v1.1";
+const APP_VERSION = "v1.2 (Folder System)";
 
 // --- ERROR HANDLER ---
 window.onerror = function(msg, url, line) {
@@ -32,7 +32,7 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const appId = 'v20-neonate-sheet';
 
-// --- DATA CONSTANTS ---
+// --- DATA CONSTANTS (V20 Rules) ---
 const CLANS = ["Assamite", "Brujah", "Followers of Set", "Gangrel", "Giovanni", "Lasombra", "Malkavian", "Nosferatu", "Ravnos", "Toreador", "Tremere", "Tzimisce", "Ventrue", "Caitiff"];
 const ARCHETYPES = ["Architect", "Autocrat", "Bon Vivant", "Bravo", "Capitalist", "Caregiver", "Celebrant", "Chameleon", "Child", "Competitor", "Conformist", "Conniver", "Curmudgeon", "Dabbler", "Deviant", "Director", "Enigma", "Eye of the Storm", "Fanatic", "Gallant", "Guru", "Idealist", "Judge", "Loner", "Martyr", "Masochist", "Monster", "Pedagogue", "Penitent", "Perfectionist", "Rebel", "Rogue", "Sadist", "Scientist", "Sociopath", "Soldier", "Survivor", "Thrill-Seeker", "Traditionalist", "Trickster", "Visionary"];
 const ATTRIBUTES = { Physical: ["Strength", "Dexterity", "Stamina"], Social: ["Charisma", "Manipulation", "Appearance"], Mental: ["Perception", "Intelligence", "Wits"] };
@@ -59,7 +59,8 @@ window.state = {
     prios: { attr: {}, abil: {} },
     status: { humanity: 7, willpower: 5, health: 0, blood: 0 },
     socialExtras: {}, textFields: {}, havens: [], bloodBonds: [], vehicles: [], customAbilityCategories: {},
-    derangements: [], merits: [], flaws: [], inventory: [] 
+    derangements: [], merits: [], flaws: [], inventory: [],
+    meta: { filename: "", folder: "" } // New Metadata
 };
 
 let user = null;
@@ -69,7 +70,7 @@ function showNotification(msg) { const el = document.getElementById('notificatio
 
 function syncInputs() {
     document.querySelectorAll('input:not([type="checkbox"]), select, textarea').forEach(el => {
-        if (el.id && !el.id.startsWith('inv-') && !el.id.startsWith('merit-') && !el.id.startsWith('flaw-') && !el.closest('.combat-row')) window.state.textFields[el.id] = el.value;
+        if (el.id && !el.id.startsWith('inv-') && !el.id.startsWith('merit-') && !el.id.startsWith('flaw-') && !el.id.startsWith('save-') && !el.closest('.combat-row')) window.state.textFields[el.id] = el.value;
     });
 }
 
@@ -80,7 +81,165 @@ function hydrateInputs() {
 function renderDots(count, max = 5) { let h = ''; for(let i=1; i<=max; i++) h += `<span class="dot ${i <= count ? 'filled' : ''}" data-v="${i}"></span>`; return h; }
 function renderBoxes(count, checked = 0, type = '') { let h = ''; for(let i=1; i<=count; i++) h += `<span class="box ${i <= checked ? 'checked' : ''}" data-v="${i}" data-type="${type}"></span>`; return h; }
 
-// --- CORE FUNCTIONS (Hoisted) ---
+// --- FILE MANAGER LOGIC ---
+
+window.handleNew = function() {
+    if(!confirm("Create new character? Unsaved changes will be lost.")) return;
+    window.location.reload(); // Simplest way to full reset
+};
+
+window.handleSaveClick = function() {
+    if(!user) return showNotification("Login Required");
+    syncInputs();
+    
+    // Pre-fill inputs if existing
+    const nameIn = document.getElementById('save-name-input');
+    const folderIn = document.getElementById('save-folder-input');
+    
+    if(window.state.meta.filename) nameIn.value = window.state.meta.filename;
+    else nameIn.value = document.getElementById('c-name').value || "Unnamed Vampire";
+    
+    if(window.state.meta.folder) folderIn.value = window.state.meta.folder;
+    
+    document.getElementById('save-modal').classList.add('active');
+};
+
+window.handleLoadClick = async function() {
+    if(!user) return showNotification("Login Required");
+    document.getElementById('load-modal').classList.add('active');
+    await renderFileBrowser();
+};
+
+window.performSave = async function() {
+    const nameIn = document.getElementById('save-name-input');
+    const folderIn = document.getElementById('save-folder-input');
+    
+    let rawName = nameIn.value.trim();
+    let folder = folderIn.value.trim() || "Unsorted";
+    
+    if(!rawName) return showNotification("Filename required");
+    
+    // Sanitize ID
+    const safeId = rawName.replace(/[^a-zA-Z0-9 _-]/g, "");
+    
+    window.state.meta.filename = safeId;
+    window.state.meta.folder = folder;
+    
+    try {
+        const docRef = doc(db, 'artifacts', appId, 'users', user.uid, 'characters', safeId);
+        await setDoc(docRef, { 
+            ...window.state, 
+            lastSaved: Date.now() 
+        });
+        showNotification("Inscribed.");
+        document.getElementById('save-modal').classList.remove('active');
+        
+        // Update Datalist
+        const dl = document.getElementById('folder-datalist');
+        if(dl && !Array.from(dl.options).some(o => o.value === folder)) {
+            const opt = document.createElement('option');
+            opt.value = folder;
+            dl.appendChild(opt);
+        }
+    } catch (e) { 
+        showNotification("Save Error."); 
+        console.error(e); 
+    }
+};
+
+async function renderFileBrowser() {
+    const browser = document.getElementById('file-browser');
+    browser.innerHTML = '<div class="text-center text-gray-500 italic mt-10">Consulting Archives...</div>';
+    
+    try {
+        const q = query(collection(db, 'artifacts', appId, 'users', user.uid, 'characters'));
+        const snap = await getDocs(q);
+        
+        const structure = {};
+        
+        snap.forEach(d => {
+            const data = d.data();
+            const f = data.meta?.folder || "Unsorted";
+            if(!structure[f]) structure[f] = [];
+            structure[f].push({ id: d.id, ...data });
+        });
+        
+        browser.innerHTML = '';
+        
+        // Sort folders (Unsorted last)
+        const folders = Object.keys(structure).sort((a,b) => a === "Unsorted" ? 1 : b === "Unsorted" ? -1 : a.localeCompare(b));
+        
+        const dl = document.getElementById('folder-datalist');
+        if(dl) dl.innerHTML = ''; // Reset datalist
+        
+        folders.forEach(f => {
+            if(dl) { const opt = document.createElement('option'); opt.value = f; dl.appendChild(opt); }
+            
+            const header = document.createElement('div');
+            header.className = 'folder-header';
+            header.innerHTML = `<i class="fas fa-folder mr-2"></i> ${f}`;
+            browser.appendChild(header);
+            
+            structure[f].forEach(char => {
+                const row = document.createElement('div');
+                row.className = 'file-row';
+                const date = new Date(char.lastSaved || Date.now()).toLocaleDateString();
+                row.innerHTML = `
+                    <div>
+                        <div class="file-info text-white">${char.meta?.filename || char.id}</div>
+                        <div class="file-meta">${char.textFields['c-clan'] || 'Unknown Clan'} • ${char.textFields['c-nature'] || 'Unknown Nature'}</div>
+                    </div>
+                    <div class="file-meta">${date}</div>
+                `;
+                row.onclick = async () => {
+                    await loadSelectedChar(char);
+                };
+                browser.appendChild(row);
+            });
+        });
+        
+        if(folders.length === 0) browser.innerHTML = '<div class="text-center text-gray-500 italic mt-10">No Archives Found.</div>';
+        
+    } catch (e) {
+        console.error(e);
+        browser.innerHTML = '<div class="text-red-500 text-center mt-10">Archive Error.</div>';
+    }
+}
+
+async function loadSelectedChar(data) {
+    if(!confirm(`Recall ${data.meta?.filename}? Unsaved progress will be lost.`)) return;
+    
+    window.state = data;
+    if (!window.state.furthestPhase) window.state.furthestPhase = 1;
+    
+    // UI Refresh
+    hydrateInputs();
+    const mList = document.getElementById('merits-list-create');
+    if(mList) { mList.innerHTML = ''; renderDynamicTraitRow('merits-list-create', 'Merit', V20_MERITS_LIST); }
+    const fList = document.getElementById('flaws-list-create');
+    if(fList) { fList.innerHTML = ''; renderDynamicTraitRow('flaws-list-create', 'Flaw', V20_FLAWS_LIST); }
+    
+    renderDynamicAdvantageRow('list-disc', 'disc', DISCIPLINES);
+    renderDynamicAdvantageRow('list-back', 'back', BACKGROUNDS);
+    renderDynamicAdvantageRow('custom-talents', 'abil', [], true);
+    renderDynamicAdvantageRow('custom-skills', 'abil', [], true);
+    renderDynamicAdvantageRow('custom-knowledges', 'abil', [], true);
+    renderDerangementsList();
+    renderBloodBondRow();
+    renderDynamicHavenRow();
+    
+    window.renderInventoryList();
+    window.updatePools();
+    
+    // Close Modal
+    document.getElementById('load-modal').classList.remove('active');
+    showNotification("Recalled.");
+    
+    if (window.state.isPlayMode) { window.togglePlayMode(); window.togglePlayMode(); } // Quick refresh
+    window.changeStep(window.state.furthestPhase || 1);
+}
+
+// --- DICE & CORE LOGIC ---
 
 window.clearPool = function() {
     window.state.activePool = [];
@@ -481,55 +640,6 @@ window.handleTraitClick = function(name, type) {
         document.getElementById('dice-tray').classList.add('open');
     } else { window.clearPool(); }
 };
-
-window.saveCharacter = async function() {
-    if (!user) { showNotification("Authentication required"); return; }
-    const filename = document.getElementById('save-filename').value.trim();
-    if (!filename) return showNotification("Filename required");
-    syncInputs();
-    try {
-        const docRef = doc(db, 'artifacts', appId, 'users', user.uid, 'characters', filename);
-        await setDoc(docRef, { ...window.state, lastSaved: Date.now() });
-        showNotification("Inscribed.");
-        await refreshList();
-    } catch (e) { showNotification("Save Error."); console.error(e); }
-};
-
-window.loadCharacter = async function() {
-    const name = document.getElementById('char-select').value;
-    if (!name || !user) return;
-    try {
-        const docRef = doc(db, 'artifacts', appId, 'users', user.uid, 'characters', name);
-        const snap = await getDoc(docRef);
-        if (snap.exists()) {
-            window.state = snap.data();
-            if (!window.state.furthestPhase) window.state.furthestPhase = 1;
-            hydrateInputs();
-            const mList = document.getElementById('merits-list-create');
-            if(mList) { mList.innerHTML = ''; renderDynamicTraitRow('merits-list-create', 'Merit', V20_MERITS_LIST); }
-            const fList = document.getElementById('flaws-list-create');
-            if(fList) { fList.innerHTML = ''; renderDynamicTraitRow('flaws-list-create', 'Flaw', V20_FLAWS_LIST); }
-            renderDynamicAdvantageRow('list-disc', 'disc', DISCIPLINES);
-            renderDynamicAdvantageRow('list-back', 'back', BACKGROUNDS);
-            renderDynamicAdvantageRow('custom-talents', 'abil', [], true);
-            renderDynamicAdvantageRow('custom-skills', 'abil', [], true);
-            renderDynamicAdvantageRow('custom-knowledges', 'abil', [], true);
-            window.renderInventoryList();
-            window.updatePools();
-            showNotification("Recalled.");
-            if (window.state.isPlayMode) { window.togglePlayMode(); window.togglePlayMode(); }
-            window.changeStep(window.state.furthestPhase || 1);
-        }
-    } catch (e) { showNotification("Recall Error."); console.error(e); }
-};
-
-async function refreshList() {
-    if (!user) return;
-    const snap = await getDocs(collection(db, 'artifacts', appId, 'users', user.uid, 'characters'));
-    const sel = document.getElementById('char-select');
-    sel.innerHTML = '<option value="">-- Load --</option>';
-    snap.forEach(d => { const opt = document.createElement('option'); opt.value = d.id; opt.innerText = d.id; sel.appendChild(opt); });
-}
 
 function renderDynamicTraitRow(containerId, type, list) {
     const container = document.getElementById(containerId);
@@ -960,7 +1070,7 @@ try {
     renderDynamicAdvantageRow('custom-talents', 'abil', [], true);
     renderDynamicAdvantageRow('custom-skills', 'abil', [], true);
     renderDynamicAdvantageRow('custom-knowledges', 'abil', [], true);
-    renderDerangementsList(); // <--- THIS WAS CAUSING THE ERROR
+    renderDerangementsList(); 
     VIRTUES.forEach(v => { window.state.dots.virt[v] = 1; renderRow('list-virt', v, 'virt', 1); });
     const vitalCont = document.getElementById('vitals-create-inputs');
     if(vitalCont) VIT.forEach(v => { const d = document.createElement('div'); d.innerHTML = `<label class="label-text">${v}</label><input type="text" id="bio-${v}">`; vitalCont.appendChild(d); });
@@ -993,6 +1103,20 @@ try {
     });
     renderBloodBondRow();
     renderDynamicHavenRow();
+    
+    // BIND NEW FILE MANAGER BUTTONS
+    const cmdNew = document.getElementById('cmd-new');
+    if(cmdNew) cmdNew.onclick = window.handleNew;
+    
+    const cmdSave = document.getElementById('cmd-save');
+    if(cmdSave) cmdSave.onclick = window.handleSaveClick;
+    
+    const cmdLoad = document.getElementById('cmd-load');
+    if(cmdLoad) cmdLoad.onclick = window.handleLoadClick;
+    
+    const confirmSave = document.getElementById('confirm-save-btn');
+    if(confirmSave) confirmSave.onclick = window.performSave;
+    
     // Render the initial UI
     window.changeStep(1); 
 } catch(e) {
@@ -1017,7 +1141,7 @@ onAuthStateChanged(auth, async (u) => {
             if(ps2) ps2.addEventListener('change', (e) => { if(ps1) ps1.value = e.target.value; if(window.state.textFields) window.state.textFields['c-path-name'] = e.target.value; });
             const freebieInp = document.getElementById('c-freebie-total');
             if(freebieInp) freebieInp.oninput = window.updatePools;
-            await refreshList();
+            // Removed auto-refresh list on init; Wait for user to click "Load"
         } catch (dbErr) {
             console.error("DB Init Error:", dbErr);
             showNotification("DB Conn Error (UI Active)");
