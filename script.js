@@ -3,7 +3,7 @@ import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken }
 import { getFirestore, doc, setDoc, getDoc, collection, getDocs, query, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 // --- VERSION CONTROL ---
-const APP_VERSION = "v1.3 (Delete Added)";
+const APP_VERSION = "v1.4 (Toggle Fix)";
 
 // --- ERROR HANDLER ---
 window.onerror = function(msg, url, line) {
@@ -60,7 +60,7 @@ window.state = {
     status: { humanity: 7, willpower: 5, health: 0, blood: 0 },
     socialExtras: {}, textFields: {}, havens: [], bloodBonds: [], vehicles: [], customAbilityCategories: {},
     derangements: [], merits: [], flaws: [], inventory: [],
-    meta: { filename: "", folder: "" } // New Metadata
+    meta: { filename: "", folder: "" } 
 };
 
 let user = null;
@@ -85,7 +85,7 @@ function renderBoxes(count, checked = 0, type = '') { let h = ''; for(let i=1; i
 
 window.handleNew = function() {
     if(!confirm("Create new character? Unsaved changes will be lost.")) return;
-    window.location.reload(); // Simplest way to full reset
+    window.location.reload(); 
 };
 
 window.handleSaveClick = function() {
@@ -197,7 +197,7 @@ async function renderFileBrowser() {
                     </div>
                 `;
                 row.onclick = async (e) => {
-                    if(e.target.closest('.file-delete-btn')) return; // Stop if clicking trash
+                    if(e.target.closest('.file-delete-btn')) return;
                     await loadSelectedChar(char);
                 };
                 browser.appendChild(row);
@@ -870,7 +870,6 @@ function renderBloodBondRow() {
     cont.appendChild(row);
 }
 
-// --- MISSING FUNCTION RESTORED HERE ---
 function renderDerangementsList() {
     const cont = document.getElementById('derangements-list');
     if (!cont) return;
@@ -923,7 +922,6 @@ window.removeDerangement = (idx) => {
     renderDerangementsList();
     window.updatePools();
 };
-// -------------------------------------
 
 function renderDynamicHavenRow() {
     const cont = document.getElementById('multi-haven-list'); if (!cont) return;
@@ -1063,8 +1061,14 @@ window.togglePlayMode = function() {
         if(document.getElementById('armor-rating-play')) { let totalA = 0; let totalP = 0; let names = []; if(window.state.inventory) { window.state.inventory.filter(i => i.type === 'Armor' && i.status === 'carried').forEach(a => { totalA += parseInt(a.stats?.rating)||0; totalP += parseInt(a.stats?.penalty)||0; names.push(a.displayName || a.name); }); } setSafeText('armor-rating-play', totalA); setSafeText('armor-penalty-play', totalP); setSafeText('armor-desc-play', names.join(', ')); }
         if (document.getElementById('play-vehicles')) { const pv = document.getElementById('play-vehicles'); pv.innerHTML = ''; if (window.state.inventory) { window.state.inventory.filter(i => i.type === 'Vehicle').forEach(v => { let display = v.displayName || v.name; pv.innerHTML += `<div class="mb-2 border-b border-[#333] pb-1"><div class="font-bold text-white uppercase text-[10px]">${display}</div><div class="text-[9px] text-gray-400">Safe:${v.stats.safe} | Max:${v.stats.max} | Man:${v.stats.man}</div></div>`; }); } }
         if (document.getElementById('play-havens-list')) { const ph = document.getElementById('play-havens-list'); ph.innerHTML = ''; window.state.havens.forEach(h => { ph.innerHTML += `<div class="border-l-2 border-gold pl-4 mb-4"><div class="flex justify-between"><div><div class="font-bold text-white uppercase text-[10px]">${h.name}</div><div class="text-[9px] text-gold italic">${h.loc}</div></div></div><div class="text-xs text-gray-400 mt-1">${h.desc}</div></div>`; }); }
+        
+        // --- SWITCH TO PLAY MODE START ---
+        window.changeStep(1);
+    } else {
+        // --- RESTORE EDIT MODE VIEW ---
+        // If coming back from play mode, restore the last known edit phase (or 1)
+        window.changeStep(window.state.furthestPhase || 1);
     }
-    window.changeStep(1);
 };
 
 // --- INITIALIZATION (Safeguarded) ---
@@ -1137,6 +1141,14 @@ try {
     const confirmSave = document.getElementById('confirm-save-btn');
     if(confirmSave) confirmSave.onclick = window.performSave;
     
+    // --- NEW: WIRE UP TOP TOGGLE BUTTONS ---
+    const topPlayBtn = document.getElementById('play-mode-btn');
+    if(topPlayBtn) topPlayBtn.onclick = window.togglePlayMode;
+    
+    const topFreebieBtn = document.getElementById('toggle-freebie-btn');
+    if(topFreebieBtn) topFreebieBtn.onclick = window.toggleFreebieMode;
+    // ---------------------------------------
+    
     // Render the initial UI
     window.changeStep(1); 
 } catch(e) {
@@ -1160,8 +1172,7 @@ onAuthStateChanged(auth, async (u) => {
 
             // Only populate if elements exist
             if(ns && ds && typeof ARCHETYPES !== 'undefined') {
-                const sortedArch = [...ARCHETYPES].sort(); // Sort copy to be safe
-                // Clear existing to prevent duplicates on re-auth
+                const sortedArch = [...ARCHETYPES].sort(); 
                 ns.innerHTML = ''; ds.innerHTML = ''; 
                 sortedArch.forEach(a => { 
                     ns.add(new Option(a,a)); 
@@ -1196,9 +1207,6 @@ onAuthStateChanged(auth, async (u) => {
 
             const freebieInp = document.getElementById('c-freebie-total');
             if(freebieInp) freebieInp.oninput = window.updatePools;
-
-            // Note: renderFileBrowser is NOT called here anymore.
-            // It is only called when the user clicks the "Load" button.
 
         } catch (dbErr) {
             console.error("DB Init Error:", dbErr);
