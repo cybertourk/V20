@@ -2,15 +2,26 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebas
 import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { getFirestore, doc, setDoc, getDoc, collection, getDocs, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-// Global Firebase setup for Zeb
-const firebaseConfig = JSON.parse(__firebase_config);
+// YOUR FIREBASE CONFIG
+const firebaseConfig = {
+  apiKey: "AIzaSyB8qLWOiC3csqPnucbj3XOtireOgPjjL_k",
+  authDomain: "v20-character-creator.firebaseapp.com",
+  projectId: "v20-character-creator",
+  storageBucket: "v20-character-creator.firebasestorage.app",
+  messagingSenderId: "110220382386",
+  appId: "1:110220382386:web:81b5d203c2bc4f81f5b9ab",
+  measurementId: "G-RWPX9139HB"
+};
+
+// --- YOU WERE MISSING THESE LINES BELOW ---
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'v20-neonate-sheet';
+const appId = 'v20-neonate-sheet';
+// ------------------------------------------
 
 const CLANS = ["Assamite", "Brujah", "Followers of Set", "Gangrel", "Giovanni", "Lasombra", "Malkavian", "Nosferatu", "Ravnos", "Toreador", "Tremere", "Tzimisce", "Ventrue", "Caitiff"];
-const ARCHETYPES = ["Architect", "Autocrat", "Bon Vivant", "Bravo", "Capitalist", "Caregiver", "Celebrant", "Chameleon", "Child", "Competitor", "Conformist", "Conniver", "Curmudgeon", "Dabbler", "Deviant", "Director", "Enigma", "Eye of the Storm", "Fanatic", "Gallant", "Guru", "Idealist", "Judge", "Loner", "Martyr", "Masochist", "Monster", "Pedagogue", "Penitent", "Perfectionist", "Rebel", "Rogue", "Sadist", "Scientist", "Sociopath", "Soldier", "Survivor", "Thrill-Seeker", "Traditionalist", "Trickster", "Visionary"];
+const ARCHETYPES = ["Architect", "Autocrat", "Bon Vivant","Bravo", "Capitalist", "Caregiver", "Celebrant", "Chameleon", "Child", "Competitor", "Conformist", "Conniver", "Curmudgeon", "Dabbler", "Deviant", "Director", "Enigma", "Eye of the Storm", "Fanatic", "Gallant", "Guru", "Idealist", "Judge", "Loner", "Martyr", "Masochist", "Monster", "Pedagogue", "Penitent", "Perfectionist", "Rebel", "Rogue", "Sadist", "Scientist", "Sociopath", "Soldier", "Survivor", "Thrill-Seeker", "Traditionalist", "Trickster", "Visionary"];
 const ATTRIBUTES = { Physical: ["Strength", "Dexterity", "Stamina"], Social: ["Charisma", "Manipulation", "Appearance"], Mental: ["Perception", "Intelligence", "Wits"] };
 const ABILITIES = { Talents: ["Alertness", "Athletics", "Awareness", "Brawl", "Empathy", "Expression", "Intimidation", "Leadership", "Streetwise", "Subterfuge"], Skills: ["Animal Ken", "Crafts", "Drive", "Etiquette", "Firearms", "Larceny", "Melee", "Performance", "Stealth", "Survival"], Knowledges: ["Academics", "Computer", "Finance", "Investigation", "Law", "Medicine", "Occult", "Politics", "Science", "Technology"] };
 const BACKGROUNDS = ["Allies", "Alternate Identity", "Black Hand Membership", "Contacts", "Domain", "Fame", "Generation", "Herd", "Influence", "Mentor", "Resources", "Retainers", "Rituals", "Status"];
