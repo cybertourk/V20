@@ -42,7 +42,6 @@ window.state = {
     isPlayMode: false, freebieMode: false, activePool: [], currentPhase: 1, furthestPhase: 1,
     dots: { attr: {}, abil: {}, disc: {}, back: {}, virt: {}, other: {} },
     prios: { attr: {}, abil: {} },
-    // status.health_states: Array of 7 integers. 0=Empty, 1=Bashing(/), 2=Lethal(X), 3=Aggravated(*)
     status: { humanity: 7, willpower: 5, tempWillpower: 5, health_states: [0,0,0,0,0,0,0], blood: 0 },
     specialties: {}, 
     socialExtras: {}, textFields: {}, havens: [], bloodBonds: [], vehicles: [], customAbilityCategories: {},
@@ -92,7 +91,7 @@ document.addEventListener('click', function(e) {
     window.updatePools();
 });
 
-// --- RESTORED setDots FUNCTION ---
+// --- STATE UPDATES ---
 function setDots(name, type, val, min, max = 5) {
     if (window.state.isPlayMode) return;
     if (type === 'status') {
@@ -100,7 +99,7 @@ function setDots(name, type, val, min, max = 5) {
         if (name === 'Humanity') window.state.status.humanity = val;
         else if (name === 'Willpower') {
             window.state.status.willpower = val;
-            window.state.status.tempWillpower = val; // Sync temp when permanent changes
+            window.state.status.tempWillpower = val;
         }
         if (calculateTotalFreebiesSpent(window.state) > (parseInt(document.getElementById('c-freebie-total')?.value) || 15)) { showNotification("Freebie Limit Exceeded!"); return; }
         window.updatePools(); return;
@@ -109,6 +108,8 @@ function setDots(name, type, val, min, max = 5) {
     let newVal = val;
     if (val === currentVal) newVal = val - 1;
     if (newVal < min) newVal = min;
+    
+    // Freebie Mode Validation
     if (window.state.freebieMode) {
         const tempState = JSON.parse(JSON.stringify(window.state));
         if (!tempState.dots[type]) tempState.dots[type] = {};
@@ -117,6 +118,7 @@ function setDots(name, type, val, min, max = 5) {
         const limit = parseInt(document.getElementById('c-freebie-total')?.value) || 15;
         if (projectedCost > limit) { showNotification("Freebie Limit Exceeded!"); return; }
     } else {
+        // Creation Mode Validation
         if (type === 'attr') {
             let group = null; Object.keys(ATTRIBUTES).forEach(k => { if(ATTRIBUTES[k].includes(name)) group = k; });
             if (group) {
@@ -148,7 +150,10 @@ function setDots(name, type, val, min, max = 5) {
             if ((currentSpent + newVal) > 10) { showNotification("Max 7 Creation Dots!"); return; }
         }
     }
+    
     window.state.dots[type][name] = newVal;
+    
+    // Auto-Calculate Virtues -> Willpower/Humanity
     if (type === 'virt' && !window.state.isPlayMode && !window.state.freebieMode) {
          const con = window.state.dots.virt.Conscience || 1;
          const self = window.state.dots.virt["Self-Control"] || 1;
@@ -159,9 +164,254 @@ function setDots(name, type, val, min, max = 5) {
     }
     document.querySelectorAll(`.dot-row[data-n="${name}"][data-t="${type}"]`).forEach(el => el.innerHTML = renderDots(newVal, max));
     window.updatePools();
-    
-    // Force refresh if potential specialty triggered
     if (newVal >= 4 || currentVal >= 4) window.changeStep(window.state.currentPhase);
+}
+
+// --- RENDERING HELPERS (Restored) ---
+
+function renderDynamicTraitRow(containerId, type, list) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    container.innerHTML = '';
+    
+    let existingItems = [];
+    if (type === 'Merit') existingItems = window.state.merits || [];
+    else if (type === 'Flaw') existingItems = window.state.flaws || [];
+    
+    const buildRow = (item = null) => {
+        const row = document.createElement('div'); row.className = 'flex flex-col gap-1 mb-2 trait-row';
+        const head = document.createElement('div'); head.className = 'flex justify-between items-center';
+        
+        const select = document.createElement('select');
+        select.className = "flex-1 mr-4 text-[11px] font-bold uppercase";
+        select.innerHTML = `<option value="">-- Select ${type} --</option>` + list.map(i => `<option value="${i.n}" ${item && item.n === i.n ? 'selected' : ''}>${i.n} (${i.v})</option>`).join('');
+        
+        const valDisplay = document.createElement('div');
+        valDisplay.className = "text-gold font-bold text-xs mr-2";
+        valDisplay.innerText = item ? item.v : "0";
+        
+        const removeBtn = document.createElement('div'); removeBtn.className = 'remove-btn'; removeBtn.innerHTML = '&times;';
+        if (!item) removeBtn.style.visibility = 'hidden';
+
+        select.onchange = (e) => {
+            const selectedName = e.target.value;
+            const data = list.find(i => i.n === selectedName);
+            if(!data) return;
+            const newItem = { n: data.n, v: data.v, type: type };
+            if (type === 'Merit') {
+                if (!window.state.merits) window.state.merits = [];
+                if (item) { const idx = window.state.merits.indexOf(item); if(idx>-1) window.state.merits[idx] = newItem; }
+                else window.state.merits.push(newItem);
+            } else {
+                if (!window.state.flaws) window.state.flaws = [];
+                if (item) { const idx = window.state.flaws.indexOf(item); if(idx>-1) window.state.flaws[idx] = newItem; }
+                else window.state.flaws.push(newItem);
+            }
+            renderDynamicTraitRow(containerId, type, list);
+            window.updatePools();
+        };
+
+        removeBtn.onclick = () => {
+            if (item) {
+                if (type === 'Merit') { const idx = window.state.merits.indexOf(item); if(idx > -1) window.state.merits.splice(idx, 1); }
+                else { const idx = window.state.flaws.indexOf(item); if(idx > -1) window.state.flaws.splice(idx, 1); }
+            }
+            renderDynamicTraitRow(containerId, type, list);
+            window.updatePools();
+        };
+
+        head.appendChild(select); head.appendChild(valDisplay); head.appendChild(removeBtn);
+        row.appendChild(head); container.appendChild(row);
+    };
+    existingItems.forEach(i => buildRow(i));
+    buildRow();
+}
+
+function renderDerangementsList() {
+    const container = document.getElementById('derangements-list');
+    if (!container) return;
+    container.innerHTML = '';
+    const list = window.state.derangements || [];
+    list.forEach((d, i) => {
+        const div = document.createElement('div');
+        div.className = 'flex justify-between items-center text-xs text-white border-b border-[#333] pb-1';
+        div.innerHTML = `<span>${d}</span><button class="text-red-500 font-bold px-2" onclick="window.removeDerangement(${i})">&times;</button>`;
+        container.appendChild(div);
+    });
+    const addDiv = document.createElement('div');
+    addDiv.className = 'flex gap-2 mt-2';
+    addDiv.innerHTML = `
+        <select id="new-derangement-select" class="flex-1 text-[11px] bg-black border border-[#444] text-white">
+            <option value="">-- Add Derangement --</option>
+            ${DERANGEMENTS.map(d => `<option value="${d}">${d}</option>`).join('')}
+        </select>
+        <button class="bg-[#8b0000] text-white text-[10px] px-2" onclick="window.addDerangement()">ADD</button>
+    `;
+    container.appendChild(addDiv);
+}
+
+window.addDerangement = function() {
+    const sel = document.getElementById('new-derangement-select');
+    if (sel && sel.value) {
+        if (!window.state.derangements) window.state.derangements = [];
+        window.state.derangements.push(sel.value);
+        renderDerangementsList();
+    }
+};
+window.removeDerangement = function(i) {
+    if (window.state.derangements) { window.state.derangements.splice(i, 1); renderDerangementsList(); }
+};
+
+function renderBloodBondRow() {
+    const container = document.getElementById('blood-bond-list');
+    if(!container) return;
+    container.innerHTML = '';
+    const list = window.state.bloodBonds || [];
+    list.forEach((b, i) => {
+        const div = document.createElement('div');
+        div.className = 'flex justify-between text-xs text-white border-b border-[#333] pb-1';
+        div.innerHTML = `<span>Bound to: <b>${b.name}</b> (Level ${b.level})</span><button class="text-red-500" onclick="window.removeBond(${i})">&times;</button>`;
+        container.appendChild(div);
+    });
+    const addDiv = document.createElement('div');
+    addDiv.className = 'grid grid-cols-3 gap-2 mt-2';
+    addDiv.innerHTML = `<input id="bond-name" placeholder="Regnant Name" class="col-span-2 text-[10px]"><input id="bond-level" type="number" placeholder="Lvl" class="text-[10px]"><button class="col-span-3 bg-[#8b0000] text-white text-[10px]" onclick="window.addBond()">Add Bond</button>`;
+    container.appendChild(addDiv);
+}
+
+window.addBond = function() {
+    const n = document.getElementById('bond-name').value;
+    const l = document.getElementById('bond-level').value;
+    if(n && l) {
+        if(!window.state.bloodBonds) window.state.bloodBonds = [];
+        window.state.bloodBonds.push({name: n, level: l});
+        renderBloodBondRow();
+    }
+};
+window.removeBond = function(i) { window.state.bloodBonds.splice(i,1); renderBloodBondRow(); };
+
+function renderDynamicHavenRow() {
+    const container = document.getElementById('multi-haven-list');
+    if(!container) return;
+    container.innerHTML = '';
+    (window.state.havens || []).forEach((h, i) => {
+        const d = document.createElement('div');
+        d.className = 'border border-[#444] p-2 mb-2 bg-black/40';
+        d.innerHTML = `<div class="flex justify-between mb-1"><span class="font-bold text-gold text-xs">${h.name}</span><button class="text-red-500" onclick="window.removeHaven(${i})">&times;</button></div><div class="text-[10px] text-gray-400">${h.desc}</div>`;
+        container.appendChild(d);
+    });
+    const addDiv = document.createElement('div');
+    addDiv.className = 'flex flex-col gap-2 mt-2';
+    addDiv.innerHTML = `<input id="haven-name" placeholder="Haven Name" class="text-[10px]"><textarea id="haven-desc" placeholder="Description / Location / Security" class="text-[10px] h-12"></textarea><button class="bg-[#8b0000] text-white text-[10px] py-1" onclick="window.addHaven()">Add Haven</button>`;
+    container.appendChild(addDiv);
+}
+
+window.addHaven = function() {
+    const n = document.getElementById('haven-name').value;
+    const d = document.getElementById('haven-desc').value;
+    if(n) { if(!window.state.havens) window.state.havens = []; window.state.havens.push({name: n, desc: d}); renderDynamicHavenRow(); }
+};
+window.removeHaven = function(i) { window.state.havens.splice(i,1); renderDynamicHavenRow(); };
+
+function renderDynamicAdvantageRow(containerId, type, list, isAbil = false) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    container.innerHTML = '';
+    let existingItems = [];
+    if (type === 'abil') {
+        let category = '';
+        if (containerId === 'custom-talents') category = 'Talents';
+        else if (containerId === 'custom-skills') category = 'Skills';
+        else if (containerId === 'custom-knowledges') category = 'Knowledges';
+        if (window.state.customAbilityCategories) { existingItems = Object.keys(window.state.dots.abil).filter(k => window.state.customAbilityCategories[k] === category); }
+    } else { if (window.state.dots[type]) existingItems = Object.keys(window.state.dots[type]); }
+
+    const buildRow = (name = "") => {
+        const row = document.createElement('div'); row.className = 'flex flex-col gap-1 mb-2 advantage-row';
+        const head = document.createElement('div'); head.className = 'flex justify-between items-center';
+        let inputField;
+        let labelClass = "flex-1 mr-4 text-[11px] font-bold uppercase";
+        
+        if (isAbil) { 
+             if (window.state.isPlayMode && name && (window.state.dots[type][name] || 0) >= 4 && window.state.specialties[name]) {
+                 inputField = document.createElement('div');
+                 inputField.className = labelClass;
+                 inputField.innerHTML = `${name} <span class="text-[9px] italic text-gray-400">(${window.state.specialties[name]})</span>`;
+             } else {
+                inputField = document.createElement('input'); inputField.type = 'text'; inputField.placeholder = "Write-in..."; inputField.className = labelClass + ' !bg-black/20 !border-b !border-[#333]'; inputField.value = name; 
+             }
+        } 
+        else { 
+            inputField = document.createElement('select'); inputField.className = labelClass; inputField.innerHTML = `<option value="">-- Choose ${type} --</option>` + list.map(item => `<option value="${item}" ${item === name ? 'selected' : ''}>${item}</option>`).join(''); 
+        }
+        
+        const dotCont = document.createElement('div'); dotCont.className = 'dot-row';
+        const val = name ? (window.state.dots[type][name] || 0) : 0;
+        dotCont.innerHTML = renderDots(val, 5);
+        if (name) { dotCont.dataset.n = name; dotCont.dataset.t = type; }
+        const removeBtn = document.createElement('div'); removeBtn.className = 'remove-btn'; removeBtn.innerHTML = '&times;';
+        if (!name) removeBtn.style.visibility = 'hidden';
+        let curName = name;
+        let category = null;
+        if (containerId === 'custom-talents') category = 'Talents'; else if (containerId === 'custom-skills') category = 'Skills'; else if (containerId === 'custom-knowledges') category = 'Knowledges';
+        
+        const onUpdate = (newVal) => {
+            if (curName && curName !== newVal) { 
+                const dots = window.state.dots[type][curName]; delete window.state.dots[type][curName]; 
+                if (window.state.customAbilityCategories && window.state.customAbilityCategories[curName]) delete window.state.customAbilityCategories[curName];
+                if (newVal) window.state.dots[type][newVal] = dots || 0; 
+                if(window.state.specialties[curName]) {
+                    window.state.specialties[newVal] = window.state.specialties[curName];
+                    delete window.state.specialties[curName];
+                }
+            }
+            curName = newVal;
+            if (newVal) { 
+                window.state.dots[type][newVal] = window.state.dots[type][newVal] || 0; 
+                dotCont.innerHTML = renderDots(window.state.dots[type][newVal], 5);
+                dotCont.dataset.n = newVal; dotCont.dataset.t = type;
+                if (category) { if (!window.state.customAbilityCategories) window.state.customAbilityCategories = {}; window.state.customAbilityCategories[newVal] = category; }
+                if (row === container.lastElementChild) { removeBtn.style.visibility = 'visible'; buildRow(); }
+            }
+            window.updatePools();
+        };
+        
+        if (isAbil) { if(inputField.tagName === 'INPUT') inputField.onblur = (e) => onUpdate(e.target.value); } 
+        else { inputField.onchange = (e) => onUpdate(e.target.value); }
+        
+        removeBtn.onclick = () => { 
+            if (curName) { 
+                delete window.state.dots[type][curName]; 
+                if (window.state.customAbilityCategories && window.state.customAbilityCategories[curName]) delete window.state.customAbilityCategories[curName]; 
+            } 
+            row.remove(); 
+            window.updatePools(); 
+        };
+        dotCont.onclick = (e) => { 
+            if (!curName || !e.target.dataset.v) return; 
+            let val = parseInt(e.target.dataset.v);
+            const currentVal = window.state.dots[type][curName] || 0;
+            if (val === currentVal) val = val - 1;
+            setDots(curName, type, val, 0, 5); // Using global setDots wrapper for validation
+        };
+        head.appendChild(inputField); head.appendChild(dotCont); head.appendChild(removeBtn);
+        row.appendChild(head); 
+        
+        if (type === 'abil' && curName && (window.state.dots[type][curName] || 0) >= 4 && !window.state.isPlayMode) {
+             const specDiv = document.createElement('div'); specDiv.className = 'w-full mt-1 ml-1';
+             const specVal = window.state.specialties[curName] || "";
+             const listId = `list-${curName.replace(/[^a-zA-Z0-9]/g, '')}`;
+             let optionsHTML = '';
+             if (SPECIALTY_EXAMPLES[curName]) optionsHTML = SPECIALTY_EXAMPLES[curName].map(s => `<option value="${s}">`).join('');
+             specDiv.innerHTML = `<input type="text" list="${listId}" class="specialty-input w-full text-[9px] bg-transparent border-b border-gray-700 text-[#d4af37] italic pl-2" placeholder="Specialty..." value="${specVal}"><datalist id="${listId}">${optionsHTML}</datalist>`;
+             const input = specDiv.querySelector('input');
+             input.onblur = (e) => { window.state.specialties[curName] = e.target.value; window.updatePools(); };
+             row.appendChild(specDiv);
+        }
+        container.appendChild(row);
+    };
+    existingItems.forEach(item => buildRow(item));
+    buildRow();
 }
 
 // --- FILE MANAGER LOGIC ---
@@ -506,9 +756,7 @@ window.nextStep = function() {
 
 window.updatePools = function() {
     if (!window.state.status) window.state.status = { humanity: 7, willpower: 5, tempWillpower: 5, health_states: [0,0,0,0,0,0,0], blood: 0 };
-    // Init temporary willpower if missing (backward compatibility)
     if (window.state.status.tempWillpower === undefined) window.state.status.tempWillpower = window.state.status.willpower || 5;
-    // Init health states if missing
     if (window.state.status.health_states === undefined || !Array.isArray(window.state.status.health_states)) window.state.status.health_states = [0,0,0,0,0,0,0];
 
     if (!window.state.freebieMode && !window.state.isPlayMode) {
@@ -516,12 +764,11 @@ window.updatePools = function() {
         const bW = (window.state.dots.virt?.Courage || 1);
         window.state.status.humanity = bH;
         window.state.status.willpower = bW;
-        // In creation, temp syncs with permanent unless deliberately changed later
         window.state.status.tempWillpower = bW;
     }
     const curH = window.state.status.humanity;
-    const curW = window.state.status.willpower; // Permanent rating
-    const tempW = window.state.status.tempWillpower; // Current pool
+    const curW = window.state.status.willpower; 
+    const tempW = window.state.status.tempWillpower;
     const gen = parseInt(document.getElementById('c-gen')?.value) || 13;
     const lim = GEN_LIMITS[gen] || GEN_LIMITS[13];
 
@@ -600,11 +847,8 @@ window.updatePools = function() {
     document.querySelectorAll('#humanity-dots-play').forEach(el => el.innerHTML = renderDots(curH, 10));
     document.querySelectorAll('#willpower-dots-play').forEach(el => el.innerHTML = renderDots(curW, 10));
     
-    // UPDATED PLAY MODE BOX RENDERING
-    // Willpower: Max count = Permanent Rating (curW). Checked = Temp Rating (tempW).
     document.querySelectorAll('#willpower-boxes-play').forEach(el => el.innerHTML = renderBoxes(curW, tempW, 'wp'));
     
-    // --- 20 BOX BLOOD POOL IMPLEMENTATION ---
     const bpContainer = document.querySelectorAll('#blood-boxes-play');
     bpContainer.forEach(el => {
         let h = '';
@@ -614,23 +858,12 @@ window.updatePools = function() {
         for (let i = 1; i <= 20; i++) {
             let classes = "box";
             if (i <= currentBlood) classes += " checked";
-            
-            // Visual locking for blood exceeding Gen limit
-            // Changed from opacity-20 to opacity-50 for better visibility per user request
-            // Added explicit styling to ensure they look like 'empty slots' rather than missing
-            if (i > maxBloodForGen) {
-                classes += " cursor-not-allowed opacity-50 bg-[#1a1a1a]"; 
-            } else {
-                classes += " cursor-pointer";
-            }
-            // Pointer events none prevents clicking, but we keep them visible
+            if (i > maxBloodForGen) { classes += " cursor-not-allowed opacity-50 bg-[#1a1a1a]"; } else { classes += " cursor-pointer"; }
             if (i > maxBloodForGen) classes += " pointer-events-none";
-            
             h += `<span class="${classes}" data-v="${i}" data-type="blood"></span>`;
         }
         el.innerHTML = h;
     });
-    // ----------------------------------------
     
     const healthCont = document.getElementById('health-chart-play');
     if(healthCont && healthCont.children.length === 0) {
@@ -640,11 +873,10 @@ window.updatePools = function() {
             healthCont.appendChild(d);
         });
     }
-    // Update Health Boxes (Clicking box N means "Damage Level N" reached)
     const healthStates = window.state.status.health_states || [0,0,0,0,0,0,0];
     document.querySelectorAll('#health-chart-play .box').forEach((box, i) => {
-        box.classList.remove('checked'); // Remove old check logic
-        box.dataset.state = healthStates[i] || 0; // Apply new cycle logic
+        box.classList.remove('checked'); 
+        box.dataset.state = healthStates[i] || 0; 
     });
     
     const cList = document.getElementById('combat-list-create');
@@ -717,11 +949,7 @@ function renderRow(contId, label, type, min, max = 5) {
     const val = window.state.dots[type][label] || min;
     const div = document.createElement('div'); div.className = 'flex flex-col py-1';
     
-    // Updated HTML structure for renderRow to include specialty input
-    
     let labelHtml = `<span class="trait-label uppercase text-sm font-bold">${label}</span>`;
-    
-    // Play Mode: Inline display of Specialty
     if (window.state.isPlayMode && val >= 4 && window.state.specialties && window.state.specialties[label]) {
         labelHtml = `
             <div class="flex items-center gap-1">
@@ -738,30 +966,15 @@ function renderRow(contId, label, type, min, max = 5) {
         </div>
     `;
     
-    // Specialty Input Logic (V1.13 - Filtered Edit Mode Only)
-    // Only show input if in Edit Mode (NOT play mode) AND rating is 4+
     if (val >= 4 && !window.state.isPlayMode) {
-        const specDiv = document.createElement('div');
-        specDiv.className = 'w-full mt-1';
+        const specDiv = document.createElement('div'); specDiv.className = 'w-full mt-1';
         const specVal = window.state.specialties[label] || "";
         const listId = `list-${label.replace(/\s+/g, '')}`;
-        
         let optionsHTML = '';
-        if (SPECIALTY_EXAMPLES[label]) {
-            optionsHTML = SPECIALTY_EXAMPLES[label].map(s => `<option value="${s}">`).join('');
-        }
-        
-        specDiv.innerHTML = `
-            <input type="text" list="${listId}" class="specialty-input w-full text-[9px] bg-transparent border-b border-gray-700 text-[#d4af37] italic pl-2" placeholder="Select or type Specialty..." value="${specVal}">
-            <datalist id="${listId}">${optionsHTML}</datalist>
-        `;
-        
+        if (SPECIALTY_EXAMPLES[label]) optionsHTML = SPECIALTY_EXAMPLES[label].map(s => `<option value="${s}">`).join('');
+        specDiv.innerHTML = `<input type="text" list="${listId}" class="specialty-input w-full text-[9px] bg-transparent border-b border-gray-700 text-[#d4af37] italic pl-2" placeholder="Select or type Specialty..." value="${specVal}"><datalist id="${listId}">${optionsHTML}</datalist>`;
         const input = specDiv.querySelector('input');
-        input.onblur = (e) => {
-            window.state.specialties[label] = e.target.value;
-            window.updatePools(); // Refresh to ensure data state is saved/synced
-        };
-        
+        input.onblur = (e) => { window.state.specialties[label] = e.target.value; window.updatePools(); };
         div.appendChild(specDiv);
     }
 
@@ -782,138 +995,6 @@ window.handleTraitClick = function(name, type) {
         document.getElementById('dice-tray').classList.add('open');
     } else { window.clearPool(); }
 };
-
-function renderDynamicAdvantageRow(containerId, type, list, isAbil = false) {
-    const container = document.getElementById(containerId);
-    if (!container) return;
-    container.innerHTML = '';
-    let existingItems = [];
-    if (type === 'abil') {
-        let category = '';
-        if (containerId === 'custom-talents') category = 'Talents';
-        else if (containerId === 'custom-skills') category = 'Skills';
-        else if (containerId === 'custom-knowledges') category = 'Knowledges';
-        if (window.state.customAbilityCategories) { existingItems = Object.keys(window.state.dots.abil).filter(k => window.state.customAbilityCategories[k] === category); }
-    } else { if (window.state.dots[type]) existingItems = Object.keys(window.state.dots[type]); }
-
-    const buildRow = (name = "") => {
-        const row = document.createElement('div'); row.className = 'flex flex-col gap-1 mb-2 advantage-row';
-        const head = document.createElement('div'); head.className = 'flex justify-between items-center';
-        let inputField;
-        
-        // V1.13 Change: Only apply bold styling to label text for consistency
-        let labelClass = "flex-1 mr-4 text-[11px] font-bold uppercase";
-        
-        if (isAbil) { 
-            // Play Mode inline specialty display logic for Custom Abilities
-             if (window.state.isPlayMode && name && (window.state.dots[type][name] || 0) >= 4 && window.state.specialties[name]) {
-                 // Inline Display mode
-                 inputField = document.createElement('div');
-                 inputField.className = labelClass;
-                 inputField.innerHTML = `${name} <span class="text-[9px] italic text-gray-400">(${window.state.specialties[name]})</span>`;
-             } else {
-                 // Standard Input mode
-                inputField = document.createElement('input'); inputField.type = 'text'; inputField.placeholder = "Write-in..."; inputField.className = labelClass + ' !bg-black/20 !border-b !border-[#333]'; inputField.value = name; 
-             }
-        } 
-        else { 
-            inputField = document.createElement('select'); inputField.className = labelClass; inputField.innerHTML = `<option value="">-- Choose ${type} --</option>` + list.map(item => `<option value="${item}" ${item === name ? 'selected' : ''}>${item}</option>`).join(''); 
-        }
-        
-        const dotCont = document.createElement('div'); dotCont.className = 'dot-row';
-        const val = name ? (window.state.dots[type][name] || 0) : 0;
-        dotCont.innerHTML = renderDots(val, 5);
-        if (name) { dotCont.dataset.n = name; dotCont.dataset.t = type; }
-        const removeBtn = document.createElement('div'); removeBtn.className = 'remove-btn'; removeBtn.innerHTML = '&times;';
-        if (!name) removeBtn.style.visibility = 'hidden';
-        let curName = name;
-        let category = null;
-        if (containerId === 'custom-talents') category = 'Talents'; else if (containerId === 'custom-skills') category = 'Skills'; else if (containerId === 'custom-knowledges') category = 'Knowledges';
-        
-        const onUpdate = (newVal) => {
-            if (curName && curName !== newVal) { 
-                const dots = window.state.dots[type][curName]; delete window.state.dots[type][curName]; 
-                if (window.state.customAbilityCategories && window.state.customAbilityCategories[curName]) delete window.state.customAbilityCategories[curName];
-                if (newVal) window.state.dots[type][newVal] = dots || 0; 
-                if(window.state.specialties[curName]) {
-                    window.state.specialties[newVal] = window.state.specialties[curName];
-                    delete window.state.specialties[curName];
-                }
-            }
-            curName = newVal;
-            if (newVal) { 
-                window.state.dots[type][newVal] = window.state.dots[type][newVal] || 0; 
-                dotCont.innerHTML = renderDots(window.state.dots[type][newVal], 5);
-                dotCont.dataset.n = newVal; dotCont.dataset.t = type;
-                if (category) { if (!window.state.customAbilityCategories) window.state.customAbilityCategories = {}; window.state.customAbilityCategories[newVal] = category; }
-                if (row === container.lastElementChild) { removeBtn.style.visibility = 'visible'; buildRow(); }
-            }
-            window.updatePools();
-        };
-        
-        if (isAbil) {
-             if(inputField.tagName === 'INPUT') inputField.onblur = (e) => onUpdate(e.target.value); 
-        } else {
-            inputField.onchange = (e) => onUpdate(e.target.value);
-        }
-        
-        removeBtn.onclick = () => { if (curName) { delete window.state.dots[type][curName]; if (window.state.customAbilityCategories && window.state.customAbilityCategories[curName]) delete window.state.customAbilityCategories[curName]; } row.remove(); window.updatePools(); };
-        dotCont.onclick = (e) => { 
-            if (!curName || !e.target.dataset.v) return; 
-            let val = parseInt(e.target.dataset.v);
-            const currentVal = window.state.dots[type][curName] || 0;
-            if (val === currentVal) val = val - 1;
-            if (window.state.freebieMode) {
-                const tempState = JSON.parse(JSON.stringify(window.state)); if (!tempState.dots[type]) tempState.dots[type] = {}; tempState.dots[type][curName] = val;
-                if (calculateTotalFreebiesSpent(tempState) > (parseInt(document.getElementById('c-freebie-total')?.value) || 15)) { showNotification("Freebie Limit Exceeded!"); return; }
-            } else {
-                if (category) {
-                    if (val > 3) { showNotification("Max 3 dots in Abilities during creation!"); return; }
-                    if (window.state.prios.abil[category] === undefined) { showNotification(`Select a priority for ${category} first!`); return; }
-                    const limit = window.state.prios.abil[category]; let currentSpent = 0; ABILITIES[category].forEach(t => currentSpent += (window.state.dots.abil[t] || 0));
-                    if (window.state.customAbilityCategories) { Object.keys(window.state.dots.abil).forEach(k => { if (k !== curName && window.state.customAbilityCategories[k] === category) currentSpent += (window.state.dots.abil[k] || 0); }); }
-                    if (currentSpent + val > limit) { showNotification("Limit exceeded!"); return; }
-                } else if (type === 'disc') {
-                    const currentSpent = Object.values(window.state.dots.disc || {}).reduce((a,b)=>a+b,0) - (window.state.dots.disc[curName]||0);
-                    if (currentSpent + val > 3) { showNotification("Max 3 Creation Dots for Disciplines!"); return; }
-                } else if (type === 'back') {
-                    const currentSpent = Object.values(window.state.dots.back || {}).reduce((a,b)=>a+b,0) - (window.state.dots.back[curName]||0);
-                    if (currentSpent + val > 5) { showNotification("Max 5 Creation Dots for Backgrounds!"); return; }
-                }
-            }
-            window.state.dots[type][curName] = val; dotCont.innerHTML = renderDots(val, 5); window.updatePools(); 
-        };
-        head.appendChild(inputField); head.appendChild(dotCont); head.appendChild(removeBtn);
-        row.appendChild(head); 
-        
-        // Custom trait specialty injection logic (V1.13 - Filtered for Abilities only)
-        // Ensure this ONLY runs for 'abil' type and NOT 'disc' or 'back' or 'virt'
-        if (type === 'abil' && curName && (window.state.dots[type][curName] || 0) >= 4 && !window.state.isPlayMode) {
-             const specDiv = document.createElement('div');
-             specDiv.className = 'w-full mt-1 ml-1';
-             const specVal = window.state.specialties[curName] || "";
-             // Use generic list for custom items
-             const listId = `list-${curName.replace(/[^a-zA-Z0-9]/g, '')}`;
-             let optionsHTML = '';
-             if (SPECIALTY_EXAMPLES[curName]) {
-                 optionsHTML = SPECIALTY_EXAMPLES[curName].map(s => `<option value="${s}">`).join('');
-             }
-             
-             specDiv.innerHTML = `
-                <input type="text" list="${listId}" class="specialty-input w-full text-[9px] bg-transparent border-b border-gray-700 text-[#d4af37] italic pl-2" placeholder="Specialty..." value="${specVal}">
-                <datalist id="${listId}">${optionsHTML}</datalist>
-             `;
-             
-             const input = specDiv.querySelector('input');
-             input.onblur = (e) => { window.state.specialties[curName] = e.target.value; window.updatePools(); };
-             row.appendChild(specDiv);
-        }
-        
-        container.appendChild(row);
-    };
-    existingItems.forEach(item => buildRow(item));
-    buildRow();
-}
 
 // 2. Auth & Database (Runs Async)
 onAuthStateChanged(auth, async (u) => {
