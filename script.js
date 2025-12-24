@@ -11,7 +11,7 @@ import {
 } from './data.js';
 
 // --- VERSION CONTROL ---
-const APP_VERSION = "v1.13 (Priority Fix)";
+const APP_VERSION = "v1.14 (Health Tracker Fix)";
 
 // --- ERROR HANDLER ---
 window.onerror = function(msg, url, line) {
@@ -74,10 +74,13 @@ function renderBoxes(count, checked = 0, type = '') { let h = ''; for(let i=1; i
 // --- PLAY MODE INTERACTION ---
 document.addEventListener('click', function(e) {
     if (!window.state.isPlayMode) return;
+    
+    // Check if clicked element is a box
     if (!e.target.classList.contains('box')) return;
     
     const type = e.target.dataset.type;
     const val = parseInt(e.target.dataset.v);
+    
     if (!type || isNaN(val)) return;
 
     if (type === 'wp') {
@@ -87,10 +90,18 @@ document.addEventListener('click', function(e) {
         if (window.state.status.blood === val) window.state.status.blood = val - 1;
         else window.state.status.blood = val;
     } else if (type === 'health') {
+        // Fix for Health Tracker Interaction
+        // ensure health_states array exists
+        if (!window.state.status.health_states || !Array.isArray(window.state.status.health_states)) {
+            window.state.status.health_states = [0,0,0,0,0,0,0];
+        }
+        
         const idx = val - 1; 
-        if (window.state.status.health_states === undefined) window.state.status.health_states = [0,0,0,0,0,0,0];
-        const current = window.state.status.health_states[idx] || 0;
-        window.state.status.health_states[idx] = (current + 1) % 4;
+        const currentState = window.state.status.health_states[idx] || 0;
+        
+        // Cycle: 0(Empty) -> 1(/) -> 2(X) -> 3(*) -> 0
+        const newState = (currentState + 1) % 4;
+        window.state.status.health_states[idx] = newState;
     }
     window.updatePools();
 });
