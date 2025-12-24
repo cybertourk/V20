@@ -11,7 +11,7 @@ import {
 } from './data.js';
 
 // --- VERSION CONTROL ---
-const APP_VERSION = "v1.12 (Refactored Split)";
+const APP_VERSION = "v1.13 (Priority Fix)";
 
 // --- ERROR HANDLER ---
 window.onerror = function(msg, url, line) {
@@ -259,6 +259,24 @@ async function loadSelectedChar(data) {
     
     // UI Refresh
     hydrateInputs();
+    
+    // --- RESTORE PRIORITY BUTTONS VISUALLY ---
+    if(window.state.prios) {
+        // Clear all active buttons first
+        document.querySelectorAll('.prio-btn').forEach(btn => btn.classList.remove('active'));
+        
+        // Loop through saved priorities and activate matching buttons
+        Object.keys(window.state.prios).forEach(cat => {
+            if(window.state.prios[cat]) {
+                Object.entries(window.state.prios[cat]).forEach(([group, val]) => {
+                    const btn = document.querySelector(`.prio-btn[data-cat="${cat}"][data-group="${group}"][data-v="${val}"]`);
+                    if(btn) btn.classList.add('active');
+                });
+            }
+        });
+    }
+    // -----------------------------------------
+
     const mList = document.getElementById('merits-list-create');
     if(mList) { mList.innerHTML = ''; renderDynamicTraitRow('merits-list-create', 'Merit', V20_MERITS_LIST); }
     const fList = document.getElementById('flaws-list-create');
