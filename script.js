@@ -3,7 +3,7 @@ import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken }
 import { getFirestore, doc, setDoc, getDoc, collection, getDocs, query, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 // --- VERSION CONTROL ---
-const APP_VERSION = "v1.11 (Restored Original)";
+const APP_VERSION = "v1.11 (Restored Merits/Flaws)";
 
 // --- ERROR HANDLER ---
 window.onerror = function(msg, url, line) {
