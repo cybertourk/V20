@@ -3,7 +3,7 @@ import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken }
 import { getFirestore, doc, setDoc, getDoc, collection, getDocs, query, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 // --- VERSION CONTROL ---
-const APP_VERSION = "v1.13 (Refined Specialties)";
+const APP_VERSION = "v1.14 (Restored setDots)";
 
 // --- ERROR HANDLER ---
 window.onerror = function(msg, url, line) {
@@ -103,6 +103,7 @@ window.state = {
     isPlayMode: false, freebieMode: false, activePool: [], currentPhase: 1, furthestPhase: 1,
     dots: { attr: {}, abil: {}, disc: {}, back: {}, virt: {}, other: {} },
     prios: { attr: {}, abil: {} },
+    // status.health_states: Array of 7 integers. 0=Empty, 1=Bashing(/), 2=Lethal(X), 3=Aggravated(*)
     status: { humanity: 7, willpower: 5, tempWillpower: 5, health_states: [0,0,0,0,0,0,0], blood: 0 },
     specialties: {}, 
     socialExtras: {}, textFields: {}, havens: [], bloodBonds: [], vehicles: [], customAbilityCategories: {},
@@ -151,6 +152,78 @@ document.addEventListener('click', function(e) {
     }
     window.updatePools();
 });
+
+// --- RESTORED setDots FUNCTION ---
+function setDots(name, type, val, min, max = 5) {
+    if (window.state.isPlayMode) return;
+    if (type === 'status') {
+        if (!window.state.freebieMode) return;
+        if (name === 'Humanity') window.state.status.humanity = val;
+        else if (name === 'Willpower') {
+            window.state.status.willpower = val;
+            window.state.status.tempWillpower = val; // Sync temp when permanent changes
+        }
+        if (calculateTotalFreebiesSpent(window.state) > (parseInt(document.getElementById('c-freebie-total')?.value) || 15)) { showNotification("Freebie Limit Exceeded!"); return; }
+        window.updatePools(); return;
+    }
+    const currentVal = window.state.dots[type][name] || min;
+    let newVal = val;
+    if (val === currentVal) newVal = val - 1;
+    if (newVal < min) newVal = min;
+    if (window.state.freebieMode) {
+        const tempState = JSON.parse(JSON.stringify(window.state));
+        if (!tempState.dots[type]) tempState.dots[type] = {};
+        tempState.dots[type][name] = newVal;
+        const projectedCost = calculateTotalFreebiesSpent(tempState);
+        const limit = parseInt(document.getElementById('c-freebie-total')?.value) || 15;
+        if (projectedCost > limit) { showNotification("Freebie Limit Exceeded!"); return; }
+    } else {
+        if (type === 'attr') {
+            let group = null; Object.keys(ATTRIBUTES).forEach(k => { if(ATTRIBUTES[k].includes(name)) group = k; });
+            if (group) {
+                 const limit = window.state.prios.attr[group];
+                 if (limit === undefined) { showNotification(`Select priority for ${group}!`); return; }
+                 let currentSpent = 0;
+                 ATTRIBUTES[group].forEach(a => { if (a !== name) { const v = window.state.dots.attr[a] || 1; currentSpent += (v - 1); } });
+                 if (currentSpent + (newVal - 1) > limit) { showNotification("Limit Exceeded!"); return; }
+            }
+        } else if (type === 'abil') {
+            if (newVal > 3) { showNotification("Max 3 dots in Abilities during creation!"); return; }
+            let group = null; Object.keys(ABILITIES).forEach(k => { if(ABILITIES[k].includes(name)) group = k; });
+            if (!group && window.state.customAbilityCategories && window.state.customAbilityCategories[name]) group = window.state.customAbilityCategories[name];
+            if (group) {
+                const limit = window.state.prios.abil[group];
+                if (limit === undefined) { showNotification(`Select priority for ${group}!`); return; }
+                let currentSpent = 0; ABILITIES[group].forEach(a => { if (a !== name) currentSpent += (window.state.dots.abil[a] || 0); });
+                if (window.state.customAbilityCategories) { Object.keys(window.state.dots.abil).forEach(k => { if (k !== name && window.state.customAbilityCategories[k] === group) currentSpent += (window.state.dots.abil[k] || 0); }); }
+                if (currentSpent + newVal > limit) { showNotification("Limit Exceeded!"); return; }
+            }
+        } else if (type === 'disc') {
+            let currentSpent = 0; Object.keys(window.state.dots.disc).forEach(d => { if (d !== name) currentSpent += (window.state.dots.disc[d] || 0); });
+            if (currentSpent + newVal > 3) { showNotification("Max 3 Creation Dots!"); return; }
+        } else if (type === 'back') {
+            let currentSpent = 0; Object.keys(window.state.dots.back).forEach(b => { if (b !== name) currentSpent += (window.state.dots.back[b] || 0); });
+            if (currentSpent + newVal > 5) { showNotification("Max 5 Creation Dots!"); return; }
+        } else if (type === 'virt') {
+            let currentSpent = 0; VIRTUES.forEach(v => { if (v !== name) currentSpent += (window.state.dots.virt[v] || 1); });
+            if ((currentSpent + newVal) > 10) { showNotification("Max 7 Creation Dots!"); return; }
+        }
+    }
+    window.state.dots[type][name] = newVal;
+    if (type === 'virt' && !window.state.isPlayMode && !window.state.freebieMode) {
+         const con = window.state.dots.virt.Conscience || 1;
+         const self = window.state.dots.virt["Self-Control"] || 1;
+         const cou = window.state.dots.virt.Courage || 1;
+         window.state.status.humanity = con + self;
+         window.state.status.willpower = cou;
+         window.state.status.tempWillpower = cou;
+    }
+    document.querySelectorAll(`.dot-row[data-n="${name}"][data-t="${type}"]`).forEach(el => el.innerHTML = renderDots(newVal, max));
+    window.updatePools();
+    
+    // Force refresh if potential specialty triggered
+    if (newVal >= 4 || currentVal >= 4) window.changeStep(window.state.currentPhase);
+}
 
 // --- FILE MANAGER LOGIC ---
 
@@ -665,7 +738,7 @@ window.updatePools = function() {
     window.updateWalkthrough();
 };
 
-window.renderInventoryList = function() {
+function renderInventoryList() {
     const listCarried = document.getElementById('inv-list-carried');
     const listOwned = document.getElementById('inv-list-owned');
     const listVehicles = document.getElementById('vehicle-list');
@@ -901,444 +974,6 @@ function renderDynamicAdvantageRow(containerId, type, list, isAbil = false) {
     };
     existingItems.forEach(item => buildRow(item));
     buildRow();
-}
-
-function renderDynamicTraitRow(containerId, type, list) {
-    const container = document.getElementById(containerId);
-    if (!container) return;
-    const stateArray = type === 'Merit' ? (window.state.merits || []) : (window.state.flaws || []);
-    container.innerHTML = '';
-    const appendRow = (data = null) => {
-        const row = document.createElement('div'); 
-        row.className = 'flex gap-2 items-center mb-2 trait-row';
-        
-        let options = `<option value="">-- Select ${type} --</option>`;
-        list.forEach(item => {
-            const rangeText = item.range ? `(${item.range}pt)` : `(${item.v}pt)`;
-            options += `<option value="${item.n}" data-val="${item.v}" data-var="${item.variable||false}">${item.n} ${rangeText}</option>`;
-        });
-        options += '<option value="Custom">-- Custom / Write-in --</option>';
-        
-        row.innerHTML = `
-            <div class="flex-1 relative">
-                <select class="w-full text-[11px] font-bold uppercase bg-[#111] text-white border-b border-[#444]">${options}</select>
-                <input type="text" placeholder="Custom Name..." class="hidden w-full text-[11px] font-bold uppercase border-b border-[#444] bg-transparent text-white">
-            </div>
-            <input type="number" class="w-10 text-center text-[11px] !border !border-[#444] font-bold" min="1">
-            <div class="remove-btn">&times;</div>
-        `;
-        
-        container.appendChild(row);
-        
-        const selectEl = row.querySelector('select');
-        const textEl = row.querySelector('input[type="text"]');
-        const numEl = row.querySelector('input[type="number"]');
-        const removeBtn = row.querySelector('.remove-btn');
-        
-        const isLocked = !window.state.freebieMode;
-        selectEl.disabled = isLocked; 
-        textEl.disabled = isLocked; 
-        numEl.disabled = isLocked;
-        
-        if(isLocked) { 
-            selectEl.classList.add('opacity-50'); 
-            textEl.classList.add('opacity-50'); 
-            numEl.classList.add('opacity-50'); 
-        }
-        
-        if (data) {
-            const exists = list.some(l => l.n === data.name);
-            if (exists) {
-                selectEl.value = data.name; 
-                numEl.value = data.val;
-                const itemData = list.find(l => l.n === data.name);
-                if (itemData && !itemData.variable) { 
-                    numEl.disabled = true; 
-                    numEl.classList.add('opacity-50'); 
-                }
-            } else { 
-                selectEl.value = "Custom"; 
-                selectEl.classList.add('hidden'); 
-                textEl.classList.remove('hidden'); 
-                textEl.value = data.name; 
-                numEl.value = data.val; 
-            }
-        } else { 
-            numEl.value = ""; 
-            removeBtn.style.visibility = 'hidden'; 
-        }
-        
-        const syncState = () => {
-            const allRows = container.querySelectorAll('.trait-row');
-            const newState = [];
-            allRows.forEach(r => {
-                const s = r.querySelector('select');
-                const t = r.querySelector('input[type="text"]');
-                const n = r.querySelector('input[type="number"]');
-                let name = s.value === 'Custom' ? t.value : s.value;
-                let val = parseInt(n.value) || 0;
-                if (name && name !== 'Custom') newState.push({ name, val });
-            });
-            if (type === 'Merit') window.state.merits = newState; 
-            else window.state.flaws = newState;
-            window.updatePools();
-        };
-        
-        selectEl.addEventListener('change', (e) => {
-            if (selectEl.value === 'Custom') { 
-                selectEl.classList.add('hidden'); 
-                textEl.classList.remove('hidden'); 
-                textEl.focus(); 
-                numEl.value = 1; 
-                numEl.disabled = false; 
-                numEl.classList.remove('opacity-50'); 
-            } else if (selectEl.value) {
-                const opt = selectEl.options[selectEl.selectedIndex];
-                const baseVal = opt.dataset.val;
-                const isVar = opt.dataset.var === "true";
-                numEl.value = baseVal;
-                if (!isVar) { 
-                    numEl.disabled = true; 
-                    numEl.classList.add('opacity-50'); 
-                } else { 
-                    numEl.disabled = false; 
-                    numEl.classList.remove('opacity-50'); 
-                }
-                if (row === container.lastElementChild) { 
-                    removeBtn.style.visibility = 'visible'; 
-                    appendRow(); 
-                }
-            } else { 
-                numEl.value = ""; 
-                numEl.disabled = false; 
-            }
-            syncState();
-        });
-        
-        textEl.addEventListener('blur', () => { 
-            if (textEl.value === "") { 
-                textEl.classList.add('hidden'); 
-                selectEl.classList.remove('hidden'); 
-                selectEl.value = ""; 
-            } else { 
-                if (row === container.lastElementChild) { 
-                    removeBtn.style.visibility = 'visible'; 
-                    appendRow(); 
-                } 
-            } 
-            syncState(); 
-        });
-        
-        numEl.addEventListener('change', syncState);
-        removeBtn.addEventListener('click', () => { row.remove(); syncState(); });
-    };
-    
-    if (stateArray.length > 0) stateArray.forEach(d => appendRow(d));
-    appendRow();
-}
-
-function renderBloodBondRow() {
-    const cont = document.getElementById('blood-bond-list'); if (!cont) return;
-    const row = document.createElement('div'); row.className = 'flex gap-2 items-center border-b border-[#222] pb-2 advantage-row';
-    row.innerHTML = `<select class="w-24 text-[10px] uppercase font-bold mr-2 border-b border-[#333] bg-transparent"><option value="Bond">Bond</option><option value="Vinculum">Vinculum</option></select><input type="text" placeholder="Bound to..." class="flex-1 text-xs"><input type="number" placeholder="Lvl" class="w-10 text-center text-xs" min="1" max="3"><div class="remove-btn">&times;</div>`;
-    const typeSel = row.querySelector('select'); const nI = row.querySelector('input[type="text"]'); const rI = row.querySelector('input[type="number"]'); const del = row.querySelector('.remove-btn');
-    if (cont.children.length === 0) del.style.visibility = 'hidden';
-    const onUpd = () => {
-        if (typeSel.value === 'Bond') { rI.max = 3; if(parseInt(rI.value) > 3) rI.value = 3; }
-        if (typeSel.value === 'Vinculum') { rI.max = 10; if(parseInt(rI.value) > 10) rI.value = 10; }
-        window.state.bloodBonds = Array.from(cont.querySelectorAll('.advantage-row')).map(r => ({ type: r.querySelector('select').value, name: r.querySelector('input[type="text"]').value, rating: r.querySelector('input[type="number"]').value })).filter(b => b.name);
-        if (cont.lastElementChild === row && nI.value !== "") renderBloodBondRow();
-        window.updatePools(); 
-    };
-    typeSel.onchange = onUpd; nI.onblur = onUpd; rI.onblur = onUpd; del.onclick = () => { row.remove(); onUpd(); };
-    cont.appendChild(row);
-}
-
-function renderDerangementsList() {
-    const cont = document.getElementById('derangements-list');
-    if (!cont) return;
-    cont.innerHTML = '';
-
-    window.state.derangements.forEach((d, idx) => {
-        const row = document.createElement('div');
-        row.className = "flex justify-between items-center text-xs text-white border-b border-[#333] py-1";
-        row.innerHTML = `<span>${d}</span><span class="remove-btn text-red-500" onclick="window.removeDerangement(${idx})">&times;</span>`;
-        cont.appendChild(row);
-    });
-
-    const addRow = document.createElement('div');
-    addRow.className = "flex gap-2 mt-2";
-    let options = `<option value="">+ Add Derangement</option>` + DERANGEMENTS.map(d => `<option value="${d}">${d}</option>`).join('');
-    addRow.innerHTML = `
-        <select id="derangement-select" class="flex-1 text-[10px] uppercase font-bold bg-black/40 border border-[#444] text-white p-1">
-            ${options}
-            <option value="Custom">Custom...</option>
-        </select>
-        <input type="text" id="derangement-custom" class="hidden flex-1 text-[10px] bg-black/40 border border-[#444] text-white p-1" placeholder="Type name...">
-        <button id="add-derangement-btn" class="bg-[#8b0000] text-white px-2 py-1 text-[10px] font-bold hover:bg-red-700">ADD</button>
-    `;
-    cont.appendChild(addRow);
-
-    const sel = document.getElementById('derangement-select');
-    const inp = document.getElementById('derangement-custom');
-    const btn = document.getElementById('add-derangement-btn');
-
-    sel.onchange = () => {
-        if (sel.value === 'Custom') {
-            sel.classList.add('hidden');
-            inp.classList.remove('hidden');
-            inp.focus();
-        }
-    };
-
-    btn.onclick = () => {
-        let val = sel.value === 'Custom' ? inp.value : sel.value;
-        if (val && val !== 'Custom') {
-            window.state.derangements.push(val);
-            renderDerangementsList();
-            window.updatePools(); 
-        }
-    };
-}
-
-window.removeDerangement = (idx) => {
-    window.state.derangements.splice(idx, 1);
-    renderDerangementsList();
-    window.updatePools();
-};
-
-function renderDynamicHavenRow() {
-    const cont = document.getElementById('multi-haven-list'); if (!cont) return;
-    const row = document.createElement('div'); row.className = 'border-b border-[#222] pb-4 advantage-row';
-    row.innerHTML = `<div class="flex justify-between items-center mb-2"><input type="text" placeholder="Haven Title..." class="flex-1 text-[10px] font-bold text-gold uppercase !border-b !border-[#333]"><div class="remove-btn">&times;</div></div><input type="text" placeholder="Location..." class="text-xs mb-2 !border-b !border-[#333]"><textarea class="h-16 text-xs" placeholder="Details..."></textarea>`;
-    const nameIn = row.querySelectorAll('input')[0]; const locIn = row.querySelectorAll('input')[1]; const descIn = row.querySelector('textarea'); const del = row.querySelector('.remove-btn');
-    if (cont.children.length === 0) del.style.visibility = 'hidden';
-    const onUpd = () => {
-        window.state.havens = Array.from(cont.querySelectorAll('.advantage-row')).map(r => ({ name: r.querySelectorAll('input')[0].value, loc: r.querySelectorAll('input')[1].value, desc: r.querySelector('textarea').value })).filter(h => h.name || h.loc);
-        if (cont.lastElementChild === row && nameIn.value !== "") renderDynamicHavenRow();
-        window.updatePools(); 
-    };
-    [nameIn, locIn, descIn].forEach(el => el.onblur = onUpd); del.onclick = () => { row.remove(); onUpd(); };
-    cont.appendChild(row);
-}
-
-function renderSocialProfileDescription(containerId, name) {
-    const cont = document.getElementById(containerId); if (!cont) return;
-    const safeId = 'desc-' + name.toLowerCase().replace(/[^a-z0-9]/g, '-');
-    const row = document.createElement('div'); row.className = 'mb-4 pb-2 border-b border-[#222]';
-    row.innerHTML = `<label class="label-text text-gold">${name}</label><textarea id="${safeId}" class="h-16 text-xs" placeholder="Identity details for ${name}..."></textarea>`;
-    cont.appendChild(row);
-}
-
-function updateBackgroundDescriptions() {
-    const cont = document.getElementById('social-profile-list'); if (!cont) return;
-    cont.innerHTML = ''; let hasBackgrounds = false;
-    if (window.state.dots.back) { Object.entries(window.state.dots.back).forEach(([name, val]) => { if (val > 0) { renderSocialProfileDescription('social-profile-list', name); hasBackgrounds = true; } }); }
-    if (!hasBackgrounds) cont.innerHTML = `<div class="col-span-1 md:col-span-2 text-center text-gray-500 italic py-10">Select Backgrounds in the Advantages section to add descriptions here.</div>`;
-    hydrateInputs();
-}
-
-window.changeStep = function(s) {
-    if (!window.state.furthestPhase || s > window.state.furthestPhase) { if (s > (window.state.furthestPhase || 0)) window.state.furthestPhase = s; }
-    document.querySelectorAll('.step-container').forEach(c => c.classList.remove('active'));
-    const prefix = window.state.isPlayMode ? 'play-mode-' : 'phase-';
-    const target = document.getElementById(prefix + s);
-    if (target) { target.classList.add('active'); window.state.currentPhase = s; }
-    if (s === 5) updateBackgroundDescriptions();
-    const nav = document.getElementById('sheet-nav');
-    if (nav) {
-        nav.innerHTML = '';
-        if (window.state.isPlayMode) {
-             const steps = ["Sheet", "Traits", "Social", "Biography"];
-             steps.forEach((text, i) => {
-                const it = document.createElement('div'); it.className = `nav-item ${window.state.currentPhase === (i+1) ? 'active' : ''}`;
-                // Fallback text added in case FontAwesome fails
-                it.innerHTML = `<i class="fas fa-scroll"></i><span style="display:block; font-size:9px; margin-top:2px;">${text}</span>`;
-                it.onclick = () => window.changeStep(i+1); nav.appendChild(it);
-            });
-        } else {
-            const furthest = window.state.furthestPhase || 1;
-            STEPS_CONFIG.forEach(step => {
-                const it = document.createElement('div'); let statusClass = '';
-                if (step.id === s) statusClass = 'active'; else if (step.id < s) statusClass = 'completed'; else if (step.id <= furthest) statusClass = 'unlocked'; else statusClass = 'locked';
-                it.className = `nav-item ${statusClass}`;
-                // FORCE DISPLAY: Inline style to ensure visibility if icons fail
-                it.innerHTML = `<div class="flex flex-col items-center justify-center w-full h-full"><i class="fas ${step.icon}"></i><span style="display:block !important; font-size:7px; text-transform:uppercase; margin-top:2px; opacity:1;">${step.label}</span></div>`;
-                it.onclick = () => { if (step.id <= furthest) window.changeStep(step.id); };
-                nav.appendChild(it);
-            });
-        }
-    }
-    window.updatePools();
-};
-
-window.toggleFreebieMode = function() {
-     window.state.freebieMode = !window.state.freebieMode;
-     document.body.classList.toggle('freebie-mode', window.state.freebieMode);
-     const fbBtn = document.getElementById('toggle-freebie-btn');
-     const fbBtnText = document.getElementById('freebie-btn-text');
-     if (fbBtnText) fbBtnText.innerText = window.state.freebieMode ? "Exit Freebies" : "Freebies";
-     if (fbBtn) { fbBtn.classList.toggle('bg-blue-900/40', window.state.freebieMode); fbBtn.classList.toggle('border-blue-500', window.state.freebieMode); fbBtn.classList.toggle('text-blue-200', window.state.freebieMode); }
-     const mMsg = document.getElementById('merit-locked-msg'); const fMsg = document.getElementById('flaw-locked-msg');
-     if(mMsg) mMsg.style.display = window.state.freebieMode ? 'none' : 'block';
-     if(fMsg) fMsg.style.display = window.state.freebieMode ? 'none' : 'block';
-     renderDynamicTraitRow('merits-list-create', 'Merit', V20_MERITS_LIST);
-     renderDynamicTraitRow('flaws-list-create', 'Flaw', V20_FLAWS_LIST);
-     window.updatePools(); 
-};
-
-window.toggleSidebarLedger = function() { document.getElementById('freebie-sidebar').classList.toggle('open'); };
-
-window.togglePlayMode = function() {
-    window.state.isPlayMode = !window.state.isPlayMode;
-    document.body.classList.toggle('play-mode', window.state.isPlayMode);
-    const pBtn = document.getElementById('play-mode-btn'); const pBtnText = document.getElementById('play-btn-text');
-    if(pBtnText) pBtnText.innerText = window.state.isPlayMode ? "Edit" : "Play";
-    document.querySelectorAll('input, select, textarea').forEach(el => {
-        if (['save-filename', 'char-select', 'roll-diff', 'use-specialty', 'c-path-name', 'c-path-name-create', 'c-bearing-name', 'c-bearing-value'].includes(el.id)) return;
-        el.disabled = window.state.isPlayMode;
-    });
-    if (window.state.isPlayMode) {
-        const row = document.getElementById('play-concept-row');
-        if (row) row.innerHTML = `<div><span class="label-text">Name:</span> <span class="text-white font-bold">${document.getElementById('c-name').value}</span></div><div><span class="label-text">Nature:</span> <span class="text-white font-bold">${document.getElementById('c-nature').value}</span></div><div><span class="label-text">Clan:</span> <span class="text-white font-bold">${document.getElementById('c-clan').value}</span></div><div><span class="label-text">Player:</span> <span class="text-white font-bold">${document.getElementById('c-player').value}</span></div><div><span class="label-text">Demeanor:</span> <span class="text-white font-bold">${document.getElementById('c-demeanor').value}</span></div><div><span class="label-text">Generation:</span> <span class="text-white font-bold">${document.getElementById('c-gen').value}</span></div>`;
-        const ra = document.getElementById('play-row-attr'); ra.innerHTML = '';
-        Object.entries(ATTRIBUTES).forEach(([c,l]) => { const s = document.createElement('div'); s.className='sheet-section !mt-0'; s.innerHTML=`<div class="column-title">${c}</div>`; l.forEach(a=>renderRow(s,a,'attr',1)); ra.appendChild(s); });
-        const rb = document.getElementById('play-row-abil'); rb.innerHTML = '';
-        Object.entries(ABILITIES).forEach(([c,l]) => { const s = document.createElement('div'); s.className='sheet-section !mt-0'; s.innerHTML=`<div class="column-title">${c}</div>`; l.forEach(a=>renderRow(s,a,'abil',0)); rb.appendChild(s); });
-        const rc = document.getElementById('play-row-adv'); rc.innerHTML = '';
-        const ds = document.createElement('div'); ds.className='sheet-section !mt-0'; ds.innerHTML='<div class="column-title">Disciplines</div>';
-        Object.entries(window.state.dots.disc).forEach(([n,v]) => { if(v>0) renderRow(ds,n,'disc',0); }); rc.appendChild(ds);
-        const bs = document.createElement('div'); bs.className='sheet-section !mt-0'; bs.innerHTML='<div class="column-title">Backgrounds</div>';
-        Object.entries(window.state.dots.back).forEach(([n,v]) => { if(v>0) renderRow(bs,n,'back',0); }); rc.appendChild(bs);
-        const vs = document.createElement('div'); vs.className='sheet-section !mt-0'; vs.innerHTML='<div class="column-title">Virtues</div>';
-        VIRTUES.forEach(v => renderRow(vs, v, 'virt', 1)); rc.appendChild(vs);
-        const pg = document.getElementById('play-social-grid'); if(pg) {
-            pg.innerHTML = ''; BACKGROUNDS.forEach(s => { const dots = window.state.dots.back[s] || 0; const safeId = 'desc-' + s.toLowerCase().replace(/[^a-z0-9]/g, '-'); const el = document.getElementById(safeId); const txt = el ? el.value : ""; if(dots || txt) pg.innerHTML += `<div class="border-l-2 border-[#333] pl-4 mb-4"><div class="flex justify-between items-center"><label class="label-text text-gold">${s}</label><div class="text-[8px] font-bold text-white">${renderDots(dots,5)}</div></div><div class="text-xs text-gray-200 mt-1">${txt || "No description."}</div></div>`; });
-        }
-        const pb = document.getElementById('play-blood-bonds'); if(pb) {
-            pb.innerHTML = ''; window.state.bloodBonds.forEach(b => { const label = b.type === 'Bond' ? (b.rating == 3 ? 'Full Bond' : `Drink ${b.rating}`) : `Vinculum ${b.rating}`; pb.innerHTML += `<div class="flex justify-between border-b border-[#222] py-1 text-xs"><span>${b.name}</span><span class="text-gold font-bold">${label}</span></div>`; });
-        }
-        const mf = document.getElementById('merit-flaw-rows-play'); if(mf) {
-            mf.innerHTML = ''; if(window.state.merits) window.state.merits.forEach(m => { mf.innerHTML += `<div class="flex justify-between text-xs py-1 border-b border-[#222]"><span>${m.name}</span><span class="text-red-400 font-bold">${m.val}</span></div>`; }); if(window.state.flaws) window.state.flaws.forEach(f => { mf.innerHTML += `<div class="flex justify-between text-xs py-1 border-b border-[#222]"><span>${f.name}</span><span class="text-green-400 font-bold">${f.val}</span></div>`; });
-        }
-        const ot = document.getElementById('other-traits-rows-play'); if(ot) {
-            ot.innerHTML = ''; Object.entries(window.state.dots.other).forEach(([n,v]) => { if(v>0) renderRow(ot, n, 'other', 0); });
-        }
-        const plv = document.getElementById('play-vitals-list'); if(plv) {
-            plv.innerHTML = ''; VIT.forEach(v => { const val = document.getElementById('bio-' + v)?.value; if(val) plv.innerHTML += `<div class="flex justify-between border-b border-[#222] py-1 font-bold"><span class="text-gray-400">${v.replace('-',' ')}:</span> <span>${val}</span></div>`; });
-        }
-        const cp = document.getElementById('combat-rows-play'); if(cp) {
-            cp.innerHTML = ''; const standards = [{n:'Bite',diff:5,dmg:'Str+1(A)'}, {n:'Clinch',diff:6,dmg:'Str(B)'}, {n:'Grapple',diff:6,dmg:'Str(B)'}, {n:'Kick',diff:7,dmg:'Str+1(B)'}, {n:'Punch',diff:6,dmg:'Str(B)'}, {n:'Tackle',diff:7,dmg:'Str+1(B)'}];
-            standards.forEach(s => { const r = document.createElement('tr'); r.className='border-b border-[#222] text-[10px] text-gray-500'; r.innerHTML = `<td class="p-2 font-bold text-white">${s.n}</td><td class="p-2">${s.diff}</td><td class="p-2">${s.dmg}</td><td class="p-2">-</td><td class="p-2">-</td><td class="p-2">-</td>`; cp.appendChild(r); });
-            if(window.state.inventory) { window.state.inventory.filter(i => i.type === 'Weapon' && i.status === 'carried').forEach(w => { let display = w.displayName || w.name; const r = document.createElement('tr'); r.className='border-b border-[#222] text-[10px]'; r.innerHTML = `<td class="p-2 font-bold text-gold">${display}</td><td class="p-2 text-white">${w.stats.diff}</td><td class="p-2 text-white">${w.stats.dmg}</td><td class="p-2">${w.stats.range}</td><td class="p-2">${w.stats.rate}</td><td class="p-2">${w.stats.clip}</td>`; cp.appendChild(r); }); }
-        }
-        if(document.getElementById('rituals-list-play')) document.getElementById('rituals-list-play').innerText = document.getElementById('rituals-list-create-ta').value;
-        let carried = []; let owned = []; if(window.state.inventory) { window.state.inventory.forEach(i => { const str = `${i.displayName || i.name} ${i.type === 'Armor' ? `(R:${i.stats.rating} P:${i.stats.penalty})` : ''}`; if(i.status === 'carried') carried.push(str); else owned.push(str); }); }
-        setSafeText('play-gear-carried', carried.join(', ')); setSafeText('play-gear-owned', owned.join(', '));
-        if(document.getElementById('play-bio-desc')) document.getElementById('play-bio-desc').innerText = document.getElementById('bio-desc').value;
-        if(document.getElementById('play-derangements')) { const pd = document.getElementById('play-derangements'); pd.innerHTML = window.state.derangements.length > 0 ? window.state.derangements.map(d => `<div>• ${d}</div>`).join('') : '<span class="text-gray-500 italic">None</span>'; }
-        if(document.getElementById('play-languages')) document.getElementById('play-languages').innerText = document.getElementById('bio-languages').value;
-        if(document.getElementById('play-goals-st')) document.getElementById('play-goals-st').innerText = document.getElementById('bio-goals-st').value;
-        if(document.getElementById('play-goals-lt')) document.getElementById('play-goals-lt').innerText = document.getElementById('bio-goals-lt').value;
-        if(document.getElementById('play-history')) document.getElementById('play-history').innerText = document.getElementById('char-history').value;
-        const feedSrc = document.getElementById('inv-feeding-grounds'); if (feedSrc) setSafeText('play-feeding-grounds', feedSrc.value);
-        if(document.getElementById('armor-rating-play')) { let totalA = 0; let totalP = 0; let names = []; if(window.state.inventory) { window.state.inventory.filter(i => i.type === 'Armor' && i.status === 'carried').forEach(a => { totalA += parseInt(a.stats?.rating)||0; totalP += parseInt(a.stats?.penalty)||0; names.push(a.displayName || a.name); }); } setSafeText('armor-rating-play', totalA); setSafeText('armor-penalty-play', totalP); setSafeText('armor-desc-play', names.join(', ')); }
-        if (document.getElementById('play-vehicles')) { const pv = document.getElementById('play-vehicles'); pv.innerHTML = ''; if (window.state.inventory) { window.state.inventory.filter(i => i.type === 'Vehicle').forEach(v => { let display = v.displayName || v.name; pv.innerHTML += `<div class="mb-2 border-b border-[#333] pb-1"><div class="font-bold text-white uppercase text-[10px]">${display}</div><div class="text-[9px] text-gray-400">Safe:${v.stats.safe} | Max:${v.stats.max} | Man:${v.stats.man}</div></div>`; }); } }
-        if (document.getElementById('play-havens-list')) { const ph = document.getElementById('play-havens-list'); ph.innerHTML = ''; window.state.havens.forEach(h => { ph.innerHTML += `<div class="border-l-2 border-gold pl-4 mb-4"><div class="flex justify-between"><div><div class="font-bold text-white uppercase text-[10px]">${h.name}</div><div class="text-[9px] text-gold italic">${h.loc}</div></div></div><div class="text-xs text-gray-400 mt-1">${h.desc}</div></div>`; }); }
-        
-        // --- SWITCH TO PLAY MODE START ---
-        window.changeStep(1);
-    } else {
-        // --- RESTORE EDIT MODE VIEW ---
-        // If coming back from play mode, restore the last known edit phase (or 1)
-        window.changeStep(window.state.furthestPhase || 1);
-    }
-};
-
-// --- INITIALIZATION (Safeguarded) ---
-
-// 1. Initial UI Setup (Runs Immediately)
-try {
-    // --- SAFEGUARD: CHECK IF NAV EXISTS ---
-    if (!document.getElementById('sheet-nav')) throw new Error("Navigation container 'sheet-nav' is missing from HTML.");
-
-    // --- VERSION CHECK ---
-    const vSpan = document.getElementById('app-version');
-    if(vSpan) vSpan.innerText = APP_VERSION;
-
-    // --- SAFEGUARD: Wrap DOM logic ---
-    const s1 = document.getElementById('list-attr-physical');
-    if (s1) {
-        Object.keys(ATTRIBUTES).forEach(c => ATTRIBUTES[c].forEach(a => { window.state.dots.attr[a] = 1; renderRow('list-attr-'+c.toLowerCase(), a, 'attr', 1); }));
-        Object.keys(ABILITIES).forEach(c => ABILITIES[c].forEach(a => { window.state.dots.abil[a] = 0; renderRow('list-abil-'+c.toLowerCase(), a, 'abil', 0); }));
-    }
-    
-    renderDynamicAdvantageRow('list-disc', 'disc', DISCIPLINES);
-    renderDynamicAdvantageRow('list-back', 'back', BACKGROUNDS);
-    renderDynamicAdvantageRow('custom-talents', 'abil', [], true);
-    renderDynamicAdvantageRow('custom-skills', 'abil', [], true);
-    renderDynamicAdvantageRow('custom-knowledges', 'abil', [], true);
-    renderDerangementsList(); 
-    VIRTUES.forEach(v => { window.state.dots.virt[v] = 1; renderRow('list-virt', v, 'virt', 1); });
-    const vitalCont = document.getElementById('vitals-create-inputs');
-    if(vitalCont) VIT.forEach(v => { const d = document.createElement('div'); d.innerHTML = `<label class="label-text">${v}</label><input type="text" id="bio-${v}">`; vitalCont.appendChild(d); });
-    renderDynamicTraitRow('merits-list-create', 'Merit', V20_MERITS_LIST);
-    renderDynamicTraitRow('flaws-list-create', 'Flaw', V20_FLAWS_LIST);
-    window.renderInventoryList();
-    
-    const otherT = document.getElementById('other-traits-rows-create');
-    if(otherT) for(let i=0; i<8; i++) {
-        const d2 = document.createElement('div'); d2.className = 'flex items-center gap-2 mb-2';
-        d2.innerHTML = `<input type="text" id="ot-n-${i}" placeholder="Other..." class="w-40 text-[11px] font-bold"><div class="dot-row" id="ot-dr-${i}"></div>`;
-        otherT.appendChild(d2);
-        const dr = d2.querySelector('.dot-row'); dr.innerHTML = renderDots(0, 5);
-        dr.onclick = (e) => { const n = document.getElementById(`ot-n-${i}`).value || `Other_${i}`; if(e.target.classList.contains('dot')) { let v = parseInt(e.target.dataset.v); const currentVal = window.state.dots.other[n] || 0; if (v === currentVal) v = v - 1; window.state.dots.other[n] = v; dr.innerHTML = renderDots(v, 5); } };
-    }
-    
-    document.querySelectorAll('.prio-btn').forEach(b => b.onclick = (e) => {
-        const {cat, group, v} = e.target.dataset;
-        const catGroups = cat === 'attr' ? ['Physical', 'Social', 'Mental'] : ['Talents', 'Skills', 'Knowledges'];
-        catGroups.forEach(g => {
-            if (window.state.prios[cat][g] === parseInt(v)) {
-                window.state.prios[cat][g] = null;
-                if (cat === 'attr') { ATTRIBUTES[g].forEach(a => window.state.dots.attr[a] = 1); ATTRIBUTES[g].forEach(a => { const row = document.querySelector(`.dot-row[data-n="${a}"][data-t="attr"]`); if(row) row.innerHTML = renderDots(1, 5); }); } 
-                else { ABILITIES[g].forEach(a => window.state.dots.abil[a] = 0); if (window.state.customAbilityCategories) { Object.entries(window.state.customAbilityCategories).forEach(([name, c]) => { if (c === g) window.state.dots.abil[name] = 0; }); } ABILITIES[g].forEach(a => { const row = document.querySelector(`.dot-row[data-n="${a}"][data-t="abil"]`); if(row) row.innerHTML = renderDots(0, 5); }); const allCustom = document.querySelectorAll('#custom-talents .advantage-row, #custom-skills .advantage-row, #custom-knowledges .advantage-row'); allCustom.forEach(r => { const dot = r.querySelector('.dot-row'); if(dot) dot.innerHTML = renderDots(0,5); }); }
-            }
-        });
-        window.state.prios[cat][group] = parseInt(v);
-        document.querySelectorAll(`.prio-btn[data-cat="${cat}"]`).forEach(el => { const isActive = window.state.prios[cat][el.dataset.group] == el.dataset.v; el.classList.toggle('active', isActive); });
-        window.updatePools();
-    });
-    renderBloodBondRow();
-    renderDynamicHavenRow();
-    
-    // BIND NEW FILE MANAGER BUTTONS
-    const cmdNew = document.getElementById('cmd-new');
-    if(cmdNew) cmdNew.onclick = window.handleNew;
-    
-    const cmdSave = document.getElementById('cmd-save');
-    if(cmdSave) cmdSave.onclick = window.handleSaveClick;
-    
-    const cmdLoad = document.getElementById('cmd-load');
-    if(cmdLoad) cmdLoad.onclick = window.handleLoadClick;
-    
-    const confirmSave = document.getElementById('confirm-save-btn');
-    if(confirmSave) confirmSave.onclick = window.performSave;
-    
-    // --- NEW: WIRE UP TOP TOGGLE BUTTONS ---
-    const topPlayBtn = document.getElementById('play-mode-btn');
-    if(topPlayBtn) topPlayBtn.onclick = window.togglePlayMode;
-    
-    const topFreebieBtn = document.getElementById('toggle-freebie-btn');
-    if(topFreebieBtn) topFreebieBtn.onclick = window.toggleFreebieMode;
-    // ---------------------------------------
-    
-    // Render the initial UI
-    window.changeStep(1); 
-} catch(e) {
-    console.error("UI Init Error:", e);
-    const notif = document.getElementById('notification');
-    if(notif) { notif.innerText = "CRITICAL INIT ERROR: " + e.message; notif.style.display = 'block'; }
 }
 
 // 2. Auth & Database (Runs Async)
