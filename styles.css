@@ -53,47 +53,11 @@ h1, h2, h3, .heading { font-family: 'Cinzel', serif; letter-spacing: 0.1em; }
     width: 14px;
     height: 14px;
     border: 1px solid #777;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
+    display: inline-block;
     margin: 0 2px;
     cursor: pointer;
-    background-color: transparent;
-    font-family: sans-serif;
-    font-size: 14px;
-    line-height: 1;
-    font-weight: bold;
-    user-select: none;
 }
-
-/* Checked state for Willpower/Blood (Solid Fill) */
-.box.checked { 
-    background-color: var(--v-blood); 
-    border-color: var(--v-blood-bright); 
-}
-
-/* DAMAGE STATES (Health) */
-/* 1 = Bashing (/) */
-.box[data-state="1"] {
-    color: #4ade80; /* Green */
-    border-color: #4ade80;
-}
-.box[data-state="1"]::after { content: "/"; }
-
-/* 2 = Lethal (X) */
-.box[data-state="2"] {
-    color: var(--v-gold);
-    border-color: var(--v-gold);
-}
-.box[data-state="2"]::after { content: "X"; font-size: 11px; }
-
-/* 3 = Aggravated (*) */
-.box[data-state="3"] {
-    color: var(--v-blood-bright);
-    border-color: var(--v-blood);
-    background-color: rgba(175, 0, 0, 0.2);
-}
-.box[data-state="3"]::after { content: "*"; font-size: 18px; line-height: 20px; display:block; margin-top: 4px; }
+.box.checked { background-color: var(--v-blood); border-color: var(--v-blood-bright); }
 
 .sheet-section { border: 1px solid var(--v-border); padding: 1.5rem 1rem 1rem 1rem; background: rgba(0,0,0,0.5); position: relative; margin-top: 1.5rem; }
 .section-title { 
