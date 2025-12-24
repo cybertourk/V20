@@ -3,7 +3,7 @@ import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken }
 import { getFirestore, doc, setDoc, getDoc, collection, getDocs, query, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 // --- VERSION CONTROL ---
-const APP_VERSION = "v1.11 (Restored Merits/Flaws)";
+const APP_VERSION = "v1.13 (Refined Specialties)";
 
 // --- ERROR HANDLER ---
 window.onerror = function(msg, url, line) {
@@ -103,7 +103,6 @@ window.state = {
     isPlayMode: false, freebieMode: false, activePool: [], currentPhase: 1, furthestPhase: 1,
     dots: { attr: {}, abil: {}, disc: {}, back: {}, virt: {}, other: {} },
     prios: { attr: {}, abil: {} },
-    // status.health_states: Array of 7 integers. 0=Empty, 1=Bashing(/), 2=Lethal(X), 3=Aggravated(*)
     status: { humanity: 7, willpower: 5, tempWillpower: 5, health_states: [0,0,0,0,0,0,0], blood: 0 },
     specialties: {}, 
     socialExtras: {}, textFields: {}, havens: [], bloodBonds: [], vehicles: [], customAbilityCategories: {},
@@ -666,74 +665,6 @@ window.updatePools = function() {
     window.updateWalkthrough();
 };
 
-function setDots(name, type, val, min, max = 5) {
-    if (window.state.isPlayMode) return;
-    if (type === 'status') {
-        if (!window.state.freebieMode) return;
-        if (name === 'Humanity') window.state.status.humanity = val;
-        else if (name === 'Willpower') {
-            window.state.status.willpower = val;
-            window.state.status.tempWillpower = val; // Sync temp when permanent changes
-        }
-        if (calculateTotalFreebiesSpent(window.state) > (parseInt(document.getElementById('c-freebie-total')?.value) || 15)) { showNotification("Freebie Limit Exceeded!"); return; }
-        window.updatePools(); return;
-    }
-    const currentVal = window.state.dots[type][name] || min;
-    let newVal = val;
-    if (val === currentVal) newVal = val - 1;
-    if (newVal < min) newVal = min;
-    if (window.state.freebieMode) {
-        const tempState = JSON.parse(JSON.stringify(window.state));
-        if (!tempState.dots[type]) tempState.dots[type] = {};
-        tempState.dots[type][name] = newVal;
-        const projectedCost = calculateTotalFreebiesSpent(tempState);
-        const limit = parseInt(document.getElementById('c-freebie-total')?.value) || 15;
-        if (projectedCost > limit) { showNotification("Freebie Limit Exceeded!"); return; }
-    } else {
-        if (type === 'attr') {
-            let group = null; Object.keys(ATTRIBUTES).forEach(k => { if(ATTRIBUTES[k].includes(name)) group = k; });
-            if (group) {
-                 const limit = window.state.prios.attr[group];
-                 if (limit === undefined) { showNotification(`Select priority for ${group}!`); return; }
-                 let currentSpent = 0;
-                 ATTRIBUTES[group].forEach(a => { if (a !== name) { const v = window.state.dots.attr[a] || 1; currentSpent += (v - 1); } });
-                 if (currentSpent + (newVal - 1) > limit) { showNotification("Limit Exceeded!"); return; }
-            }
-        } else if (type === 'abil') {
-            if (newVal > 3) { showNotification("Max 3 dots in Abilities during creation!"); return; }
-            let group = null; Object.keys(ABILITIES).forEach(k => { if(ABILITIES[k].includes(name)) group = k; });
-            if (!group && window.state.customAbilityCategories && window.state.customAbilityCategories[name]) group = window.state.customAbilityCategories[name];
-            if (group) {
-                const limit = window.state.prios.abil[group];
-                if (limit === undefined) { showNotification(`Select priority for ${group}!`); return; }
-                let currentSpent = 0; ABILITIES[group].forEach(a => { if (a !== name) currentSpent += (window.state.dots.abil[a] || 0); });
-                if (window.state.customAbilityCategories) { Object.keys(window.state.dots.abil).forEach(k => { if (k !== name && window.state.customAbilityCategories[k] === group) currentSpent += (window.state.dots.abil[k] || 0); }); }
-                if (currentSpent + newVal > limit) { showNotification("Limit Exceeded!"); return; }
-            }
-        } else if (type === 'disc') {
-            let currentSpent = 0; Object.keys(window.state.dots.disc).forEach(d => { if (d !== name) currentSpent += (window.state.dots.disc[d] || 0); });
-            if (currentSpent + newVal > 3) { showNotification("Max 3 Creation Dots!"); return; }
-        } else if (type === 'back') {
-            let currentSpent = 0; Object.keys(window.state.dots.back).forEach(b => { if (b !== name) currentSpent += (window.state.dots.back[b] || 0); });
-            if (currentSpent + newVal > 5) { showNotification("Max 5 Creation Dots!"); return; }
-        } else if (type === 'virt') {
-            let currentSpent = 0; VIRTUES.forEach(v => { if (v !== name) currentSpent += (window.state.dots.virt[v] || 1); });
-            if ((currentSpent + newVal) > 10) { showNotification("Max 7 Creation Dots!"); return; }
-        }
-    }
-    window.state.dots[type][name] = newVal;
-    if (type === 'virt' && !window.state.isPlayMode && !window.state.freebieMode) {
-         const con = window.state.dots.virt.Conscience || 1;
-         const self = window.state.dots.virt["Self-Control"] || 1;
-         const cou = window.state.dots.virt.Courage || 1;
-         window.state.status.humanity = con + self;
-         window.state.status.willpower = cou;
-         window.state.status.tempWillpower = cou;
-    }
-    document.querySelectorAll(`.dot-row[data-n="${name}"][data-t="${type}"]`).forEach(el => el.innerHTML = renderDots(newVal, max));
-    window.updatePools();
-}
-
 window.renderInventoryList = function() {
     const listCarried = document.getElementById('inv-list-carried');
     const listOwned = document.getElementById('inv-list-owned');
@@ -775,36 +706,49 @@ function renderRow(contId, label, type, min, max = 5) {
     const div = document.createElement('div'); div.className = 'flex flex-col py-1';
     
     // Updated HTML structure for renderRow to include specialty input
+    
+    let labelHtml = `<span class="trait-label uppercase text-sm font-bold">${label}</span>`;
+    
+    // Play Mode: Inline display of Specialty
+    if (window.state.isPlayMode && val >= 4 && window.state.specialties && window.state.specialties[label]) {
+        labelHtml = `
+            <div class="flex items-center gap-1">
+                <span class="trait-label uppercase text-sm font-bold">${label}</span>
+                <span class="text-xs italic text-gray-400">(${window.state.specialties[label]})</span>
+            </div>
+        `;
+    }
+
     div.innerHTML = `
         <div class="flex justify-between items-center w-full">
-            <span class="trait-label uppercase">${label}</span>
+            ${labelHtml}
             <div class="dot-row" data-n="${label}" data-t="${type}">${renderDots(val, max)}</div>
         </div>
     `;
     
-    // Specialty Input Logic (V1.10 - Dropdown/Datalist)
-    if (val >= 4) {
+    // Specialty Input Logic (V1.13 - Filtered Edit Mode Only)
+    // Only show input if in Edit Mode (NOT play mode) AND rating is 4+
+    if (val >= 4 && !window.state.isPlayMode) {
         const specDiv = document.createElement('div');
         specDiv.className = 'w-full mt-1';
         const specVal = window.state.specialties[label] || "";
         const listId = `list-${label.replace(/\s+/g, '')}`;
         
-        // Dynamically create datalist options from SPECIALTY_EXAMPLES
         let optionsHTML = '';
         if (SPECIALTY_EXAMPLES[label]) {
             optionsHTML = SPECIALTY_EXAMPLES[label].map(s => `<option value="${s}">`).join('');
         }
         
         specDiv.innerHTML = `
-            <input type="text" list="${listId}" class="specialty-input w-full text-[9px] bg-transparent border-b border-gray-700 text-[#d4af37] italic pl-2" placeholder="Specialty..." value="${specVal}">
+            <input type="text" list="${listId}" class="specialty-input w-full text-[9px] bg-transparent border-b border-gray-700 text-[#d4af37] italic pl-2" placeholder="Select or type Specialty..." value="${specVal}">
             <datalist id="${listId}">${optionsHTML}</datalist>
         `;
         
         const input = specDiv.querySelector('input');
         input.onblur = (e) => {
             window.state.specialties[label] = e.target.value;
+            window.updatePools(); // Refresh to ensure data state is saved/synced
         };
-        input.disabled = window.state.isPlayMode;
         
         div.appendChild(specDiv);
     }
@@ -844,8 +788,26 @@ function renderDynamicAdvantageRow(containerId, type, list, isAbil = false) {
         const row = document.createElement('div'); row.className = 'flex flex-col gap-1 mb-2 advantage-row';
         const head = document.createElement('div'); head.className = 'flex justify-between items-center';
         let inputField;
-        if (isAbil) { inputField = document.createElement('input'); inputField.type = 'text'; inputField.placeholder = "Write-in..."; inputField.className = 'flex-1 mr-4 text-[10px] font-bold uppercase !bg-black/20 !border-b !border-[#333]'; inputField.value = name; } 
-        else { inputField = document.createElement('select'); inputField.className = 'flex-1 mr-4 text-[11px] font-bold uppercase'; inputField.innerHTML = `<option value="">-- Choose ${type} --</option>` + list.map(item => `<option value="${item}" ${item === name ? 'selected' : ''}>${item}</option>`).join(''); }
+        
+        // V1.13 Change: Only apply bold styling to label text for consistency
+        let labelClass = "flex-1 mr-4 text-[11px] font-bold uppercase";
+        
+        if (isAbil) { 
+            // Play Mode inline specialty display logic for Custom Abilities
+             if (window.state.isPlayMode && name && (window.state.dots[type][name] || 0) >= 4 && window.state.specialties[name]) {
+                 // Inline Display mode
+                 inputField = document.createElement('div');
+                 inputField.className = labelClass;
+                 inputField.innerHTML = `${name} <span class="text-[9px] italic text-gray-400">(${window.state.specialties[name]})</span>`;
+             } else {
+                 // Standard Input mode
+                inputField = document.createElement('input'); inputField.type = 'text'; inputField.placeholder = "Write-in..."; inputField.className = labelClass + ' !bg-black/20 !border-b !border-[#333]'; inputField.value = name; 
+             }
+        } 
+        else { 
+            inputField = document.createElement('select'); inputField.className = labelClass; inputField.innerHTML = `<option value="">-- Choose ${type} --</option>` + list.map(item => `<option value="${item}" ${item === name ? 'selected' : ''}>${item}</option>`).join(''); 
+        }
+        
         const dotCont = document.createElement('div'); dotCont.className = 'dot-row';
         const val = name ? (window.state.dots[type][name] || 0) : 0;
         dotCont.innerHTML = renderDots(val, 5);
@@ -861,7 +823,6 @@ function renderDynamicAdvantageRow(containerId, type, list, isAbil = false) {
                 const dots = window.state.dots[type][curName]; delete window.state.dots[type][curName]; 
                 if (window.state.customAbilityCategories && window.state.customAbilityCategories[curName]) delete window.state.customAbilityCategories[curName];
                 if (newVal) window.state.dots[type][newVal] = dots || 0; 
-                // Migrate specialty if name changes
                 if(window.state.specialties[curName]) {
                     window.state.specialties[newVal] = window.state.specialties[curName];
                     delete window.state.specialties[curName];
@@ -877,7 +838,13 @@ function renderDynamicAdvantageRow(containerId, type, list, isAbil = false) {
             }
             window.updatePools();
         };
-        if (isAbil) inputField.onblur = (e) => onUpdate(e.target.value); else inputField.onchange = (e) => onUpdate(e.target.value);
+        
+        if (isAbil) {
+             if(inputField.tagName === 'INPUT') inputField.onblur = (e) => onUpdate(e.target.value); 
+        } else {
+            inputField.onchange = (e) => onUpdate(e.target.value);
+        }
+        
         removeBtn.onclick = () => { if (curName) { delete window.state.dots[type][curName]; if (window.state.customAbilityCategories && window.state.customAbilityCategories[curName]) delete window.state.customAbilityCategories[curName]; } row.remove(); window.updatePools(); };
         dotCont.onclick = (e) => { 
             if (!curName || !e.target.dataset.v) return; 
@@ -907,12 +874,13 @@ function renderDynamicAdvantageRow(containerId, type, list, isAbil = false) {
         head.appendChild(inputField); head.appendChild(dotCont); head.appendChild(removeBtn);
         row.appendChild(head); 
         
-        // Custom trait specialty injection logic
-        if (curName && (window.state.dots[type][curName] || 0) >= 4) {
+        // Custom trait specialty injection logic (V1.13 - Filtered for Abilities only)
+        // Ensure this ONLY runs for 'abil' type and NOT 'disc' or 'back' or 'virt'
+        if (type === 'abil' && curName && (window.state.dots[type][curName] || 0) >= 4 && !window.state.isPlayMode) {
              const specDiv = document.createElement('div');
              specDiv.className = 'w-full mt-1 ml-1';
              const specVal = window.state.specialties[curName] || "";
-             // Use generic list for custom items or look up if name matches known ability
+             // Use generic list for custom items
              const listId = `list-${curName.replace(/[^a-zA-Z0-9]/g, '')}`;
              let optionsHTML = '';
              if (SPECIALTY_EXAMPLES[curName]) {
@@ -925,8 +893,7 @@ function renderDynamicAdvantageRow(containerId, type, list, isAbil = false) {
              `;
              
              const input = specDiv.querySelector('input');
-             input.onblur = (e) => { window.state.specialties[curName] = e.target.value; };
-             input.disabled = window.state.isPlayMode;
+             input.onblur = (e) => { window.state.specialties[curName] = e.target.value; window.updatePools(); };
              row.appendChild(specDiv);
         }
         
@@ -942,30 +909,65 @@ function renderDynamicTraitRow(containerId, type, list) {
     const stateArray = type === 'Merit' ? (window.state.merits || []) : (window.state.flaws || []);
     container.innerHTML = '';
     const appendRow = (data = null) => {
-        const row = document.createElement('div'); row.className = 'flex gap-2 items-center mb-2 trait-row';
+        const row = document.createElement('div'); 
+        row.className = 'flex gap-2 items-center mb-2 trait-row';
+        
         let options = `<option value="">-- Select ${type} --</option>`;
         list.forEach(item => {
             const rangeText = item.range ? `(${item.range}pt)` : `(${item.v}pt)`;
             options += `<option value="${item.n}" data-val="${item.v}" data-var="${item.variable||false}">${item.n} ${rangeText}</option>`;
         });
         options += '<option value="Custom">-- Custom / Write-in --</option>';
-        row.innerHTML = `<div class="flex-1 relative"><select class="w-full text-[11px] font-bold uppercase bg-[#111] text-white border-b border-[#444]">${options}</select><input type="text" placeholder="Custom Name..." class="hidden w-full text-[11px] font-bold uppercase border-b border-[#444] bg-transparent text-white"></div><input type="number" class="w-10 text-center text-[11px] !border !border-[#444] font-bold" min="1"><div class="remove-btn">&times;</div>`;
+        
+        row.innerHTML = `
+            <div class="flex-1 relative">
+                <select class="w-full text-[11px] font-bold uppercase bg-[#111] text-white border-b border-[#444]">${options}</select>
+                <input type="text" placeholder="Custom Name..." class="hidden w-full text-[11px] font-bold uppercase border-b border-[#444] bg-transparent text-white">
+            </div>
+            <input type="number" class="w-10 text-center text-[11px] !border !border-[#444] font-bold" min="1">
+            <div class="remove-btn">&times;</div>
+        `;
+        
         container.appendChild(row);
+        
         const selectEl = row.querySelector('select');
         const textEl = row.querySelector('input[type="text"]');
         const numEl = row.querySelector('input[type="number"]');
         const removeBtn = row.querySelector('.remove-btn');
+        
         const isLocked = !window.state.freebieMode;
-        selectEl.disabled = isLocked; textEl.disabled = isLocked; numEl.disabled = isLocked;
-        if(isLocked) { selectEl.classList.add('opacity-50'); textEl.classList.add('opacity-50'); numEl.classList.add('opacity-50'); }
+        selectEl.disabled = isLocked; 
+        textEl.disabled = isLocked; 
+        numEl.disabled = isLocked;
+        
+        if(isLocked) { 
+            selectEl.classList.add('opacity-50'); 
+            textEl.classList.add('opacity-50'); 
+            numEl.classList.add('opacity-50'); 
+        }
+        
         if (data) {
             const exists = list.some(l => l.n === data.name);
             if (exists) {
-                selectEl.value = data.name; numEl.value = data.val;
+                selectEl.value = data.name; 
+                numEl.value = data.val;
                 const itemData = list.find(l => l.n === data.name);
-                if (itemData && !itemData.variable) { numEl.disabled = true; numEl.classList.add('opacity-50'); }
-            } else { selectEl.value = "Custom"; selectEl.classList.add('hidden'); textEl.classList.remove('hidden'); textEl.value = data.name; numEl.value = data.val; }
-        } else { numEl.value = ""; removeBtn.style.visibility = 'hidden'; }
+                if (itemData && !itemData.variable) { 
+                    numEl.disabled = true; 
+                    numEl.classList.add('opacity-50'); 
+                }
+            } else { 
+                selectEl.value = "Custom"; 
+                selectEl.classList.add('hidden'); 
+                textEl.classList.remove('hidden'); 
+                textEl.value = data.name; 
+                numEl.value = data.val; 
+            }
+        } else { 
+            numEl.value = ""; 
+            removeBtn.style.visibility = 'hidden'; 
+        }
+        
         const syncState = () => {
             const allRows = container.querySelectorAll('.trait-row');
             const newState = [];
@@ -977,76 +979,62 @@ function renderDynamicTraitRow(containerId, type, list) {
                 let val = parseInt(n.value) || 0;
                 if (name && name !== 'Custom') newState.push({ name, val });
             });
-            if (type === 'Merit') window.state.merits = newState; else window.state.flaws = newState;
+            if (type === 'Merit') window.state.merits = newState; 
+            else window.state.flaws = newState;
             window.updatePools();
         };
+        
         selectEl.addEventListener('change', (e) => {
-            if (selectEl.value === 'Custom') { selectEl.classList.add('hidden'); textEl.classList.remove('hidden'); textEl.focus(); numEl.value = 1; numEl.disabled = false; numEl.classList.remove('opacity-50'); } 
-            else if (selectEl.value) {
+            if (selectEl.value === 'Custom') { 
+                selectEl.classList.add('hidden'); 
+                textEl.classList.remove('hidden'); 
+                textEl.focus(); 
+                numEl.value = 1; 
+                numEl.disabled = false; 
+                numEl.classList.remove('opacity-50'); 
+            } else if (selectEl.value) {
                 const opt = selectEl.options[selectEl.selectedIndex];
                 const baseVal = opt.dataset.val;
                 const isVar = opt.dataset.var === "true";
                 numEl.value = baseVal;
-                if (!isVar) { numEl.disabled = true; numEl.classList.add('opacity-50'); } else { numEl.disabled = false; numEl.classList.remove('opacity-50'); }
-                if (row === container.lastElementChild) { removeBtn.style.visibility = 'visible'; appendRow(); }
-            } else { numEl.value = ""; numEl.disabled = false; }
+                if (!isVar) { 
+                    numEl.disabled = true; 
+                    numEl.classList.add('opacity-50'); 
+                } else { 
+                    numEl.disabled = false; 
+                    numEl.classList.remove('opacity-50'); 
+                }
+                if (row === container.lastElementChild) { 
+                    removeBtn.style.visibility = 'visible'; 
+                    appendRow(); 
+                }
+            } else { 
+                numEl.value = ""; 
+                numEl.disabled = false; 
+            }
             syncState();
         });
-        textEl.addEventListener('blur', () => { if (textEl.value === "") { textEl.classList.add('hidden'); selectEl.classList.remove('hidden'); selectEl.value = ""; } else { if (row === container.lastElementChild) { removeBtn.style.visibility = 'visible'; appendRow(); } } syncState(); });
+        
+        textEl.addEventListener('blur', () => { 
+            if (textEl.value === "") { 
+                textEl.classList.add('hidden'); 
+                selectEl.classList.remove('hidden'); 
+                selectEl.value = ""; 
+            } else { 
+                if (row === container.lastElementChild) { 
+                    removeBtn.style.visibility = 'visible'; 
+                    appendRow(); 
+                } 
+            } 
+            syncState(); 
+        });
+        
         numEl.addEventListener('change', syncState);
         removeBtn.addEventListener('click', () => { row.remove(); syncState(); });
     };
+    
     if (stateArray.length > 0) stateArray.forEach(d => appendRow(d));
     appendRow();
-}
-
-// Inventory UI Setup
-const invType = document.getElementById('inv-type');
-const invName = document.getElementById('inv-name');
-const invBaseWrapper = document.getElementById('inv-base-wrapper');
-const invBaseSelect = document.getElementById('inv-base-select');
-const statsRow = document.getElementById('inv-stats-row');
-const armorRow = document.getElementById('inv-armor-row');
-const vehicleRow = document.getElementById('inv-vehicle-row');
-const addBtn = document.getElementById('add-inv-btn');
-
-if(invType) {
-    const updateFormState = () => {
-        const t = invType.value;
-        invBaseWrapper.classList.add('hidden'); statsRow.classList.add('hidden'); armorRow.classList.add('hidden'); vehicleRow.classList.add('hidden');
-        if(t === 'Weapon') { invBaseWrapper.classList.remove('hidden'); let wOpts = `<option value="">-- Choose Base Type --</option>`; V20_WEAPONS_LIST.forEach(w => wOpts += `<option value="${w.n}" data-diff="${w.diff}" data-dmg="${w.dmg}" data-range="${w.range}" data-rate="${w.rate}" data-clip="${w.clip}">${w.n}</option>`); invBaseSelect.innerHTML = wOpts; statsRow.classList.remove('hidden'); } 
-        else if(t === 'Armor') { invBaseWrapper.classList.remove('hidden'); let aOpts = `<option value="">-- Choose Armor Class --</option>`; V20_ARMOR_LIST.forEach(a => aOpts += `<option value="${a.n}" data-rating="${a.r}" data-penalty="${a.p}">${a.n}</option>`); invBaseSelect.innerHTML = aOpts; armorRow.classList.remove('hidden'); } 
-        else if(t === 'Vehicle') { invBaseWrapper.classList.remove('hidden'); let vOpts = `<option value="">-- Choose Vehicle Type --</option>`; V20_VEHICLE_LIST.forEach(v => vOpts += `<option value="${v.n}" data-safe="${v.safe}" data-max="${v.max}" data-man="${v.man}">${v.n}</option>`); invBaseSelect.innerHTML = vOpts; vehicleRow.classList.remove('hidden'); }
-        invBaseSelect.value = ""; invName.value = ""; 
-        document.querySelectorAll('#inv-stats-row input, #inv-armor-row input, #inv-vehicle-row input').forEach(i => i.value = "");
-    };
-    updateFormState();
-    invType.addEventListener('change', updateFormState);
-    invBaseSelect.addEventListener('change', () => {
-        const t = invType.value;
-        if(invBaseSelect.value) {
-            const opt = invBaseSelect.options[invBaseSelect.selectedIndex];
-            if(t === 'Weapon') { document.getElementById('inv-diff').value = opt.dataset.diff; document.getElementById('inv-dmg').value = opt.dataset.dmg; document.getElementById('inv-range').value = opt.dataset.range; document.getElementById('inv-rate').value = opt.dataset.rate; document.getElementById('inv-clip').value = opt.dataset.clip; } 
-            else if(t === 'Armor') { document.getElementById('inv-rating').value = opt.dataset.rating; document.getElementById('inv-penalty').value = opt.dataset.penalty; } 
-            else if(t === 'Vehicle') { document.getElementById('inv-safe').value = opt.dataset.safe; document.getElementById('inv-max').value = opt.dataset.max; document.getElementById('inv-man').value = opt.dataset.man; }
-        }
-    });
-    addBtn.addEventListener('click', () => {
-        const type = invType.value;
-        let specificName = invName.value.trim();
-        let baseType = invBaseSelect.value;
-        let finalName = specificName || baseType; 
-        let stats = {};
-        if (!finalName) return showNotification("Enter a name or select a type.");
-        if(type === 'Weapon') { stats = { diff: document.getElementById('inv-diff').value, dmg: document.getElementById('inv-dmg').value, range: document.getElementById('inv-range').value, rate: document.getElementById('inv-rate').value, clip: document.getElementById('inv-clip').value }; } 
-        else if(type === 'Armor') { stats = { rating: document.getElementById('inv-rating').value || 0, penalty: document.getElementById('inv-penalty').value || 0 }; } 
-        else if(type === 'Vehicle') { stats = { safe: document.getElementById('inv-safe').value || 0, max: document.getElementById('inv-max').value || 0, man: document.getElementById('inv-man').value || 0 }; }
-        if(!window.state.inventory) window.state.inventory = [];
-        window.state.inventory.push({ name: baseType || finalName, displayName: finalName, baseType: baseType, type, stats, status: document.getElementById('inv-carried').checked ? 'carried' : 'owned' });
-        invName.value = ""; invBaseSelect.value = "";
-        document.querySelectorAll('#inv-stats-row input, #inv-armor-row input, #inv-vehicle-row input').forEach(i => i.value = "");
-        window.renderInventoryList();
-    });
 }
 
 function renderBloodBondRow() {
@@ -1066,7 +1054,6 @@ function renderBloodBondRow() {
     cont.appendChild(row);
 }
 
-// --- RESTORED FUNCTION ---
 function renderDerangementsList() {
     const cont = document.getElementById('derangements-list');
     if (!cont) return;
