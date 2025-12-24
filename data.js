@@ -1,7 +1,5 @@
-// --- V20 CORE DATA CONSTANTS ---
-// Source: Vampire: The Masquerade 20th Anniversary Edition Core Rulebook
-
-export const APP_VERSION = "v1.15 (Refactored)";
+// --- V20 DATA CONSTANTS ---
+// Extracted from original script.js to reduce file size.
 
 export const CLANS = [
     "Assamite", "Brujah", "Followers of Set", "Gangrel", "Giovanni", "Lasombra", 
@@ -65,7 +63,6 @@ export const GEN_LIMITS = {
 };
 
 export const SPECIALTY_EXAMPLES = {
-    // Attributes
     "Strength": ["Dead Lift", "Punch", "Jump", "Crush", "Holding On"],
     "Dexterity": ["Speed", "Agility", "Flexibility", "Balance", "Reflexes"],
     "Stamina": ["Endurance", "Determination", "Hold Breath", "Resilience"],
@@ -75,7 +72,6 @@ export const SPECIALTY_EXAMPLES = {
     "Perception": ["Insight", "Attentive", "Patient", "Uncanny"],
     "Intelligence": ["Memory", "Research", "Analysis", "Strategy", "Logic"],
     "Wits": ["Clever", "Ambushes", "Comebacks", "Changes in Strategy"],
-    // Talents
     "Alertness": ["Noises", "Traps", "Ambushes", "Hidden Weapons"],
     "Athletics": ["Acrobatics", "Climbing", "Running", "Swimming", "Throwing"],
     "Awareness": ["Auras", "Spirits", "Magic", "Shifting"],
@@ -86,7 +82,6 @@ export const SPECIALTY_EXAMPLES = {
     "Leadership": ["Command", "Oratory", "Military", "Motivation"],
     "Streetwise": ["Fencing", "Drugs", "Gangs", "Rumors", "Turf"],
     "Subterfuge": ["Lying", "Seduction", "Impeccable Logic", "The Long Con"],
-    // Skills
     "Animal Ken": ["Dogs", "Wolves", "Cats", "Horses", "Training"],
     "Crafts": ["Pottery", "Sewing", "Carpentry", "Blacksmithing", "Mechanics"],
     "Drive": ["Curves", "High Speed", "Stunts", "Heavy Traffic", "Tail"],
@@ -97,7 +92,6 @@ export const SPECIALTY_EXAMPLES = {
     "Performance": ["Singing", "Dancing", "Comedy", "Instrument"],
     "Stealth": ["Shadowing", "Hiding", "Silent Movement", "Crowds"],
     "Survival": ["Forest", "Jungle", "Desert", "Urban", "Tracking"],
-    // Knowledges
     "Academics": ["History", "Literature", "Philosophy", "Art", "Theology"],
     "Computer": ["Hacking", "Programming", "Hardware", "Data Retrieval"],
     "Finance": ["Stock Market", "Laundering", "Appraisal", "Accounting"],
