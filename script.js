@@ -11,7 +11,7 @@ import {
 } from './data.js';
 
 // --- VERSION CONTROL ---
-const APP_VERSION = "v1.14 (Health Tracker Fix)";
+const APP_VERSION = "v1.15 (Health Logic Robustness)";
 
 // --- ERROR HANDLER ---
 window.onerror = function(msg, url, line) {
@@ -71,15 +71,16 @@ function hydrateInputs() {
 function renderDots(count, max = 5) { let h = ''; for(let i=1; i<=max; i++) h += `<span class="dot ${i <= count ? 'filled' : ''}" data-v="${i}"></span>`; return h; }
 function renderBoxes(count, checked = 0, type = '') { let h = ''; for(let i=1; i<=count; i++) h += `<span class="box ${i <= checked ? 'checked' : ''}" data-v="${i}" data-type="${type}"></span>`; return h; }
 
-// --- PLAY MODE INTERACTION ---
+// --- PLAY MODE INTERACTION (Improved) ---
 document.addEventListener('click', function(e) {
     if (!window.state.isPlayMode) return;
     
-    // Check if clicked element is a box
-    if (!e.target.classList.contains('box')) return;
+    // Find closest box element (handles clicking inner spans or borders)
+    const box = e.target.closest('.box');
+    if (!box) return;
     
-    const type = e.target.dataset.type;
-    const val = parseInt(e.target.dataset.v);
+    const type = box.dataset.type;
+    const val = parseInt(box.dataset.v);
     
     if (!type || isNaN(val)) return;
 
@@ -90,8 +91,7 @@ document.addEventListener('click', function(e) {
         if (window.state.status.blood === val) window.state.status.blood = val - 1;
         else window.state.status.blood = val;
     } else if (type === 'health') {
-        // Fix for Health Tracker Interaction
-        // ensure health_states array exists
+        // Robust Health Logic
         if (!window.state.status.health_states || !Array.isArray(window.state.status.health_states)) {
             window.state.status.health_states = [0,0,0,0,0,0,0];
         }
@@ -102,6 +102,9 @@ document.addEventListener('click', function(e) {
         // Cycle: 0(Empty) -> 1(/) -> 2(X) -> 3(*) -> 0
         const newState = (currentState + 1) % 4;
         window.state.status.health_states[idx] = newState;
+        
+        // Immediate visual update to prevent lag
+        box.dataset.state = newState;
     }
     window.updatePools();
 });
