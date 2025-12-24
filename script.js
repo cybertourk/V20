@@ -51,6 +51,18 @@ window.state = {
 
 let user = null;
 
+// --- CONFIG ---
+const STEPS_CONFIG = [
+    { id: 1, icon: 'fa-id-card', label: 'Concept', msg: 'Define your Identity' },
+    { id: 2, icon: 'fa-hand-fist', label: 'Attributes', msg: 'Assign Attribute Points' },
+    { id: 3, icon: 'fa-graduation-cap', label: 'Abilities', msg: 'Assign Ability Points' },
+    { id: 4, icon: 'fa-bolt', label: 'Advantages', msg: 'Select Advantages' },
+    { id: 5, icon: 'fa-users', label: 'Social', msg: 'Detail Backgrounds' },
+    { id: 6, icon: 'fa-box-open', label: 'Gear', msg: 'Manage Inventory' },
+    { id: 7, icon: 'fa-brain', label: 'Bio', msg: 'Flesh out History' },
+    { id: 8, icon: 'fa-check-circle', label: 'Finish', msg: 'Finalize Character' }
+];
+
 const setSafeText = (id, val) => { const el = document.getElementById(id); if(el) el.innerText = val; };
 function showNotification(msg) { const el = document.getElementById('notification'); if (el) { el.innerText = msg; el.style.display = 'block'; setTimeout(() => { el.style.display = 'none'; }, 3000); } }
 
@@ -67,7 +79,165 @@ function hydrateInputs() {
 function renderDots(count, max = 5) { let h = ''; for(let i=1; i<=max; i++) h += `<span class="dot ${i <= count ? 'filled' : ''}" data-v="${i}"></span>`; return h; }
 function renderBoxes(count, checked = 0, type = '') { let h = ''; for(let i=1; i<=count; i++) h += `<span class="box ${i <= checked ? 'checked' : ''}" data-v="${i}" data-type="${type}"></span>`; return h; }
 
-// --- PLAY MODE INTERACTION ---
+// --- UI NAVIGATION & PLAY MODE (Restored) ---
+
+window.changeStep = function(stepId) {
+    if (window.state.isPlayMode) return;
+    
+    // Validate progression
+    if (stepId > (window.state.furthestPhase || 1) && !checkStepComplete(window.state.currentPhase)) {
+        showNotification("Complete current step first!");
+        return;
+    }
+
+    syncInputs();
+    
+    // Hide all steps
+    document.querySelectorAll('.step-container').forEach(el => el.classList.remove('active'));
+    
+    // Show target step
+    const target = document.getElementById(`phase-${stepId}`);
+    if (target) target.classList.add('active');
+    
+    window.state.currentPhase = stepId;
+    if (stepId > (window.state.furthestPhase || 1)) window.state.furthestPhase = stepId;
+    
+    renderSheetNav();
+    window.updatePools();
+    window.updateWalkthrough();
+    hydrateInputs();
+};
+
+function renderSheetNav() {
+    const nav = document.getElementById('sheet-nav');
+    if (!nav) return;
+    nav.innerHTML = '';
+    
+    STEPS_CONFIG.forEach(s => {
+        const isComplete = checkStepComplete(s.id);
+        const isLocked = s.id > (window.state.furthestPhase || 1) && !isComplete;
+        const isActive = s.id === window.state.currentPhase;
+        
+        const div = document.createElement('div');
+        div.className = `nav-item ${isActive ? 'active' : ''} ${isComplete ? 'completed' : ''} ${isLocked ? 'locked' : ''}`;
+        div.innerHTML = `<i class="fas ${s.icon}"></i><span>${s.label}</span>`;
+        div.onclick = () => window.changeStep(s.id);
+        nav.appendChild(div);
+    });
+}
+
+window.togglePlayMode = function() {
+    window.state.isPlayMode = !window.state.isPlayMode;
+    const btn = document.getElementById('play-mode-btn');
+    const btnText = document.getElementById('play-btn-text');
+    const body = document.body;
+    
+    if (window.state.isPlayMode) {
+        // Switch to Play
+        syncInputs();
+        btn.classList.add('bg-[#d4af37]', 'text-black');
+        btnText.innerText = "EDIT";
+        body.classList.add('play-mode');
+        
+        // Hide creation containers
+        document.querySelectorAll('.step-container').forEach(el => el.style.display = 'none');
+        document.getElementById('sheet-nav').style.display = 'none';
+        
+        // Show Play Mode containers
+        for(let i=1; i<=4; i++) {
+            const pm = document.getElementById(`play-mode-${i}`);
+            if(pm) { pm.style.display = 'block'; pm.classList.add('active'); }
+        }
+        
+        // Render Play Mode Specifics
+        renderPlayModeData();
+        
+    } else {
+        // Switch to Edit
+        btn.classList.remove('bg-[#d4af37]', 'text-black');
+        btnText.innerText = "PLAY";
+        body.classList.remove('play-mode');
+        
+        // Hide Play Mode containers
+        for(let i=1; i<=4; i++) {
+            const pm = document.getElementById(`play-mode-${i}`);
+            if(pm) { pm.style.display = 'none'; pm.classList.remove('active'); }
+        }
+        
+        // Restore creation view
+        document.getElementById('sheet-nav').style.display = 'flex';
+        window.changeStep(window.state.currentPhase);
+    }
+    window.updatePools();
+};
+
+// Helper to fill Play Mode grids
+function renderPlayModeData() {
+    // 1. Concept Row
+    const cRow = document.getElementById('play-concept-row');
+    if(cRow) {
+        const tf = window.state.textFields;
+        cRow.innerHTML = `
+            <div>${tf['c-name'] || 'Unknown'}</div>
+            <div>${tf['c-clan'] || 'Caitiff'}</div>
+            <div class="text-right">${tf['c-nature'] || 'Unknown'}</div>
+        `;
+    }
+    
+    // 2. Attributes (ReadOnly)
+    const pAttr = document.getElementById('play-row-attr');
+    if(pAttr) {
+        pAttr.innerHTML = '';
+        Object.keys(ATTRIBUTES).forEach(cat => {
+            const col = document.createElement('div');
+            col.innerHTML = `<h3 class="column-title">${cat}</h3>`;
+            ATTRIBUTES[cat].forEach(a => renderRow(col, a, 'attr', 1, 10)); // Max 10 in play mode? V20 usually 5, but elders exist. Keeping 5 visual for now via renderRow default
+            pAttr.appendChild(col);
+        });
+    }
+
+    // 3. Abilities (ReadOnly)
+    const pAbil = document.getElementById('play-row-abil');
+    if(pAbil) {
+        pAbil.innerHTML = '';
+        Object.keys(ABILITIES).forEach(cat => {
+            const col = document.createElement('div');
+            col.innerHTML = `<h3 class="column-title">${cat}</h3>`;
+            ABILITIES[cat].forEach(a => {
+                if((window.state.dots.abil[a] || 0) > 0) renderRow(col, a, 'abil', 0, 5);
+            });
+            // Custom abilities
+            if(window.state.customAbilityCategories) {
+                Object.entries(window.state.customAbilityCategories).forEach(([name, c]) => {
+                    if(c === cat) renderRow(col, name, 'abil', 0, 5);
+                });
+            }
+            pAbil.appendChild(col);
+        });
+    }
+
+    // 4. Advantages
+    const pAdv = document.getElementById('play-row-adv');
+    if(pAdv) {
+        pAdv.innerHTML = '';
+        // Disciplines
+        const dCol = document.createElement('div'); dCol.innerHTML = `<h3 class="column-title">Disciplines</h3>`;
+        Object.keys(window.state.dots.disc || {}).forEach(d => renderRow(dCol, d, 'disc', 0, 5));
+        pAdv.appendChild(dCol);
+        
+        // Backgrounds
+        const bCol = document.createElement('div'); bCol.innerHTML = `<h3 class="column-title">Backgrounds</h3>`;
+        Object.keys(window.state.dots.back || {}).forEach(b => renderRow(bCol, b, 'back', 0, 5));
+        pAdv.appendChild(bCol);
+        
+        // Virtues
+        const vCol = document.createElement('div'); vCol.innerHTML = `<h3 class="column-title">Virtues</h3>`;
+        VIRTUES.forEach(v => renderRow(vCol, v, 'virt', 1, 5));
+        pAdv.appendChild(vCol);
+    }
+}
+
+// --- PLAY MODE INTERACTION (Events) ---
 document.addEventListener('click', function(e) {
     if (!window.state.isPlayMode) return;
     if (!e.target.classList.contains('box')) return;
@@ -167,7 +337,7 @@ function setDots(name, type, val, min, max = 5) {
     if (newVal >= 4 || currentVal >= 4) window.changeStep(window.state.currentPhase);
 }
 
-// --- RENDERING HELPERS (Restored) ---
+// --- RENDERING HELPERS ---
 
 function renderDynamicTraitRow(containerId, type, list) {
     const container = document.getElementById(containerId);
@@ -671,17 +841,6 @@ function calculateTotalFreebiesSpent(tempState = window.state) {
     return (attrCost + abilCost + discCost + backCost + virtCost + humCost + willCost + mfCost) - cappedBonus;
 }
 
-const STEPS_CONFIG = [
-    { id: 1, icon: 'fa-id-card', label: 'Concept', msg: 'Define your Identity' },
-    { id: 2, icon: 'fa-hand-fist', label: 'Attributes', msg: 'Assign Attribute Points' },
-    { id: 3, icon: 'fa-graduation-cap', label: 'Abilities', msg: 'Assign Ability Points' },
-    { id: 4, icon: 'fa-bolt', label: 'Advantages', msg: 'Select Advantages' },
-    { id: 5, icon: 'fa-users', label: 'Social', msg: 'Detail Backgrounds' },
-    { id: 6, icon: 'fa-box-open', label: 'Gear', msg: 'Manage Inventory' },
-    { id: 7, icon: 'fa-brain', label: 'Bio', msg: 'Flesh out History' },
-    { id: 8, icon: 'fa-check-circle', label: 'Finish', msg: 'Finalize Character' }
-];
-
 function checkStepComplete(step) {
     syncInputs();
     const s = window.state;
@@ -1043,9 +1202,104 @@ onAuthStateChanged(auth, async (u) => {
                 if(ps1) ps1.value = e.target.value; 
                 if(window.state.textFields) window.state.textFields['c-path-name'] = e.target.value; 
             });
+            
+            // --- UI BOOTSTRAP (Fixed) ---
+            // Render the initial attribute rows
+            Object.keys(ATTRIBUTES).forEach(cat => {
+                const containerId = `list-attr-${cat.toLowerCase()}`;
+                const container = document.getElementById(containerId);
+                if(container) {
+                    ATTRIBUTES[cat].forEach(a => renderRow(container, a, 'attr', 1, 5));
+                }
+            });
+            
+            // Render initial abilities
+            Object.keys(ABILITIES).forEach(cat => {
+                 const containerId = `list-abil-${cat.toLowerCase()}`;
+                 const container = document.getElementById(containerId);
+                 if(container) {
+                     ABILITIES[cat].forEach(a => renderRow(container, a, 'abil', 0, 5));
+                 }
+            });
 
             const freebieInp = document.getElementById('c-freebie-total');
             if(freebieInp) freebieInp.oninput = window.updatePools;
+            
+            // Buttons logic binding
+            const playBtn = document.getElementById('play-mode-btn');
+            if(playBtn) playBtn.onclick = window.togglePlayMode;
+            
+            const freebieBtn = document.getElementById('toggle-freebie-btn');
+            if(freebieBtn) freebieBtn.onclick = () => {
+                 window.state.freebieMode = !window.state.freebieMode;
+                 const text = document.getElementById('freebie-btn-text');
+                 if(text) text.innerText = window.state.freebieMode ? "Freebies ON" : "Freebies";
+                 if(freebieBtn) freebieBtn.classList.toggle('bg-blue-900/40', window.state.freebieMode);
+                 window.updatePools();
+            }
+            
+            const clearPoolBtn = document.getElementById('clear-pool-btn');
+            if(clearPoolBtn) clearPoolBtn.onclick = window.clearPool;
+            
+            const rollBtn = document.getElementById('roll-btn');
+            if(rollBtn) rollBtn.onclick = window.rollPool;
+            
+            const newBtn = document.getElementById('cmd-new');
+            if(newBtn) newBtn.onclick = window.handleNew;
+            
+            const saveBtn = document.getElementById('cmd-save');
+            if(saveBtn) saveBtn.onclick = window.handleSaveClick;
+            
+            const loadBtn = document.getElementById('cmd-load');
+            if(loadBtn) loadBtn.onclick = window.handleLoadClick;
+            
+            const confirmSaveBtn = document.getElementById('confirm-save-btn');
+            if(confirmSaveBtn) confirmSaveBtn.onclick = window.performSave;
+            
+            const prioBtns = document.querySelectorAll('.prio-btn');
+            prioBtns.forEach(btn => {
+                btn.onclick = (e) => {
+                     const cat = e.target.dataset.cat;
+                     const group = e.target.dataset.group;
+                     const val = parseInt(e.target.dataset.v);
+                     
+                     // Clear previous selection for this value in this category
+                     document.querySelectorAll(`.prio-btn[data-cat="${cat}"][data-v="${val}"]`).forEach(b => {
+                         if(b !== e.target) {
+                             b.classList.remove('active');
+                             // Find the group that *was* using this value and clear it from state
+                             const oldGroup = b.dataset.group;
+                             if(window.state.prios[cat][oldGroup] === val) delete window.state.prios[cat][oldGroup];
+                         }
+                     });
+                     
+                     // Toggle current
+                     if(window.state.prios[cat][group] === val) {
+                         delete window.state.prios[cat][group];
+                         e.target.classList.remove('active');
+                     } else {
+                         // Clear previous selection for this group
+                         document.querySelectorAll(`.prio-btn[data-cat="${cat}"][data-group="${group}"]`).forEach(b => b.classList.remove('active'));
+                         window.state.prios[cat][group] = val;
+                         e.target.classList.add('active');
+                     }
+                     window.updatePools();
+                }
+            });
+
+            // Initialize Lists
+            renderDynamicAdvantageRow('list-disc', 'disc', DISCIPLINES);
+            renderDynamicAdvantageRow('list-back', 'back', BACKGROUNDS);
+            renderDynamicAdvantageRow('custom-talents', 'abil', [], true);
+            renderDynamicAdvantageRow('custom-skills', 'abil', [], true);
+            renderDynamicAdvantageRow('custom-knowledges', 'abil', [], true);
+            renderDerangementsList();
+            renderBloodBondRow();
+            renderDynamicHavenRow();
+            
+            // Start App
+            renderSheetNav();
+            window.changeStep(1);
 
         } catch (dbErr) {
             console.error("DB Init Error:", dbErr);
