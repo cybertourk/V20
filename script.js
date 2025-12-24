@@ -1,1313 +1,212 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-import { getFirestore, doc, setDoc, getDoc, collection, getDocs, query, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-// --- IMPORT V20 DATA ---
-import { 
-    APP_VERSION, CLANS, ARCHETYPES, ATTRIBUTES, ABILITIES, BACKGROUNDS, 
-    DISCIPLINES, VIRTUES, PATHS, VIT, HEALTH_STATES, GEN_LIMITS, 
-    SPECIALTY_EXAMPLES, DERANGEMENTS, V20_MERITS_LIST, V20_FLAWS_LIST, 
-    V20_WEAPONS_LIST, V20_ARMOR_LIST, V20_VEHICLE_LIST 
-} from './data.js';
-
-// --- ERROR HANDLER ---
-window.onerror = function(msg, url, line) {
-    const notif = document.getElementById('notification');
-    if(notif) {
-        notif.innerText = "ERROR: " + msg;
-        notif.style.display = 'block';
-        notif.style.backgroundColor = 'red';
-    }
-    console.error("Global Error:", msg, "Line:", line);
-};
-
-// YOUR FIREBASE CONFIG
-const firebaseConfig = {
-  apiKey: "AIzaSyB8qLWOiC3csqPnucbj3XOtireOgPjjL_k",
-  authDomain: "v20-character-creator.firebaseapp.com",
-  projectId: "v20-character-creator",
-  storageBucket: "v20-character-creator.firebasestorage.app",
-  messagingSenderId: "110220382386",
-  appId: "1:110220382386:web:81b5d203c2bc4f81f5b9ab",
-  measurementId: "G-RWPX9139HB"
-};
-
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-const appId = 'v20-neonate-sheet';
-
-// --- STATE MANAGEMENT ---
-window.state = {
-    isPlayMode: false, freebieMode: false, activePool: [], currentPhase: 1, furthestPhase: 1,
-    dots: { attr: {}, abil: {}, disc: {}, back: {}, virt: {}, other: {} },
-    prios: { attr: {}, abil: {} },
-    status: { humanity: 7, willpower: 5, tempWillpower: 5, health_states: [0,0,0,0,0,0,0], blood: 0 },
-    specialties: {}, 
-    socialExtras: {}, textFields: {}, havens: [], bloodBonds: [], vehicles: [], customAbilityCategories: {},
-    derangements: [], merits: [], flaws: [], inventory: [],
-    meta: { filename: "", folder: "" } 
-};
-
-let user = null;
-
-// --- CONFIG ---
-const STEPS_CONFIG = [
-    { id: 1, icon: 'fa-id-card', label: 'Concept', msg: 'Define your Identity' },
-    { id: 2, icon: 'fa-hand-fist', label: 'Attributes', msg: 'Assign Attribute Points' },
-    { id: 3, icon: 'fa-graduation-cap', label: 'Abilities', msg: 'Assign Ability Points' },
-    { id: 4, icon: 'fa-bolt', label: 'Advantages', msg: 'Select Advantages' },
-    { id: 5, icon: 'fa-users', label: 'Social', msg: 'Detail Backgrounds' },
-    { id: 6, icon: 'fa-box-open', label: 'Gear', msg: 'Manage Inventory' },
-    { id: 7, icon: 'fa-brain', label: 'Bio', msg: 'Flesh out History' },
-    { id: 8, icon: 'fa-check-circle', label: 'Finish', msg: 'Finalize Character' }
-];
-
-const setSafeText = (id, val) => { const el = document.getElementById(id); if(el) el.innerText = val; };
-function showNotification(msg) { const el = document.getElementById('notification'); if (el) { el.innerText = msg; el.style.display = 'block'; setTimeout(() => { el.style.display = 'none'; }, 3000); } }
-
-function syncInputs() {
-    document.querySelectorAll('input:not([type="checkbox"]), select, textarea').forEach(el => {
-        if (el.id && !el.id.startsWith('inv-') && !el.id.startsWith('merit-') && !el.id.startsWith('flaw-') && !el.id.startsWith('save-') && !el.closest('.combat-row') && !el.classList.contains('specialty-input')) window.state.textFields[el.id] = el.value;
-    });
+/* --- CORE --- */
+body {
+    background-color: #000;
+    color: #ccc;
+    font-family: 'Lato', sans-serif;
 }
 
-function hydrateInputs() {
-    Object.entries(window.state.textFields || {}).forEach(([id, val]) => { const el = document.getElementById(id); if (el) el.value = val; });
+h1, h2, h3, .font-cinzel {
+    font-family: 'Cinzel', serif;
 }
 
-function renderDots(count, max = 5) { let h = ''; for(let i=1; i<=max; i++) h += `<span class="dot ${i <= count ? 'filled' : ''}" data-v="${i}"></span>`; return h; }
-function renderBoxes(count, checked = 0, type = '') { let h = ''; for(let i=1; i<=count; i++) h += `<span class="box ${i <= checked ? 'checked' : ''}" data-v="${i}" data-type="${type}"></span>`; return h; }
+/* --- SCROLLBAR --- */
+.custom-scrollbar::-webkit-scrollbar { width: 8px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: #111; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+.custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #555; }
 
-// --- UI NAVIGATION & PLAY MODE (Restored) ---
-
-window.changeStep = function(stepId) {
-    if (window.state.isPlayMode) return;
-    
-    // Validate progression
-    if (stepId > (window.state.furthestPhase || 1) && !checkStepComplete(window.state.currentPhase)) {
-        showNotification("Complete current step first!");
-        return;
-    }
-
-    syncInputs();
-    
-    // Hide all steps
-    document.querySelectorAll('.step-container').forEach(el => el.classList.remove('active'));
-    
-    // Show target step
-    const target = document.getElementById(`phase-${stepId}`);
-    if (target) target.classList.add('active');
-    
-    window.state.currentPhase = stepId;
-    if (stepId > (window.state.furthestPhase || 1)) window.state.furthestPhase = stepId;
-    
-    renderSheetNav();
-    window.updatePools();
-    window.updateWalkthrough();
-    hydrateInputs();
-};
-
-function renderSheetNav() {
-    const nav = document.getElementById('sheet-nav');
-    if (!nav) return;
-    nav.innerHTML = '';
-    
-    STEPS_CONFIG.forEach(s => {
-        const isComplete = checkStepComplete(s.id);
-        const isLocked = s.id > (window.state.furthestPhase || 1) && !isComplete;
-        const isActive = s.id === window.state.currentPhase;
-        
-        const div = document.createElement('div');
-        div.className = `nav-item ${isActive ? 'active' : ''} ${isComplete ? 'completed' : ''} ${isLocked ? 'locked' : ''}`;
-        div.innerHTML = `<i class="fas ${s.icon}"></i><span>${s.label}</span>`;
-        div.onclick = () => window.changeStep(s.id);
-        nav.appendChild(div);
-    });
+/* --- INPUTS --- */
+.v-input, .v-textarea {
+    width: 100%;
+    background-color: rgba(0,0,0,0.5);
+    border: none;
+    border-bottom: 1px solid #444;
+    color: #d4af37;
+    padding: 4px 8px;
+    font-size: 0.9rem;
+    transition: border-color 0.3s;
+}
+.v-input:focus, .v-textarea:focus {
+    outline: none;
+    border-bottom-color: #d4af37;
+    background-color: rgba(20,20,20,0.8);
+}
+.v-textarea {
+    resize: none;
+    border: 1px solid #333;
 }
 
-window.togglePlayMode = function() {
-    window.state.isPlayMode = !window.state.isPlayMode;
-    const btn = document.getElementById('play-mode-btn');
-    const btnText = document.getElementById('play-btn-text');
-    const body = document.body;
-    
-    if (window.state.isPlayMode) {
-        // Switch to Play
-        syncInputs();
-        btn.classList.add('bg-[#d4af37]', 'text-black');
-        btnText.innerText = "EDIT";
-        body.classList.add('play-mode');
-        
-        // Hide creation containers
-        document.querySelectorAll('.step-container').forEach(el => el.style.display = 'none');
-        document.getElementById('sheet-nav').style.display = 'none';
-        
-        // Show Play Mode containers
-        for(let i=1; i<=4; i++) {
-            const pm = document.getElementById(`play-mode-${i}`);
-            if(pm) { pm.style.display = 'block'; pm.classList.add('active'); }
-        }
-        
-        // Render Play Mode Specifics
-        renderPlayModeData();
-        
-    } else {
-        // Switch to Edit
-        btn.classList.remove('bg-[#d4af37]', 'text-black');
-        btnText.innerText = "PLAY";
-        body.classList.remove('play-mode');
-        
-        // Hide Play Mode containers
-        for(let i=1; i<=4; i++) {
-            const pm = document.getElementById(`play-mode-${i}`);
-            if(pm) { pm.style.display = 'none'; pm.classList.remove('active'); }
-        }
-        
-        // Restore creation view
-        document.getElementById('sheet-nav').style.display = 'flex';
-        window.changeStep(window.state.currentPhase);
-    }
-    window.updatePools();
-};
-
-// Helper to fill Play Mode grids
-function renderPlayModeData() {
-    // 1. Concept Row
-    const cRow = document.getElementById('play-concept-row');
-    if(cRow) {
-        const tf = window.state.textFields;
-        cRow.innerHTML = `
-            <div>${tf['c-name'] || 'Unknown'}</div>
-            <div>${tf['c-clan'] || 'Caitiff'}</div>
-            <div class="text-right">${tf['c-nature'] || 'Unknown'}</div>
-        `;
-    }
-    
-    // 2. Attributes (ReadOnly)
-    const pAttr = document.getElementById('play-row-attr');
-    if(pAttr) {
-        pAttr.innerHTML = '';
-        Object.keys(ATTRIBUTES).forEach(cat => {
-            const col = document.createElement('div');
-            col.innerHTML = `<h3 class="column-title">${cat}</h3>`;
-            ATTRIBUTES[cat].forEach(a => renderRow(col, a, 'attr', 1, 10)); // Max 10 in play mode? V20 usually 5, but elders exist. Keeping 5 visual for now via renderRow default
-            pAttr.appendChild(col);
-        });
-    }
-
-    // 3. Abilities (ReadOnly)
-    const pAbil = document.getElementById('play-row-abil');
-    if(pAbil) {
-        pAbil.innerHTML = '';
-        Object.keys(ABILITIES).forEach(cat => {
-            const col = document.createElement('div');
-            col.innerHTML = `<h3 class="column-title">${cat}</h3>`;
-            ABILITIES[cat].forEach(a => {
-                if((window.state.dots.abil[a] || 0) > 0) renderRow(col, a, 'abil', 0, 5);
-            });
-            // Custom abilities
-            if(window.state.customAbilityCategories) {
-                Object.entries(window.state.customAbilityCategories).forEach(([name, c]) => {
-                    if(c === cat) renderRow(col, name, 'abil', 0, 5);
-                });
-            }
-            pAbil.appendChild(col);
-        });
-    }
-
-    // 4. Advantages
-    const pAdv = document.getElementById('play-row-adv');
-    if(pAdv) {
-        pAdv.innerHTML = '';
-        // Disciplines
-        const dCol = document.createElement('div'); dCol.innerHTML = `<h3 class="column-title">Disciplines</h3>`;
-        Object.keys(window.state.dots.disc || {}).forEach(d => renderRow(dCol, d, 'disc', 0, 5));
-        pAdv.appendChild(dCol);
-        
-        // Backgrounds
-        const bCol = document.createElement('div'); bCol.innerHTML = `<h3 class="column-title">Backgrounds</h3>`;
-        Object.keys(window.state.dots.back || {}).forEach(b => renderRow(bCol, b, 'back', 0, 5));
-        pAdv.appendChild(bCol);
-        
-        // Virtues
-        const vCol = document.createElement('div'); vCol.innerHTML = `<h3 class="column-title">Virtues</h3>`;
-        VIRTUES.forEach(v => renderRow(vCol, v, 'virt', 1, 5));
-        pAdv.appendChild(vCol);
-    }
+/* --- DOTS & BOXES --- */
+.dot-row {
+    display: flex;
+    gap: 4px;
+    cursor: pointer;
+}
+.dot {
+    width: 12px;
+    height: 12px;
+    border: 1px solid #555;
+    border-radius: 50%;
+    background-color: #111;
+    transition: all 0.2s;
+}
+.dot.filled {
+    background-color: #d4af37; /* Gold for filled */
+    border-color: #d4af37;
+    box-shadow: 0 0 4px rgba(212, 175, 55, 0.5);
+}
+.dot:hover {
+    border-color: #fff;
 }
 
-// --- PLAY MODE INTERACTION (Events) ---
-document.addEventListener('click', function(e) {
-    if (!window.state.isPlayMode) return;
-    if (!e.target.classList.contains('box')) return;
-    
-    const type = e.target.dataset.type;
-    const val = parseInt(e.target.dataset.v);
-    if (!type || isNaN(val)) return;
-
-    if (type === 'wp') {
-        if (window.state.status.tempWillpower === val) window.state.status.tempWillpower = val - 1;
-        else window.state.status.tempWillpower = val;
-    } else if (type === 'blood') {
-        if (window.state.status.blood === val) window.state.status.blood = val - 1;
-        else window.state.status.blood = val;
-    } else if (type === 'health') {
-        const idx = val - 1; 
-        if (window.state.status.health_states === undefined) window.state.status.health_states = [0,0,0,0,0,0,0];
-        const current = window.state.status.health_states[idx] || 0;
-        window.state.status.health_states[idx] = (current + 1) % 4;
-    }
-    window.updatePools();
-});
-
-// --- STATE UPDATES ---
-function setDots(name, type, val, min, max = 5) {
-    if (window.state.isPlayMode) return;
-    if (type === 'status') {
-        if (!window.state.freebieMode) return;
-        if (name === 'Humanity') window.state.status.humanity = val;
-        else if (name === 'Willpower') {
-            window.state.status.willpower = val;
-            window.state.status.tempWillpower = val;
-        }
-        if (calculateTotalFreebiesSpent(window.state) > (parseInt(document.getElementById('c-freebie-total')?.value) || 15)) { showNotification("Freebie Limit Exceeded!"); return; }
-        window.updatePools(); return;
-    }
-    const currentVal = window.state.dots[type][name] || min;
-    let newVal = val;
-    if (val === currentVal) newVal = val - 1;
-    if (newVal < min) newVal = min;
-    
-    // Freebie Mode Validation
-    if (window.state.freebieMode) {
-        const tempState = JSON.parse(JSON.stringify(window.state));
-        if (!tempState.dots[type]) tempState.dots[type] = {};
-        tempState.dots[type][name] = newVal;
-        const projectedCost = calculateTotalFreebiesSpent(tempState);
-        const limit = parseInt(document.getElementById('c-freebie-total')?.value) || 15;
-        if (projectedCost > limit) { showNotification("Freebie Limit Exceeded!"); return; }
-    } else {
-        // Creation Mode Validation
-        if (type === 'attr') {
-            let group = null; Object.keys(ATTRIBUTES).forEach(k => { if(ATTRIBUTES[k].includes(name)) group = k; });
-            if (group) {
-                 const limit = window.state.prios.attr[group];
-                 if (limit === undefined) { showNotification(`Select priority for ${group}!`); return; }
-                 let currentSpent = 0;
-                 ATTRIBUTES[group].forEach(a => { if (a !== name) { const v = window.state.dots.attr[a] || 1; currentSpent += (v - 1); } });
-                 if (currentSpent + (newVal - 1) > limit) { showNotification("Limit Exceeded!"); return; }
-            }
-        } else if (type === 'abil') {
-            if (newVal > 3) { showNotification("Max 3 dots in Abilities during creation!"); return; }
-            let group = null; Object.keys(ABILITIES).forEach(k => { if(ABILITIES[k].includes(name)) group = k; });
-            if (!group && window.state.customAbilityCategories && window.state.customAbilityCategories[name]) group = window.state.customAbilityCategories[name];
-            if (group) {
-                const limit = window.state.prios.abil[group];
-                if (limit === undefined) { showNotification(`Select priority for ${group}!`); return; }
-                let currentSpent = 0; ABILITIES[group].forEach(a => { if (a !== name) currentSpent += (window.state.dots.abil[a] || 0); });
-                if (window.state.customAbilityCategories) { Object.keys(window.state.dots.abil).forEach(k => { if (k !== name && window.state.customAbilityCategories[k] === group) currentSpent += (window.state.dots.abil[k] || 0); }); }
-                if (currentSpent + newVal > limit) { showNotification("Limit Exceeded!"); return; }
-            }
-        } else if (type === 'disc') {
-            let currentSpent = 0; Object.keys(window.state.dots.disc).forEach(d => { if (d !== name) currentSpent += (window.state.dots.disc[d] || 0); });
-            if (currentSpent + newVal > 3) { showNotification("Max 3 Creation Dots!"); return; }
-        } else if (type === 'back') {
-            let currentSpent = 0; Object.keys(window.state.dots.back).forEach(b => { if (b !== name) currentSpent += (window.state.dots.back[b] || 0); });
-            if (currentSpent + newVal > 5) { showNotification("Max 5 Creation Dots!"); return; }
-        } else if (type === 'virt') {
-            let currentSpent = 0; VIRTUES.forEach(v => { if (v !== name) currentSpent += (window.state.dots.virt[v] || 1); });
-            if ((currentSpent + newVal) > 10) { showNotification("Max 7 Creation Dots!"); return; }
-        }
-    }
-    
-    window.state.dots[type][name] = newVal;
-    
-    // Auto-Calculate Virtues -> Willpower/Humanity
-    if (type === 'virt' && !window.state.isPlayMode && !window.state.freebieMode) {
-         const con = window.state.dots.virt.Conscience || 1;
-         const self = window.state.dots.virt["Self-Control"] || 1;
-         const cou = window.state.dots.virt.Courage || 1;
-         window.state.status.humanity = con + self;
-         window.state.status.willpower = cou;
-         window.state.status.tempWillpower = cou;
-    }
-    document.querySelectorAll(`.dot-row[data-n="${name}"][data-t="${type}"]`).forEach(el => el.innerHTML = renderDots(newVal, max));
-    window.updatePools();
-    if (newVal >= 4 || currentVal >= 4) window.changeStep(window.state.currentPhase);
+.box {
+    width: 14px;
+    height: 14px;
+    border: 1px solid #555;
+    background-color: #111;
+    cursor: pointer;
+    display: inline-block;
+}
+.box.checked {
+    background: linear-gradient(135deg, #111 0%, #111 40%, #d4af37 50%, #111 60%, #111 100%);
+    background-size: 200% 200%;
+    animation: slash 0.2s ease-out forwards;
+}
+.box[data-state="1"] { /* Bashing / */
+    background: linear-gradient(45deg, transparent 45%, #d4af37 45%, #d4af37 55%, transparent 55%);
+}
+.box[data-state="2"] { /* Lethal X */
+    background: 
+        linear-gradient(45deg, transparent 45%, #d4af37 45%, #d4af37 55%, transparent 55%),
+        linear-gradient(-45deg, transparent 45%, #d4af37 45%, #d4af37 55%, transparent 55%);
+}
+.box[data-state="3"] { /* Aggravated * */
+    background-color: #8b0000;
+    border-color: #ff0000;
 }
 
-// --- RENDERING HELPERS ---
-
-function renderDynamicTraitRow(containerId, type, list) {
-    const container = document.getElementById(containerId);
-    if (!container) return;
-    container.innerHTML = '';
-    
-    let existingItems = [];
-    if (type === 'Merit') existingItems = window.state.merits || [];
-    else if (type === 'Flaw') existingItems = window.state.flaws || [];
-    
-    const buildRow = (item = null) => {
-        const row = document.createElement('div'); row.className = 'flex flex-col gap-1 mb-2 trait-row';
-        const head = document.createElement('div'); head.className = 'flex justify-between items-center';
-        
-        const select = document.createElement('select');
-        select.className = "flex-1 mr-4 text-[11px] font-bold uppercase";
-        select.innerHTML = `<option value="">-- Select ${type} --</option>` + list.map(i => `<option value="${i.n}" ${item && item.n === i.n ? 'selected' : ''}>${i.n} (${i.v})</option>`).join('');
-        
-        const valDisplay = document.createElement('div');
-        valDisplay.className = "text-gold font-bold text-xs mr-2";
-        valDisplay.innerText = item ? item.v : "0";
-        
-        const removeBtn = document.createElement('div'); removeBtn.className = 'remove-btn'; removeBtn.innerHTML = '&times;';
-        if (!item) removeBtn.style.visibility = 'hidden';
-
-        select.onchange = (e) => {
-            const selectedName = e.target.value;
-            const data = list.find(i => i.n === selectedName);
-            if(!data) return;
-            const newItem = { n: data.n, v: data.v, type: type };
-            if (type === 'Merit') {
-                if (!window.state.merits) window.state.merits = [];
-                if (item) { const idx = window.state.merits.indexOf(item); if(idx>-1) window.state.merits[idx] = newItem; }
-                else window.state.merits.push(newItem);
-            } else {
-                if (!window.state.flaws) window.state.flaws = [];
-                if (item) { const idx = window.state.flaws.indexOf(item); if(idx>-1) window.state.flaws[idx] = newItem; }
-                else window.state.flaws.push(newItem);
-            }
-            renderDynamicTraitRow(containerId, type, list);
-            window.updatePools();
-        };
-
-        removeBtn.onclick = () => {
-            if (item) {
-                if (type === 'Merit') { const idx = window.state.merits.indexOf(item); if(idx > -1) window.state.merits.splice(idx, 1); }
-                else { const idx = window.state.flaws.indexOf(item); if(idx > -1) window.state.flaws.splice(idx, 1); }
-            }
-            renderDynamicTraitRow(containerId, type, list);
-            window.updatePools();
-        };
-
-        head.appendChild(select); head.appendChild(valDisplay); head.appendChild(removeBtn);
-        row.appendChild(head); container.appendChild(row);
-    };
-    existingItems.forEach(i => buildRow(i));
-    buildRow();
+/* --- NAVIGATION & STEPS --- */
+.step-container {
+    display: none; /* Hidden by default */
+    animation: fadeIn 0.4s ease-in-out;
+}
+.step-container.active {
+    display: block; /* Shown when active */
 }
 
-function renderDerangementsList() {
-    const container = document.getElementById('derangements-list');
-    if (!container) return;
-    container.innerHTML = '';
-    const list = window.state.derangements || [];
-    list.forEach((d, i) => {
-        const div = document.createElement('div');
-        div.className = 'flex justify-between items-center text-xs text-white border-b border-[#333] pb-1';
-        div.innerHTML = `<span>${d}</span><button class="text-red-500 font-bold px-2" onclick="window.removeDerangement(${i})">&times;</button>`;
-        container.appendChild(div);
-    });
-    const addDiv = document.createElement('div');
-    addDiv.className = 'flex gap-2 mt-2';
-    addDiv.innerHTML = `
-        <select id="new-derangement-select" class="flex-1 text-[11px] bg-black border border-[#444] text-white">
-            <option value="">-- Add Derangement --</option>
-            ${DERANGEMENTS.map(d => `<option value="${d}">${d}</option>`).join('')}
-        </select>
-        <button class="bg-[#8b0000] text-white text-[10px] px-2" onclick="window.addDerangement()">ADD</button>
-    `;
-    container.appendChild(addDiv);
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
-window.addDerangement = function() {
-    const sel = document.getElementById('new-derangement-select');
-    if (sel && sel.value) {
-        if (!window.state.derangements) window.state.derangements = [];
-        window.state.derangements.push(sel.value);
-        renderDerangementsList();
-    }
-};
-window.removeDerangement = function(i) {
-    if (window.state.derangements) { window.state.derangements.splice(i, 1); renderDerangementsList(); }
-};
-
-function renderBloodBondRow() {
-    const container = document.getElementById('blood-bond-list');
-    if(!container) return;
-    container.innerHTML = '';
-    const list = window.state.bloodBonds || [];
-    list.forEach((b, i) => {
-        const div = document.createElement('div');
-        div.className = 'flex justify-between text-xs text-white border-b border-[#333] pb-1';
-        div.innerHTML = `<span>Bound to: <b>${b.name}</b> (Level ${b.level})</span><button class="text-red-500" onclick="window.removeBond(${i})">&times;</button>`;
-        container.appendChild(div);
-    });
-    const addDiv = document.createElement('div');
-    addDiv.className = 'grid grid-cols-3 gap-2 mt-2';
-    addDiv.innerHTML = `<input id="bond-name" placeholder="Regnant Name" class="col-span-2 text-[10px]"><input id="bond-level" type="number" placeholder="Lvl" class="text-[10px]"><button class="col-span-3 bg-[#8b0000] text-white text-[10px]" onclick="window.addBond()">Add Bond</button>`;
-    container.appendChild(addDiv);
+.nav-item {
+    flex: 0 0 auto;
+    padding: 8px 16px;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    color: #666;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.3s;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.nav-item:hover { color: #aaa; }
+.nav-item.active {
+    color: #d4af37;
+    border-bottom-color: #d4af37;
+    background: linear-gradient(to top, rgba(212,175,55,0.1), transparent);
+}
+.nav-item.completed i { color: #4ade80; }
+.nav-item.locked { 
+    opacity: 0.5; 
+    pointer-events: none; 
+    filter: grayscale(1);
 }
 
-window.addBond = function() {
-    const n = document.getElementById('bond-name').value;
-    const l = document.getElementById('bond-level').value;
-    if(n && l) {
-        if(!window.state.bloodBonds) window.state.bloodBonds = [];
-        window.state.bloodBonds.push({name: n, level: l});
-        renderBloodBondRow();
-    }
-};
-window.removeBond = function(i) { window.state.bloodBonds.splice(i,1); renderBloodBondRow(); };
-
-function renderDynamicHavenRow() {
-    const container = document.getElementById('multi-haven-list');
-    if(!container) return;
-    container.innerHTML = '';
-    (window.state.havens || []).forEach((h, i) => {
-        const d = document.createElement('div');
-        d.className = 'border border-[#444] p-2 mb-2 bg-black/40';
-        d.innerHTML = `<div class="flex justify-between mb-1"><span class="font-bold text-gold text-xs">${h.name}</span><button class="text-red-500" onclick="window.removeHaven(${i})">&times;</button></div><div class="text-[10px] text-gray-400">${h.desc}</div>`;
-        container.appendChild(d);
-    });
-    const addDiv = document.createElement('div');
-    addDiv.className = 'flex flex-col gap-2 mt-2';
-    addDiv.innerHTML = `<input id="haven-name" placeholder="Haven Name" class="text-[10px]"><textarea id="haven-desc" placeholder="Description / Location / Security" class="text-[10px] h-12"></textarea><button class="bg-[#8b0000] text-white text-[10px] py-1" onclick="window.addHaven()">Add Haven</button>`;
-    container.appendChild(addDiv);
+.nav-next-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    margin-top: 2rem;
+    padding: 12px;
+    background: linear-gradient(90deg, transparent, #222, transparent);
+    border: 1px solid #333;
+    color: #d4af37;
+    font-family: 'Cinzel', serif;
+    text-transform: uppercase;
+    transition: all 0.3s;
+}
+.nav-next-btn:hover {
+    background: linear-gradient(90deg, transparent, #333, transparent);
+    border-color: #d4af37;
+    letter-spacing: 2px;
 }
 
-window.addHaven = function() {
-    const n = document.getElementById('haven-name').value;
-    const d = document.getElementById('haven-desc').value;
-    if(n) { if(!window.state.havens) window.state.havens = []; window.state.havens.push({name: n, desc: d}); renderDynamicHavenRow(); }
-};
-window.removeHaven = function(i) { window.state.havens.splice(i,1); renderDynamicHavenRow(); };
-
-function renderDynamicAdvantageRow(containerId, type, list, isAbil = false) {
-    const container = document.getElementById(containerId);
-    if (!container) return;
-    container.innerHTML = '';
-    let existingItems = [];
-    if (type === 'abil') {
-        let category = '';
-        if (containerId === 'custom-talents') category = 'Talents';
-        else if (containerId === 'custom-skills') category = 'Skills';
-        else if (containerId === 'custom-knowledges') category = 'Knowledges';
-        if (window.state.customAbilityCategories) { existingItems = Object.keys(window.state.dots.abil).filter(k => window.state.customAbilityCategories[k] === category); }
-    } else { if (window.state.dots[type]) existingItems = Object.keys(window.state.dots[type]); }
-
-    const buildRow = (name = "") => {
-        const row = document.createElement('div'); row.className = 'flex flex-col gap-1 mb-2 advantage-row';
-        const head = document.createElement('div'); head.className = 'flex justify-between items-center';
-        let inputField;
-        let labelClass = "flex-1 mr-4 text-[11px] font-bold uppercase";
-        
-        if (isAbil) { 
-             if (window.state.isPlayMode && name && (window.state.dots[type][name] || 0) >= 4 && window.state.specialties[name]) {
-                 inputField = document.createElement('div');
-                 inputField.className = labelClass;
-                 inputField.innerHTML = `${name} <span class="text-[9px] italic text-gray-400">(${window.state.specialties[name]})</span>`;
-             } else {
-                inputField = document.createElement('input'); inputField.type = 'text'; inputField.placeholder = "Write-in..."; inputField.className = labelClass + ' !bg-black/20 !border-b !border-[#333]'; inputField.value = name; 
-             }
-        } 
-        else { 
-            inputField = document.createElement('select'); inputField.className = labelClass; inputField.innerHTML = `<option value="">-- Choose ${type} --</option>` + list.map(item => `<option value="${item}" ${item === name ? 'selected' : ''}>${item}</option>`).join(''); 
-        }
-        
-        const dotCont = document.createElement('div'); dotCont.className = 'dot-row';
-        const val = name ? (window.state.dots[type][name] || 0) : 0;
-        dotCont.innerHTML = renderDots(val, 5);
-        if (name) { dotCont.dataset.n = name; dotCont.dataset.t = type; }
-        const removeBtn = document.createElement('div'); removeBtn.className = 'remove-btn'; removeBtn.innerHTML = '&times;';
-        if (!name) removeBtn.style.visibility = 'hidden';
-        let curName = name;
-        let category = null;
-        if (containerId === 'custom-talents') category = 'Talents'; else if (containerId === 'custom-skills') category = 'Skills'; else if (containerId === 'custom-knowledges') category = 'Knowledges';
-        
-        const onUpdate = (newVal) => {
-            if (curName && curName !== newVal) { 
-                const dots = window.state.dots[type][curName]; delete window.state.dots[type][curName]; 
-                if (window.state.customAbilityCategories && window.state.customAbilityCategories[curName]) delete window.state.customAbilityCategories[curName];
-                if (newVal) window.state.dots[type][newVal] = dots || 0; 
-                if(window.state.specialties[curName]) {
-                    window.state.specialties[newVal] = window.state.specialties[curName];
-                    delete window.state.specialties[curName];
-                }
-            }
-            curName = newVal;
-            if (newVal) { 
-                window.state.dots[type][newVal] = window.state.dots[type][newVal] || 0; 
-                dotCont.innerHTML = renderDots(window.state.dots[type][newVal], 5);
-                dotCont.dataset.n = newVal; dotCont.dataset.t = type;
-                if (category) { if (!window.state.customAbilityCategories) window.state.customAbilityCategories = {}; window.state.customAbilityCategories[newVal] = category; }
-                if (row === container.lastElementChild) { removeBtn.style.visibility = 'visible'; buildRow(); }
-            }
-            window.updatePools();
-        };
-        
-        if (isAbil) { if(inputField.tagName === 'INPUT') inputField.onblur = (e) => onUpdate(e.target.value); } 
-        else { inputField.onchange = (e) => onUpdate(e.target.value); }
-        
-        removeBtn.onclick = () => { 
-            if (curName) { 
-                delete window.state.dots[type][curName]; 
-                if (window.state.customAbilityCategories && window.state.customAbilityCategories[curName]) delete window.state.customAbilityCategories[curName]; 
-            } 
-            row.remove(); 
-            window.updatePools(); 
-        };
-        dotCont.onclick = (e) => { 
-            if (!curName || !e.target.dataset.v) return; 
-            let val = parseInt(e.target.dataset.v);
-            const currentVal = window.state.dots[type][curName] || 0;
-            if (val === currentVal) val = val - 1;
-            setDots(curName, type, val, 0, 5); // Using global setDots wrapper for validation
-        };
-        head.appendChild(inputField); head.appendChild(dotCont); head.appendChild(removeBtn);
-        row.appendChild(head); 
-        
-        if (type === 'abil' && curName && (window.state.dots[type][curName] || 0) >= 4 && !window.state.isPlayMode) {
-             const specDiv = document.createElement('div'); specDiv.className = 'w-full mt-1 ml-1';
-             const specVal = window.state.specialties[curName] || "";
-             const listId = `list-${curName.replace(/[^a-zA-Z0-9]/g, '')}`;
-             let optionsHTML = '';
-             if (SPECIALTY_EXAMPLES[curName]) optionsHTML = SPECIALTY_EXAMPLES[curName].map(s => `<option value="${s}">`).join('');
-             specDiv.innerHTML = `<input type="text" list="${listId}" class="specialty-input w-full text-[9px] bg-transparent border-b border-gray-700 text-[#d4af37] italic pl-2" placeholder="Specialty..." value="${specVal}"><datalist id="${listId}">${optionsHTML}</datalist>`;
-             const input = specDiv.querySelector('input');
-             input.onblur = (e) => { window.state.specialties[curName] = e.target.value; window.updatePools(); };
-             row.appendChild(specDiv);
-        }
-        container.appendChild(row);
-    };
-    existingItems.forEach(item => buildRow(item));
-    buildRow();
+/* --- SECTIONS --- */
+.section-title {
+    font-size: 1.5rem;
+    color: #fff;
+    border-bottom: 1px solid #d4af37;
+    padding-bottom: 0.5rem;
+    margin-bottom: 1.5rem;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.8);
 }
 
-// --- FILE MANAGER LOGIC ---
-
-window.handleNew = function() {
-    if(!confirm("Create new character? Unsaved changes will be lost.")) return;
-    window.location.reload(); 
-};
-
-window.handleSaveClick = function() {
-    if(!user) return showNotification("Login Required");
-    syncInputs();
-    
-    // Pre-fill inputs if existing
-    const nameIn = document.getElementById('save-name-input');
-    const folderIn = document.getElementById('save-folder-input');
-    
-    if(window.state.meta.filename) nameIn.value = window.state.meta.filename;
-    else nameIn.value = document.getElementById('c-name').value || "Unnamed Vampire";
-    
-    if(window.state.meta.folder) folderIn.value = window.state.meta.folder;
-    
-    document.getElementById('save-modal').classList.add('active');
-};
-
-window.handleLoadClick = async function() {
-    if(!user) return showNotification("Login Required");
-    document.getElementById('load-modal').classList.add('active');
-    await renderFileBrowser();
-};
-
-window.performSave = async function() {
-    const nameIn = document.getElementById('save-name-input');
-    const folderIn = document.getElementById('save-folder-input');
-    
-    let rawName = nameIn.value.trim();
-    let folder = folderIn.value.trim() || "Unsorted";
-    
-    if(!rawName) return showNotification("Filename required");
-    
-    // Sanitize ID
-    const safeId = rawName.replace(/[^a-zA-Z0-9 _-]/g, "");
-    
-    window.state.meta.filename = safeId;
-    window.state.meta.folder = folder;
-    
-    try {
-        const docRef = doc(db, 'artifacts', appId, 'users', user.uid, 'characters', safeId);
-        await setDoc(docRef, { 
-            ...window.state, 
-            lastSaved: Date.now() 
-        });
-        showNotification("Inscribed.");
-        document.getElementById('save-modal').classList.remove('active');
-        
-        // Update Datalist
-        const dl = document.getElementById('folder-datalist');
-        if(dl && !Array.from(dl.options).some(o => o.value === folder)) {
-            const opt = document.createElement('option');
-            opt.value = folder;
-            dl.appendChild(opt);
-        }
-    } catch (e) { 
-        showNotification("Save Error."); 
-        console.error(e); 
-    }
-};
-
-async function renderFileBrowser() {
-    const browser = document.getElementById('file-browser');
-    browser.innerHTML = '<div class="text-center text-gray-500 italic mt-10">Consulting Archives...</div>';
-    
-    try {
-        const q = query(collection(db, 'artifacts', appId, 'users', user.uid, 'characters'));
-        const snap = await getDocs(q);
-        
-        const structure = {};
-        
-        snap.forEach(d => {
-            const data = d.data();
-            const f = data.meta?.folder || "Unsorted";
-            if(!structure[f]) structure[f] = [];
-            structure[f].push({ id: d.id, ...data });
-        });
-        
-        browser.innerHTML = '';
-        
-        // Sort folders (Unsorted last)
-        const folders = Object.keys(structure).sort((a,b) => a === "Unsorted" ? 1 : b === "Unsorted" ? -1 : a.localeCompare(b));
-        
-        const dl = document.getElementById('folder-datalist');
-        if(dl) dl.innerHTML = ''; // Reset datalist
-        
-        folders.forEach(f => {
-            if(dl) { const opt = document.createElement('option'); opt.value = f; dl.appendChild(opt); }
-            
-            const header = document.createElement('div');
-            header.className = 'folder-header';
-            header.innerHTML = `<i class="fas fa-folder mr-2"></i> ${f}`;
-            browser.appendChild(header);
-            
-            structure[f].forEach(char => {
-                const row = document.createElement('div');
-                row.className = 'file-row';
-                const date = new Date(char.lastSaved || Date.now()).toLocaleDateString();
-                row.innerHTML = `
-                    <div class="flex-1">
-                        <div class="file-info text-white">${char.meta?.filename || char.id}</div>
-                        <div class="file-meta">${char.textFields['c-clan'] || 'Unknown Clan'} • ${char.textFields['c-nature'] || 'Unknown Nature'}</div>
-                    </div>
-                    <div class="flex items-center gap-3">
-                        <div class="file-meta">${date}</div>
-                        <button class="file-delete-btn" title="Delete" onclick="window.deleteCharacter('${char.id}', '${char.meta?.filename || char.id}', event)">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </div>
-                `;
-                row.onclick = async (e) => {
-                    if(e.target.closest('.file-delete-btn')) return;
-                    await loadSelectedChar(char);
-                };
-                browser.appendChild(row);
-            });
-        });
-        
-        if(folders.length === 0) browser.innerHTML = '<div class="text-center text-gray-500 italic mt-10">No Archives Found.</div>';
-        
-    } catch (e) {
-        console.error(e);
-        browser.innerHTML = '<div class="text-red-500 text-center mt-10">Archive Error.</div>';
-    }
+.play-section {
+    display: none;
+}
+.play-section.active {
+    display: block;
+    animation: fadeIn 0.5s ease-out;
 }
 
-window.deleteCharacter = async function(id, name, event) {
-    if(event) event.stopPropagation();
-    if(!confirm(`Permanently delete "${name}"? This cannot be undone.`)) return;
-    
-    try {
-        await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'characters', id));
-        showNotification("Deleted.");
-        await renderFileBrowser(); // Refresh list
-    } catch (e) {
-        console.error("Delete Error:", e);
-        showNotification("Delete Failed.");
-    }
-};
-
-async function loadSelectedChar(data) {
-    if(!confirm(`Recall ${data.meta?.filename}? Unsaved progress will be lost.`)) return;
-    
-    window.state = data;
-    if(!window.state.specialties) window.state.specialties = {}; 
-    if (!window.state.furthestPhase) window.state.furthestPhase = 1;
-    if (window.state.status && window.state.status.tempWillpower === undefined) {
-        window.state.status.tempWillpower = window.state.status.willpower || 5;
-    }
-    if (window.state.status && (window.state.status.health_states === undefined || !Array.isArray(window.state.status.health_states))) {
-        const oldDamage = window.state.status.health || 0;
-        window.state.status.health_states = [0,0,0,0,0,0,0];
-        for(let i=0; i<oldDamage && i<7; i++) {
-            window.state.status.health_states[i] = 2;
-        }
-    }
-    
-    // UI Refresh
-    hydrateInputs();
-    const mList = document.getElementById('merits-list-create');
-    if(mList) { mList.innerHTML = ''; renderDynamicTraitRow('merits-list-create', 'Merit', V20_MERITS_LIST); }
-    const fList = document.getElementById('flaws-list-create');
-    if(fList) { fList.innerHTML = ''; renderDynamicTraitRow('flaws-list-create', 'Flaw', V20_FLAWS_LIST); }
-    
-    renderDynamicAdvantageRow('list-disc', 'disc', DISCIPLINES);
-    renderDynamicAdvantageRow('list-back', 'back', BACKGROUNDS);
-    renderDynamicAdvantageRow('custom-talents', 'abil', [], true);
-    renderDynamicAdvantageRow('custom-skills', 'abil', [], true);
-    renderDynamicAdvantageRow('custom-knowledges', 'abil', [], true);
-    renderDerangementsList();
-    renderBloodBondRow();
-    renderDynamicHavenRow();
-    
-    window.renderInventoryList();
-    window.updatePools();
-    
-    // Close Modal
-    document.getElementById('load-modal').classList.remove('active');
-    showNotification("Recalled.");
-    
-    if (window.state.isPlayMode) { window.togglePlayMode(); window.togglePlayMode(); } // Quick refresh
-    window.changeStep(window.state.furthestPhase || 1);
+/* --- PRIORITY BUTTONS --- */
+.prio-btn {
+    font-size: 9px;
+    padding: 2px 6px;
+    border: 1px solid #333;
+    color: #555;
+    background: #000;
+    cursor: pointer;
+}
+.prio-btn:hover { border-color: #777; color: #777; }
+.prio-btn.active {
+    background-color: #d4af37;
+    color: #000;
+    border-color: #d4af37;
+    font-weight: bold;
 }
 
-// --- DICE & CORE LOGIC ---
-
-window.clearPool = function() {
-    window.state.activePool = [];
-    document.querySelectorAll('.trait-label').forEach(el => el.classList.remove('selected'));
-    setSafeText('pool-display', "Select traits to build pool...");
-    document.getElementById('dice-tray').classList.remove('open');
-};
-
-window.rollPool = function() {
-    const poolSize = window.state.activePool.reduce((a,b) => a + b.val, 0);
-    if (poolSize <= 0) { showNotification("Pool Empty"); return; }
-    const diff = parseInt(document.getElementById('roll-diff').value) || 6;
-    const isSpec = document.getElementById('use-specialty').checked;
-    let results = [], ones = 0, rawSuccesses = 0;
-    for(let i=0; i<poolSize; i++) {
-        const die = Math.floor(Math.random() * 10) + 1;
-        results.push(die);
-        if (die === 1) ones++;
-        if (die >= diff) { if (isSpec && die === 10) rawSuccesses += 2; else rawSuccesses += 1; }
-    }
-    let net = rawSuccesses - ones;
-    let outcome = "", outcomeClass = "";
-    if (rawSuccesses === 0 && ones > 0) { outcome = "BOTCH"; outcomeClass = "dice-botch"; } 
-    else if (net <= 0) { outcome = "FAILURE"; outcomeClass = "text-gray-400"; } 
-    else { outcome = `${net} SUCCESS${net > 1 ? 'ES' : ''}`; outcomeClass = "dice-success"; }
-    const tray = document.getElementById('roll-results');
-    const row = document.createElement('div');
-    row.className = 'bg-black/60 p-2 border border-[#333] text-[10px] mb-2 animate-in fade-in slide-in-from-right-4 duration-300';
-    // Updated Dice Styling: Bigger Font (text-3xl) and spacing
-    const diceRender = results.map(d => {
-        let c = 'text-gray-500';
-        if (d === 1) c = 'text-[#ff0000] font-bold';
-        else if (d >= diff) { c = 'text-[#d4af37] font-bold'; if (d === 10 && isSpec) c = 'text-[#4ade80] font-black'; }
-        return `<span class="${c} text-3xl mx-1">${d}</span>`;
-    }).join(' ');
-    row.innerHTML = `<div class="flex justify-between border-b border-[#444] pb-1 mb-1"><span class="text-gray-400">Diff ${diff}${isSpec ? '*' : ''}</span><span class="${outcomeClass} font-black text-sm">${outcome}</span></div><div class="tracking-widest flex flex-wrap justify-center py-2">${diceRender}</div>`;
-    tray.insertBefore(row, tray.firstChild);
-};
-
-function calculateTotalFreebiesSpent(tempState = window.state) {
-    let attrDots = 0; Object.keys(ATTRIBUTES).forEach(cat => ATTRIBUTES[cat].forEach(a => attrDots += (tempState.dots.attr[a] || 1)));
-    const attrCost = Math.max(0, attrDots - 24) * 5;
-    let abilDots = 0;
-    Object.keys(ABILITIES).forEach(cat => {
-        ABILITIES[cat].forEach(a => abilDots += (tempState.dots.abil[a] || 0));
-        if (tempState.customAbilityCategories) { Object.entries(tempState.customAbilityCategories).forEach(([name, c]) => { if (c === cat && tempState.dots.abil[name]) abilDots += tempState.dots.abil[name]; }); }
-    });
-    const abilCost = Math.max(0, abilDots - 27) * 2;
-    let discDots = Object.values(tempState.dots.disc || {}).reduce((a,b)=>a+b,0);
-    const discCost = Math.max(0, discDots - 3) * 7;
-    let backDots = Object.values(tempState.dots.back || {}).reduce((a,b)=>a+b,0);
-    const backCost = Math.max(0, backDots - 5) * 1;
-    let virtDots = VIRTUES.reduce((a,v) => a + (tempState.dots.virt[v] || 1), 0);
-    const virtCost = Math.max(0, virtDots - 10) * 2;
-    const bH = (tempState.dots.virt?.Conscience || 1) + (tempState.dots.virt?.["Self-Control"] || 1);
-    const bW = (tempState.dots.virt?.Courage || 1);
-    const curH = tempState.status.humanity !== undefined ? tempState.status.humanity : bH;
-    const curW = tempState.status.willpower !== undefined ? tempState.status.willpower : bW;
-    const humCost = Math.max(0, curH - bH) * 2;
-    const willCost = Math.max(0, curW - bW) * 1;
-    let mfCost = 0, mfBonus = 0;
-    if (tempState.merits) tempState.merits.forEach(m => mfCost += (parseInt(m.val) || 0));
-    if (tempState.flaws) tempState.flaws.forEach(f => mfBonus += (parseInt(f.val) || 0));
-    const cappedBonus = Math.min(mfBonus, 7);
-    return (attrCost + abilCost + discCost + backCost + virtCost + humCost + willCost + mfCost) - cappedBonus;
+/* --- DICE POOL TRAY --- */
+#dice-tray.open {
+    background-color: #1a1a1a;
+    box-shadow: 0 -4px 20px rgba(0,0,0,0.8);
+    border-top: 1px solid #d4af37;
+}
+.trait-label {
+    cursor: pointer;
+    transition: color 0.2s;
+}
+.trait-label:hover { color: #fff; }
+.trait-label.selected {
+    color: #d4af37;
+    text-shadow: 0 0 5px rgba(212,175,55,0.5);
 }
 
-function checkStepComplete(step) {
-    syncInputs();
-    const s = window.state;
-    if (!s.prios) s.prios = { attr: {}, abil: {} };
-    if (!s.dots) s.dots = { attr: {}, abil: {}, disc: {}, back: {}, virt: {} };
-    if (step === 1) return !!(s.textFields['c-name'] && s.textFields['c-nature'] && s.textFields['c-demeanor'] && s.textFields['c-clan']);
-    if (step === 2) {
-        const prios = Object.values(s.prios.attr || {});
-        if (prios.length !== 3 || !prios.includes(7) || !prios.includes(5) || !prios.includes(3)) return false;
-        return ['Physical', 'Social', 'Mental'].every(cat => {
-            const limit = s.prios.attr[cat] || 0;
-            let spent = 0;
-            ATTRIBUTES[cat].forEach(a => { const val = parseInt(s.dots.attr[a] || 1); spent += (val - 1); });
-            return spent === limit;
-        });
-    }
-    if (step === 3) {
-        const prios = Object.values(s.prios.abil || {});
-        if (prios.length !== 3 || !prios.includes(13) || !prios.includes(9) || !prios.includes(5)) return false;
-        return ['Talents', 'Skills', 'Knowledges'].every(cat => {
-            const limit = s.prios.abil[cat] || 0;
-            let spent = 0;
-            ABILITIES[cat].forEach(a => spent += parseInt(s.dots.abil[a] || 0));
-            if (s.customAbilityCategories) { Object.entries(s.customAbilityCategories).forEach(([name, c]) => { if (c === cat) spent += parseInt(s.dots.abil[name] || 0); }); }
-            return spent === limit;
-        });
-    }
-    if (step === 4) {
-        const discSpent = Object.values(s.dots.disc || {}).reduce((a, b) => a + parseInt(b||0), 0);
-        const backSpent = Object.values(s.dots.back || {}).reduce((a, b) => a + parseInt(b||0), 0);
-        const virtTotal = VIRTUES.reduce((a, v) => a + parseInt(s.dots.virt[v] || 1), 0);
-        return discSpent === 3 && backSpent === 5 && virtTotal === 10;
-    }
-    return true;
+.dice-success { color: #d4af37; }
+.dice-botch { color: #ff0000; text-shadow: 0 0 5px red; }
+
+/* --- PLAY MODE TOGGLE --- */
+body.play-mode {
+    background-image: url('https://www.transparenttextures.com/patterns/dark-matter.png'); 
+}
+body.play-mode header {
+    background-color: #000;
+    border-bottom: 1px solid #d4af37;
 }
 
-function checkCreationComplete() { return checkStepComplete(1) && checkStepComplete(2) && checkStepComplete(3) && checkStepComplete(4); }
-
-window.updateWalkthrough = function() {
-    if (window.state.isPlayMode) { document.getElementById('walkthrough-guide').classList.add('opacity-0', 'pointer-events-none'); return; } 
-    else { document.getElementById('walkthrough-guide').classList.remove('opacity-0', 'pointer-events-none'); }
-    const current = window.state.currentPhase;
-    const furthest = window.state.furthestPhase || 1;
-    const isComplete = checkStepComplete(current);
-    const msgEl = document.getElementById('guide-message');
-    const iconEl = document.getElementById('guide-icon');
-    const stepData = STEPS_CONFIG.find(s => s.id === current);
-    if (current < furthest) {
-        msgEl.innerText = `Return to Step ${furthest}`;
-        msgEl.className = "bg-gray-900/90 border border-gray-500 text-gray-300 px-4 py-2 rounded text-xs font-bold shadow-lg w-48 text-right";
-        iconEl.classList.add('ready'); 
-    } else {
-        if (isComplete) {
-            msgEl.innerText = "Step Complete! Next >>";
-            msgEl.className = "bg-green-900/90 border border-green-500 text-green-100 px-4 py-2 rounded text-xs font-bold shadow-lg w-48 text-right";
-            iconEl.classList.add('ready');
-        } else {
-            msgEl.innerText = stepData ? stepData.msg : "Continue...";
-            msgEl.className = "bg-black/90 border border-[#d4af37] text-[#f0e6d2] px-4 py-2 rounded text-xs font-bold shadow-lg w-48 text-right";
-            iconEl.classList.remove('ready');
-        }
-    }
-};
-
-window.nextStep = function() {
-    const current = window.state.currentPhase;
-    const furthest = window.state.furthestPhase || 1;
-    if (current < furthest) window.changeStep(furthest);
-    else if (checkStepComplete(current)) { if (current < 8) window.changeStep(current + 1); else showNotification("Character Ready!"); } 
-    else showNotification("Complete current step first!");
-};
-
-window.updatePools = function() {
-    if (!window.state.status) window.state.status = { humanity: 7, willpower: 5, tempWillpower: 5, health_states: [0,0,0,0,0,0,0], blood: 0 };
-    if (window.state.status.tempWillpower === undefined) window.state.status.tempWillpower = window.state.status.willpower || 5;
-    if (window.state.status.health_states === undefined || !Array.isArray(window.state.status.health_states)) window.state.status.health_states = [0,0,0,0,0,0,0];
-
-    if (!window.state.freebieMode && !window.state.isPlayMode) {
-        const bH = (window.state.dots.virt?.Conscience || 1) + (window.state.dots.virt?.["Self-Control"] || 1);
-        const bW = (window.state.dots.virt?.Courage || 1);
-        window.state.status.humanity = bH;
-        window.state.status.willpower = bW;
-        window.state.status.tempWillpower = bW;
-    }
-    const curH = window.state.status.humanity;
-    const curW = window.state.status.willpower; 
-    const tempW = window.state.status.tempWillpower;
-    const gen = parseInt(document.getElementById('c-gen')?.value) || 13;
-    const lim = GEN_LIMITS[gen] || GEN_LIMITS[13];
-
-    Object.keys(ATTRIBUTES).forEach(cat => {
-        let cs = 0; ATTRIBUTES[cat].forEach(a => cs += ((window.state.dots.attr[a] || 1) - 1));
-        const targetId = (cat === 'Social') ? 'p-social' : (cat === 'Mental') ? 'p-mental' : 'p-phys';
-        setSafeText(targetId, `[${Math.max(0, (window.state.prios.attr[cat] || 0) - cs)}]`);
-    });
-    Object.keys(ABILITIES).forEach(cat => {
-        let cs = 0; ABILITIES[cat].forEach(a => cs += (window.state.dots.abil[a] || 0));
-        if (window.state.customAbilityCategories) { Object.entries(window.state.customAbilityCategories).forEach(([name, c]) => { if (c === cat && window.state.dots.abil[name]) cs += window.state.dots.abil[name]; }); }
-        setSafeText('p-' + cat.toLowerCase().slice(0,3), `[${Math.max(0, (window.state.prios.abil[cat] || 0) - cs)}]`);
-    });
-    const discSpent = Object.values(window.state.dots.disc || {}).reduce((a, b) => a + b, 0);
-    setSafeText('p-disc', `[${Math.max(0, 3 - discSpent)}]`);
-    const backSpent = Object.values(window.state.dots.back || {}).reduce((a, b) => a + b, 0);
-    setSafeText('p-back', `[${Math.max(0, 5 - backSpent)}]`);
-    const virtTotalDots = VIRTUES.reduce((a, v) => a + (window.state.dots.virt[v] || 1), 0);
-    setSafeText('p-virt', `[${Math.max(0, 7 - (virtTotalDots - 3))}]`);
-
-    if (window.state.freebieMode) {
-         const totalSpent = calculateTotalFreebiesSpent(window.state);
-         setSafeText('f-total-top', totalSpent); 
-         let attrDots = 0; Object.keys(ATTRIBUTES).forEach(cat => ATTRIBUTES[cat].forEach(a => attrDots += (window.state.dots.attr[a] || 1)));
-         setSafeText('sb-attr', Math.max(0, attrDots - 24) * 5);
-         let abilDots = 0; Object.keys(ABILITIES).forEach(cat => { ABILITIES[cat].forEach(a => abilDots += (window.state.dots.abil[a] || 0)); if (window.state.customAbilityCategories) { Object.entries(window.state.customAbilityCategories).forEach(([name, c]) => { if (c === cat && window.state.dots.abil[name]) abilDots += window.state.dots.abil[name]; }); } });
-         setSafeText('sb-abil', Math.max(0, abilDots - 27) * 2);
-         setSafeText('sb-disc', Math.max(0, discSpent - 3) * 7);
-         setSafeText('sb-back', Math.max(0, backSpent - 5) * 1);
-         setSafeText('sb-virt', Math.max(0, (virtTotalDots-3) - 7) * 2);
-         const bH = (window.state.dots.virt?.Conscience || 1) + (window.state.dots.virt?.["Self-Control"] || 1);
-         const bW = (window.state.dots.virt?.Courage || 1);
-         const cH = window.state.status.humanity !== undefined ? window.state.status.humanity : bH;
-         const cW = window.state.status.willpower !== undefined ? window.state.status.willpower : bW;
-         setSafeText('sb-human', Math.max(0, cH - bH) * 2);
-         setSafeText('sb-will', Math.max(0, cW - bW) * 1);
-         let mfCost = 0, mfBonus = 0;
-         if (window.state.merits) window.state.merits.forEach(m => mfCost += (parseInt(m.val) || 0));
-         if (window.state.flaws) window.state.flaws.forEach(f => mfBonus += (parseInt(f.val) || 0));
-         const cappedBonus = Math.min(mfBonus, 7);
-         setSafeText('sb-merit', mfCost);
-         setSafeText('sb-flaw', `+${cappedBonus}`);
-         const limit = parseInt(document.getElementById('c-freebie-total')?.value) || 15;
-         setSafeText('sb-total', limit - totalSpent);
-         document.getElementById('freebie-sidebar').classList.add('active'); 
-    } else {
-         document.getElementById('freebie-sidebar').classList.remove('active');
-    }
-
-    const fbBtn = document.getElementById('toggle-freebie-btn');
-    if (fbBtn) {
-        const complete = checkCreationComplete();
-        if (!window.state.freebieMode) fbBtn.disabled = !complete; else fbBtn.disabled = false; 
-    }
-
-    document.querySelectorAll('.dot-row').forEach(el => {
-        const name = el.dataset.n;
-        const type = el.dataset.t;
-        if (name && type && window.state.dots[type]) {
-            const val = window.state.dots[type][name] || 0; 
-            el.innerHTML = renderDots(val, 5);
-        }
-    });
-
-    const p8h = document.getElementById('phase8-humanity-dots');
-    if(p8h) {
-        p8h.innerHTML = renderDots(curH, 10);
-        p8h.onclick = (e) => { if (window.state.freebieMode && e.target.dataset.v) setDots('Humanity', 'status', parseInt(e.target.dataset.v), 1, 10); };
-    }
-    const p8w = document.getElementById('phase8-willpower-dots');
-    if(p8w) {
-        p8w.innerHTML = renderDots(curW, 10);
-        p8w.onclick = (e) => { if (window.state.freebieMode && e.target.dataset.v) setDots('Willpower', 'status', parseInt(e.target.dataset.v), 1, 10); };
-    }
-
-    document.querySelectorAll('#humanity-dots-play').forEach(el => el.innerHTML = renderDots(curH, 10));
-    document.querySelectorAll('#willpower-dots-play').forEach(el => el.innerHTML = renderDots(curW, 10));
-    
-    document.querySelectorAll('#willpower-boxes-play').forEach(el => el.innerHTML = renderBoxes(curW, tempW, 'wp'));
-    
-    const bpContainer = document.querySelectorAll('#blood-boxes-play');
-    bpContainer.forEach(el => {
-        let h = '';
-        const currentBlood = window.state.status.blood || 0;
-        const maxBloodForGen = lim.m;
-        
-        for (let i = 1; i <= 20; i++) {
-            let classes = "box";
-            if (i <= currentBlood) classes += " checked";
-            if (i > maxBloodForGen) { classes += " cursor-not-allowed opacity-50 bg-[#1a1a1a]"; } else { classes += " cursor-pointer"; }
-            if (i > maxBloodForGen) classes += " pointer-events-none";
-            h += `<span class="${classes}" data-v="${i}" data-type="blood"></span>`;
-        }
-        el.innerHTML = h;
-    });
-    
-    const healthCont = document.getElementById('health-chart-play');
-    if(healthCont && healthCont.children.length === 0) {
-         HEALTH_STATES.forEach((h, i) => {
-            const d = document.createElement('div'); d.className = 'flex justify-between items-center text-[10px] uppercase border-b border-[#333] py-2 font-bold';
-            d.innerHTML = `<span>${h.l}</span><div class="flex gap-3"><span>${h.p !== 0 ? h.p : ''}</span><div class="box" data-v="${i+1}" data-type="health"></div></div>`;
-            healthCont.appendChild(d);
-        });
-    }
-    const healthStates = window.state.status.health_states || [0,0,0,0,0,0,0];
-    document.querySelectorAll('#health-chart-play .box').forEach((box, i) => {
-        box.classList.remove('checked'); 
-        box.dataset.state = healthStates[i] || 0; 
-    });
-    
-    const cList = document.getElementById('combat-list-create');
-    if(cList && window.state.inventory) {
-        cList.innerHTML = '';
-        window.state.inventory.filter(i => i.type === 'Weapon' && i.status === 'carried').forEach(w => {
-             let display = w.displayName || w.name;
-             const r = document.createElement('div');
-             r.className = "grid grid-cols-6 gap-2 text-[10px] border-b border-[#222] py-1 text-center text-white items-center";
-             r.innerHTML = `
-                <div class="col-span-2 text-left pl-2 font-bold text-gold truncate">${display}</div>
-                <div>${w.stats.diff}</div>
-                <div class="text-gold font-bold">${w.stats.dmg}</div>
-                <div>${w.stats.range}</div>
-                <div>${w.stats.clip}</div>
-             `;
-             cList.appendChild(r);
-        });
-        
-        let totalArmor = 0; let totalPenalty = 0; let activeArmor = [];
-        window.state.inventory.filter(i => i.type === 'Armor' && i.status === 'carried').forEach(a => {
-            totalArmor += parseInt(a.stats?.rating) || 0;
-            totalPenalty += parseInt(a.stats?.penalty) || 0;
-            activeArmor.push(a.displayName || a.name);
-        });
-        setSafeText('total-armor-rating', totalArmor);
-        setSafeText('total-armor-penalty', totalPenalty);
-        setSafeText('active-armor-names', activeArmor.length > 0 ? activeArmor.join(', ') : "None");
-    }
-    window.updateWalkthrough();
-};
-
-function renderInventoryList() {
-    const listCarried = document.getElementById('inv-list-carried');
-    const listOwned = document.getElementById('inv-list-owned');
-    const listVehicles = document.getElementById('vehicle-list');
-    if(listCarried) listCarried.innerHTML = '';
-    if(listOwned) listOwned.innerHTML = '';
-    if(listVehicles) listVehicles.innerHTML = '';
-    if(!listCarried || !listOwned || !listVehicles) return;
-    (window.state.inventory || []).forEach((item, idx) => {
-        const d = document.createElement('div');
-        d.className = "flex justify-between items-center bg-black/40 border border-[#333] p-1 text-[10px] mb-1";
-        let displayName = item.displayName || item.name;
-        if(item.type === 'Weapon' && item.baseType && item.baseType !== displayName) displayName += ` <span class="text-gray-500">[${item.baseType}]</span>`;
-        let details = "";
-        if(item.type === 'Weapon') details = `<div class="text-gray-400 text-[9px] mt-0.5 ml-1">Diff:${item.stats.diff} Dmg:${item.stats.dmg} Rng:${item.stats.range}</div>`;
-        else if(item.type === 'Armor') details = `<div class="text-gray-400 text-[9px] mt-0.5 ml-1">Rating:${item.stats.rating} Penalty:${item.stats.penalty}</div>`;
-        else if(item.type === 'Vehicle') details = `<div class="text-gray-400 text-[9px] mt-0.5 ml-1">Safe:${item.stats.safe} Max:${item.stats.max} Man:${item.stats.man}</div>`;
-        const statusColor = item.status === 'carried' ? 'text-green-400' : 'text-gray-500';
-        const statusLabel = item.status === 'carried' ? 'CARRIED' : 'OWNED';
-        d.innerHTML = `
-            <div class="flex-1 overflow-hidden mr-2"><div class="font-bold text-white uppercase truncate" title="${item.displayName || item.name}">${displayName}</div>${details}</div>
-            <div class="flex items-center gap-2 flex-shrink-0">
-                ${item.type !== 'Vehicle' ? `<button class="${statusColor} font-bold text-[8px] border border-[#333] px-1 hover:bg-[#222]" onclick="window.toggleInvStatus(${idx})">${statusLabel}</button>` : ''}
-                <button class="text-red-500 font-bold px-1 hover:text-red-300" onclick="window.removeInventory(${idx})">&times;</button>
-            </div>`;
-        if (item.type === 'Vehicle') listVehicles.appendChild(d);
-        else { if (item.status === 'carried') listCarried.appendChild(d); else listOwned.appendChild(d); }
-    });
-    window.updatePools();
-};
-
-window.removeInventory = (idx) => { window.state.inventory.splice(idx, 1); window.renderInventoryList(); };
-window.toggleInvStatus = (idx) => { const item = window.state.inventory[idx]; item.status = item.status === 'carried' ? 'owned' : 'carried'; window.renderInventoryList(); };
-
-function renderRow(contId, label, type, min, max = 5) {
-    const cont = typeof contId === 'string' ? document.getElementById(contId) : contId;
-    if (!cont) return;
-    const val = window.state.dots[type][label] || min;
-    const div = document.createElement('div'); div.className = 'flex flex-col py-1';
-    
-    let labelHtml = `<span class="trait-label uppercase text-sm font-bold">${label}</span>`;
-    if (window.state.isPlayMode && val >= 4 && window.state.specialties && window.state.specialties[label]) {
-        labelHtml = `
-            <div class="flex items-center gap-1">
-                <span class="trait-label uppercase text-sm font-bold">${label}</span>
-                <span class="text-xs italic text-gray-400">(${window.state.specialties[label]})</span>
-            </div>
-        `;
-    }
-
-    div.innerHTML = `
-        <div class="flex justify-between items-center w-full">
-            ${labelHtml}
-            <div class="dot-row" data-n="${label}" data-t="${type}">${renderDots(val, max)}</div>
-        </div>
-    `;
-    
-    if (val >= 4 && !window.state.isPlayMode) {
-        const specDiv = document.createElement('div'); specDiv.className = 'w-full mt-1';
-        const specVal = window.state.specialties[label] || "";
-        const listId = `list-${label.replace(/\s+/g, '')}`;
-        let optionsHTML = '';
-        if (SPECIALTY_EXAMPLES[label]) optionsHTML = SPECIALTY_EXAMPLES[label].map(s => `<option value="${s}">`).join('');
-        specDiv.innerHTML = `<input type="text" list="${listId}" class="specialty-input w-full text-[9px] bg-transparent border-b border-gray-700 text-[#d4af37] italic pl-2" placeholder="Select or type Specialty..." value="${specVal}"><datalist id="${listId}">${optionsHTML}</datalist>`;
-        const input = specDiv.querySelector('input');
-        input.onblur = (e) => { window.state.specialties[label] = e.target.value; window.updatePools(); };
-        div.appendChild(specDiv);
-    }
-
-    div.querySelector('.trait-label').onclick = () => { if(window.state.isPlayMode) window.handleTraitClick(label, type); };
-    div.querySelector('.dot-row').onclick = (e) => { if (e.target.dataset.v) setDots(label, type, parseInt(e.target.dataset.v), min, max); };
-    cont.appendChild(div);
-}
-
-window.handleTraitClick = function(name, type) {
-    const val = window.state.dots[type][name] || 0;
-    const existingIdx = window.state.activePool.findIndex(p => p.name === name);
-    if (existingIdx > -1) window.state.activePool.splice(existingIdx, 1);
-    else { if (window.state.activePool.length >= 2) window.state.activePool.shift(); window.state.activePool.push({name, val}); }
-    document.querySelectorAll('.trait-label').forEach(el => el.classList.toggle('selected', window.state.activePool.some(p => p.name === el.innerText)));
-    const display = document.getElementById('pool-display');
-    if (window.state.activePool.length > 0) {
-        setSafeText('pool-display', window.state.activePool.map(p => `${p.name} (${p.val})`).join(' + '));
-        document.getElementById('dice-tray').classList.add('open');
-    } else { window.clearPool(); }
-};
-
-// 2. Auth & Database (Runs Async)
-onAuthStateChanged(auth, async (u) => {
-    if(u) {
-        user = u;
-        const loader = document.getElementById('loading-overlay');
-        if(loader) loader.style.display = 'none';
-
-        try {
-            // SAFEGUARDED UI POPULATION
-            const ns = document.getElementById('c-nature');
-            const ds = document.getElementById('c-demeanor');
-            const cs = document.getElementById('c-clan');
-
-            // Only populate if elements exist
-            if(ns && ds && typeof ARCHETYPES !== 'undefined') {
-                const sortedArch = [...ARCHETYPES].sort(); 
-                ns.innerHTML = ''; ds.innerHTML = ''; 
-                sortedArch.forEach(a => { 
-                    ns.add(new Option(a,a)); 
-                    if(ds) ds.add(new Option(a,a)); 
-                });
-            }
-
-            if(cs && typeof CLANS !== 'undefined') {
-                const sortedClans = [...CLANS].sort();
-                cs.innerHTML = '';
-                sortedClans.forEach(c => cs.add(new Option(c,c)));
-            }
-
-            const ps1 = document.getElementById('c-path-name');
-            const ps2 = document.getElementById('c-path-name-create');
-            
-            if (typeof PATHS !== 'undefined') {
-                if(ps1) { ps1.innerHTML = ''; PATHS.forEach(p => ps1.add(new Option(p,p))); }
-                if(ps2) { ps2.innerHTML = ''; PATHS.forEach(p => ps2.add(new Option(p,p))); }
-            }
-
-            // Safe Event Listeners
-            if(ps1) ps1.addEventListener('change', (e) => { 
-                if(ps2) ps2.value = e.target.value; 
-                if(window.state.textFields) window.state.textFields['c-path-name'] = e.target.value; 
-            });
-            
-            if(ps2) ps2.addEventListener('change', (e) => { 
-                if(ps1) ps1.value = e.target.value; 
-                if(window.state.textFields) window.state.textFields['c-path-name'] = e.target.value; 
-            });
-            
-            // --- UI BOOTSTRAP (Fixed) ---
-            // Render the initial attribute rows
-            Object.keys(ATTRIBUTES).forEach(cat => {
-                const containerId = `list-attr-${cat.toLowerCase()}`;
-                const container = document.getElementById(containerId);
-                if(container) {
-                    ATTRIBUTES[cat].forEach(a => renderRow(container, a, 'attr', 1, 5));
-                }
-            });
-            
-            // Render initial abilities
-            Object.keys(ABILITIES).forEach(cat => {
-                 const containerId = `list-abil-${cat.toLowerCase()}`;
-                 const container = document.getElementById(containerId);
-                 if(container) {
-                     ABILITIES[cat].forEach(a => renderRow(container, a, 'abil', 0, 5));
-                 }
-            });
-
-            const freebieInp = document.getElementById('c-freebie-total');
-            if(freebieInp) freebieInp.oninput = window.updatePools;
-            
-            // Buttons logic binding
-            const playBtn = document.getElementById('play-mode-btn');
-            if(playBtn) playBtn.onclick = window.togglePlayMode;
-            
-            const freebieBtn = document.getElementById('toggle-freebie-btn');
-            if(freebieBtn) freebieBtn.onclick = () => {
-                 window.state.freebieMode = !window.state.freebieMode;
-                 const text = document.getElementById('freebie-btn-text');
-                 if(text) text.innerText = window.state.freebieMode ? "Freebies ON" : "Freebies";
-                 if(freebieBtn) freebieBtn.classList.toggle('bg-blue-900/40', window.state.freebieMode);
-                 window.updatePools();
-            }
-            
-            const clearPoolBtn = document.getElementById('clear-pool-btn');
-            if(clearPoolBtn) clearPoolBtn.onclick = window.clearPool;
-            
-            const rollBtn = document.getElementById('roll-btn');
-            if(rollBtn) rollBtn.onclick = window.rollPool;
-            
-            const newBtn = document.getElementById('cmd-new');
-            if(newBtn) newBtn.onclick = window.handleNew;
-            
-            const saveBtn = document.getElementById('cmd-save');
-            if(saveBtn) saveBtn.onclick = window.handleSaveClick;
-            
-            const loadBtn = document.getElementById('cmd-load');
-            if(loadBtn) loadBtn.onclick = window.handleLoadClick;
-            
-            const confirmSaveBtn = document.getElementById('confirm-save-btn');
-            if(confirmSaveBtn) confirmSaveBtn.onclick = window.performSave;
-            
-            const prioBtns = document.querySelectorAll('.prio-btn');
-            prioBtns.forEach(btn => {
-                btn.onclick = (e) => {
-                     const cat = e.target.dataset.cat;
-                     const group = e.target.dataset.group;
-                     const val = parseInt(e.target.dataset.v);
-                     
-                     // Clear previous selection for this value in this category
-                     document.querySelectorAll(`.prio-btn[data-cat="${cat}"][data-v="${val}"]`).forEach(b => {
-                         if(b !== e.target) {
-                             b.classList.remove('active');
-                             // Find the group that *was* using this value and clear it from state
-                             const oldGroup = b.dataset.group;
-                             if(window.state.prios[cat][oldGroup] === val) delete window.state.prios[cat][oldGroup];
-                         }
-                     });
-                     
-                     // Toggle current
-                     if(window.state.prios[cat][group] === val) {
-                         delete window.state.prios[cat][group];
-                         e.target.classList.remove('active');
-                     } else {
-                         // Clear previous selection for this group
-                         document.querySelectorAll(`.prio-btn[data-cat="${cat}"][data-group="${group}"]`).forEach(b => b.classList.remove('active'));
-                         window.state.prios[cat][group] = val;
-                         e.target.classList.add('active');
-                     }
-                     window.updatePools();
-                }
-            });
-
-            // Initialize Lists
-            renderDynamicAdvantageRow('list-disc', 'disc', DISCIPLINES);
-            renderDynamicAdvantageRow('list-back', 'back', BACKGROUNDS);
-            renderDynamicAdvantageRow('custom-talents', 'abil', [], true);
-            renderDynamicAdvantageRow('custom-skills', 'abil', [], true);
-            renderDynamicAdvantageRow('custom-knowledges', 'abil', [], true);
-            renderDerangementsList();
-            renderBloodBondRow();
-            renderDynamicHavenRow();
-            
-            // Start App
-            renderSheetNav();
-            window.changeStep(1);
-
-        } catch (dbErr) {
-            console.error("DB Init Error:", dbErr);
-            showNotification("DB Conn Error (UI Active)");
-        }
-    } else {
-        // Anonymous Sign In
-        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) await signInWithCustomToken(auth, __initial_auth_token);
-        else await signInAnonymously(auth);
-    }
-});
+/* --- UTILS --- */
+.text-gold { color: #d4af37; }
