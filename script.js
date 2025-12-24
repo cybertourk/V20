@@ -3,6 +3,7 @@ import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken }
 import { getFirestore, doc, setDoc, getDoc, collection, getDocs, query, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 // --- IMPORT V20 DATA ---
+// Data arrays moved to data.js to reduce file size
 import { 
     CLANS, ARCHETYPES, ATTRIBUTES, ABILITIES, BACKGROUNDS, 
     DISCIPLINES, VIRTUES, PATHS, VIT, HEALTH_STATES, GEN_LIMITS, 
@@ -11,7 +12,7 @@ import {
 } from './data.js';
 
 // --- VERSION CONTROL ---
-const APP_VERSION = "v1.15 (Health Logic Robustness)";
+const APP_VERSION = "v1.12 (Refactored Split)";
 
 // --- ERROR HANDLER ---
 window.onerror = function(msg, url, line) {
@@ -71,17 +72,13 @@ function hydrateInputs() {
 function renderDots(count, max = 5) { let h = ''; for(let i=1; i<=max; i++) h += `<span class="dot ${i <= count ? 'filled' : ''}" data-v="${i}"></span>`; return h; }
 function renderBoxes(count, checked = 0, type = '') { let h = ''; for(let i=1; i<=count; i++) h += `<span class="box ${i <= checked ? 'checked' : ''}" data-v="${i}" data-type="${type}"></span>`; return h; }
 
-// --- PLAY MODE INTERACTION (Improved) ---
+// --- PLAY MODE INTERACTION ---
 document.addEventListener('click', function(e) {
     if (!window.state.isPlayMode) return;
+    if (!e.target.classList.contains('box')) return;
     
-    // Find closest box element (handles clicking inner spans or borders)
-    const box = e.target.closest('.box');
-    if (!box) return;
-    
-    const type = box.dataset.type;
-    const val = parseInt(box.dataset.v);
-    
+    const type = e.target.dataset.type;
+    const val = parseInt(e.target.dataset.v);
     if (!type || isNaN(val)) return;
 
     if (type === 'wp') {
@@ -91,20 +88,10 @@ document.addEventListener('click', function(e) {
         if (window.state.status.blood === val) window.state.status.blood = val - 1;
         else window.state.status.blood = val;
     } else if (type === 'health') {
-        // Robust Health Logic
-        if (!window.state.status.health_states || !Array.isArray(window.state.status.health_states)) {
-            window.state.status.health_states = [0,0,0,0,0,0,0];
-        }
-        
         const idx = val - 1; 
-        const currentState = window.state.status.health_states[idx] || 0;
-        
-        // Cycle: 0(Empty) -> 1(/) -> 2(X) -> 3(*) -> 0
-        const newState = (currentState + 1) % 4;
-        window.state.status.health_states[idx] = newState;
-        
-        // Immediate visual update to prevent lag
-        box.dataset.state = newState;
+        if (window.state.status.health_states === undefined) window.state.status.health_states = [0,0,0,0,0,0,0];
+        const current = window.state.status.health_states[idx] || 0;
+        window.state.status.health_states[idx] = (current + 1) % 4;
     }
     window.updatePools();
 });
@@ -273,24 +260,6 @@ async function loadSelectedChar(data) {
     
     // UI Refresh
     hydrateInputs();
-    
-    // --- RESTORE PRIORITY BUTTONS VISUALLY ---
-    if(window.state.prios) {
-        // Clear all active buttons first
-        document.querySelectorAll('.prio-btn').forEach(btn => btn.classList.remove('active'));
-        
-        // Loop through saved priorities and activate matching buttons
-        Object.keys(window.state.prios).forEach(cat => {
-            if(window.state.prios[cat]) {
-                Object.entries(window.state.prios[cat]).forEach(([group, val]) => {
-                    const btn = document.querySelector(`.prio-btn[data-cat="${cat}"][data-group="${group}"][data-v="${val}"]`);
-                    if(btn) btn.classList.add('active');
-                });
-            }
-        });
-    }
-    // -----------------------------------------
-
     const mList = document.getElementById('merits-list-create');
     if(mList) { mList.innerHTML = ''; renderDynamicTraitRow('merits-list-create', 'Merit', V20_MERITS_LIST); }
     const fList = document.getElementById('flaws-list-create');
