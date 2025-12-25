@@ -707,7 +707,6 @@ function renderRow(contId, label, type, min, max = 5) {
     const val = window.state.dots[type][label] || min;
     const div = document.createElement('div'); div.className = 'flex flex-col py-1';
     
-    // Updated HTML structure for renderRow to include specialty input
     div.innerHTML = `
         <div class="flex justify-between items-center w-full">
             <span class="trait-label uppercase">${label}</span>
@@ -715,14 +714,35 @@ function renderRow(contId, label, type, min, max = 5) {
         </div>
     `;
     
-    // Specialty Input Logic (V1.10 - Lowered threshold to 1 for House Rules)
-    if (val >= 1) {
+    // Specialty Input Logic (V1.10)
+    let showSpecialty = false;
+    let warningMsg = "";
+
+    // 1. Virtues: No specialties.
+    if (type !== 'virt') {
+        if (type === 'attr') {
+            // Attributes: Strict 4 dot minimum
+            if (val >= 4) showSpecialty = true;
+        } else if (type === 'abil') {
+            // Abilities: 1 dot minimum
+            if (val >= 1) {
+                showSpecialty = true;
+                // Check if ability is generic (not Broad) and under 4 dots
+                if (!BROAD_ABILITIES.includes(label) && val < 4) {
+                    warningMsg = "Rule Note: Standard V20 requires 4 dots for specialties, but you may override.";
+                } else if (BROAD_ABILITIES.includes(label)) {
+                    warningMsg = "Rule Note: This ability is too broad to be used without a specialty.";
+                }
+            }
+        }
+    }
+
+    if (showSpecialty) {
         const specDiv = document.createElement('div');
         specDiv.className = 'w-full mt-1';
         const specVal = window.state.specialties[label] || "";
         const listId = `list-${label.replace(/\s+/g, '')}`;
         
-        // Dynamically create datalist options from SPECIALTY_EXAMPLES
         let optionsHTML = '';
         if (SPECIALTY_EXAMPLES[label]) {
             optionsHTML = SPECIALTY_EXAMPLES[label].map(s => `<option value="${s}">`).join('');
@@ -737,14 +757,9 @@ function renderRow(contId, label, type, min, max = 5) {
         input.onblur = (e) => {
             window.state.specialties[label] = e.target.value;
         };
-        input.onfocus = () => {
-             // Logic Update: Check for Broad abilities vs Generic rule
-             if (BROAD_ABILITIES.includes(label)) {
-                 showNotification("Rule Note: This ability is too broad to be used without a specialty.");
-             } else if (val < 4) {
-                 showNotification("Rule Note: Standard V20 requires 4 dots for specialties, but you may override.");
-             }
-        };
+        if (warningMsg) {
+            input.onfocus = () => showNotification(warningMsg);
+        }
         input.disabled = window.state.isPlayMode;
         
         div.appendChild(specDiv);
@@ -872,7 +887,20 @@ function renderDynamicAdvantageRow(containerId, type, list, isAbil = false) {
         
         // Custom trait specialty injection logic
         // Updated to allow specialties at rank 1+ for custom skills too
-        if (curName && (isAbil || type === 'attr') && (window.state.dots[type][curName] || 0) >= 1) {
+        let showSpecialty = false;
+        let warningMsg = "";
+
+        if (curName && isAbil) { // Only for custom abilities
+            const currentVal = window.state.dots[type][curName] || 0;
+            if (currentVal >= 1) {
+                showSpecialty = true;
+                if (currentVal < 4) {
+                    warningMsg = "Rule Note: Standard V20 requires 4 dots for specialties, but you may override.";
+                }
+            }
+        }
+
+        if (showSpecialty) {
              const specDiv = document.createElement('div');
              specDiv.className = 'w-full mt-1 ml-1';
              const specVal = window.state.specialties[curName] || "";
@@ -890,14 +918,9 @@ function renderDynamicAdvantageRow(containerId, type, list, isAbil = false) {
              
              const input = specDiv.querySelector('input');
              input.onblur = (e) => { window.state.specialties[curName] = e.target.value; };
-             input.onfocus = () => {
-                 const currentVal = window.state.dots[type][curName] || 0;
-                 if (BROAD_ABILITIES.includes(curName)) {
-                     showNotification("Rule Note: This ability is too broad to be used without a specialty.");
-                 } else if (currentVal < 4) {
-                     showNotification("Rule Note: Standard V20 requires 4 dots for specialties, but you may override.");
-                 }
-             };
+             if (warningMsg) {
+                 input.onfocus = () => showNotification(warningMsg);
+             }
              input.disabled = window.state.isPlayMode;
              row.appendChild(specDiv);
         }
