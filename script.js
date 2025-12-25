@@ -68,6 +68,41 @@ function hydrateInputs() {
     Object.entries(window.state.textFields || {}).forEach(([id, val]) => { const el = document.getElementById(id); if (el) el.value = val; });
 }
 
+// MOVED UP FOR SAFETY
+window.renderInventoryList = function() {
+    const listCarried = document.getElementById('inv-list-carried');
+    const listOwned = document.getElementById('inv-list-owned');
+    const listVehicles = document.getElementById('vehicle-list');
+    if(listCarried) listCarried.innerHTML = '';
+    if(listOwned) listOwned.innerHTML = '';
+    if(listVehicles) listVehicles.innerHTML = '';
+    if(!listCarried || !listOwned || !listVehicles) return;
+    (window.state.inventory || []).forEach((item, idx) => {
+        const d = document.createElement('div');
+        d.className = "flex justify-between items-center bg-black/40 border border-[#333] p-1 text-[10px] mb-1";
+        let displayName = item.displayName || item.name;
+        if(item.type === 'Weapon' && item.baseType && item.baseType !== displayName) displayName += ` <span class="text-gray-500">[${item.baseType}]</span>`;
+        let details = "";
+        if(item.type === 'Weapon') details = `<div class="text-gray-400 text-[9px] mt-0.5 ml-1">Diff:${item.stats.diff} Dmg:${item.stats.dmg} Rng:${item.stats.range}</div>`;
+        else if(item.type === 'Armor') details = `<div class="text-gray-400 text-[9px] mt-0.5 ml-1">Rating:${item.stats.rating} Penalty:${item.stats.penalty}</div>`;
+        else if(item.type === 'Vehicle') details = `<div class="text-gray-400 text-[9px] mt-0.5 ml-1">Safe:${item.stats.safe} Max:${item.stats.max} Man:${item.stats.man}</div>`;
+        const statusColor = item.status === 'carried' ? 'text-green-400' : 'text-gray-500';
+        const statusLabel = item.status === 'carried' ? 'CARRIED' : 'OWNED';
+        d.innerHTML = `
+            <div class="flex-1 overflow-hidden mr-2"><div class="font-bold text-white uppercase truncate" title="${item.displayName || item.name}">${displayName}</div>${details}</div>
+            <div class="flex items-center gap-2 flex-shrink-0">
+                ${item.type !== 'Vehicle' ? `<button class="${statusColor} font-bold text-[8px] border border-[#333] px-1 hover:bg-[#222]" onclick="window.toggleInvStatus(${idx})">${statusLabel}</button>` : ''}
+                <button class="text-red-500 font-bold px-1 hover:text-red-300" onclick="window.removeInventory(${idx})">&times;</button>
+            </div>`;
+        if (item.type === 'Vehicle') listVehicles.appendChild(d);
+        else { if (item.status === 'carried') listCarried.appendChild(d); else listOwned.appendChild(d); }
+    });
+    window.updatePools();
+};
+
+window.removeInventory = (idx) => { window.state.inventory.splice(idx, 1); window.renderInventoryList(); };
+window.toggleInvStatus = (idx) => { const item = window.state.inventory[idx]; item.status = item.status === 'carried' ? 'owned' : 'carried'; window.renderInventoryList(); };
+
 function renderDots(count, max = 5) { let h = ''; for(let i=1; i<=max; i++) h += `<span class="dot ${i <= count ? 'filled' : ''}" data-v="${i}"></span>`; return h; }
 function renderBoxes(count, checked = 0, type = '') { let h = ''; for(let i=1; i<=count; i++) h += `<span class="box ${i <= checked ? 'checked' : ''}" data-v="${i}" data-type="${type}"></span>`; return h; }
 
@@ -598,8 +633,73 @@ window.updatePools = function() {
     window.updateWalkthrough();
 };
 
-window.removeInventory = (idx) => { window.state.inventory.splice(idx, 1); window.renderInventoryList(); };
-window.toggleInvStatus = (idx) => { const item = window.state.inventory[idx]; item.status = item.status === 'carried' ? 'owned' : 'carried'; window.renderInventoryList(); };
+function setDots(name, type, val, min, max = 5) {
+    if (window.state.isPlayMode) return;
+    if (type === 'status') {
+        if (!window.state.freebieMode) return;
+        if (name === 'Humanity') window.state.status.humanity = val;
+        else if (name === 'Willpower') {
+            window.state.status.willpower = val;
+            window.state.status.tempWillpower = val; // Sync temp when permanent changes
+        }
+        if (calculateTotalFreebiesSpent(window.state) > (parseInt(document.getElementById('c-freebie-total')?.value) || 15)) { showNotification("Freebie Limit Exceeded!"); return; }
+        window.updatePools(); return;
+    }
+    const currentVal = window.state.dots[type][name] || min;
+    let newVal = val;
+    if (val === currentVal) newVal = val - 1;
+    if (newVal < min) newVal = min;
+    if (window.state.freebieMode) {
+        const tempState = JSON.parse(JSON.stringify(window.state));
+        if (!tempState.dots[type]) tempState.dots[type] = {};
+        tempState.dots[type][name] = newVal;
+        const projectedCost = calculateTotalFreebiesSpent(tempState);
+        const limit = parseInt(document.getElementById('c-freebie-total')?.value) || 15;
+        if (projectedCost > limit) { showNotification("Freebie Limit Exceeded!"); return; }
+    } else {
+        if (type === 'attr') {
+            let group = null; Object.keys(ATTRIBUTES).forEach(k => { if(ATTRIBUTES[k].includes(name)) group = k; });
+            if (group) {
+                 const limit = window.state.prios.attr[group];
+                 if (limit === undefined) { showNotification(`Select priority for ${group}!`); return; }
+                 let currentSpent = 0;
+                 ATTRIBUTES[group].forEach(a => { if (a !== name) { const v = window.state.dots.attr[a] || 1; currentSpent += (v - 1); } });
+                 if (currentSpent + (newVal - 1) > limit) { showNotification("Limit Exceeded!"); return; }
+            }
+        } else if (type === 'abil') {
+            if (newVal > 3) { showNotification("Max 3 dots in Abilities during creation!"); return; }
+            let group = null; Object.keys(ABILITIES).forEach(k => { if(ABILITIES[k].includes(name)) group = k; });
+            if (!group && window.state.customAbilityCategories && window.state.customAbilityCategories[name]) group = window.state.customAbilityCategories[name];
+            if (group) {
+                const limit = window.state.prios.abil[group];
+                if (limit === undefined) { showNotification(`Select priority for ${group}!`); return; }
+                let currentSpent = 0; ABILITIES[group].forEach(a => { if (a !== name) currentSpent += (window.state.dots.abil[a] || 0); });
+                if (window.state.customAbilityCategories) { Object.keys(window.state.dots.abil).forEach(k => { if (k !== name && window.state.customAbilityCategories[k] === group) currentSpent += (window.state.dots.abil[k] || 0); }); }
+                if (currentSpent + newVal > limit) { showNotification("Limit Exceeded!"); return; }
+            }
+        } else if (type === 'disc') {
+            let currentSpent = 0; Object.keys(window.state.dots.disc).forEach(d => { if (d !== name) currentSpent += (window.state.dots.disc[d] || 0); });
+            if (currentSpent + newVal > 3) { showNotification("Max 3 Creation Dots!"); return; }
+        } else if (type === 'back') {
+            let currentSpent = 0; Object.keys(window.state.dots.back).forEach(b => { if (b !== name) currentSpent += (window.state.dots.back[b] || 0); });
+            if (currentSpent + newVal > 5) { showNotification("Max 5 Creation Dots!"); return; }
+        } else if (type === 'virt') {
+            let currentSpent = 0; VIRTUES.forEach(v => { if (v !== name) currentSpent += (window.state.dots.virt[v] || 1); });
+            if ((currentSpent + newVal) > 10) { showNotification("Max 7 Creation Dots!"); return; }
+        }
+    }
+    window.state.dots[type][name] = newVal;
+    if (type === 'virt' && !window.state.isPlayMode && !window.state.freebieMode) {
+         const con = window.state.dots.virt.Conscience || 1;
+         const self = window.state.dots.virt["Self-Control"] || 1;
+         const cou = window.state.dots.virt.Courage || 1;
+         window.state.status.humanity = con + self;
+         window.state.status.willpower = cou;
+         window.state.status.tempWillpower = cou;
+    }
+    document.querySelectorAll(`.dot-row[data-n="${name}"][data-t="${type}"]`).forEach(el => el.innerHTML = renderDots(newVal, max));
+    window.updatePools();
+}
 
 function renderRow(contId, label, type, min, max = 5) {
     const cont = typeof contId === 'string' ? document.getElementById(contId) : contId;
