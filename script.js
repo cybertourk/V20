@@ -311,6 +311,14 @@ async function loadSelectedChar(data) {
     window.renderInventoryList();
     window.updatePools();
     
+    // Re-render standard rows to ensure specialties appear if data exists
+    if(window.state.dots.attr) {
+        Object.keys(ATTRIBUTES).forEach(c => ATTRIBUTES[c].forEach(a => { refreshTraitRow(a, 'attr'); }));
+    }
+    if(window.state.dots.abil) {
+        Object.keys(ABILITIES).forEach(c => ABILITIES[c].forEach(a => { refreshTraitRow(a, 'abil'); }));
+    }
+    
     // Close Modal
     document.getElementById('load-modal').classList.remove('active');
     showNotification("Recalled.");
@@ -633,6 +641,75 @@ window.updatePools = function() {
     window.updateWalkthrough();
 };
 
+// ============================================
+// NEW: Helper to refresh specific row UI
+// ============================================
+function refreshTraitRow(label, type) {
+    const safeId = 'trait-row-' + type + '-' + label.replace(/[^a-zA-Z0-9]/g, '');
+    const rowDiv = document.getElementById(safeId);
+    if(!rowDiv) return; // Should exist if rendered by renderRow
+
+    const min = (type === 'attr') ? 1 : 0;
+    const val = window.state.dots[type][label] || min;
+    const max = 5;
+
+    // Recalculate specialty logic (Copied from renderRow)
+    let showSpecialty = false;
+    let warningMsg = "";
+
+    if (type !== 'virt') {
+        if (type === 'attr') {
+            if (val >= 4) showSpecialty = true;
+        } else if (type === 'abil') {
+            if (val >= 1) {
+                showSpecialty = true;
+                if (!BROAD_ABILITIES.includes(label) && val < 4) {
+                    warningMsg = "Rule Note: Standard V20 requires 4 dots for specialties, but you may override.";
+                } else if (BROAD_ABILITIES.includes(label)) {
+                    warningMsg = "Rule Note: This ability is too broad to be used without a specialty.";
+                }
+            }
+        }
+    }
+
+    let specInputHTML = '';
+    if (showSpecialty) {
+        const specVal = window.state.specialties[label] || "";
+        const listId = `list-${label.replace(/[^a-zA-Z0-9]/g, '')}`;
+        let optionsHTML = '';
+        if (SPECIALTY_EXAMPLES[label]) {
+            optionsHTML = SPECIALTY_EXAMPLES[label].map(s => `<option value="${s}">`).join('');
+        }
+        
+        specInputHTML = `
+            <div class="flex-1 mx-2 relative">
+                <input type="text" list="${listId}" class="specialty-input w-full text-[10px] italic bg-transparent border-b border-gray-700 text-[#d4af37] text-center" placeholder="Specialty..." value="${specVal}">
+                <datalist id="${listId}">${optionsHTML}</datalist>
+            </div>
+        `;
+    } else {
+        specInputHTML = '<div class="flex-1"></div>'; 
+    }
+
+    rowDiv.innerHTML = `
+        <span class="trait-label font-bold uppercase text-[11px] whitespace-nowrap cursor-pointer hover:text-gold">${label}</span>
+        ${specInputHTML}
+        <div class="dot-row flex-shrink-0" data-n="${label}" data-t="${type}">${renderDots(val, max)}</div>
+    `;
+
+    rowDiv.querySelector('.trait-label').onclick = () => { if(window.state.isPlayMode) window.handleTraitClick(label, type); };
+    rowDiv.querySelector('.dot-row').onclick = (e) => { if (e.target.dataset.v) setDots(label, type, parseInt(e.target.dataset.v), min, max); };
+    
+    if(showSpecialty) {
+        const input = rowDiv.querySelector('input');
+        if(input) {
+            input.onblur = (e) => { window.state.specialties[label] = e.target.value; };
+            if (warningMsg) { input.onfocus = () => showNotification(warningMsg); }
+            input.disabled = window.state.isPlayMode;
+        }
+    }
+}
+
 function setDots(name, type, val, min, max = 5) {
     if (window.state.isPlayMode) return;
     if (type === 'status') {
@@ -697,7 +774,15 @@ function setDots(name, type, val, min, max = 5) {
          window.state.status.willpower = cou;
          window.state.status.tempWillpower = cou;
     }
-    document.querySelectorAll(`.dot-row[data-n="${name}"][data-t="${type}"]`).forEach(el => el.innerHTML = renderDots(newVal, max));
+    
+    // UPDATED: Refresh Logic
+    if (type === 'attr' || type === 'abil') {
+        // Full Refresh needed to toggle Specialty input
+        refreshTraitRow(name, type);
+    } else {
+        // Just update dots for other types
+        document.querySelectorAll(`.dot-row[data-n="${name}"][data-t="${type}"]`).forEach(el => el.innerHTML = renderDots(newVal, max));
+    }
     window.updatePools();
 }
 
@@ -706,6 +791,9 @@ function renderRow(contId, label, type, min, max = 5) {
     if (!cont) return;
     const val = window.state.dots[type][label] || min;
     const div = document.createElement('div'); 
+    
+    // Assign ID for easier refresh
+    div.id = 'trait-row-' + type + '-' + label.replace(/[^a-zA-Z0-9]/g, '');
     
     // Check for specialty eligibility
     let showSpecialty = false;
@@ -732,7 +820,7 @@ function renderRow(contId, label, type, min, max = 5) {
     let specInputHTML = '';
     if (showSpecialty) {
         const specVal = window.state.specialties[label] || "";
-        const listId = `list-${label.replace(/\s+/g, '')}`;
+        const listId = `list-${label.replace(/[^a-zA-Z0-9]/g, '')}`;
         let optionsHTML = '';
         if (SPECIALTY_EXAMPLES[label]) {
             optionsHTML = SPECIALTY_EXAMPLES[label].map(s => `<option value="${s}">`).join('');
@@ -943,7 +1031,46 @@ function renderDynamicAdvantageRow(containerId, type, list, isAbil = false) {
                     if (currentSpent + val > 5) { showNotification("Max 5 Creation Dots for Backgrounds!"); return; }
                 }
             }
-            window.state.dots[type][curName] = val; dotCont.innerHTML = renderDots(val, 5); window.updatePools(); 
+            window.state.dots[type][curName] = val; 
+            
+            // --- UPDATED LOGIC TO RE-RENDER FOR SPECIALTY INPUT ---
+            // If we cross 0->1 or 1->0, we need to rebuild the row to show/hide specialty
+            const wasZero = currentVal === 0;
+            const isZero = val === 0;
+            if (wasZero !== isZero) {
+                // Simplest way to refresh structure for dynamic row is to replace it
+                // But we want to keep focus if possible? Or just rebuild.
+                // Since this function is closed over `row`, we can't easily recall `buildRow` on the same element.
+                // We will manually update the specWrapper HTML
+                let showSpecialty = false;
+                let warningMsg = "";
+                if (curName && (isAbil || type === 'attr') && val >= 1) {
+                     showSpecialty = true;
+                     if (val < 4) warningMsg = "Rule Note: Standard V20 requires 4 dots for specialties, but you may override.";
+                     if (BROAD_ABILITIES.includes(curName)) warningMsg = "Rule Note: This ability is too broad to be used without a specialty.";
+                }
+                
+                specWrapper.innerHTML = '';
+                if (showSpecialty) {
+                     const specVal = window.state.specialties[curName] || "";
+                     const listId = `list-${curName.replace(/[^a-zA-Z0-9]/g, '')}`;
+                     let optionsHTML = '';
+                     if (SPECIALTY_EXAMPLES[curName]) optionsHTML = SPECIALTY_EXAMPLES[curName].map(s => `<option value="${s}">`).join('');
+                     
+                     specWrapper.innerHTML = `
+                        <input type="text" list="${listId}" class="specialty-input w-full text-[10px] italic bg-transparent border-b border-gray-700 text-[#d4af37] text-center" placeholder="Specialty..." value="${specVal}">
+                        <datalist id="${listId}">${optionsHTML}</datalist>
+                     `;
+                     const inp = specWrapper.querySelector('input');
+                     inp.onblur = (e) => { window.state.specialties[curName] = e.target.value; };
+                     if(warningMsg) inp.onfocus = () => showNotification(warningMsg);
+                     inp.disabled = window.state.isPlayMode;
+                }
+            }
+            // -------------------------------------------------------
+
+            dotCont.innerHTML = renderDots(val, 5); 
+            window.updatePools(); 
         };
 
         row.appendChild(inputField);
