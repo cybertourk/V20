@@ -705,29 +705,18 @@ function renderRow(contId, label, type, min, max = 5) {
     const cont = typeof contId === 'string' ? document.getElementById(contId) : contId;
     if (!cont) return;
     const val = window.state.dots[type][label] || min;
-    const div = document.createElement('div'); div.className = 'flex flex-col py-1';
+    const div = document.createElement('div'); 
     
-    div.innerHTML = `
-        <div class="flex justify-between items-center w-full">
-            <span class="trait-label uppercase">${label}</span>
-            <div class="dot-row" data-n="${label}" data-t="${type}">${renderDots(val, max)}</div>
-        </div>
-    `;
-    
-    // Specialty Input Logic (V1.10)
+    // Check for specialty eligibility
     let showSpecialty = false;
     let warningMsg = "";
 
-    // 1. Virtues: No specialties.
     if (type !== 'virt') {
         if (type === 'attr') {
-            // Attributes: Strict 4 dot minimum
             if (val >= 4) showSpecialty = true;
         } else if (type === 'abil') {
-            // Abilities: 1 dot minimum
             if (val >= 1) {
                 showSpecialty = true;
-                // Check if ability is generic (not Broad) and under 4 dots
                 if (!BROAD_ABILITIES.includes(label) && val < 4) {
                     warningMsg = "Rule Note: Standard V20 requires 4 dots for specialties, but you may override.";
                 } else if (BROAD_ABILITIES.includes(label)) {
@@ -737,36 +726,48 @@ function renderRow(contId, label, type, min, max = 5) {
         }
     }
 
+    // HTML Construction: Flex row to handle "Name - Specialty - Dots"
+    div.className = 'flex items-center justify-between w-full py-1';
+    
+    let specInputHTML = '';
     if (showSpecialty) {
-        const specDiv = document.createElement('div');
-        specDiv.className = 'w-full mt-1';
         const specVal = window.state.specialties[label] || "";
         const listId = `list-${label.replace(/\s+/g, '')}`;
-        
         let optionsHTML = '';
         if (SPECIALTY_EXAMPLES[label]) {
             optionsHTML = SPECIALTY_EXAMPLES[label].map(s => `<option value="${s}">`).join('');
         }
         
-        specDiv.innerHTML = `
-            <input type="text" list="${listId}" class="specialty-input w-full text-[9px] bg-transparent border-b border-gray-700 text-[#d4af37] italic pl-2" placeholder="Specialty..." value="${specVal}">
-            <datalist id="${listId}">${optionsHTML}</datalist>
+        specInputHTML = `
+            <div class="flex-1 mx-2 relative">
+                <input type="text" list="${listId}" class="specialty-input w-full text-[10px] italic bg-transparent border-b border-gray-700 text-[#d4af37] text-center" placeholder="Specialty..." value="${specVal}">
+                <datalist id="${listId}">${optionsHTML}</datalist>
+            </div>
         `;
-        
-        const input = specDiv.querySelector('input');
-        input.onblur = (e) => {
-            window.state.specialties[label] = e.target.value;
-        };
-        if (warningMsg) {
-            input.onfocus = () => showNotification(warningMsg);
-        }
-        input.disabled = window.state.isPlayMode;
-        
-        div.appendChild(specDiv);
+    } else {
+        // Spacer to keep layout somewhat consistent if desired, or just nothing for "Name .... Dots"
+        specInputHTML = '<div class="flex-1"></div>'; 
     }
+
+    div.innerHTML = `
+        <span class="trait-label font-bold uppercase text-[11px] whitespace-nowrap cursor-pointer hover:text-gold">${label}</span>
+        ${specInputHTML}
+        <div class="dot-row flex-shrink-0" data-n="${label}" data-t="${type}">${renderDots(val, max)}</div>
+    `;
 
     div.querySelector('.trait-label').onclick = () => { if(window.state.isPlayMode) window.handleTraitClick(label, type); };
     div.querySelector('.dot-row').onclick = (e) => { if (e.target.dataset.v) setDots(label, type, parseInt(e.target.dataset.v), min, max); };
+    
+    // Attach specialty input listeners if present
+    if(showSpecialty) {
+        const input = div.querySelector('input');
+        if(input) {
+            input.onblur = (e) => { window.state.specialties[label] = e.target.value; };
+            if (warningMsg) { input.onfocus = () => showNotification(warningMsg); }
+            input.disabled = window.state.isPlayMode;
+        }
+    }
+
     cont.appendChild(div);
 }
 
@@ -819,17 +820,76 @@ function renderDynamicAdvantageRow(containerId, type, list, isAbil = false) {
     } else { if (window.state.dots[type]) existingItems = Object.keys(window.state.dots[type]); }
 
     const buildRow = (name = "") => {
-        const row = document.createElement('div'); row.className = 'flex flex-col gap-1 mb-2 advantage-row';
-        const head = document.createElement('div'); head.className = 'flex justify-between items-center';
+        const row = document.createElement('div'); 
+        // Layout: Flex Row for Name - Specialty - Dots - Remove
+        row.className = 'flex items-center justify-between gap-1 mb-2 advantage-row w-full';
+        
+        // 1. Input/Select (Name)
         let inputField;
-        if (isAbil) { inputField = document.createElement('input'); inputField.type = 'text'; inputField.placeholder = "Write-in..."; inputField.className = 'flex-1 mr-4 text-[10px] font-bold uppercase !bg-black/20 !border-b !border-[#333]'; inputField.value = name; } 
-        else { inputField = document.createElement('select'); inputField.className = 'flex-1 mr-4 text-[11px] font-bold uppercase'; inputField.innerHTML = `<option value="">-- Choose ${type} --</option>` + list.map(item => `<option value="${item}" ${item === name ? 'selected' : ''}>${item}</option>`).join(''); }
-        const dotCont = document.createElement('div'); dotCont.className = 'dot-row';
+        if (isAbil) { 
+            inputField = document.createElement('input'); 
+            inputField.type = 'text'; 
+            inputField.placeholder = "Write-in..."; 
+            // Name should be bold, font slightly larger than specialty
+            inputField.className = 'font-bold uppercase !bg-black/20 !border-b !border-[#333] text-[11px] w-24 flex-shrink-0'; 
+            inputField.value = name; 
+        } else { 
+            inputField = document.createElement('select'); 
+            inputField.className = 'font-bold uppercase text-[11px] w-24 flex-shrink-0'; 
+            inputField.innerHTML = `<option value="">-- Choose ${type} --</option>` + list.map(item => `<option value="${item}" ${item === name ? 'selected' : ''}>${item}</option>`).join(''); 
+        }
+
+        // 2. Specialty Logic
+        let showSpecialty = false;
+        let warningMsg = "";
+        if (name && (isAbil || type === 'attr')) { // Logic for custom/dynamic rows
+             const currentVal = window.state.dots[type][name] || 0;
+             if (currentVal >= 1) {
+                 showSpecialty = true;
+                 if (currentVal < 4) {
+                     warningMsg = "Rule Note: Standard V20 requires 4 dots for specialties, but you may override.";
+                 }
+                 // Custom abilities check for broadness if name matches standard list, but these are custom writes usually
+                 if (BROAD_ABILITIES.includes(name)) warningMsg = "Rule Note: This ability is too broad to be used without a specialty.";
+             }
+        }
+
+        // 3. Specialty Input HTML
+        const specWrapper = document.createElement('div');
+        specWrapper.className = 'flex-1 mx-2 relative'; // Takes remaining middle space
+        
+        if (showSpecialty) {
+             const specVal = window.state.specialties[name] || "";
+             const listId = `list-${name.replace(/[^a-zA-Z0-9]/g, '')}`;
+             let optionsHTML = '';
+             if (SPECIALTY_EXAMPLES[name]) {
+                 optionsHTML = SPECIALTY_EXAMPLES[name].map(s => `<option value="${s}">`).join('');
+             }
+             
+             specWrapper.innerHTML = `
+                <input type="text" list="${listId}" class="specialty-input w-full text-[10px] italic bg-transparent border-b border-gray-700 text-[#d4af37] text-center" placeholder="Specialty..." value="${specVal}">
+                <datalist id="${listId}">${optionsHTML}</datalist>
+             `;
+             const inp = specWrapper.querySelector('input');
+             inp.onblur = (e) => { window.state.specialties[name] = e.target.value; };
+             if(warningMsg) inp.onfocus = () => showNotification(warningMsg);
+             inp.disabled = window.state.isPlayMode;
+        }
+
+        // 4. Dots
+        const dotCont = document.createElement('div'); 
+        dotCont.className = 'dot-row flex-shrink-0';
         const val = name ? (window.state.dots[type][name] || 0) : 0;
         dotCont.innerHTML = renderDots(val, 5);
         if (name) { dotCont.dataset.n = name; dotCont.dataset.t = type; }
-        const removeBtn = document.createElement('div'); removeBtn.className = 'remove-btn'; removeBtn.innerHTML = '&times;';
+
+        // 5. Remove Button
+        const removeBtn = document.createElement('div'); 
+        removeBtn.className = 'remove-btn flex-shrink-0 ml-1'; 
+        removeBtn.innerHTML = '&times;';
         if (!name) removeBtn.style.visibility = 'hidden';
+
+        // Event Listeners for Update Logic (Same as before)
         let curName = name;
         let category = null;
         if (containerId === 'custom-talents') category = 'Talents'; else if (containerId === 'custom-skills') category = 'Skills'; else if (containerId === 'custom-knowledges') category = 'Knowledges';
@@ -855,8 +915,11 @@ function renderDynamicAdvantageRow(containerId, type, list, isAbil = false) {
             }
             window.updatePools();
         };
+        
         if (isAbil) inputField.onblur = (e) => onUpdate(e.target.value); else inputField.onchange = (e) => onUpdate(e.target.value);
+        
         removeBtn.onclick = () => { if (curName) { delete window.state.dots[type][curName]; if (window.state.customAbilityCategories && window.state.customAbilityCategories[curName]) delete window.state.customAbilityCategories[curName]; } row.remove(); window.updatePools(); };
+        
         dotCont.onclick = (e) => { 
             if (!curName || !e.target.dataset.v) return; 
             let val = parseInt(e.target.dataset.v);
@@ -882,49 +945,11 @@ function renderDynamicAdvantageRow(containerId, type, list, isAbil = false) {
             }
             window.state.dots[type][curName] = val; dotCont.innerHTML = renderDots(val, 5); window.updatePools(); 
         };
-        head.appendChild(inputField); head.appendChild(dotCont); head.appendChild(removeBtn);
-        row.appendChild(head); 
-        
-        // Custom trait specialty injection logic
-        // Updated to allow specialties at rank 1+ for custom skills too
-        let showSpecialty = false;
-        let warningMsg = "";
 
-        if (curName && isAbil) { // Only for custom abilities
-            const currentVal = window.state.dots[type][curName] || 0;
-            if (currentVal >= 1) {
-                showSpecialty = true;
-                if (currentVal < 4) {
-                    warningMsg = "Rule Note: Standard V20 requires 4 dots for specialties, but you may override.";
-                }
-            }
-        }
-
-        if (showSpecialty) {
-             const specDiv = document.createElement('div');
-             specDiv.className = 'w-full mt-1 ml-1';
-             const specVal = window.state.specialties[curName] || "";
-             // Use generic list for custom items or look up if name matches known ability
-             const listId = `list-${curName.replace(/[^a-zA-Z0-9]/g, '')}`;
-             let optionsHTML = '';
-             if (SPECIALTY_EXAMPLES[curName]) {
-                 optionsHTML = SPECIALTY_EXAMPLES[curName].map(s => `<option value="${s}">`).join('');
-             }
-             
-             specDiv.innerHTML = `
-                <input type="text" list="${listId}" class="specialty-input w-full text-[9px] bg-transparent border-b border-gray-700 text-[#d4af37] italic pl-2" placeholder="Specialty..." value="${specVal}">
-                <datalist id="${listId}">${optionsHTML}</datalist>
-             `;
-             
-             const input = specDiv.querySelector('input');
-             input.onblur = (e) => { window.state.specialties[curName] = e.target.value; };
-             if (warningMsg) {
-                 input.onfocus = () => showNotification(warningMsg);
-             }
-             input.disabled = window.state.isPlayMode;
-             row.appendChild(specDiv);
-        }
-        
+        row.appendChild(inputField);
+        row.appendChild(specWrapper);
+        row.appendChild(dotCont);
+        row.appendChild(removeBtn);
         container.appendChild(row);
     };
     existingItems.forEach(item => buildRow(item));
