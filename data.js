@@ -684,7 +684,7 @@ function refreshTraitRow(label, type) {
         } else {
             const listId = `list-${label.replace(/[^a-zA-Z0-9]/g, '')}`;
             let optionsHTML = '';
-            if (SPECIALTY_EXAMPLES[label]) {
+            if (SPECIALTY_EXAMPLES && SPECIALTY_EXAMPLES[label]) {
                 optionsHTML = SPECIALTY_EXAMPLES[label].map(s => `<option value="${s}">`).join('');
             }
             
@@ -834,7 +834,7 @@ function renderRow(contId, label, type, min, max = 5) {
         } else {
             const listId = `list-${label.replace(/[^a-zA-Z0-9]/g, '')}`;
             let optionsHTML = '';
-            if (SPECIALTY_EXAMPLES[label]) {
+            if (SPECIALTY_EXAMPLES && SPECIALTY_EXAMPLES[label]) {
                 optionsHTML = SPECIALTY_EXAMPLES[label].map(s => `<option value="${s}">`).join('');
             }
             
@@ -994,7 +994,7 @@ function renderDynamicAdvantageRow(containerId, type, list, isAbil = false) {
              } else {
                  const listId = `list-${name.replace(/[^a-zA-Z0-9]/g, '')}`;
                  let optionsHTML = '';
-                 if (SPECIALTY_EXAMPLES[name]) {
+                 if (SPECIALTY_EXAMPLES && SPECIALTY_EXAMPLES[name]) {
                      optionsHTML = SPECIALTY_EXAMPLES[name].map(s => `<option value="${s}">`).join('');
                  }
                  
@@ -1104,7 +1104,9 @@ function renderDynamicAdvantageRow(containerId, type, list, isAbil = false) {
                      } else {
                          const listId = `list-${curName.replace(/[^a-zA-Z0-9]/g, '')}`;
                          let optionsHTML = '';
-                         if (SPECIALTY_EXAMPLES[curName]) optionsHTML = SPECIALTY_EXAMPLES[curName].map(s => `<option value="${s}">`).join('');
+                         if (SPECIALTY_EXAMPLES && SPECIALTY_EXAMPLES[curName]) {
+                             optionsHTML = SPECIALTY_EXAMPLES[curName].map(s => `<option value="${s}">`).join('');
+                         }
                          
                          specWrapper.innerHTML = `
                             <input type="text" list="${listId}" class="specialty-input w-full text-[10px] italic bg-transparent border-b border-gray-700 text-[#d4af37] text-center" placeholder="Specialty..." value="${specVal}">
@@ -1131,70 +1133,6 @@ function renderDynamicAdvantageRow(containerId, type, list, isAbil = false) {
     };
     existingItems.forEach(item => buildRow(item));
     buildRow();
-}
-
-function renderDynamicTraitRow(containerId, type, list) {
-    const container = document.getElementById(containerId);
-    if (!container) return;
-    const stateArray = type === 'Merit' ? (window.state.merits || []) : (window.state.flaws || []);
-    container.innerHTML = '';
-    const appendRow = (data = null) => {
-        const row = document.createElement('div'); row.className = 'flex gap-2 items-center mb-2 trait-row';
-        let options = `<option value="">-- Select ${type} --</option>`;
-        list.forEach(item => {
-            const rangeText = item.range ? `(${item.range}pt)` : `(${item.v}pt)`;
-            options += `<option value="${item.n}" data-val="${item.v}" data-var="${item.variable||false}">${item.n} ${rangeText}</option>`;
-        });
-        options += '<option value="Custom">-- Custom / Write-in --</option>';
-        row.innerHTML = `<div class="flex-1 relative"><select class="w-full text-[11px] font-bold uppercase bg-[#111] text-white border-b border-[#444]">${options}</select><input type="text" placeholder="Custom Name..." class="hidden w-full text-[11px] font-bold uppercase border-b border-[#444] bg-transparent text-white"></div><input type="number" class="w-10 text-center text-[11px] !border !border-[#444] font-bold" min="1"><div class="remove-btn">&times;</div>`;
-        container.appendChild(row);
-        const selectEl = row.querySelector('select');
-        const textEl = row.querySelector('input[type="text"]');
-        const numEl = row.querySelector('input[type="number"]');
-        const removeBtn = row.querySelector('.remove-btn');
-        const isLocked = !window.state.freebieMode;
-        selectEl.disabled = isLocked; textEl.disabled = isLocked; numEl.disabled = isLocked;
-        if(isLocked) { selectEl.classList.add('opacity-50'); textEl.classList.add('opacity-50'); numEl.classList.add('opacity-50'); }
-        if (data) {
-            const exists = list.some(l => l.n === data.name);
-            if (exists) {
-                selectEl.value = data.name; numEl.value = data.val;
-                const itemData = list.find(l => l.n === data.name);
-                if (itemData && !itemData.variable) { numEl.disabled = true; numEl.classList.add('opacity-50'); }
-            } else { selectEl.value = "Custom"; selectEl.classList.add('hidden'); textEl.classList.remove('hidden'); textEl.value = data.name; numEl.value = data.val; }
-        } else { numEl.value = ""; removeBtn.style.visibility = 'hidden'; }
-        const syncState = () => {
-            const allRows = container.querySelectorAll('.trait-row');
-            const newState = [];
-            allRows.forEach(r => {
-                const s = r.querySelector('select');
-                const t = r.querySelector('input[type="text"]');
-                const n = r.querySelector('input[type="number"]');
-                let name = s.value === 'Custom' ? t.value : s.value;
-                let val = parseInt(n.value) || 0;
-                if (name && name !== 'Custom') newState.push({ name, val });
-            });
-            if (type === 'Merit') window.state.merits = newState; else window.state.flaws = newState;
-            window.updatePools();
-        };
-        selectEl.addEventListener('change', (e) => {
-            if (selectEl.value === 'Custom') { selectEl.classList.add('hidden'); textEl.classList.remove('hidden'); textEl.focus(); numEl.value = 1; numEl.disabled = false; numEl.classList.remove('opacity-50'); } 
-            else if (selectEl.value) {
-                const opt = selectEl.options[selectEl.selectedIndex];
-                const baseVal = opt.dataset.val;
-                const isVar = opt.dataset.var === "true";
-                numEl.value = baseVal;
-                if (!isVar) { numEl.disabled = true; numEl.classList.add('opacity-50'); } else { numEl.disabled = false; numEl.classList.remove('opacity-50'); }
-                if (row === container.lastElementChild) { removeBtn.style.visibility = 'visible'; appendRow(); }
-            } else { numEl.value = ""; numEl.disabled = false; }
-            syncState();
-        });
-        textEl.addEventListener('blur', () => { if (textEl.value === "") { textEl.classList.add('hidden'); selectEl.classList.remove('hidden'); selectEl.value = ""; } else { if (row === container.lastElementChild) { removeBtn.style.visibility = 'visible'; appendRow(); } } syncState(); });
-        numEl.addEventListener('change', syncState);
-        removeBtn.addEventListener('click', () => { row.remove(); syncState(); });
-    };
-    if (stateArray.length > 0) stateArray.forEach(d => appendRow(d));
-    appendRow();
 }
 
 // Inventory UI Setup
@@ -1544,7 +1482,10 @@ try {
     // ---------------------------------------
     
     // Render the initial UI
-    window.changeStep(1); 
+    window.changeStep(1);
+    
+    console.log("Script Loaded Successfully.");
+    
 } catch(e) {
     console.error("UI Init Error:", e);
     const notif = document.getElementById('notification');
