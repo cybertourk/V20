@@ -684,7 +684,7 @@ function refreshTraitRow(label, type) {
         } else {
             const listId = `list-${label.replace(/[^a-zA-Z0-9]/g, '')}`;
             let optionsHTML = '';
-            if (SPECIALTY_EXAMPLES[label]) {
+            if (SPECIALTY_EXAMPLES && SPECIALTY_EXAMPLES[label]) {
                 optionsHTML = SPECIALTY_EXAMPLES[label].map(s => `<option value="${s}">`).join('');
             }
             
@@ -834,7 +834,7 @@ function renderRow(contId, label, type, min, max = 5) {
         } else {
             const listId = `list-${label.replace(/[^a-zA-Z0-9]/g, '')}`;
             let optionsHTML = '';
-            if (SPECIALTY_EXAMPLES[label]) {
+            if (SPECIALTY_EXAMPLES && SPECIALTY_EXAMPLES[label]) {
                 optionsHTML = SPECIALTY_EXAMPLES[label].map(s => `<option value="${s}">`).join('');
             }
             
@@ -994,7 +994,7 @@ function renderDynamicAdvantageRow(containerId, type, list, isAbil = false) {
              } else {
                  const listId = `list-${name.replace(/[^a-zA-Z0-9]/g, '')}`;
                  let optionsHTML = '';
-                 if (SPECIALTY_EXAMPLES[name]) {
+                 if (SPECIALTY_EXAMPLES && SPECIALTY_EXAMPLES[name]) {
                      optionsHTML = SPECIALTY_EXAMPLES[name].map(s => `<option value="${s}">`).join('');
                  }
                  
@@ -1104,7 +1104,9 @@ function renderDynamicAdvantageRow(containerId, type, list, isAbil = false) {
                      } else {
                          const listId = `list-${curName.replace(/[^a-zA-Z0-9]/g, '')}`;
                          let optionsHTML = '';
-                         if (SPECIALTY_EXAMPLES[curName]) optionsHTML = SPECIALTY_EXAMPLES[curName].map(s => `<option value="${s}">`).join('');
+                         if (SPECIALTY_EXAMPLES && SPECIALTY_EXAMPLES[curName]) {
+                             optionsHTML = SPECIALTY_EXAMPLES[curName].map(s => `<option value="${s}">`).join('');
+                         }
                          
                          specWrapper.innerHTML = `
                             <input type="text" list="${listId}" class="specialty-input w-full text-[10px] italic bg-transparent border-b border-gray-700 text-[#d4af37] text-center" placeholder="Specialty..." value="${specVal}">
@@ -1480,7 +1482,10 @@ try {
     // ---------------------------------------
     
     // Render the initial UI
-    window.changeStep(1); 
+    window.changeStep(1);
+    
+    console.log("Script Loaded Successfully.");
+    
 } catch(e) {
     console.error("UI Init Error:", e);
     const notif = document.getElementById('notification');
