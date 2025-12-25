@@ -23,7 +23,7 @@ window.onerror = function(msg, url, line) {
 
 // YOUR FIREBASE CONFIG
 const firebaseConfig = {
-  apiKey: "", // Injected by runtime
+  apiKey: "AIzaSyB8qLWOiC3csqPnucbj3XOtireOgPjjL_k",
   authDomain: "v20-character-creator.firebaseapp.com",
   projectId: "v20-character-creator",
   storageBucket: "v20-character-creator.firebasestorage.app",
