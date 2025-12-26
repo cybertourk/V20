@@ -87,88 +87,256 @@ function renderDots(count, max = 5, freebieCount = 0) {
 }
 function renderBoxes(count, checked = 0, type = '') { let h = ''; for(let i=1; i<=count; i++) h += `<span class="box ${i <= checked ? 'checked' : ''}" data-v="${i}" data-type="${type}"></span>`; return h; }
 
-// --- RENDER LOGIC ---
+// --- CORE LOGIC FUNCTIONS (Moved Up for Safety) ---
 
-// Updates specific row UI (Attributes/Abilities mainly)
-function refreshTraitRow(label, type) {
-    const safeId = 'trait-row-' + type + '-' + label.replace(/[^a-zA-Z0-9]/g, '');
-    const rowDiv = document.getElementById(safeId);
-    if(!rowDiv) return false; // Return false so caller knows to use fallback
+function calculateTotalFreebiesSpent(tempState = window.state) {
+    let attrDots = 0; Object.keys(ATTRIBUTES).forEach(cat => ATTRIBUTES[cat].forEach(a => attrDots += (tempState.dots.attr[a] || 1)));
+    const attrCost = Math.max(0, attrDots - 24) * 5;
+    let abilDots = 0;
+    Object.keys(ABILITIES).forEach(cat => {
+        ABILITIES[cat].forEach(a => abilDots += (tempState.dots.abil[a] || 0));
+        if (tempState.customAbilityCategories) { Object.entries(tempState.customAbilityCategories).forEach(([name, c]) => { if (c === cat && tempState.dots.abil[name]) abilDots += tempState.dots.abil[name]; }); }
+    });
+    const abilCost = Math.max(0, abilDots - 27) * 2;
+    let discDots = Object.values(tempState.dots.disc || {}).reduce((a,b)=>a+b,0);
+    const discCost = Math.max(0, discDots - 3) * 7;
+    let backDots = Object.values(tempState.dots.back || {}).reduce((a,b)=>a+b,0);
+    const backCost = Math.max(0, backDots - 5) * 1;
+    let virtDots = VIRTUES.reduce((a,v) => a + (tempState.dots.virt[v] || 1), 0);
+    const virtCost = Math.max(0, virtDots - 10) * 2;
+    const bH = (tempState.dots.virt?.Conscience || 1) + (tempState.dots.virt?.["Self-Control"] || 1);
+    const bW = (tempState.dots.virt?.Courage || 1);
+    const curH = tempState.status.humanity !== undefined ? tempState.status.humanity : bH;
+    const curW = tempState.status.willpower !== undefined ? tempState.status.willpower : bW;
+    const humCost = Math.max(0, curH - bH) * 2;
+    const willCost = Math.max(0, curW - bW) * 1;
+    let mfCost = 0, mfBonus = 0;
+    if (tempState.merits) tempState.merits.forEach(m => mfCost += (parseInt(m.val) || 0));
+    if (tempState.flaws) tempState.flaws.forEach(f => mfBonus += (parseInt(f.val) || 0));
+    const cappedBonus = Math.min(mfBonus, 7);
+    return (attrCost + abilCost + discCost + backCost + virtCost + humCost + willCost + mfCost) - cappedBonus;
+}
 
-    const min = (type === 'attr') ? 1 : 0;
-    const val = window.state.dots[type][label] || min;
-    const max = 5;
-    const freebies = (window.state.freebieSpend[type] && window.state.freebieSpend[type][label]) || 0;
-
-    let showSpecialty = false;
-    let warningMsg = "";
-
-    if (type !== 'virt') {
-        if (type === 'attr') {
-            if (val >= 4) showSpecialty = true;
-        } else if (type === 'abil') {
-            if (val >= 1) {
-                showSpecialty = true;
-                if (!BROAD_ABILITIES.includes(label) && val < 4) {
-                    warningMsg = "Rule Note: Standard V20 requires 4 dots for specialties, but you may override.";
-                } else if (BROAD_ABILITIES.includes(label)) {
-                    warningMsg = "Rule Note: This ability is too broad to be used without a specialty.";
-                }
-            }
-        }
+function checkStepComplete(step) {
+    syncInputs();
+    const s = window.state;
+    if (!s.prios) s.prios = { attr: {}, abil: {} };
+    if (!s.dots) s.dots = { attr: {}, abil: {}, disc: {}, back: {}, virt: {} };
+    if (step === 1) return !!(s.textFields['c-name'] && s.textFields['c-nature'] && s.textFields['c-demeanor'] && s.textFields['c-clan']);
+    if (step === 2) {
+        const prios = Object.values(s.prios.attr || {});
+        if (prios.length !== 3 || !prios.includes(7) || !prios.includes(5) || !prios.includes(3)) return false;
+        return ['Physical', 'Social', 'Mental'].every(cat => {
+            const limit = s.prios.attr[cat] || 0;
+            let spent = 0;
+            ATTRIBUTES[cat].forEach(a => { const val = parseInt(s.dots.attr[a] || 1); spent += (val - 1); });
+            return spent === limit;
+        });
     }
-
-    let specInputHTML = '';
-    if (showSpecialty) {
-        const specVal = window.state.specialties[label] || "";
-        if (window.state.isPlayMode && !specVal) {
-            specInputHTML = '<div class="flex-1"></div>'; 
-        } else {
-            const listId = `list-${label.replace(/[^a-zA-Z0-9]/g, '')}`;
-            let optionsHTML = '';
-            if (SPECIALTY_EXAMPLES && SPECIALTY_EXAMPLES[label]) {
-                optionsHTML = SPECIALTY_EXAMPLES[label].map(s => `<option value="${s}">`).join('');
-            }
-            specInputHTML = `
-                <div class="flex-1 mx-2 relative">
-                    <input type="text" list="${listId}" class="specialty-input w-full text-[10px] italic bg-transparent border-b border-gray-700 text-[#d4af37] text-center" placeholder="Specialty..." value="${specVal}">
-                    <datalist id="${listId}">${optionsHTML}</datalist>
-                </div>
-            `;
-        }
-    } else {
-        specInputHTML = '<div class="flex-1"></div>'; 
+    if (step === 3) {
+        const prios = Object.values(s.prios.abil || {});
+        if (prios.length !== 3 || !prios.includes(13) || !prios.includes(9) || !prios.includes(5)) return false;
+        return ['Talents', 'Skills', 'Knowledges'].every(cat => {
+            const limit = s.prios.abil[cat] || 0;
+            let spent = 0;
+            ABILITIES[cat].forEach(a => spent += parseInt(s.dots.abil[a] || 0));
+            if (s.customAbilityCategories) { Object.entries(s.customAbilityCategories).forEach(([name, c]) => { if (c === cat) spent += parseInt(s.dots.abil[name] || 0); }); }
+            return spent === limit;
+        });
     }
-
-    rowDiv.innerHTML = `
-        <span class="trait-label font-bold uppercase text-[11px] whitespace-nowrap cursor-pointer hover:text-gold">${label}</span>
-        ${specInputHTML}
-        <div class="dot-row flex-shrink-0" data-n="${label}" data-t="${type}">${renderDots(val, max, freebies)}</div>
-    `;
-
-    rowDiv.querySelector('.trait-label').onclick = () => { if(window.state.isPlayMode) window.handleTraitClick(label, type); };
-    rowDiv.querySelector('.dot-row').onclick = (e) => { if (e.target.dataset.v) setDots(label, type, parseInt(e.target.dataset.v), min, max); };
-    
-    if(showSpecialty && (!window.state.isPlayMode || (window.state.isPlayMode && window.state.specialties[label]))) {
-        const input = rowDiv.querySelector('input');
-        if(input) {
-            input.onblur = (e) => { window.state.specialties[label] = e.target.value; };
-            if (warningMsg) { input.onfocus = () => showNotification(warningMsg); }
-            input.disabled = window.state.isPlayMode;
-        }
+    if (step === 4) {
+        const discSpent = Object.values(s.dots.disc || {}).reduce((a, b) => a + parseInt(b||0), 0);
+        const backSpent = Object.values(s.dots.back || {}).reduce((a, b) => a + parseInt(b||0), 0);
+        const virtTotal = VIRTUES.reduce((a, v) => a + parseInt(s.dots.virt[v] || 1), 0);
+        return discSpent === 3 && backSpent === 5 && virtTotal === 10;
     }
     return true;
 }
 
-function renderRow(contId, label, type, min, max = 5) {
-    const cont = typeof contId === 'string' ? document.getElementById(contId) : contId;
-    if (!cont) return;
-    const div = document.createElement('div'); 
-    div.id = 'trait-row-' + type + '-' + label.replace(/[^a-zA-Z0-9]/g, ''); // Assign ID for updates
-    div.className = 'flex items-center justify-between w-full py-1';
-    cont.appendChild(div);
-    refreshTraitRow(label, type); // Use refresh logic to render initial state
-}
+function checkCreationComplete() { return checkStepComplete(1) && checkStepComplete(2) && checkStepComplete(3) && checkStepComplete(4); }
+
+window.updateWalkthrough = function() {
+    if (window.state.isPlayMode) { document.getElementById('walkthrough-guide').classList.add('opacity-0', 'pointer-events-none'); return; } 
+    else { document.getElementById('walkthrough-guide').classList.remove('opacity-0', 'pointer-events-none'); }
+    const current = window.state.currentPhase;
+    const furthest = window.state.furthestPhase || 1;
+    const isComplete = checkStepComplete(current);
+    const msgEl = document.getElementById('guide-message');
+    const iconEl = document.getElementById('guide-icon');
+    const stepData = STEPS_CONFIG.find(s => s.id === current);
+    if (current < furthest) {
+        msgEl.innerText = `Return to Step ${furthest}`;
+        msgEl.className = "bg-gray-900/90 border border-gray-500 text-gray-300 px-4 py-2 rounded text-xs font-bold shadow-lg w-48 text-right";
+        iconEl.classList.add('ready'); 
+    } else {
+        if (isComplete) {
+            msgEl.innerText = "Step Complete! Next >>";
+            msgEl.className = "bg-green-900/90 border border-green-500 text-green-100 px-4 py-2 rounded text-xs font-bold shadow-lg w-48 text-right";
+            iconEl.classList.add('ready');
+        } else {
+            msgEl.innerText = stepData ? stepData.msg : "Continue...";
+            msgEl.className = "bg-black/90 border border-[#d4af37] text-[#f0e6d2] px-4 py-2 rounded text-xs font-bold shadow-lg w-48 text-right";
+            iconEl.classList.remove('ready');
+        }
+    }
+};
+
+window.updatePools = function() {
+    if (!window.state.status) window.state.status = { humanity: 7, willpower: 5, tempWillpower: 5, health_states: [0,0,0,0,0,0,0], blood: 0 };
+    if (window.state.status.tempWillpower === undefined) window.state.status.tempWillpower = window.state.status.willpower || 5;
+    if (window.state.status.health_states === undefined || !Array.isArray(window.state.status.health_states)) window.state.status.health_states = [0,0,0,0,0,0,0];
+    if (!window.state.freebieSpend) window.state.freebieSpend = { attr: {}, abil: {}, disc: {}, back: {}, virt: {}, other: {} };
+
+    if (!window.state.freebieMode && !window.state.isPlayMode) {
+        const bH = (window.state.dots.virt?.Conscience || 1) + (window.state.dots.virt?.["Self-Control"] || 1);
+        const bW = (window.state.dots.virt?.Courage || 1);
+        window.state.status.humanity = bH;
+        window.state.status.willpower = bW;
+        window.state.status.tempWillpower = bW;
+    }
+    const curH = window.state.status.humanity;
+    const curW = window.state.status.willpower; 
+    const tempW = window.state.status.tempWillpower;
+    const gen = parseInt(document.getElementById('c-gen')?.value) || 13;
+    const lim = GEN_LIMITS[gen] || GEN_LIMITS[13];
+
+    document.querySelectorAll('.dot-row').forEach(el => {
+        const name = el.dataset.n;
+        const type = el.dataset.t;
+        if (name && type && window.state.dots[type]) {
+            const val = window.state.dots[type][name] || 0; 
+            const freebies = (window.state.freebieSpend[type] && window.state.freebieSpend[type][name]) || 0;
+            el.innerHTML = renderDots(val, 5, freebies);
+        }
+    });
+
+    Object.keys(ATTRIBUTES).forEach(cat => {
+        let cs = 0; ATTRIBUTES[cat].forEach(a => cs += ((window.state.dots.attr[a] || 1) - 1));
+        const targetId = (cat === 'Social') ? 'p-social' : (cat === 'Mental') ? 'p-mental' : 'p-phys';
+        setSafeText(targetId, `[${Math.max(0, (window.state.prios.attr[cat] || 0) - cs)}]`);
+    });
+    Object.keys(ABILITIES).forEach(cat => {
+        let cs = 0; ABILITIES[cat].forEach(a => cs += (window.state.dots.abil[a] || 0));
+        if (window.state.customAbilityCategories) { Object.entries(window.state.customAbilityCategories).forEach(([name, c]) => { if (c === cat && window.state.dots.abil[name]) cs += window.state.dots.abil[name]; }); }
+        setSafeText('p-' + cat.toLowerCase().slice(0,3), `[${Math.max(0, (window.state.prios.abil[cat] || 0) - cs)}]`);
+    });
+    const discSpent = Object.values(window.state.dots.disc || {}).reduce((a, b) => a + b, 0);
+    setSafeText('p-disc', `[${Math.max(0, 3 - discSpent)}]`);
+    const backSpent = Object.values(window.state.dots.back || {}).reduce((a, b) => a + b, 0);
+    setSafeText('p-back', `[${Math.max(0, 5 - backSpent)}]`);
+    const virtTotalDots = VIRTUES.reduce((a, v) => a + (window.state.dots.virt[v] || 1), 0);
+    setSafeText('p-virt', `[${Math.max(0, 7 - (virtTotalDots - 3))}]`);
+
+    if (window.state.freebieMode) {
+         const totalSpent = calculateTotalFreebiesSpent(window.state);
+         setSafeText('f-total-top', totalSpent); 
+         let attrDots = 0; Object.keys(ATTRIBUTES).forEach(cat => ATTRIBUTES[cat].forEach(a => attrDots += (window.state.dots.attr[a] || 1)));
+         setSafeText('sb-attr', Math.max(0, attrDots - 24) * 5);
+         let abilDots = 0; Object.keys(ABILITIES).forEach(cat => { ABILITIES[cat].forEach(a => abilDots += (window.state.dots.abil[a] || 0)); if (window.state.customAbilityCategories) { Object.entries(window.state.customAbilityCategories).forEach(([name, c]) => { if (c === cat && window.state.dots.abil[name]) abilDots += window.state.dots.abil[name]; }); } });
+         setSafeText('sb-abil', Math.max(0, abilDots - 27) * 2);
+         setSafeText('sb-disc', Math.max(0, discSpent - 3) * 7);
+         setSafeText('sb-back', Math.max(0, backSpent - 5) * 1);
+         setSafeText('sb-virt', Math.max(0, (virtTotalDots-3) - 7) * 2);
+         const bH = (window.state.dots.virt?.Conscience || 1) + (window.state.dots.virt?.["Self-Control"] || 1);
+         const bW = (window.state.dots.virt?.Courage || 1);
+         const cH = window.state.status.humanity !== undefined ? window.state.status.humanity : bH;
+         const cW = window.state.status.willpower !== undefined ? window.state.status.willpower : bW;
+         setSafeText('sb-human', Math.max(0, cH - bH) * 2);
+         setSafeText('sb-will', Math.max(0, cW - bW) * 1);
+         let mfCost = 0, mfBonus = 0;
+         if (window.state.merits) window.state.merits.forEach(m => mfCost += (parseInt(m.val) || 0));
+         if (window.state.flaws) window.state.flaws.forEach(f => mfBonus += (parseInt(f.val) || 0));
+         const cappedBonus = Math.min(mfBonus, 7);
+         setSafeText('sb-merit', mfCost);
+         setSafeText('sb-flaw', `+${cappedBonus}`);
+         const limit = parseInt(document.getElementById('c-freebie-total')?.value) || 15;
+         setSafeText('sb-total', limit - totalSpent);
+         document.getElementById('freebie-sidebar').classList.add('active'); 
+    } else {
+         document.getElementById('freebie-sidebar').classList.remove('active');
+    }
+
+    const fbBtn = document.getElementById('toggle-freebie-btn');
+    if (fbBtn) {
+        const complete = checkCreationComplete();
+        if (window.state.isPlayMode) fbBtn.disabled = true;
+        else fbBtn.disabled = false; 
+    }
+
+    const p8h = document.getElementById('phase8-humanity-dots');
+    if(p8h) {
+        p8h.innerHTML = renderDots(curH, 10);
+        p8h.onclick = (e) => { if (window.state.freebieMode && e.target.dataset.v) setDots('Humanity', 'status', parseInt(e.target.dataset.v), 1, 10); };
+    }
+    const p8w = document.getElementById('phase8-willpower-dots');
+    if(p8w) {
+        p8w.innerHTML = renderDots(curW, 10);
+        p8w.onclick = (e) => { if (window.state.freebieMode && e.target.dataset.v) setDots('Willpower', 'status', parseInt(e.target.dataset.v), 1, 10); };
+    }
+
+    document.querySelectorAll('#humanity-dots-play').forEach(el => el.innerHTML = renderDots(curH, 10));
+    document.querySelectorAll('#willpower-dots-play').forEach(el => el.innerHTML = renderDots(curW, 10));
+    document.querySelectorAll('#willpower-boxes-play').forEach(el => el.innerHTML = renderBoxes(curW, tempW, 'wp'));
+    
+    const bpContainer = document.querySelectorAll('#blood-boxes-play');
+    bpContainer.forEach(el => {
+        let h = '';
+        const currentBlood = window.state.status.blood || 0;
+        const maxBloodForGen = lim.m;
+        for (let i = 1; i <= 20; i++) {
+            let classes = "box";
+            if (i <= currentBlood) classes += " checked";
+            if (i > maxBloodForGen) { classes += " cursor-not-allowed opacity-50 bg-[#1a1a1a] pointer-events-none"; } else { classes += " cursor-pointer"; }
+            h += `<span class="${classes}" data-v="${i}" data-type="blood"></span>`;
+        }
+        el.innerHTML = h;
+    });
+    
+    const healthCont = document.getElementById('health-chart-play');
+    if(healthCont && healthCont.children.length === 0) {
+         HEALTH_STATES.forEach((h, i) => {
+            const d = document.createElement('div'); d.className = 'flex justify-between items-center text-[10px] uppercase border-b border-[#333] py-2 font-bold';
+            d.innerHTML = `<span>${h.l}</span><div class="flex gap-3"><span>${h.p !== 0 ? h.p : ''}</span><div class="box" data-v="${i+1}" data-type="health"></div></div>`;
+            healthCont.appendChild(d);
+        });
+    }
+    const healthStates = window.state.status.health_states || [0,0,0,0,0,0,0];
+    document.querySelectorAll('#health-chart-play .box').forEach((box, i) => {
+        box.classList.remove('checked'); 
+        box.dataset.state = healthStates[i] || 0; 
+    });
+    
+    const cList = document.getElementById('combat-list-create');
+    if(cList && window.state.inventory) {
+        cList.innerHTML = '';
+        window.state.inventory.filter(i => i.type === 'Weapon' && i.status === 'carried').forEach(w => {
+             let display = w.displayName || w.name;
+             const r = document.createElement('div');
+             r.className = "grid grid-cols-6 gap-2 text-[10px] border-b border-[#222] py-1 text-center text-white items-center";
+             r.innerHTML = `
+                <div class="col-span-2 text-left pl-2 font-bold text-gold truncate">${display}</div>
+                <div>${w.stats.diff}</div>
+                <div class="text-gold font-bold">${w.stats.dmg}</div>
+                <div>${w.stats.range}</div>
+                <div>${w.stats.clip}</div>
+             `;
+             cList.appendChild(r);
+        });
+        
+        let totalArmor = 0; let totalPenalty = 0; let activeArmor = [];
+        window.state.inventory.filter(i => i.type === 'Armor' && i.status === 'carried').forEach(a => {
+            totalArmor += parseInt(a.stats?.rating) || 0;
+            totalPenalty += parseInt(a.stats?.penalty) || 0;
+            activeArmor.push(a.displayName || a.name);
+        });
+        setSafeText('total-armor-rating', totalArmor);
+        setSafeText('total-armor-penalty', totalPenalty);
+        setSafeText('active-armor-names', activeArmor.length > 0 ? activeArmor.join(', ') : "None");
+    }
+    window.updateWalkthrough();
+};
+
+// --- RENDER LOGIC ---
 
 window.renderInventoryList = function() {
     const listCarried = document.getElementById('inv-list-carried');
@@ -496,6 +664,86 @@ function renderDynamicAdvantageRow(containerId, type, list, isAbil = false) {
     };
     existingItems.forEach(item => buildRow(item));
     buildRow();
+}
+
+function refreshTraitRow(label, type) {
+    const safeId = 'trait-row-' + type + '-' + label.replace(/[^a-zA-Z0-9]/g, '');
+    const rowDiv = document.getElementById(safeId);
+    if(!rowDiv) return false;
+
+    const min = (type === 'attr') ? 1 : 0;
+    const val = window.state.dots[type][label] || min;
+    const max = 5;
+    const freebies = (window.state.freebieSpend[type] && window.state.freebieSpend[type][label]) || 0;
+
+    let showSpecialty = false;
+    let warningMsg = "";
+
+    if (type !== 'virt') {
+        if (type === 'attr') {
+            if (val >= 4) showSpecialty = true;
+        } else if (type === 'abil') {
+            if (val >= 1) {
+                showSpecialty = true;
+                if (!BROAD_ABILITIES.includes(label) && val < 4) {
+                    warningMsg = "Rule Note: Standard V20 requires 4 dots for specialties, but you may override.";
+                } else if (BROAD_ABILITIES.includes(label)) {
+                    warningMsg = "Rule Note: This ability is too broad to be used without a specialty.";
+                }
+            }
+        }
+    }
+
+    let specInputHTML = '';
+    if (showSpecialty) {
+        const specVal = window.state.specialties[label] || "";
+        if (window.state.isPlayMode && !specVal) {
+            specInputHTML = '<div class="flex-1"></div>'; 
+        } else {
+            const listId = `list-${label.replace(/[^a-zA-Z0-9]/g, '')}`;
+            let optionsHTML = '';
+            if (SPECIALTY_EXAMPLES && SPECIALTY_EXAMPLES[label]) {
+                optionsHTML = SPECIALTY_EXAMPLES[label].map(s => `<option value="${s}">`).join('');
+            }
+            specInputHTML = `
+                <div class="flex-1 mx-2 relative">
+                    <input type="text" list="${listId}" class="specialty-input w-full text-[10px] italic bg-transparent border-b border-gray-700 text-[#d4af37] text-center" placeholder="Specialty..." value="${specVal}">
+                    <datalist id="${listId}">${optionsHTML}</datalist>
+                </div>
+            `;
+        }
+    } else {
+        specInputHTML = '<div class="flex-1"></div>'; 
+    }
+
+    rowDiv.innerHTML = `
+        <span class="trait-label font-bold uppercase text-[11px] whitespace-nowrap cursor-pointer hover:text-gold">${label}</span>
+        ${specInputHTML}
+        <div class="dot-row flex-shrink-0" data-n="${label}" data-t="${type}">${renderDots(val, max, freebies)}</div>
+    `;
+
+    rowDiv.querySelector('.trait-label').onclick = () => { if(window.state.isPlayMode) window.handleTraitClick(label, type); };
+    rowDiv.querySelector('.dot-row').onclick = (e) => { if (e.target.dataset.v) setDots(label, type, parseInt(e.target.dataset.v), min, max); };
+    
+    if(showSpecialty && (!window.state.isPlayMode || (window.state.isPlayMode && window.state.specialties[label]))) {
+        const input = rowDiv.querySelector('input');
+        if(input) {
+            input.onblur = (e) => { window.state.specialties[label] = e.target.value; };
+            if (warningMsg) { input.onfocus = () => showNotification(warningMsg); }
+            input.disabled = window.state.isPlayMode;
+        }
+    }
+    return true;
+}
+
+function renderRow(contId, label, type, min, max = 5) {
+    const cont = typeof contId === 'string' ? document.getElementById(contId) : contId;
+    if (!cont) return;
+    const div = document.createElement('div'); 
+    div.id = 'trait-row-' + type + '-' + label.replace(/[^a-zA-Z0-9]/g, ''); 
+    div.className = 'flex items-center justify-between w-full py-1';
+    cont.appendChild(div);
+    refreshTraitRow(label, type); 
 }
 
 function setDots(name, type, val, min, max = 5) {
