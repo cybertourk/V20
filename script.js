@@ -675,18 +675,23 @@ function refreshTraitRow(label, type) {
     let specInputHTML = '';
     if (showSpecialty) {
         const specVal = window.state.specialties[label] || "";
-        const listId = `list-${label.replace(/[^a-zA-Z0-9]/g, '')}`;
-        let optionsHTML = '';
-        if (SPECIALTY_EXAMPLES[label]) {
-            optionsHTML = SPECIALTY_EXAMPLES[label].map(s => `<option value="${s}">`).join('');
+        // Hide logic for Play Mode + Empty
+        if (window.state.isPlayMode && !specVal) {
+            specInputHTML = '<div class="flex-1"></div>'; 
+        } else {
+            const listId = `list-${label.replace(/[^a-zA-Z0-9]/g, '')}`;
+            let optionsHTML = '';
+            if (SPECIALTY_EXAMPLES[label]) {
+                optionsHTML = SPECIALTY_EXAMPLES[label].map(s => `<option value="${s}">`).join('');
+            }
+            
+            specInputHTML = `
+                <div class="flex-1 mx-2 relative">
+                    <input type="text" list="${listId}" class="specialty-input w-full text-[10px] italic bg-transparent border-b border-gray-700 text-[#d4af37] text-center" placeholder="Specialty..." value="${specVal}">
+                    <datalist id="${listId}">${optionsHTML}</datalist>
+                </div>
+            `;
         }
-        
-        specInputHTML = `
-            <div class="flex-1 mx-2 relative">
-                <input type="text" list="${listId}" class="specialty-input w-full text-[10px] italic bg-transparent border-b border-gray-700 text-[#d4af37] text-center" placeholder="Specialty..." value="${specVal}">
-                <datalist id="${listId}">${optionsHTML}</datalist>
-            </div>
-        `;
     } else {
         specInputHTML = '<div class="flex-1"></div>'; 
     }
@@ -700,7 +705,7 @@ function refreshTraitRow(label, type) {
     rowDiv.querySelector('.trait-label').onclick = () => { if(window.state.isPlayMode) window.handleTraitClick(label, type); };
     rowDiv.querySelector('.dot-row').onclick = (e) => { if (e.target.dataset.v) setDots(label, type, parseInt(e.target.dataset.v), min, max); };
     
-    if(showSpecialty) {
+    if(showSpecialty && (!window.state.isPlayMode || (window.state.isPlayMode && window.state.specialties[label]))) {
         const input = rowDiv.querySelector('input');
         if(input) {
             input.onblur = (e) => { window.state.specialties[label] = e.target.value; };
@@ -820,18 +825,23 @@ function renderRow(contId, label, type, min, max = 5) {
     let specInputHTML = '';
     if (showSpecialty) {
         const specVal = window.state.specialties[label] || "";
-        const listId = `list-${label.replace(/[^a-zA-Z0-9]/g, '')}`;
-        let optionsHTML = '';
-        if (SPECIALTY_EXAMPLES[label]) {
-            optionsHTML = SPECIALTY_EXAMPLES[label].map(s => `<option value="${s}">`).join('');
+        // Hide logic for Play Mode + Empty
+        if (window.state.isPlayMode && !specVal) {
+            specInputHTML = '<div class="flex-1"></div>'; 
+        } else {
+            const listId = `list-${label.replace(/[^a-zA-Z0-9]/g, '')}`;
+            let optionsHTML = '';
+            if (SPECIALTY_EXAMPLES[label]) {
+                optionsHTML = SPECIALTY_EXAMPLES[label].map(s => `<option value="${s}">`).join('');
+            }
+            
+            specInputHTML = `
+                <div class="flex-1 mx-2 relative">
+                    <input type="text" list="${listId}" class="specialty-input w-full text-[10px] italic bg-transparent border-b border-gray-700 text-[#d4af37] text-center" placeholder="Specialty..." value="${specVal}">
+                    <datalist id="${listId}">${optionsHTML}</datalist>
+                </div>
+            `;
         }
-        
-        specInputHTML = `
-            <div class="flex-1 mx-2 relative">
-                <input type="text" list="${listId}" class="specialty-input w-full text-[10px] italic bg-transparent border-b border-gray-700 text-[#d4af37] text-center" placeholder="Specialty..." value="${specVal}">
-                <datalist id="${listId}">${optionsHTML}</datalist>
-            </div>
-        `;
     } else {
         // Spacer to keep layout somewhat consistent if desired, or just nothing for "Name .... Dots"
         specInputHTML = '<div class="flex-1"></div>'; 
@@ -847,7 +857,7 @@ function renderRow(contId, label, type, min, max = 5) {
     div.querySelector('.dot-row').onclick = (e) => { if (e.target.dataset.v) setDots(label, type, parseInt(e.target.dataset.v), min, max); };
     
     // Attach specialty input listeners if present
-    if(showSpecialty) {
+    if(showSpecialty && (!window.state.isPlayMode || (window.state.isPlayMode && window.state.specialties[label]))) {
         const input = div.querySelector('input');
         if(input) {
             input.onblur = (e) => { window.state.specialties[label] = e.target.value; };
@@ -948,20 +958,25 @@ function renderDynamicAdvantageRow(containerId, type, list, isAbil = false) {
         
         if (showSpecialty) {
              const specVal = window.state.specialties[name] || "";
-             const listId = `list-${name.replace(/[^a-zA-Z0-9]/g, '')}`;
-             let optionsHTML = '';
-             if (SPECIALTY_EXAMPLES[name]) {
-                 optionsHTML = SPECIALTY_EXAMPLES[name].map(s => `<option value="${s}">`).join('');
+             // Hide logic for Play Mode + Empty
+             if (window.state.isPlayMode && !specVal) {
+                 specWrapper.innerHTML = '';
+             } else {
+                 const listId = `list-${name.replace(/[^a-zA-Z0-9]/g, '')}`;
+                 let optionsHTML = '';
+                 if (SPECIALTY_EXAMPLES[name]) {
+                     optionsHTML = SPECIALTY_EXAMPLES[name].map(s => `<option value="${s}">`).join('');
+                 }
+                 
+                 specWrapper.innerHTML = `
+                    <input type="text" list="${listId}" class="specialty-input w-full text-[10px] italic bg-transparent border-b border-gray-700 text-[#d4af37] text-center" placeholder="Specialty..." value="${specVal}">
+                    <datalist id="${listId}">${optionsHTML}</datalist>
+                 `;
+                 const inp = specWrapper.querySelector('input');
+                 inp.onblur = (e) => { window.state.specialties[name] = e.target.value; };
+                 if(warningMsg) inp.onfocus = () => showNotification(warningMsg);
+                 inp.disabled = window.state.isPlayMode;
              }
-             
-             specWrapper.innerHTML = `
-                <input type="text" list="${listId}" class="specialty-input w-full text-[10px] italic bg-transparent border-b border-gray-700 text-[#d4af37] text-center" placeholder="Specialty..." value="${specVal}">
-                <datalist id="${listId}">${optionsHTML}</datalist>
-             `;
-             const inp = specWrapper.querySelector('input');
-             inp.onblur = (e) => { window.state.specialties[name] = e.target.value; };
-             if(warningMsg) inp.onfocus = () => showNotification(warningMsg);
-             inp.disabled = window.state.isPlayMode;
         }
 
         // 4. Dots
@@ -1053,18 +1068,23 @@ function renderDynamicAdvantageRow(containerId, type, list, isAbil = false) {
                 specWrapper.innerHTML = '';
                 if (showSpecialty) {
                      const specVal = window.state.specialties[curName] || "";
-                     const listId = `list-${curName.replace(/[^a-zA-Z0-9]/g, '')}`;
-                     let optionsHTML = '';
-                     if (SPECIALTY_EXAMPLES[curName]) optionsHTML = SPECIALTY_EXAMPLES[curName].map(s => `<option value="${s}">`).join('');
-                     
-                     specWrapper.innerHTML = `
-                        <input type="text" list="${listId}" class="specialty-input w-full text-[10px] italic bg-transparent border-b border-gray-700 text-[#d4af37] text-center" placeholder="Specialty..." value="${specVal}">
-                        <datalist id="${listId}">${optionsHTML}</datalist>
-                     `;
-                     const inp = specWrapper.querySelector('input');
-                     inp.onblur = (e) => { window.state.specialties[curName] = e.target.value; };
-                     if(warningMsg) inp.onfocus = () => showNotification(warningMsg);
-                     inp.disabled = window.state.isPlayMode;
+                     // Hide logic for Play Mode + Empty
+                     if (window.state.isPlayMode && !specVal) {
+                         // Keep empty
+                     } else {
+                         const listId = `list-${curName.replace(/[^a-zA-Z0-9]/g, '')}`;
+                         let optionsHTML = '';
+                         if (SPECIALTY_EXAMPLES[curName]) optionsHTML = SPECIALTY_EXAMPLES[curName].map(s => `<option value="${s}">`).join('');
+                         
+                         specWrapper.innerHTML = `
+                            <input type="text" list="${listId}" class="specialty-input w-full text-[10px] italic bg-transparent border-b border-gray-700 text-[#d4af37] text-center" placeholder="Specialty..." value="${specVal}">
+                            <datalist id="${listId}">${optionsHTML}</datalist>
+                         `;
+                         const inp = specWrapper.querySelector('input');
+                         inp.onblur = (e) => { window.state.specialties[curName] = e.target.value; };
+                         if(warningMsg) inp.onfocus = () => showNotification(warningMsg);
+                         inp.disabled = window.state.isPlayMode;
+                     }
                 }
             }
             // -------------------------------------------------------
