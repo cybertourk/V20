@@ -48,7 +48,6 @@ document.head.appendChild(style);
 window.state = {
     isPlayMode: false, freebieMode: false, activePool: [], currentPhase: 1, furthestPhase: 1,
     dots: { attr: {}, abil: {}, disc: {}, back: {}, virt: {}, other: {} },
-    // New: Track points spent during freebie mode specifically
     freebieSpend: { attr: {}, abil: {}, disc: {}, back: {}, virt: {}, other: {} }, 
     prios: { attr: {}, abil: {} },
     // status.health_states: Array of 7 integers. 0=Empty, 1=Bashing(/), 2=Lethal(X), 3=Aggravated(*)
@@ -77,7 +76,6 @@ function hydrateInputs() {
     Object.entries(window.state.textFields || {}).forEach(([id, val]) => { const el = document.getElementById(id); if (el) el.value = val; });
 }
 
-// MOVED UP FOR SAFETY
 window.renderInventoryList = function() {
     const listCarried = document.getElementById('inv-list-carried');
     const listOwned = document.getElementById('inv-list-owned');
@@ -112,14 +110,12 @@ window.renderInventoryList = function() {
 window.removeInventory = (idx) => { window.state.inventory.splice(idx, 1); window.renderInventoryList(); };
 window.toggleInvStatus = (idx) => { const item = window.state.inventory[idx]; item.status = item.status === 'carried' ? 'owned' : 'carried'; window.renderInventoryList(); };
 
-// UPDATED: Now supports identifying Freebie dots
 function renderDots(count, max = 5, freebieCount = 0) { 
     let h = ''; 
     const baseCount = count - freebieCount;
     for(let i=1; i<=max; i++) {
         let classes = "dot";
         if (i <= count) classes += " filled";
-        // Only show blue if in Freebie Mode AND this specific dot is a freebie addition
         if (window.state.freebieMode && i > baseCount && i <= count) classes += " freebie";
         h += `<span class="${classes}" data-v="${i}"></span>`; 
     }
@@ -162,7 +158,6 @@ window.handleSaveClick = function() {
     if(!user) return showNotification("Login Required");
     syncInputs();
     
-    // Pre-fill inputs if existing
     const nameIn = document.getElementById('save-name-input');
     const folderIn = document.getElementById('save-folder-input');
     
@@ -189,7 +184,6 @@ window.performSave = async function() {
     
     if(!rawName) return showNotification("Filename required");
     
-    // Sanitize ID
     const safeId = rawName.replace(/[^a-zA-Z0-9 _-]/g, "");
     
     window.state.meta.filename = safeId;
@@ -204,7 +198,6 @@ window.performSave = async function() {
         showNotification("Inscribed.");
         document.getElementById('save-modal').classList.remove('active');
         
-        // Update Datalist
         const dl = document.getElementById('folder-datalist');
         if(dl && !Array.from(dl.options).some(o => o.value === folder)) {
             const opt = document.createElement('option');
@@ -236,11 +229,10 @@ async function renderFileBrowser() {
         
         browser.innerHTML = '';
         
-        // Sort folders (Unsorted last)
         const folders = Object.keys(structure).sort((a,b) => a === "Unsorted" ? 1 : b === "Unsorted" ? -1 : a.localeCompare(b));
         
         const dl = document.getElementById('folder-datalist');
-        if(dl) dl.innerHTML = ''; // Reset datalist
+        if(dl) dl.innerHTML = ''; 
         
         folders.forEach(f => {
             if(dl) { const opt = document.createElement('option'); opt.value = f; dl.appendChild(opt); }
@@ -301,7 +293,7 @@ async function loadSelectedChar(data) {
     
     window.state = data;
     if(!window.state.specialties) window.state.specialties = {}; 
-    if(!window.state.freebieSpend) window.state.freebieSpend = { attr: {}, abil: {}, disc: {}, back: {}, virt: {}, other: {} }; // Init if missing
+    if(!window.state.freebieSpend) window.state.freebieSpend = { attr: {}, abil: {}, disc: {}, back: {}, virt: {}, other: {} }; 
     
     if (!window.state.furthestPhase) window.state.furthestPhase = 1;
     if (window.state.status && window.state.status.tempWillpower === undefined) {
@@ -315,7 +307,6 @@ async function loadSelectedChar(data) {
         }
     }
     
-    // UI Refresh
     hydrateInputs();
     const mList = document.getElementById('merits-list-create');
     if(mList) { mList.innerHTML = ''; renderDynamicTraitRow('merits-list-create', 'Merit', V20_MERITS_LIST); }
@@ -334,7 +325,6 @@ async function loadSelectedChar(data) {
     window.renderInventoryList();
     window.updatePools();
     
-    // Re-render standard rows to ensure specialties appear if data exists
     if(window.state.dots.attr) {
         Object.keys(ATTRIBUTES).forEach(c => ATTRIBUTES[c].forEach(a => { refreshTraitRow(a, 'attr'); }));
     }
@@ -342,22 +332,18 @@ async function loadSelectedChar(data) {
         Object.keys(ABILITIES).forEach(c => ABILITIES[c].forEach(a => { refreshTraitRow(a, 'abil'); }));
     }
     
-    // Close Modal
     document.getElementById('load-modal').classList.remove('active');
     showNotification("Recalled.");
     
-    if (window.state.isPlayMode) { window.togglePlayMode(); window.togglePlayMode(); } // Quick refresh
+    if (window.state.isPlayMode) { window.togglePlayMode(); window.togglePlayMode(); } 
     window.changeStep(window.state.furthestPhase || 1);
 }
-
-// --- DICE & CORE LOGIC ---
 
 window.clearPool = function() {
     window.state.activePool = [];
     document.querySelectorAll('.trait-label').forEach(el => el.classList.remove('selected'));
     setSafeText('pool-display', "Select traits to build pool...");
     const hint = document.getElementById('specialty-hint'); if(hint) hint.innerHTML = '';
-    // Uncheck specialty box
     const cb = document.getElementById('use-specialty');
     if(cb) cb.checked = false;
     document.getElementById('dice-tray').classList.remove('open');
@@ -383,7 +369,6 @@ window.rollPool = function() {
     const tray = document.getElementById('roll-results');
     const row = document.createElement('div');
     row.className = 'bg-black/60 p-2 border border-[#333] text-[10px] mb-2 animate-in fade-in slide-in-from-right-4 duration-300';
-    // Updated Dice Styling: Bigger Font (text-3xl) and spacing
     const diceRender = results.map(d => {
         let c = 'text-gray-500';
         if (d === 1) c = 'text-[#ff0000] font-bold';
@@ -496,12 +481,8 @@ window.nextStep = function() {
 
 window.updatePools = function() {
     if (!window.state.status) window.state.status = { humanity: 7, willpower: 5, tempWillpower: 5, health_states: [0,0,0,0,0,0,0], blood: 0 };
-    // Init temporary willpower if missing (backward compatibility)
     if (window.state.status.tempWillpower === undefined) window.state.status.tempWillpower = window.state.status.willpower || 5;
-    // Init health states if missing
     if (window.state.status.health_states === undefined || !Array.isArray(window.state.status.health_states)) window.state.status.health_states = [0,0,0,0,0,0,0];
-
-    // Ensure freebieSpend object exists if not present
     if (!window.state.freebieSpend) window.state.freebieSpend = { attr: {}, abil: {}, disc: {}, back: {}, virt: {}, other: {} };
 
     if (!window.state.freebieMode && !window.state.isPlayMode) {
@@ -509,17 +490,14 @@ window.updatePools = function() {
         const bW = (window.state.dots.virt?.Courage || 1);
         window.state.status.humanity = bH;
         window.state.status.willpower = bW;
-        // In creation, temp syncs with permanent unless deliberately changed later
         window.state.status.tempWillpower = bW;
     }
     const curH = window.state.status.humanity;
-    const curW = window.state.status.willpower; // Permanent rating
-    const tempW = window.state.status.tempWillpower; // Current pool
+    const curW = window.state.status.willpower; 
+    const tempW = window.state.status.tempWillpower;
     const gen = parseInt(document.getElementById('c-gen')?.value) || 13;
     const lim = GEN_LIMITS[gen] || GEN_LIMITS[13];
 
-    // Update standard dot rows (Attribute/Ability/Disc/Back/Virt)
-    // We reuse logic to find all dot-rows and refresh their visual state
     document.querySelectorAll('.dot-row').forEach(el => {
         const name = el.dataset.n;
         const type = el.dataset.t;
@@ -530,7 +508,6 @@ window.updatePools = function() {
         }
     });
 
-    // Prio displays
     Object.keys(ATTRIBUTES).forEach(cat => {
         let cs = 0; ATTRIBUTES[cat].forEach(a => cs += ((window.state.dots.attr[a] || 1) - 1));
         const targetId = (cat === 'Social') ? 'p-social' : (cat === 'Mental') ? 'p-mental' : 'p-phys';
@@ -579,19 +556,12 @@ window.updatePools = function() {
 
     const fbBtn = document.getElementById('toggle-freebie-btn');
     if (fbBtn) {
-        const complete = checkCreationComplete();
-        // Allow toggle always (user request), unless totally incomplete maybe? 
-        // User asked: "Freebie mode to still be toggleable even if the freebie points have all been spent"
-        // And "When in edit mode only".
         if (window.state.isPlayMode) fbBtn.disabled = true;
-        else fbBtn.disabled = false; // Always enabled in edit mode
+        else fbBtn.disabled = false; 
     }
 
     const p8h = document.getElementById('phase8-humanity-dots');
     if(p8h) {
-        // Freebie logic for humanity? status traits are tricky.
-        // We track them via status object, but can track spend in freebieSpend.status?
-        // Implementing simple rendering for now.
         p8h.innerHTML = renderDots(curH, 10);
         p8h.onclick = (e) => { if (window.state.freebieMode && e.target.dataset.v) setDots('Humanity', 'status', parseInt(e.target.dataset.v), 1, 10); };
     }
@@ -603,38 +573,21 @@ window.updatePools = function() {
 
     document.querySelectorAll('#humanity-dots-play').forEach(el => el.innerHTML = renderDots(curH, 10));
     document.querySelectorAll('#willpower-dots-play').forEach(el => el.innerHTML = renderDots(curW, 10));
-    
-    // UPDATED PLAY MODE BOX RENDERING
-    // Willpower: Max count = Permanent Rating (curW). Checked = Temp Rating (tempW).
     document.querySelectorAll('#willpower-boxes-play').forEach(el => el.innerHTML = renderBoxes(curW, tempW, 'wp'));
     
-    // --- 20 BOX BLOOD POOL IMPLEMENTATION ---
     const bpContainer = document.querySelectorAll('#blood-boxes-play');
     bpContainer.forEach(el => {
         let h = '';
         const currentBlood = window.state.status.blood || 0;
         const maxBloodForGen = lim.m;
-        
         for (let i = 1; i <= 20; i++) {
             let classes = "box";
             if (i <= currentBlood) classes += " checked";
-            
-            // Visual locking for blood exceeding Gen limit
-            // Changed from opacity-20 to opacity-50 for better visibility per user request
-            // Added explicit styling to ensure they look like 'empty slots' rather than missing
-            if (i > maxBloodForGen) {
-                classes += " cursor-not-allowed opacity-50 bg-[#1a1a1a]"; 
-            } else {
-                classes += " cursor-pointer";
-            }
-            // Pointer events none prevents clicking, but we keep them visible
-            if (i > maxBloodForGen) classes += " pointer-events-none";
-            
+            if (i > maxBloodForGen) { classes += " cursor-not-allowed opacity-50 bg-[#1a1a1a] pointer-events-none"; } else { classes += " cursor-pointer"; }
             h += `<span class="${classes}" data-v="${i}" data-type="blood"></span>`;
         }
         el.innerHTML = h;
     });
-    // ----------------------------------------
     
     const healthCont = document.getElementById('health-chart-play');
     if(healthCont && healthCont.children.length === 0) {
@@ -644,11 +597,10 @@ window.updatePools = function() {
             healthCont.appendChild(d);
         });
     }
-    // Update Health Boxes (Clicking box N means "Damage Level N" reached)
     const healthStates = window.state.status.health_states || [0,0,0,0,0,0,0];
     document.querySelectorAll('#health-chart-play .box').forEach((box, i) => {
-        box.classList.remove('checked'); // Remove old check logic
-        box.dataset.state = healthStates[i] || 0; // Apply new cycle logic
+        box.classList.remove('checked'); 
+        box.dataset.state = healthStates[i] || 0; 
     });
     
     const cList = document.getElementById('combat-list-create');
@@ -681,21 +633,16 @@ window.updatePools = function() {
     window.updateWalkthrough();
 };
 
-// ============================================
-// NEW: Helper to refresh specific row UI
-// ============================================
 function refreshTraitRow(label, type) {
     const safeId = 'trait-row-' + type + '-' + label.replace(/[^a-zA-Z0-9]/g, '');
     const rowDiv = document.getElementById(safeId);
-    if(!rowDiv) return; // Should exist if rendered by renderRow
+    if(!rowDiv) return;
 
     const min = (type === 'attr') ? 1 : 0;
     const val = window.state.dots[type][label] || min;
     const max = 5;
-    // FREEBIE CHECK
     const freebies = (window.state.freebieSpend[type] && window.state.freebieSpend[type][label]) || 0;
 
-    // Recalculate specialty logic (Copied from renderRow)
     let showSpecialty = false;
     let warningMsg = "";
 
@@ -717,7 +664,6 @@ function refreshTraitRow(label, type) {
     let specInputHTML = '';
     if (showSpecialty) {
         const specVal = window.state.specialties[label] || "";
-        // Hide logic for Play Mode + Empty
         if (window.state.isPlayMode && !specVal) {
             specInputHTML = '<div class="flex-1"></div>'; 
         } else {
@@ -764,7 +710,7 @@ function setDots(name, type, val, min, max = 5) {
         if (name === 'Humanity') window.state.status.humanity = val;
         else if (name === 'Willpower') {
             window.state.status.willpower = val;
-            window.state.status.tempWillpower = val; // Sync temp when permanent changes
+            window.state.status.tempWillpower = val;
         }
         if (calculateTotalFreebiesSpent(window.state) > (parseInt(document.getElementById('c-freebie-total')?.value) || 15)) { showNotification("Freebie Limit Exceeded!"); return; }
         window.updatePools(); return;
@@ -774,25 +720,17 @@ function setDots(name, type, val, min, max = 5) {
     if (val === currentVal) newVal = val - 1;
     if (newVal < min) newVal = min;
 
-    // -- LOGIC UPDATE: Freebie vs Base differentiation --
     if (window.state.freebieMode) {
-        // Calculate direction
         const diff = newVal - currentVal;
         
-        // Ensure state exists
         if(!window.state.freebieSpend) window.state.freebieSpend = { attr: {}, abil: {}, disc: {}, back: {}, virt: {}, other: {} };
         if(!window.state.freebieSpend[type]) window.state.freebieSpend[type] = {};
         
         const currentSpend = window.state.freebieSpend[type][name] || 0;
 
         if (diff > 0) {
-            // Increasing in Freebie Mode -> Increases Spend
             window.state.freebieSpend[type][name] = currentSpend + diff;
         } else if (diff < 0) {
-            // Decreasing in Freebie Mode -> Decreases Spend first
-            // If we have spend, reduce it. 
-            // Example: Val 4, Spend 1. Click 3. Diff -1. Spend becomes 0.
-            // Example: Val 4, Spend 0. Click 3. Diff -1. Spend stays 0.
             const reduceAmount = Math.min(Math.abs(diff), currentSpend);
             window.state.freebieSpend[type][name] = currentSpend - reduceAmount;
         }
@@ -803,19 +741,11 @@ function setDots(name, type, val, min, max = 5) {
         const projectedCost = calculateTotalFreebiesSpent(tempState);
         const limit = parseInt(document.getElementById('c-freebie-total')?.value) || 15;
         if (projectedCost > limit) { 
-            // Revert local spend change if failed
             window.state.freebieSpend[type][name] = currentSpend; 
             showNotification("Freebie Limit Exceeded!"); 
             return; 
         }
     } else {
-        // Standard Mode checks (Base Limits)
-        // Note: We don't touch freebieSpend here, only dots.
-        // But we should prevent reducing dots below the "Freebie Base"?
-        // Actually, V20 rules usually imply you buy freebies ON TOP of base.
-        // If user reduces dots in Base mode, it effectively acts as reducing base.
-        // We will allow it for flexibility.
-        
         if (type === 'attr') {
             let group = null; Object.keys(ATTRIBUTES).forEach(k => { if(ATTRIBUTES[k].includes(name)) group = k; });
             if (group) {
@@ -857,12 +787,9 @@ function setDots(name, type, val, min, max = 5) {
          window.state.status.tempWillpower = cou;
     }
     
-    // UPDATED: Refresh Logic
     if (type === 'attr' || type === 'abil') {
-        // Full Refresh needed to toggle Specialty input
         refreshTraitRow(name, type);
     } else {
-        // Just update dots for other types (passing freebie count)
         const freebies = (window.state.freebieSpend && window.state.freebieSpend[type] && window.state.freebieSpend[type][name]) || 0;
         document.querySelectorAll(`.dot-row[data-n="${name}"][data-t="${type}"]`).forEach(el => el.innerHTML = renderDots(newVal, max, freebies));
     }
@@ -874,11 +801,8 @@ function renderRow(contId, label, type, min, max = 5) {
     if (!cont) return;
     const val = window.state.dots[type][label] || min;
     const div = document.createElement('div'); 
-    
-    // Assign ID for easier refresh
     div.id = 'trait-row-' + type + '-' + label.replace(/[^a-zA-Z0-9]/g, '');
     
-    // Check for specialty eligibility
     let showSpecialty = false;
     let warningMsg = "";
 
@@ -897,13 +821,11 @@ function renderRow(contId, label, type, min, max = 5) {
         }
     }
 
-    // HTML Construction: Flex row to handle "Name - Specialty - Dots"
     div.className = 'flex items-center justify-between w-full py-1';
     
     let specInputHTML = '';
     if (showSpecialty) {
         const specVal = window.state.specialties[label] || "";
-        // Hide logic for Play Mode + Empty
         if (window.state.isPlayMode && !specVal) {
             specInputHTML = '<div class="flex-1"></div>'; 
         } else {
@@ -921,11 +843,9 @@ function renderRow(contId, label, type, min, max = 5) {
             `;
         }
     } else {
-        // Spacer to keep layout somewhat consistent if desired, or just nothing for "Name .... Dots"
         specInputHTML = '<div class="flex-1"></div>'; 
     }
 
-    // Calculate freebies for rendering blue dots
     const freebies = (window.state.freebieSpend && window.state.freebieSpend[type] && window.state.freebieSpend[type][label]) || 0;
 
     div.innerHTML = `
@@ -937,7 +857,6 @@ function renderRow(contId, label, type, min, max = 5) {
     div.querySelector('.trait-label').onclick = () => { if(window.state.isPlayMode) window.handleTraitClick(label, type); };
     div.querySelector('.dot-row').onclick = (e) => { if (e.target.dataset.v) setDots(label, type, parseInt(e.target.dataset.v), min, max); };
     
-    // Attach specialty input listeners if present
     if(showSpecialty && (!window.state.isPlayMode || (window.state.isPlayMode && window.state.specialties[label]))) {
         const input = div.querySelector('input');
         if(input) {
@@ -959,7 +878,6 @@ window.handleTraitClick = function(name, type) {
     const display = document.getElementById('pool-display');
     const hint = document.getElementById('specialty-hint');
     
-    // Create specialty hint container if missing (dynamic insertion)
     if (!hint && display) {
         const hDiv = document.createElement('div');
         hDiv.id = 'specialty-hint';
@@ -970,15 +888,13 @@ window.handleTraitClick = function(name, type) {
     if (window.state.activePool.length > 0) {
         setSafeText('pool-display', window.state.activePool.map(p => `${p.name} (${p.val})`).join(' + '));
         
-        // Scan for potential specialties
         const specs = window.state.activePool
             .map(p => window.state.specialties[p.name])
-            .filter(s => s); // remove empty/undefined
+            .filter(s => s); 
             
         const hintEl = document.getElementById('specialty-hint');
         if (hintEl) {
             if (specs.length > 0) {
-                 // Check if already applied
                  const isApplied = document.getElementById('use-specialty')?.checked;
                  
                  if(isApplied) {
@@ -988,7 +904,6 @@ window.handleTraitClick = function(name, type) {
                         <span>Possible Specialty: ${specs.join(', ')}</span>
                         <button id="apply-spec-btn" class="ml-2 bg-[#d4af37] text-black px-1 rounded hover:bg-white pointer-events-auto text-[9px] font-bold uppercase">APPLY</button>
                      `;
-                     // Bind click
                      const btn = document.getElementById('apply-spec-btn');
                      if(btn) {
                          btn.onclick = (e) => {
@@ -997,7 +912,6 @@ window.handleTraitClick = function(name, type) {
                              if(cb) {
                                  cb.checked = true;
                                  showNotification(`Applied: ${specs.join(', ')}`);
-                                 // Refresh hint text immediately to show active state
                                  hintEl.innerHTML = `<span class="text-[#d4af37] font-bold">Specialty Active! (10s = 2 Successes)</span>`;
                              }
                          };
@@ -1027,16 +941,13 @@ function renderDynamicAdvantageRow(containerId, type, list, isAbil = false) {
 
     const buildRow = (name = "") => {
         const row = document.createElement('div'); 
-        // Layout: Flex Row for Name - Specialty - Dots - Remove
         row.className = 'flex items-center justify-between gap-1 mb-2 advantage-row w-full';
         
-        // 1. Input/Select (Name)
         let inputField;
         if (isAbil) { 
             inputField = document.createElement('input'); 
             inputField.type = 'text'; 
             inputField.placeholder = "Write-in..."; 
-            // Name should be bold, font slightly larger than specialty
             inputField.className = 'font-bold uppercase !bg-black/20 !border-b !border-[#333] text-[11px] w-24 flex-shrink-0'; 
             inputField.value = name; 
         } else { 
@@ -1045,28 +956,24 @@ function renderDynamicAdvantageRow(containerId, type, list, isAbil = false) {
             inputField.innerHTML = `<option value="">-- Choose ${type} --</option>` + list.map(item => `<option value="${item}" ${item === name ? 'selected' : ''}>${item}</option>`).join(''); 
         }
 
-        // 2. Specialty Logic
         let showSpecialty = false;
         let warningMsg = "";
-        if (name && (isAbil || type === 'attr')) { // Logic for custom/dynamic rows
+        if (name && (isAbil || type === 'attr')) { 
              const currentVal = window.state.dots[type][name] || 0;
              if (currentVal >= 1) {
                  showSpecialty = true;
                  if (currentVal < 4) {
                      warningMsg = "Rule Note: Standard V20 requires 4 dots for specialties, but you may override.";
                  }
-                 // Custom abilities check for broadness if name matches standard list, but these are custom writes usually
                  if (BROAD_ABILITIES.includes(name)) warningMsg = "Rule Note: This ability is too broad to be used without a specialty.";
              }
         }
 
-        // 3. Specialty Input HTML
         const specWrapper = document.createElement('div');
-        specWrapper.className = 'flex-1 mx-2 relative'; // Takes remaining middle space
+        specWrapper.className = 'flex-1 mx-2 relative'; 
         
         if (showSpecialty) {
              const specVal = window.state.specialties[name] || "";
-             // Hide logic for Play Mode + Empty
              if (window.state.isPlayMode && !specVal) {
                  specWrapper.innerHTML = '';
              } else {
@@ -1087,7 +994,6 @@ function renderDynamicAdvantageRow(containerId, type, list, isAbil = false) {
              }
         }
 
-        // 4. Dots
         const dotCont = document.createElement('div'); 
         dotCont.className = 'dot-row flex-shrink-0';
         const val = name ? (window.state.dots[type][name] || 0) : 0;
@@ -1095,13 +1001,11 @@ function renderDynamicAdvantageRow(containerId, type, list, isAbil = false) {
         dotCont.innerHTML = renderDots(val, 5, freebies);
         if (name) { dotCont.dataset.n = name; dotCont.dataset.t = type; }
 
-        // 5. Remove Button
         const removeBtn = document.createElement('div'); 
         removeBtn.className = 'remove-btn flex-shrink-0 ml-1'; 
         removeBtn.innerHTML = '&times;';
         if (!name) removeBtn.style.visibility = 'hidden';
 
-        // Event Listeners for Update Logic (Same as before)
         let curName = name;
         let category = null;
         if (containerId === 'custom-talents') category = 'Talents'; else if (containerId === 'custom-skills') category = 'Skills'; else if (containerId === 'custom-knowledges') category = 'Knowledges';
@@ -1111,7 +1015,6 @@ function renderDynamicAdvantageRow(containerId, type, list, isAbil = false) {
                 const dots = window.state.dots[type][curName]; delete window.state.dots[type][curName]; 
                 if (window.state.customAbilityCategories && window.state.customAbilityCategories[curName]) delete window.state.customAbilityCategories[curName];
                 if (newVal) window.state.dots[type][newVal] = dots || 0; 
-                // Migrate specialty if name changes
                 if(window.state.specialties[curName]) {
                     window.state.specialties[newVal] = window.state.specialties[curName];
                     delete window.state.specialties[curName];
@@ -1138,19 +1041,11 @@ function renderDynamicAdvantageRow(containerId, type, list, isAbil = false) {
             const currentVal = window.state.dots[type][curName] || 0;
             if (val === currentVal) val = val - 1;
             
-            // NOTE: Reuse setDots logic via direct call instead of copy-paste to ensure freebie logic applies
-            // But setDots handles rendering.
             setDots(curName, type, val, 0, 5);
             
-            // --- UPDATED LOGIC TO RE-RENDER FOR SPECIALTY INPUT ---
-            // If we cross 0->1 or 1->0, we need to rebuild the row to show/hide specialty
             const wasZero = currentVal === 0;
             const isZero = val === 0;
             if (wasZero !== isZero) {
-                // Simplest way to refresh structure for dynamic row is to replace it
-                // But we want to keep focus if possible? Or just rebuild.
-                // Since this function is closed over `row`, we can't easily recall `buildRow` on the same element.
-                // We will manually update the specWrapper HTML
                 let showSpecialty = false;
                 let warningMsg = "";
                 if (curName && (isAbil || type === 'attr') && val >= 1) {
@@ -1162,7 +1057,6 @@ function renderDynamicAdvantageRow(containerId, type, list, isAbil = false) {
                 specWrapper.innerHTML = '';
                 if (showSpecialty) {
                      const specVal = window.state.specialties[curName] || "";
-                     // Hide logic for Play Mode + Empty
                      if (window.state.isPlayMode && !specVal) {
                          // Keep empty
                      } else {
@@ -1183,7 +1077,6 @@ function renderDynamicAdvantageRow(containerId, type, list, isAbil = false) {
                      }
                 }
             }
-            // -------------------------------------------------------
         };
 
         row.appendChild(inputField);
@@ -1259,3 +1152,141 @@ function renderDynamicTraitRow(containerId, type, list) {
     if (stateArray.length > 0) stateArray.forEach(d => appendRow(d));
     appendRow();
 }
+
+// 2. Auth & Database (Runs Async)
+onAuthStateChanged(auth, async (u) => {
+    if(u) {
+        user = u;
+        const loader = document.getElementById('loading-overlay');
+        if(loader) loader.style.display = 'none';
+
+        try {
+            // SAFEGUARDED UI POPULATION
+            // Wrap in try to prevent crash if data.js missing
+            if (typeof ARCHETYPES === 'undefined') throw new Error("Data not loaded");
+
+            const ns = document.getElementById('c-nature');
+            const ds = document.getElementById('c-demeanor');
+            const cs = document.getElementById('c-clan');
+
+            if(ns && ds) {
+                const sortedArch = [...ARCHETYPES].sort(); 
+                ns.innerHTML = ''; ds.innerHTML = ''; 
+                sortedArch.forEach(a => { 
+                    ns.add(new Option(a,a)); 
+                    if(ds) ds.add(new Option(a,a)); 
+                });
+            }
+
+            if(cs) {
+                const sortedClans = [...CLANS].sort();
+                cs.innerHTML = '';
+                sortedClans.forEach(c => cs.add(new Option(c,c)));
+            }
+
+            const ps1 = document.getElementById('c-path-name');
+            const ps2 = document.getElementById('c-path-name-create');
+            
+            if(ps1) { ps1.innerHTML = ''; PATHS.forEach(p => ps1.add(new Option(p,p))); }
+            if(ps2) { ps2.innerHTML = ''; PATHS.forEach(p => ps2.add(new Option(p,p))); }
+            
+
+            // Safe Event Listeners
+            if(ps1) ps1.addEventListener('change', (e) => { 
+                if(ps2) ps2.value = e.target.value; 
+                if(window.state.textFields) window.state.textFields['c-path-name'] = e.target.value; 
+            });
+            
+            if(ps2) ps2.addEventListener('change', (e) => { 
+                if(ps1) ps1.value = e.target.value; 
+                if(window.state.textFields) window.state.textFields['c-path-name'] = e.target.value; 
+            });
+
+            const freebieInp = document.getElementById('c-freebie-total');
+            if(freebieInp) freebieInp.oninput = window.updatePools;
+
+            // Initial UI Setup (Moved inside Auth for safety data dependency)
+            const s1 = document.getElementById('list-attr-physical');
+            if (s1) {
+                Object.keys(ATTRIBUTES).forEach(c => ATTRIBUTES[c].forEach(a => { window.state.dots.attr[a] = 1; renderRow('list-attr-'+c.toLowerCase(), a, 'attr', 1); }));
+                Object.keys(ABILITIES).forEach(c => ABILITIES[c].forEach(a => { window.state.dots.abil[a] = 0; renderRow('list-abil-'+c.toLowerCase(), a, 'abil', 0); }));
+            }
+            
+            renderDynamicAdvantageRow('list-disc', 'disc', DISCIPLINES);
+            renderDynamicAdvantageRow('list-back', 'back', BACKGROUNDS);
+            renderDynamicAdvantageRow('custom-talents', 'abil', [], true);
+            renderDynamicAdvantageRow('custom-skills', 'abil', [], true);
+            renderDynamicAdvantageRow('custom-knowledges', 'abil', [], true);
+            renderDerangementsList(); 
+            VIRTUES.forEach(v => { window.state.dots.virt[v] = 1; renderRow('list-virt', v, 'virt', 1); });
+            const vitalCont = document.getElementById('vitals-create-inputs');
+            if(vitalCont) {
+                vitalCont.innerHTML = ''; // Reset before rebuilding
+                VIT.forEach(v => { const d = document.createElement('div'); d.innerHTML = `<label class="label-text">${v}</label><input type="text" id="bio-${v}">`; vitalCont.appendChild(d); });
+            }
+            renderDynamicTraitRow('merits-list-create', 'Merit', V20_MERITS_LIST);
+            renderDynamicTraitRow('flaws-list-create', 'Flaw', V20_FLAWS_LIST);
+            window.renderInventoryList();
+            
+            const otherT = document.getElementById('other-traits-rows-create');
+            if(otherT) {
+                otherT.innerHTML = '';
+                for(let i=0; i<8; i++) {
+                    const d2 = document.createElement('div'); d2.className = 'flex items-center gap-2 mb-2';
+                    d2.innerHTML = `<input type="text" id="ot-n-${i}" placeholder="Other..." class="w-40 text-[11px] font-bold"><div class="dot-row" id="ot-dr-${i}"></div>`;
+                    otherT.appendChild(d2);
+                    const dr = d2.querySelector('.dot-row'); dr.innerHTML = renderDots(0, 5);
+                    dr.onclick = (e) => { const n = document.getElementById(`ot-n-${i}`).value || `Other_${i}`; if(e.target.classList.contains('dot')) { let v = parseInt(e.target.dataset.v); const currentVal = window.state.dots.other[n] || 0; if (v === currentVal) v = v - 1; window.state.dots.other[n] = v; dr.innerHTML = renderDots(v, 5); } };
+                }
+            }
+
+            document.querySelectorAll('.prio-btn').forEach(b => b.onclick = (e) => {
+                const {cat, group, v} = e.target.dataset;
+                // ... (Logic kept safe, just ensuring listeners attached)
+                 const catGroups = cat === 'attr' ? ['Physical', 'Social', 'Mental'] : ['Talents', 'Skills', 'Knowledges'];
+                catGroups.forEach(g => {
+                    if (window.state.prios[cat][g] === parseInt(v)) {
+                        window.state.prios[cat][g] = null;
+                        if (cat === 'attr') { ATTRIBUTES[g].forEach(a => window.state.dots.attr[a] = 1); ATTRIBUTES[g].forEach(a => { const row = document.querySelector(`.dot-row[data-n="${a}"][data-t="attr"]`); if(row) row.innerHTML = renderDots(1, 5); }); } 
+                        else { ABILITIES[g].forEach(a => window.state.dots.abil[a] = 0); if (window.state.customAbilityCategories) { Object.entries(window.state.customAbilityCategories).forEach(([name, c]) => { if (c === g) window.state.dots.abil[name] = 0; }); } ABILITIES[g].forEach(a => { const row = document.querySelector(`.dot-row[data-n="${a}"][data-t="abil"]`); if(row) row.innerHTML = renderDots(0, 5); }); const allCustom = document.querySelectorAll('#custom-talents .advantage-row, #custom-skills .advantage-row, #custom-knowledges .advantage-row'); allCustom.forEach(r => { const dot = r.querySelector('.dot-row'); if(dot) dot.innerHTML = renderDots(0,5); }); }
+                    }
+                });
+                window.state.prios[cat][group] = parseInt(v);
+                document.querySelectorAll(`.prio-btn[data-cat="${cat}"]`).forEach(el => { const isActive = window.state.prios[cat][el.dataset.group] == el.dataset.v; el.classList.toggle('active', isActive); });
+                window.updatePools();
+            });
+            renderBloodBondRow();
+            renderDynamicHavenRow();
+
+            // Bind Top Buttons
+            const topPlayBtn = document.getElementById('play-mode-btn');
+            if(topPlayBtn) topPlayBtn.onclick = window.togglePlayMode;
+            
+            const topFreebieBtn = document.getElementById('toggle-freebie-btn');
+            if(topFreebieBtn) topFreebieBtn.onclick = window.toggleFreebieMode;
+
+            // Bind File Manager
+            const cmdNew = document.getElementById('cmd-new');
+            if(cmdNew) cmdNew.onclick = window.handleNew;
+            
+            const cmdSave = document.getElementById('cmd-save');
+            if(cmdSave) cmdSave.onclick = window.handleSaveClick;
+            
+            const cmdLoad = document.getElementById('cmd-load');
+            if(cmdLoad) cmdLoad.onclick = window.handleLoadClick;
+            
+            const confirmSave = document.getElementById('confirm-save-btn');
+            if(confirmSave) confirmSave.onclick = window.performSave;
+
+            window.changeStep(1);
+
+        } catch (dbErr) {
+            console.error("DB/Init Error:", dbErr);
+            showNotification("Init Error: Check Console");
+        }
+    } else {
+        // Anonymous Sign In
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) await signInWithCustomToken(auth, __initial_auth_token);
+        else await signInAnonymously(auth);
+    }
+});
