@@ -637,4 +637,4 @@ onAuthStateChanged(auth, async (u) => {
         if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) await signInWithCustomToken(auth, __initial_auth_token);
         else await signInAnonymously(auth);
     }
-});
+);
