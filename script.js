@@ -334,6 +334,9 @@ window.clearPool = function() {
     document.querySelectorAll('.trait-label').forEach(el => el.classList.remove('selected'));
     setSafeText('pool-display', "Select traits to build pool...");
     const hint = document.getElementById('specialty-hint'); if(hint) hint.innerHTML = '';
+    // Uncheck specialty box
+    const cb = document.getElementById('use-specialty');
+    if(cb) cb.checked = false;
     document.getElementById('dice-tray').classList.remove('open');
 };
 
@@ -882,7 +885,7 @@ window.handleTraitClick = function(name, type) {
     if (!hint && display) {
         const hDiv = document.createElement('div');
         hDiv.id = 'specialty-hint';
-        hDiv.className = 'text-[9px] text-[#4ade80] mt-1 h-3';
+        hDiv.className = 'text-[9px] text-[#4ade80] mt-1 h-4 flex items-center';
         display.parentNode.insertBefore(hDiv, display.nextSibling);
     }
     
@@ -894,10 +897,37 @@ window.handleTraitClick = function(name, type) {
             .map(p => window.state.specialties[p.name])
             .filter(s => s); // remove empty/undefined
             
-        if (specs.length > 0 && document.getElementById('specialty-hint')) {
-             document.getElementById('specialty-hint').innerText = `Possible Specialty: ${specs.join(', ')}`;
-        } else if (document.getElementById('specialty-hint')) {
-             document.getElementById('specialty-hint').innerText = '';
+        const hintEl = document.getElementById('specialty-hint');
+        if (hintEl) {
+            if (specs.length > 0) {
+                 // Check if already applied
+                 const isApplied = document.getElementById('use-specialty')?.checked;
+                 
+                 if(isApplied) {
+                     hintEl.innerHTML = `<span class="text-[#d4af37] font-bold">Specialty Active! (10s = 2 Successes)</span>`;
+                 } else {
+                     hintEl.innerHTML = `
+                        <span>Possible Specialty: ${specs.join(', ')}</span>
+                        <button id="apply-spec-btn" class="ml-2 bg-[#d4af37] text-black px-1 rounded hover:bg-white pointer-events-auto text-[9px] font-bold uppercase">APPLY</button>
+                     `;
+                     // Bind click
+                     const btn = document.getElementById('apply-spec-btn');
+                     if(btn) {
+                         btn.onclick = (e) => {
+                             e.stopPropagation(); 
+                             const cb = document.getElementById('use-specialty');
+                             if(cb) {
+                                 cb.checked = true;
+                                 showNotification(`Applied: ${specs.join(', ')}`);
+                                 // Refresh hint text immediately to show active state
+                                 hintEl.innerHTML = `<span class="text-[#d4af37] font-bold">Specialty Active! (10s = 2 Successes)</span>`;
+                             }
+                         };
+                     }
+                 }
+            } else {
+                hintEl.innerHTML = '';
+            }
         }
         
         document.getElementById('dice-tray').classList.add('open');
