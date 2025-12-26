@@ -85,16 +85,11 @@ function renderDots(count, max = 5, freebieCount = 0) {
     }
     return h; 
 }
-
-function renderBoxes(count, checked = 0, type = '') { 
-    let h = ''; 
-    for(let i=1; i<=count; i++) h += `<span class="box ${i <= checked ? 'checked' : ''}" data-v="${i}" data-type="${type}"></span>`; 
-    return h; 
-}
+function renderBoxes(count, checked = 0, type = '') { let h = ''; for(let i=1; i<=count; i++) h += `<span class="box ${i <= checked ? 'checked' : ''}" data-v="${i}" data-type="${type}"></span>`; return h; }
 
 // --- CORE LOGIC FUNCTIONS ---
 
-function calculateTotalFreebiesSpent(tempState = window.state) {
+window.calculateTotalFreebiesSpent = function(tempState = window.state) {
     let attrDots = 0; Object.keys(ATTRIBUTES).forEach(cat => ATTRIBUTES[cat].forEach(a => attrDots += (tempState.dots.attr[a] || 1)));
     const attrCost = Math.max(0, attrDots - 24) * 5;
     let abilDots = 0;
@@ -120,9 +115,9 @@ function calculateTotalFreebiesSpent(tempState = window.state) {
     if (tempState.flaws) tempState.flaws.forEach(f => mfBonus += (parseInt(f.val) || 0));
     const cappedBonus = Math.min(mfBonus, 7);
     return (attrCost + abilCost + discCost + backCost + virtCost + humCost + willCost + mfCost) - cappedBonus;
-}
+};
 
-function checkStepComplete(step) {
+window.checkStepComplete = function(step) {
     syncInputs();
     const s = window.state;
     if (!s.prios) s.prios = { attr: {}, abil: {} };
@@ -156,13 +151,13 @@ function checkStepComplete(step) {
         return discSpent === 3 && backSpent === 5 && virtTotal === 10;
     }
     return true;
-}
+};
 
-function checkCreationComplete() { return checkStepComplete(1) && checkStepComplete(2) && checkStepComplete(3) && checkStepComplete(4); }
+window.checkCreationComplete = function() { return window.checkStepComplete(1) && window.checkStepComplete(2) && window.checkStepComplete(3) && window.checkStepComplete(4); };
 
 // --- UI & STATE MODIFICATION FUNCTIONS ---
 
-function updatePools() {
+window.updatePools = function() {
     if (!window.state.status) window.state.status = { humanity: 7, willpower: 5, tempWillpower: 5, health_states: [0,0,0,0,0,0,0], blood: 0 };
     if (window.state.status.tempWillpower === undefined) window.state.status.tempWillpower = window.state.status.willpower || 5;
     if (window.state.status.health_states === undefined || !Array.isArray(window.state.status.health_states)) window.state.status.health_states = [0,0,0,0,0,0,0];
@@ -209,7 +204,7 @@ function updatePools() {
     setSafeText('p-virt', `[${Math.max(0, 7 - (virtTotalDots - 3))}]`);
 
     if (window.state.freebieMode) {
-         const totalSpent = calculateTotalFreebiesSpent(window.state);
+         const totalSpent = window.calculateTotalFreebiesSpent(window.state);
          setSafeText('f-total-top', totalSpent); 
          let attrDots = 0; Object.keys(ATTRIBUTES).forEach(cat => ATTRIBUTES[cat].forEach(a => attrDots += (window.state.dots.attr[a] || 1)));
          setSafeText('sb-attr', Math.max(0, attrDots - 24) * 5);
@@ -239,6 +234,7 @@ function updatePools() {
 
     const fbBtn = document.getElementById('toggle-freebie-btn');
     if (fbBtn) {
+        const complete = window.checkCreationComplete();
         if (window.state.isPlayMode) fbBtn.disabled = true;
         else fbBtn.disabled = false; 
     }
@@ -246,12 +242,12 @@ function updatePools() {
     const p8h = document.getElementById('phase8-humanity-dots');
     if(p8h) {
         p8h.innerHTML = renderDots(curH, 10);
-        p8h.onclick = (e) => { if (window.state.freebieMode && e.target.dataset.v) setDots('Humanity', 'status', parseInt(e.target.dataset.v), 1, 10); };
+        p8h.onclick = (e) => { if (window.state.freebieMode && e.target.dataset.v) window.setDots('Humanity', 'status', parseInt(e.target.dataset.v), 1, 10); };
     }
     const p8w = document.getElementById('phase8-willpower-dots');
     if(p8w) {
         p8w.innerHTML = renderDots(curW, 10);
-        p8w.onclick = (e) => { if (window.state.freebieMode && e.target.dataset.v) setDots('Willpower', 'status', parseInt(e.target.dataset.v), 1, 10); };
+        p8w.onclick = (e) => { if (window.state.freebieMode && e.target.dataset.v) window.setDots('Willpower', 'status', parseInt(e.target.dataset.v), 1, 10); };
     }
 
     document.querySelectorAll('#humanity-dots-play').forEach(el => el.innerHTML = renderDots(curH, 10));
@@ -314,9 +310,9 @@ function updatePools() {
         setSafeText('active-armor-names', activeArmor.length > 0 ? activeArmor.join(', ') : "None");
     }
     window.updateWalkthrough();
-}
+};
 
-function handleTraitClick(name, type) {
+window.handleTraitClick = function(name, type) {
     const val = window.state.dots[type][name] || 0;
     const existingIdx = window.state.activePool.findIndex(p => p.name === name);
     if (existingIdx > -1) window.state.activePool.splice(existingIdx, 1);
@@ -371,9 +367,9 @@ function handleTraitClick(name, type) {
         
         document.getElementById('dice-tray').classList.add('open');
     } else { window.clearPool(); }
-}
+};
 
-function setDots(name, type, val, min, max = 5) {
+window.setDots = function(name, type, val, min, max = 5) {
     if (window.state.isPlayMode) return;
     if (type === 'status') {
         if (!window.state.freebieMode) return;
@@ -382,8 +378,8 @@ function setDots(name, type, val, min, max = 5) {
             window.state.status.willpower = val;
             window.state.status.tempWillpower = val; 
         }
-        if (calculateTotalFreebiesSpent(window.state) > (parseInt(document.getElementById('c-freebie-total')?.value) || 15)) { showNotification("Freebie Limit Exceeded!"); return; }
-        updatePools(); return;
+        if (window.calculateTotalFreebiesSpent(window.state) > (parseInt(document.getElementById('c-freebie-total')?.value) || 15)) { showNotification("Freebie Limit Exceeded!"); return; }
+        window.updatePools(); return;
     }
     const currentVal = window.state.dots[type][name] || min;
     let newVal = val;
@@ -408,7 +404,7 @@ function setDots(name, type, val, min, max = 5) {
         const tempState = JSON.parse(JSON.stringify(window.state));
         if (!tempState.dots[type]) tempState.dots[type] = {};
         tempState.dots[type][name] = newVal;
-        const projectedCost = calculateTotalFreebiesSpent(tempState);
+        const projectedCost = window.calculateTotalFreebiesSpent(tempState);
         const limit = parseInt(document.getElementById('c-freebie-total')?.value) || 15;
         if (projectedCost > limit) { 
             window.state.freebieSpend[type][name] = currentSpend; 
@@ -458,15 +454,15 @@ function setDots(name, type, val, min, max = 5) {
     }
     
     if (type === 'attr' || type === 'abil') {
-        refreshTraitRow(name, type);
+        window.refreshTraitRow(name, type);
     } else {
         const freebies = (window.state.freebieSpend && window.state.freebieSpend[type] && window.state.freebieSpend[type][name]) || 0;
         document.querySelectorAll(`.dot-row[data-n="${name}"][data-t="${type}"]`).forEach(el => el.innerHTML = renderDots(newVal, max, freebies));
     }
-    updatePools();
-}
+    window.updatePools();
+};
 
-function refreshTraitRow(label, type) {
+window.refreshTraitRow = function(label, type) {
     const safeId = 'trait-row-' + type + '-' + label.replace(/[^a-zA-Z0-9]/g, '');
     const rowDiv = document.getElementById(safeId);
     if(!rowDiv) return false;
@@ -522,8 +518,8 @@ function refreshTraitRow(label, type) {
         <div class="dot-row flex-shrink-0" data-n="${label}" data-t="${type}">${renderDots(val, max, freebies)}</div>
     `;
 
-    rowDiv.querySelector('.trait-label').onclick = () => { if(window.state.isPlayMode) handleTraitClick(label, type); };
-    rowDiv.querySelector('.dot-row').onclick = (e) => { if (e.target.dataset.v) setDots(label, type, parseInt(e.target.dataset.v), min, max); };
+    rowDiv.querySelector('.trait-label').onclick = () => { if(window.state.isPlayMode) window.handleTraitClick(label, type); };
+    rowDiv.querySelector('.dot-row').onclick = (e) => { if (e.target.dataset.v) window.setDots(label, type, parseInt(e.target.dataset.v), min, max); };
     
     if(showSpecialty && (!window.state.isPlayMode || (window.state.isPlayMode && window.state.specialties[label]))) {
         const input = rowDiv.querySelector('input');
@@ -534,33 +530,33 @@ function refreshTraitRow(label, type) {
         }
     }
     return true;
-}
+};
 
-function renderRow(contId, label, type, min, max = 5) {
+window.renderRow = function(contId, label, type, min, max = 5) {
     const cont = typeof contId === 'string' ? document.getElementById(contId) : contId;
     if (!cont) return;
     const div = document.createElement('div'); 
     div.id = 'trait-row-' + type + '-' + label.replace(/[^a-zA-Z0-9]/g, ''); 
     div.className = 'flex items-center justify-between w-full py-1';
     cont.appendChild(div);
-    refreshTraitRow(label, type); 
-}
+    window.refreshTraitRow(label, type); 
+};
 
-function updateBackgroundDescriptions() {
+window.updateBackgroundDescriptions = function() {
     const cont = document.getElementById('social-profile-list'); if (!cont) return;
     cont.innerHTML = ''; let hasBackgrounds = false;
     if (window.state.dots.back) { Object.entries(window.state.dots.back).forEach(([name, val]) => { if (val > 0) { renderSocialProfileDescription('social-profile-list', name); hasBackgrounds = true; } }); }
     if (!hasBackgrounds) cont.innerHTML = `<div class="col-span-1 md:col-span-2 text-center text-gray-500 italic py-10">Select Backgrounds in the Advantages section to add descriptions here.</div>`;
     hydrateInputs();
-}
+};
 
-function changeStep(s) {
+window.changeStep = function(s) {
     if (!window.state.furthestPhase || s > window.state.furthestPhase) { if (s > (window.state.furthestPhase || 0)) window.state.furthestPhase = s; }
     document.querySelectorAll('.step-container').forEach(c => c.classList.remove('active'));
     const prefix = window.state.isPlayMode ? 'play-mode-' : 'phase-';
     const target = document.getElementById(prefix + s);
     if (target) { target.classList.add('active'); window.state.currentPhase = s; }
-    if (s === 5) updateBackgroundDescriptions();
+    if (s === 5) window.updateBackgroundDescriptions();
     const nav = document.getElementById('sheet-nav');
     if (nav) {
         nav.innerHTML = '';
@@ -569,7 +565,7 @@ function changeStep(s) {
              steps.forEach((text, i) => {
                 const it = document.createElement('div'); it.className = `nav-item ${window.state.currentPhase === (i+1) ? 'active' : ''}`;
                 it.innerHTML = `<i class="fas fa-scroll"></i><span style="display:block; font-size:9px; margin-top:2px;">${text}</span>`;
-                it.onclick = () => changeStep(i+1); nav.appendChild(it);
+                it.onclick = () => window.changeStep(i+1); nav.appendChild(it);
             });
         } else {
             const furthest = window.state.furthestPhase || 1;
@@ -578,15 +574,15 @@ function changeStep(s) {
                 if (step.id === s) statusClass = 'active'; else if (step.id < s) statusClass = 'completed'; else if (step.id <= furthest) statusClass = 'unlocked'; else statusClass = 'locked';
                 it.className = `nav-item ${statusClass}`;
                 it.innerHTML = `<div class="flex flex-col items-center justify-center w-full h-full"><i class="fas ${step.icon}"></i><span style="display:block !important; font-size:7px; text-transform:uppercase; margin-top:2px; opacity:1;">${step.label}</span></div>`;
-                it.onclick = () => { if (step.id <= furthest) changeStep(step.id); };
+                it.onclick = () => { if (step.id <= furthest) window.changeStep(step.id); };
                 nav.appendChild(it);
             });
         }
     }
-    updatePools();
-}
+    window.updatePools();
+};
 
-function toggleFreebieMode() {
+window.toggleFreebieMode = function() {
      window.state.freebieMode = !window.state.freebieMode;
      document.body.classList.toggle('freebie-mode', window.state.freebieMode);
      const fbBtn = document.getElementById('toggle-freebie-btn');
@@ -596,14 +592,14 @@ function toggleFreebieMode() {
      const mMsg = document.getElementById('merit-locked-msg'); const fMsg = document.getElementById('flaw-locked-msg');
      if(mMsg) mMsg.style.display = window.state.freebieMode ? 'none' : 'block';
      if(fMsg) fMsg.style.display = window.state.freebieMode ? 'none' : 'block';
-     renderDynamicTraitRow('merits-list-create', 'Merit', V20_MERITS_LIST);
-     renderDynamicTraitRow('flaws-list-create', 'Flaw', V20_FLAWS_LIST);
-     updatePools(); 
-}
+     window.renderDynamicTraitRow('merits-list-create', 'Merit', V20_MERITS_LIST);
+     window.renderDynamicTraitRow('flaws-list-create', 'Flaw', V20_FLAWS_LIST);
+     window.updatePools(); 
+};
 
-function toggleSidebarLedger() { document.getElementById('freebie-sidebar').classList.toggle('open'); }
+window.toggleSidebarLedger = function() { document.getElementById('freebie-sidebar').classList.toggle('open'); };
 
-function togglePlayMode() {
+window.togglePlayMode = function() {
     window.state.isPlayMode = !window.state.isPlayMode;
     document.body.classList.toggle('play-mode', window.state.isPlayMode);
     const pBtn = document.getElementById('play-mode-btn'); const pBtnText = document.getElementById('play-btn-text');
@@ -616,16 +612,16 @@ function togglePlayMode() {
         const row = document.getElementById('play-concept-row');
         if (row) row.innerHTML = `<div><span class="label-text">Name:</span> <span class="text-white font-bold">${document.getElementById('c-name').value}</span></div><div><span class="label-text">Nature:</span> <span class="text-white font-bold">${document.getElementById('c-nature').value}</span></div><div><span class="label-text">Clan:</span> <span class="text-white font-bold">${document.getElementById('c-clan').value}</span></div><div><span class="label-text">Player:</span> <span class="text-white font-bold">${document.getElementById('c-player').value}</span></div><div><span class="label-text">Demeanor:</span> <span class="text-white font-bold">${document.getElementById('c-demeanor').value}</span></div><div><span class="label-text">Generation:</span> <span class="text-white font-bold">${document.getElementById('c-gen').value}</span></div>`;
         const ra = document.getElementById('play-row-attr'); ra.innerHTML = '';
-        Object.entries(ATTRIBUTES).forEach(([c,l]) => { const s = document.createElement('div'); s.className='sheet-section !mt-0'; s.innerHTML=`<div class="column-title">${c}</div>`; l.forEach(a=>renderRow(s,a,'attr',1)); ra.appendChild(s); });
+        Object.entries(ATTRIBUTES).forEach(([c,l]) => { const s = document.createElement('div'); s.className='sheet-section !mt-0'; s.innerHTML=`<div class="column-title">${c}</div>`; l.forEach(a=>window.renderRow(s,a,'attr',1)); ra.appendChild(s); });
         const rb = document.getElementById('play-row-abil'); rb.innerHTML = '';
-        Object.entries(ABILITIES).forEach(([c,l]) => { const s = document.createElement('div'); s.className='sheet-section !mt-0'; s.innerHTML=`<div class="column-title">${c}</div>`; l.forEach(a=>renderRow(s,a,'abil',0)); rb.appendChild(s); });
+        Object.entries(ABILITIES).forEach(([c,l]) => { const s = document.createElement('div'); s.className='sheet-section !mt-0'; s.innerHTML=`<div class="column-title">${c}</div>`; l.forEach(a=>window.renderRow(s,a,'abil',0)); rb.appendChild(s); });
         const rc = document.getElementById('play-row-adv'); rc.innerHTML = '';
         const ds = document.createElement('div'); ds.className='sheet-section !mt-0'; ds.innerHTML='<div class="column-title">Disciplines</div>';
-        Object.entries(window.state.dots.disc).forEach(([n,v]) => { if(v>0) renderRow(ds,n,'disc',0); }); rc.appendChild(ds);
+        Object.entries(window.state.dots.disc).forEach(([n,v]) => { if(v>0) window.renderRow(ds,n,'disc',0); }); rc.appendChild(ds);
         const bs = document.createElement('div'); bs.className='sheet-section !mt-0'; bs.innerHTML='<div class="column-title">Backgrounds</div>';
-        Object.entries(window.state.dots.back).forEach(([n,v]) => { if(v>0) renderRow(bs,n,'back',0); }); rc.appendChild(bs);
+        Object.entries(window.state.dots.back).forEach(([n,v]) => { if(v>0) window.renderRow(bs,n,'back',0); }); rc.appendChild(bs);
         const vs = document.createElement('div'); vs.className='sheet-section !mt-0'; vs.innerHTML='<div class="column-title">Virtues</div>';
-        VIRTUES.forEach(v => renderRow(vs, v, 'virt', 1)); rc.appendChild(vs);
+        VIRTUES.forEach(v => window.renderRow(vs, v, 'virt', 1)); rc.appendChild(vs);
         const pg = document.getElementById('play-social-grid'); if(pg) {
             pg.innerHTML = ''; BACKGROUNDS.forEach(s => { const dots = window.state.dots.back[s] || 0; const safeId = 'desc-' + s.toLowerCase().replace(/[^a-z0-9]/g, '-'); const el = document.getElementById(safeId); const txt = el ? el.value : ""; if(dots || txt) pg.innerHTML += `<div class="border-l-2 border-[#333] pl-4 mb-4"><div class="flex justify-between items-center"><label class="label-text text-gold">${s}</label><div class="text-[8px] font-bold text-white">${renderDots(dots,5)}</div></div><div class="text-xs text-gray-200 mt-1">${txt || "No description."}</div></div>`; });
         }
@@ -636,7 +632,7 @@ function togglePlayMode() {
             mf.innerHTML = ''; if(window.state.merits) window.state.merits.forEach(m => { mf.innerHTML += `<div class="flex justify-between text-xs py-1 border-b border-[#222]"><span>${m.name}</span><span class="text-red-400 font-bold">${m.val}</span></div>`; }); if(window.state.flaws) window.state.flaws.forEach(f => { mf.innerHTML += `<div class="flex justify-between text-xs py-1 border-b border-[#222]"><span>${f.name}</span><span class="text-green-400 font-bold">${f.val}</span></div>`; });
         }
         const ot = document.getElementById('other-traits-rows-play'); if(ot) {
-            ot.innerHTML = ''; Object.entries(window.state.dots.other).forEach(([n,v]) => { if(v>0) renderRow(ot, n, 'other', 0); });
+            ot.innerHTML = ''; Object.entries(window.state.dots.other).forEach(([n,v]) => { if(v>0) window.renderRow(ot, n, 'other', 0); });
         }
         const plv = document.getElementById('play-vitals-list'); if(plv) {
             plv.innerHTML = ''; VIT.forEach(v => { const val = document.getElementById('bio-' + v)?.value; if(val) plv.innerHTML += `<div class="flex justify-between border-b border-[#222] py-1 font-bold"><span class="text-gray-400">${v.replace('-',' ')}:</span> <span>${val}</span></div>`; });
@@ -660,45 +656,307 @@ function togglePlayMode() {
         if (document.getElementById('play-vehicles')) { const pv = document.getElementById('play-vehicles'); pv.innerHTML = ''; if (window.state.inventory) { window.state.inventory.filter(i => i.type === 'Vehicle').forEach(v => { let display = v.displayName || v.name; pv.innerHTML += `<div class="mb-2 border-b border-[#333] pb-1"><div class="font-bold text-white uppercase text-[10px]">${display}</div><div class="text-[9px] text-gray-400">Safe:${v.stats.safe} | Max:${v.stats.max} | Man:${v.stats.man}</div></div>`; }); } }
         if (document.getElementById('play-havens-list')) { const ph = document.getElementById('play-havens-list'); ph.innerHTML = ''; window.state.havens.forEach(h => { ph.innerHTML += `<div class="border-l-2 border-gold pl-4 mb-4"><div class="flex justify-between"><div><div class="font-bold text-white uppercase text-[10px]">${h.name}</div><div class="text-[9px] text-gold italic">${h.loc}</div></div></div><div class="text-xs text-gray-400 mt-1">${h.desc}</div></div>`; }); }
         
-        changeStep(1);
+        window.changeStep(1);
     } else {
-        changeStep(window.state.furthestPhase || 1);
+        window.changeStep(window.state.furthestPhase || 1);
     }
-}
+};
 
-// --- GLOBAL ASSIGNMENTS (Crucial for HTML event handlers) ---
-window.updatePools = updatePools;
-window.setDots = setDots;
-window.refreshTraitRow = refreshTraitRow;
-window.handleTraitClick = handleTraitClick;
-window.renderInventoryList = renderInventoryList;
-window.removeInventory = removeInventory;
-window.toggleInvStatus = toggleInvStatus;
-window.renderDerangementsList = renderDerangementsList;
-window.removeDerangement = removeDerangement;
-window.renderBloodBondRow = renderBloodBondRow;
-window.renderDynamicHavenRow = renderDynamicHavenRow;
-window.renderDynamicTraitRow = renderDynamicTraitRow;
-window.renderDynamicAdvantageRow = renderDynamicAdvantageRow;
-window.changeStep = changeStep;
-window.toggleFreebieMode = toggleFreebieMode;
-window.togglePlayMode = togglePlayMode;
-window.toggleSidebarLedger = toggleSidebarLedger;
-window.updateBackgroundDescriptions = updateBackgroundDescriptions;
-window.renderSocialProfileDescription = renderSocialProfileDescription;
-window.checkStepComplete = checkStepComplete;
-window.checkCreationComplete = checkCreationComplete;
-window.calculateTotalFreebiesSpent = calculateTotalFreebiesSpent;
-window.updateWalkthrough = updateWalkthrough;
-window.nextStep = nextStep;
-window.clearPool = clearPool;
-window.rollPool = rollPool;
-window.handleNew = handleNew;
-window.handleSaveClick = handleSaveClick;
-window.handleLoadClick = handleLoadClick;
-window.performSave = performSave;
-window.deleteCharacter = deleteCharacter;
-window.renderRow = renderRow;
+window.renderSocialProfileDescription = function(containerId, name) {
+    const cont = document.getElementById(containerId); if (!cont) return;
+    const safeId = 'desc-' + name.toLowerCase().replace(/[^a-z0-9]/g, '-');
+    const row = document.createElement('div'); row.className = 'mb-4 pb-2 border-b border-[#222]';
+    row.innerHTML = `<label class="label-text text-gold">${name}</label><textarea id="${safeId}" class="h-16 text-xs" placeholder="Identity details for ${name}..."></textarea>`;
+    cont.appendChild(row);
+};
+
+window.renderDynamicAdvantageRow = function(containerId, type, list, isAbil = false) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    container.innerHTML = '';
+    let existingItems = [];
+    if (type === 'abil') {
+        let category = '';
+        if (containerId === 'custom-talents') category = 'Talents';
+        else if (containerId === 'custom-skills') category = 'Skills';
+        else if (containerId === 'custom-knowledges') category = 'Knowledges';
+        if (window.state.customAbilityCategories) { existingItems = Object.keys(window.state.dots.abil).filter(k => window.state.customAbilityCategories[k] === category); }
+    } else { if (window.state.dots[type]) existingItems = Object.keys(window.state.dots[type]); }
+
+    const buildRow = (name = "") => {
+        const row = document.createElement('div'); 
+        // Layout: Flex Row for Name - Specialty - Dots - Remove
+        row.className = 'flex items-center justify-between gap-1 mb-2 advantage-row w-full';
+        
+        // 1. Input/Select (Name)
+        let inputField;
+        if (isAbil) { 
+            inputField = document.createElement('input'); 
+            inputField.type = 'text'; 
+            inputField.placeholder = "Write-in..."; 
+            // Name should be bold, font slightly larger than specialty
+            inputField.className = 'font-bold uppercase !bg-black/20 !border-b !border-[#333] text-[11px] w-24 flex-shrink-0'; 
+            inputField.value = name; 
+        } else { 
+            inputField = document.createElement('select'); 
+            inputField.className = 'font-bold uppercase text-[11px] w-24 flex-shrink-0'; 
+            inputField.innerHTML = `<option value="">-- Choose ${type} --</option>` + list.map(item => `<option value="${item}" ${item === name ? 'selected' : ''}>${item}</option>`).join(''); 
+        }
+
+        // 2. Specialty Logic
+        let showSpecialty = false;
+        let warningMsg = "";
+        if (name && (isAbil || type === 'attr')) { // Logic for custom/dynamic rows
+             const currentVal = window.state.dots[type][name] || 0;
+             if (currentVal >= 1) {
+                 showSpecialty = true;
+                 if (currentVal < 4) {
+                     warningMsg = "Rule Note: Standard V20 requires 4 dots for specialties, but you may override.";
+                 }
+                 // Custom abilities check for broadness if name matches standard list, but these are custom writes usually
+                 if (BROAD_ABILITIES.includes(name)) warningMsg = "Rule Note: This ability is too broad to be used without a specialty.";
+             }
+        }
+
+        // 3. Specialty Input HTML
+        const specWrapper = document.createElement('div');
+        specWrapper.className = 'flex-1 mx-2 relative'; // Takes remaining middle space
+        
+        if (showSpecialty) {
+             const specVal = window.state.specialties[name] || "";
+             // Hide logic for Play Mode + Empty
+             if (window.state.isPlayMode && !specVal) {
+                 specWrapper.innerHTML = '';
+             } else {
+                 const listId = `list-${name.replace(/[^a-zA-Z0-9]/g, '')}`;
+                 let optionsHTML = '';
+                 if (SPECIALTY_EXAMPLES && SPECIALTY_EXAMPLES[name]) {
+                     optionsHTML = SPECIALTY_EXAMPLES[name].map(s => `<option value="${s}">`).join('');
+                 }
+                 
+                 specWrapper.innerHTML = `
+                    <input type="text" list="${listId}" class="specialty-input w-full text-[10px] italic bg-transparent border-b border-gray-700 text-[#d4af37] text-center" placeholder="Specialty..." value="${specVal}">
+                    <datalist id="${listId}">${optionsHTML}</datalist>
+                 `;
+                 const inp = specWrapper.querySelector('input');
+                 inp.onblur = (e) => { window.state.specialties[name] = e.target.value; };
+                 if(warningMsg) inp.onfocus = () => showNotification(warningMsg);
+                 inp.disabled = window.state.isPlayMode;
+             }
+        }
+
+        // 4. Dots
+        const dotCont = document.createElement('div'); 
+        dotCont.className = 'dot-row flex-shrink-0';
+        const val = name ? (window.state.dots[type][name] || 0) : 0;
+        const freebies = (window.state.freebieSpend && window.state.freebieSpend[type] && window.state.freebieSpend[type][name]) || 0;
+        dotCont.innerHTML = renderDots(val, 5, freebies);
+        if (name) { dotCont.dataset.n = name; dotCont.dataset.t = type; }
+
+        // 5. Remove Button
+        const removeBtn = document.createElement('div'); 
+        removeBtn.className = 'remove-btn flex-shrink-0 ml-1'; 
+        removeBtn.innerHTML = '&times;';
+        if (!name) removeBtn.style.visibility = 'hidden';
+
+        // Event Listeners for Update Logic (Same as before)
+        let curName = name;
+        let category = null;
+        if (containerId === 'custom-talents') category = 'Talents'; else if (containerId === 'custom-skills') category = 'Skills'; else if (containerId === 'custom-knowledges') category = 'Knowledges';
+        
+        const onUpdate = (newVal) => {
+            if (curName && curName !== newVal) { 
+                const dots = window.state.dots[type][curName]; delete window.state.dots[type][curName]; 
+                if (window.state.customAbilityCategories && window.state.customAbilityCategories[curName]) delete window.state.customAbilityCategories[curName];
+                if (newVal) window.state.dots[type][newVal] = dots || 0; 
+                // Migrate specialty if name changes
+                if(window.state.specialties[curName]) {
+                    window.state.specialties[newVal] = window.state.specialties[curName];
+                    delete window.state.specialties[curName];
+                }
+            }
+            curName = newVal;
+            if (newVal) { 
+                window.state.dots[type][newVal] = window.state.dots[type][newVal] || 0; 
+                dotCont.innerHTML = renderDots(window.state.dots[type][newVal], 5);
+                dotCont.dataset.n = newVal; dotCont.dataset.t = type;
+                if (category) { if (!window.state.customAbilityCategories) window.state.customAbilityCategories = {}; window.state.customAbilityCategories[newVal] = category; }
+                if (row === container.lastElementChild) { removeBtn.style.visibility = 'visible'; buildRow(); }
+            }
+            window.updatePools();
+        };
+        
+        if (isAbil) inputField.onblur = (e) => onUpdate(e.target.value); else inputField.onchange = (e) => onUpdate(e.target.value);
+        
+        removeBtn.onclick = () => { if (curName) { delete window.state.dots[type][curName]; if (window.state.customAbilityCategories && window.state.customAbilityCategories[curName]) delete window.state.customAbilityCategories[curName]; } row.remove(); window.updatePools(); };
+        
+        dotCont.onclick = (e) => { 
+            if (!curName || !e.target.dataset.v) return; 
+            let val = parseInt(e.target.dataset.v);
+            const currentVal = window.state.dots[type][curName] || 0;
+            if (val === currentVal) val = val - 1;
+            
+            // NOTE: Reuse setDots logic via direct call instead of copy-paste to ensure freebie logic applies
+            // But setDots handles rendering.
+            window.setDots(curName, type, val, 0, 5);
+            
+            // --- UPDATED LOGIC TO RE-RENDER FOR SPECIALTY INPUT ---
+            // If we cross 0->1 or 1->0, we need to rebuild the row to show/hide specialty
+            const wasZero = currentVal === 0;
+            const isZero = val === 0;
+            if (wasZero !== isZero) {
+                // Simplest way to refresh structure for dynamic row is to replace it
+                // But we want to keep focus if possible? Or just rebuild.
+                // Since this function is closed over `row`, we can't easily recall `buildRow` on the same element.
+                // We will manually update the specWrapper HTML
+                let showSpecialty = false;
+                let warningMsg = "";
+                if (curName && (isAbil || type === 'attr') && val >= 1) {
+                     showSpecialty = true;
+                     if (val < 4) warningMsg = "Rule Note: Standard V20 requires 4 dots for specialties, but you may override.";
+                     if (BROAD_ABILITIES.includes(curName)) warningMsg = "Rule Note: This ability is too broad to be used without a specialty.";
+                }
+                
+                specWrapper.innerHTML = '';
+                if (showSpecialty) {
+                     const specVal = window.state.specialties[curName] || "";
+                     // Hide logic for Play Mode + Empty
+                     if (window.state.isPlayMode && !specVal) {
+                         // Keep empty
+                     } else {
+                         const listId = `list-${curName.replace(/[^a-zA-Z0-9]/g, '')}`;
+                         let optionsHTML = '';
+                         if (SPECIALTY_EXAMPLES && SPECIALTY_EXAMPLES[curName]) {
+                             optionsHTML = SPECIALTY_EXAMPLES[curName].map(s => `<option value="${s}">`).join('');
+                         }
+                         
+                         specWrapper.innerHTML = `
+                            <input type="text" list="${listId}" class="specialty-input w-full text-[10px] italic bg-transparent border-b border-gray-700 text-[#d4af37] text-center" placeholder="Specialty..." value="${specVal}">
+                            <datalist id="${listId}">${optionsHTML}</datalist>
+                         `;
+                         const inp = specWrapper.querySelector('input');
+                         inp.onblur = (e) => { window.state.specialties[curName] = e.target.value; };
+                         if(warningMsg) inp.onfocus = () => showNotification(warningMsg);
+                         inp.disabled = window.state.isPlayMode;
+                     }
+                }
+            }
+            // -------------------------------------------------------
+        };
+
+        row.appendChild(inputField);
+        row.appendChild(specWrapper);
+        row.appendChild(dotCont);
+        row.appendChild(removeBtn);
+        container.appendChild(row);
+    };
+    existingItems.forEach(item => buildRow(item));
+    buildRow();
+};
+
+window.renderDynamicTraitRow = function(containerId, type, list) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    const stateArray = type === 'Merit' ? (window.state.merits || []) : (window.state.flaws || []);
+    container.innerHTML = '';
+    const appendRow = (data = null) => {
+        const row = document.createElement('div'); row.className = 'flex gap-2 items-center mb-2 trait-row';
+        let options = `<option value="">-- Select ${type} --</option>`;
+        list.forEach(item => {
+            const rangeText = item.range ? `(${item.range}pt)` : `(${item.v}pt)`;
+            options += `<option value="${item.n}" data-val="${item.v}" data-var="${item.variable||false}">${item.n} ${rangeText}</option>`;
+        });
+        options += '<option value="Custom">-- Custom / Write-in --</option>';
+        row.innerHTML = `<div class="flex-1 relative"><select class="w-full text-[11px] font-bold uppercase bg-[#111] text-white border-b border-[#444]">${options}</select><input type="text" placeholder="Custom Name..." class="hidden w-full text-[11px] font-bold uppercase border-b border-[#444] bg-transparent text-white"></div><input type="number" class="w-10 text-center text-[11px] !border !border-[#444] font-bold" min="1"><div class="remove-btn">&times;</div>`;
+        container.appendChild(row);
+        const selectEl = row.querySelector('select');
+        const textEl = row.querySelector('input[type="text"]');
+        const numEl = row.querySelector('input[type="number"]');
+        const removeBtn = row.querySelector('.remove-btn');
+        const isLocked = !window.state.freebieMode;
+        selectEl.disabled = isLocked; textEl.disabled = isLocked; numEl.disabled = isLocked;
+        if(isLocked) { selectEl.classList.add('opacity-50'); textEl.classList.add('opacity-50'); numEl.classList.add('opacity-50'); }
+        if (data) {
+            const exists = list.some(l => l.n === data.name);
+            if (exists) {
+                selectEl.value = data.name; numEl.value = data.val;
+                const itemData = list.find(l => l.n === data.name);
+                if (itemData && !itemData.variable) { numEl.disabled = true; numEl.classList.add('opacity-50'); }
+            } else { selectEl.value = "Custom"; selectEl.classList.add('hidden'); textEl.classList.remove('hidden'); textEl.value = data.name; numEl.value = data.val; }
+        } else { numEl.value = ""; removeBtn.style.visibility = 'hidden'; }
+        const syncState = () => {
+            const allRows = container.querySelectorAll('.trait-row');
+            const newState = [];
+            allRows.forEach(r => {
+                const s = r.querySelector('select');
+                const t = r.querySelector('input[type="text"]');
+                const n = r.querySelector('input[type="number"]');
+                let name = s.value === 'Custom' ? t.value : s.value;
+                let val = parseInt(n.value) || 0;
+                if (name && name !== 'Custom') newState.push({ name, val });
+            });
+            if (type === 'Merit') window.state.merits = newState; else window.state.flaws = newState;
+            window.updatePools();
+        };
+        selectEl.addEventListener('change', (e) => {
+            if (selectEl.value === 'Custom') { selectEl.classList.add('hidden'); textEl.classList.remove('hidden'); textEl.focus(); numEl.value = 1; numEl.disabled = false; numEl.classList.remove('opacity-50'); } 
+            else if (selectEl.value) {
+                const opt = selectEl.options[selectEl.selectedIndex];
+                const baseVal = opt.dataset.val;
+                const isVar = opt.dataset.var === "true";
+                numEl.value = baseVal;
+                if (!isVar) { numEl.disabled = true; numEl.classList.add('opacity-50'); } else { numEl.disabled = false; numEl.classList.remove('opacity-50'); }
+                if (row === container.lastElementChild) { removeBtn.style.visibility = 'visible'; appendRow(); }
+            } else { numEl.value = ""; numEl.disabled = false; }
+            syncState();
+        });
+        textEl.addEventListener('blur', () => { if (textEl.value === "") { textEl.classList.add('hidden'); selectEl.classList.remove('hidden'); selectEl.value = ""; } else { if (row === container.lastElementChild) { removeBtn.style.visibility = 'visible'; appendRow(); } } syncState(); });
+        numEl.addEventListener('change', syncState);
+        removeBtn.addEventListener('click', () => { row.remove(); syncState(); });
+    };
+    if (stateArray.length > 0) stateArray.forEach(d => appendRow(d));
+    appendRow();
+};
+
+window.clearPool = function() {
+    window.state.activePool = [];
+    document.querySelectorAll('.trait-label').forEach(el => el.classList.remove('selected'));
+    setSafeText('pool-display', "Select traits to build pool...");
+    const hint = document.getElementById('specialty-hint'); if(hint) hint.innerHTML = '';
+    const cb = document.getElementById('use-specialty');
+    if(cb) cb.checked = false;
+    document.getElementById('dice-tray').classList.remove('open');
+};
+
+window.rollPool = function() {
+    const poolSize = window.state.activePool.reduce((a,b) => a + b.val, 0);
+    if (poolSize <= 0) { showNotification("Pool Empty"); return; }
+    const diff = parseInt(document.getElementById('roll-diff').value) || 6;
+    const isSpec = document.getElementById('use-specialty').checked;
+    let results = [], ones = 0, rawSuccesses = 0;
+    for(let i=0; i<poolSize; i++) {
+        const die = Math.floor(Math.random() * 10) + 1;
+        results.push(die);
+        if (die === 1) ones++;
+        if (die >= diff) { if (isSpec && die === 10) rawSuccesses += 2; else rawSuccesses += 1; }
+    }
+    let net = rawSuccesses - ones;
+    let outcome = "", outcomeClass = "";
+    if (rawSuccesses === 0 && ones > 0) { outcome = "BOTCH"; outcomeClass = "dice-botch"; } 
+    else if (net <= 0) { outcome = "FAILURE"; outcomeClass = "text-gray-400"; } 
+    else { outcome = `${net} SUCCESS${net > 1 ? 'ES' : ''}`; outcomeClass = "dice-success"; }
+    const tray = document.getElementById('roll-results');
+    const row = document.createElement('div');
+    row.className = 'bg-black/60 p-2 border border-[#333] text-[10px] mb-2 animate-in fade-in slide-in-from-right-4 duration-300';
+    const diceRender = results.map(d => {
+        let c = 'text-gray-500';
+        if (d === 1) c = 'text-[#ff0000] font-bold';
+        else if (d >= diff) { c = 'text-[#d4af37] font-bold'; if (d === 10 && isSpec) c = 'text-[#4ade80] font-black'; }
+        return `<span class="${c} text-3xl mx-1">${d}</span>`;
+    }).join(' ');
+    row.innerHTML = `<div class="flex justify-between border-b border-[#444] pb-1 mb-1"><span class="text-gray-400">Diff ${diff}${isSpec ? '*' : ''}</span><span class="${outcomeClass} font-black text-sm">${outcome}</span></div><div class="tracking-widest flex flex-wrap justify-center py-2">${diceRender}</div>`;
+    tray.insertBefore(row, tray.firstChild);
+};
 
 // 2. Auth & Database (Runs Async)
 onAuthStateChanged(auth, async (u) => {
@@ -751,27 +1009,27 @@ onAuthStateChanged(auth, async (u) => {
             const freebieInp = document.getElementById('c-freebie-total');
             if(freebieInp) freebieInp.oninput = window.updatePools;
 
-            // Initial UI Setup (Moved inside Auth for safety data dependency)
+            // Initial UI Setup
             const s1 = document.getElementById('list-attr-physical');
             if (s1) {
-                Object.keys(ATTRIBUTES).forEach(c => ATTRIBUTES[c].forEach(a => { window.state.dots.attr[a] = 1; renderRow('list-attr-'+c.toLowerCase(), a, 'attr', 1); }));
-                Object.keys(ABILITIES).forEach(c => ABILITIES[c].forEach(a => { window.state.dots.abil[a] = 0; renderRow('list-abil-'+c.toLowerCase(), a, 'abil', 0); }));
+                Object.keys(ATTRIBUTES).forEach(c => ATTRIBUTES[c].forEach(a => { window.state.dots.attr[a] = 1; window.renderRow('list-attr-'+c.toLowerCase(), a, 'attr', 1); }));
+                Object.keys(ABILITIES).forEach(c => ABILITIES[c].forEach(a => { window.state.dots.abil[a] = 0; window.renderRow('list-abil-'+c.toLowerCase(), a, 'abil', 0); }));
             }
             
-            renderDynamicAdvantageRow('list-disc', 'disc', DISCIPLINES);
-            renderDynamicAdvantageRow('list-back', 'back', BACKGROUNDS);
-            renderDynamicAdvantageRow('custom-talents', 'abil', [], true);
-            renderDynamicAdvantageRow('custom-skills', 'abil', [], true);
-            renderDynamicAdvantageRow('custom-knowledges', 'abil', [], true);
-            renderDerangementsList(); 
-            VIRTUES.forEach(v => { window.state.dots.virt[v] = 1; renderRow('list-virt', v, 'virt', 1); });
+            window.renderDynamicAdvantageRow('list-disc', 'disc', DISCIPLINES);
+            window.renderDynamicAdvantageRow('list-back', 'back', BACKGROUNDS);
+            window.renderDynamicAdvantageRow('custom-talents', 'abil', [], true);
+            window.renderDynamicAdvantageRow('custom-skills', 'abil', [], true);
+            window.renderDynamicAdvantageRow('custom-knowledges', 'abil', [], true);
+            window.renderDerangementsList(); 
+            VIRTUES.forEach(v => { window.state.dots.virt[v] = 1; window.renderRow('list-virt', v, 'virt', 1); });
             const vitalCont = document.getElementById('vitals-create-inputs');
             if(vitalCont) {
                 vitalCont.innerHTML = ''; 
                 VIT.forEach(v => { const d = document.createElement('div'); d.innerHTML = `<label class="label-text">${v}</label><input type="text" id="bio-${v}">`; vitalCont.appendChild(d); });
             }
-            renderDynamicTraitRow('merits-list-create', 'Merit', V20_MERITS_LIST);
-            renderDynamicTraitRow('flaws-list-create', 'Flaw', V20_FLAWS_LIST);
+            window.renderDynamicTraitRow('merits-list-create', 'Merit', V20_MERITS_LIST);
+            window.renderDynamicTraitRow('flaws-list-create', 'Flaw', V20_FLAWS_LIST);
             window.renderInventoryList();
             
             const otherT = document.getElementById('other-traits-rows-create');
@@ -800,8 +1058,8 @@ onAuthStateChanged(auth, async (u) => {
                 document.querySelectorAll(`.prio-btn[data-cat="${cat}"]`).forEach(el => { const isActive = window.state.prios[cat][el.dataset.group] == el.dataset.v; el.classList.toggle('active', isActive); });
                 window.updatePools();
             });
-            renderBloodBondRow();
-            renderDynamicHavenRow();
+            window.renderBloodBondRow();
+            window.renderDynamicHavenRow();
 
             // Bind Top Buttons
             const topPlayBtn = document.getElementById('play-mode-btn');
