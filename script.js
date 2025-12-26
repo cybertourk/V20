@@ -52,8 +52,11 @@ window.state = {
 
 let user = null;
 
+// --- CONSTANTS FOR RULES ---
+const BROAD_ABILITIES = ["Crafts", "Science"];
+
 const setSafeText = (id, val) => { const el = document.getElementById(id); if(el) el.innerText = val; };
-function showNotification(msg) { const el = document.getElementById('notification'); if (el) { el.innerText = msg; el.style.display = 'block'; setTimeout(() => { el.style.display = 'none'; }, 3000); } }
+function showNotification(msg) { const el = document.getElementById('notification'); if (el) { el.innerText = msg; el.style.display = 'block'; setTimeout(() => { el.style.display = 'none'; }, 4000); } }
 
 function syncInputs() {
     document.querySelectorAll('input:not([type="checkbox"]), select, textarea').forEach(el => {
@@ -64,6 +67,41 @@ function syncInputs() {
 function hydrateInputs() {
     Object.entries(window.state.textFields || {}).forEach(([id, val]) => { const el = document.getElementById(id); if (el) el.value = val; });
 }
+
+// MOVED UP FOR SAFETY
+window.renderInventoryList = function() {
+    const listCarried = document.getElementById('inv-list-carried');
+    const listOwned = document.getElementById('inv-list-owned');
+    const listVehicles = document.getElementById('vehicle-list');
+    if(listCarried) listCarried.innerHTML = '';
+    if(listOwned) listOwned.innerHTML = '';
+    if(listVehicles) listVehicles.innerHTML = '';
+    if(!listCarried || !listOwned || !listVehicles) return;
+    (window.state.inventory || []).forEach((item, idx) => {
+        const d = document.createElement('div');
+        d.className = "flex justify-between items-center bg-black/40 border border-[#333] p-1 text-[10px] mb-1";
+        let displayName = item.displayName || item.name;
+        if(item.type === 'Weapon' && item.baseType && item.baseType !== displayName) displayName += ` <span class="text-gray-500">[${item.baseType}]</span>`;
+        let details = "";
+        if(item.type === 'Weapon') details = `<div class="text-gray-400 text-[9px] mt-0.5 ml-1">Diff:${item.stats.diff} Dmg:${item.stats.dmg} Rng:${item.stats.range}</div>`;
+        else if(item.type === 'Armor') details = `<div class="text-gray-400 text-[9px] mt-0.5 ml-1">Rating:${item.stats.rating} Penalty:${item.stats.penalty}</div>`;
+        else if(item.type === 'Vehicle') details = `<div class="text-gray-400 text-[9px] mt-0.5 ml-1">Safe:${item.stats.safe} Max:${item.stats.max} Man:${item.stats.man}</div>`;
+        const statusColor = item.status === 'carried' ? 'text-green-400' : 'text-gray-500';
+        const statusLabel = item.status === 'carried' ? 'CARRIED' : 'OWNED';
+        d.innerHTML = `
+            <div class="flex-1 overflow-hidden mr-2"><div class="font-bold text-white uppercase truncate" title="${item.displayName || item.name}">${displayName}</div>${details}</div>
+            <div class="flex items-center gap-2 flex-shrink-0">
+                ${item.type !== 'Vehicle' ? `<button class="${statusColor} font-bold text-[8px] border border-[#333] px-1 hover:bg-[#222]" onclick="window.toggleInvStatus(${idx})">${statusLabel}</button>` : ''}
+                <button class="text-red-500 font-bold px-1 hover:text-red-300" onclick="window.removeInventory(${idx})">&times;</button>
+            </div>`;
+        if (item.type === 'Vehicle') listVehicles.appendChild(d);
+        else { if (item.status === 'carried') listCarried.appendChild(d); else listOwned.appendChild(d); }
+    });
+    window.updatePools();
+};
+
+window.removeInventory = (idx) => { window.state.inventory.splice(idx, 1); window.renderInventoryList(); };
+window.toggleInvStatus = (idx) => { const item = window.state.inventory[idx]; item.status = item.status === 'carried' ? 'owned' : 'carried'; window.renderInventoryList(); };
 
 function renderDots(count, max = 5) { let h = ''; for(let i=1; i<=max; i++) h += `<span class="dot ${i <= count ? 'filled' : ''}" data-v="${i}"></span>`; return h; }
 function renderBoxes(count, checked = 0, type = '') { let h = ''; for(let i=1; i<=count; i++) h += `<span class="box ${i <= checked ? 'checked' : ''}" data-v="${i}" data-type="${type}"></span>`; return h; }
@@ -273,6 +311,14 @@ async function loadSelectedChar(data) {
     window.renderInventoryList();
     window.updatePools();
     
+    // Re-render standard rows to ensure specialties appear if data exists
+    if(window.state.dots.attr) {
+        Object.keys(ATTRIBUTES).forEach(c => ATTRIBUTES[c].forEach(a => { refreshTraitRow(a, 'attr'); }));
+    }
+    if(window.state.dots.abil) {
+        Object.keys(ABILITIES).forEach(c => ABILITIES[c].forEach(a => { refreshTraitRow(a, 'abil'); }));
+    }
+    
     // Close Modal
     document.getElementById('load-modal').classList.remove('active');
     showNotification("Recalled.");
@@ -287,6 +333,10 @@ window.clearPool = function() {
     window.state.activePool = [];
     document.querySelectorAll('.trait-label').forEach(el => el.classList.remove('selected'));
     setSafeText('pool-display', "Select traits to build pool...");
+    const hint = document.getElementById('specialty-hint'); if(hint) hint.innerHTML = '';
+    // Uncheck specialty box
+    const cb = document.getElementById('use-specialty');
+    if(cb) cb.checked = false;
     document.getElementById('dice-tray').classList.remove('open');
 };
 
@@ -594,6 +644,80 @@ window.updatePools = function() {
     window.updateWalkthrough();
 };
 
+// ============================================
+// NEW: Helper to refresh specific row UI
+// ============================================
+function refreshTraitRow(label, type) {
+    const safeId = 'trait-row-' + type + '-' + label.replace(/[^a-zA-Z0-9]/g, '');
+    const rowDiv = document.getElementById(safeId);
+    if(!rowDiv) return; // Should exist if rendered by renderRow
+
+    const min = (type === 'attr') ? 1 : 0;
+    const val = window.state.dots[type][label] || min;
+    const max = 5;
+
+    // Recalculate specialty logic (Copied from renderRow)
+    let showSpecialty = false;
+    let warningMsg = "";
+
+    if (type !== 'virt') {
+        if (type === 'attr') {
+            if (val >= 4) showSpecialty = true;
+        } else if (type === 'abil') {
+            if (val >= 1) {
+                showSpecialty = true;
+                if (!BROAD_ABILITIES.includes(label) && val < 4) {
+                    warningMsg = "Rule Note: Standard V20 requires 4 dots for specialties, but you may override.";
+                } else if (BROAD_ABILITIES.includes(label)) {
+                    warningMsg = "Rule Note: This ability is too broad to be used without a specialty.";
+                }
+            }
+        }
+    }
+
+    let specInputHTML = '';
+    if (showSpecialty) {
+        const specVal = window.state.specialties[label] || "";
+        // Hide logic for Play Mode + Empty
+        if (window.state.isPlayMode && !specVal) {
+            specInputHTML = '<div class="flex-1"></div>'; 
+        } else {
+            const listId = `list-${label.replace(/[^a-zA-Z0-9]/g, '')}`;
+            let optionsHTML = '';
+            if (SPECIALTY_EXAMPLES && SPECIALTY_EXAMPLES[label]) {
+                optionsHTML = SPECIALTY_EXAMPLES[label].map(s => `<option value="${s}">`).join('');
+            }
+            
+            specInputHTML = `
+                <div class="flex-1 mx-2 relative">
+                    <input type="text" list="${listId}" class="specialty-input w-full text-[10px] italic bg-transparent border-b border-gray-700 text-[#d4af37] text-center" placeholder="Specialty..." value="${specVal}">
+                    <datalist id="${listId}">${optionsHTML}</datalist>
+                </div>
+            `;
+        }
+    } else {
+        specInputHTML = '<div class="flex-1"></div>'; 
+    }
+
+    rowDiv.innerHTML = `
+        <span class="trait-label font-bold uppercase text-[11px] whitespace-nowrap cursor-pointer hover:text-gold">${label}</span>
+        ${specInputHTML}
+        <div class="dot-row flex-shrink-0" data-n="${label}" data-t="${type}">${renderDots(val, max)}</div>
+    `;
+
+    rowDiv.querySelector('.trait-label').onclick = () => { if(window.state.isPlayMode) window.handleTraitClick(label, type); };
+    rowDiv.querySelector('.dot-row').onclick = (e) => { if (e.target.dataset.v) setDots(label, type, parseInt(e.target.dataset.v), min, max); };
+    
+    if(showSpecialty && (!window.state.isPlayMode || (window.state.isPlayMode && window.state.specialties[label]))) {
+        const input = rowDiv.querySelector('input');
+        if(input) {
+            input.onblur = (e) => { window.state.specialties[label] = e.target.value; };
+            if (warningMsg) { input.onfocus = () => showNotification(warningMsg); }
+            input.disabled = window.state.isPlayMode;
+        }
+    }
+}
+
 function setDots(name, type, val, min, max = 5) {
     if (window.state.isPlayMode) return;
     if (type === 'status') {
@@ -658,87 +782,93 @@ function setDots(name, type, val, min, max = 5) {
          window.state.status.willpower = cou;
          window.state.status.tempWillpower = cou;
     }
-    document.querySelectorAll(`.dot-row[data-n="${name}"][data-t="${type}"]`).forEach(el => el.innerHTML = renderDots(newVal, max));
+    
+    // UPDATED: Refresh Logic
+    if (type === 'attr' || type === 'abil') {
+        // Full Refresh needed to toggle Specialty input
+        refreshTraitRow(name, type);
+    } else {
+        // Just update dots for other types
+        document.querySelectorAll(`.dot-row[data-n="${name}"][data-t="${type}"]`).forEach(el => el.innerHTML = renderDots(newVal, max));
+    }
     window.updatePools();
 }
-
-window.renderInventoryList = function() {
-    const listCarried = document.getElementById('inv-list-carried');
-    const listOwned = document.getElementById('inv-list-owned');
-    const listVehicles = document.getElementById('vehicle-list');
-    if(listCarried) listCarried.innerHTML = '';
-    if(listOwned) listOwned.innerHTML = '';
-    if(listVehicles) listVehicles.innerHTML = '';
-    if(!listCarried || !listOwned || !listVehicles) return;
-    (window.state.inventory || []).forEach((item, idx) => {
-        const d = document.createElement('div');
-        d.className = "flex justify-between items-center bg-black/40 border border-[#333] p-1 text-[10px] mb-1";
-        let displayName = item.displayName || item.name;
-        if(item.type === 'Weapon' && item.baseType && item.baseType !== displayName) displayName += ` <span class="text-gray-500">[${item.baseType}]</span>`;
-        let details = "";
-        if(item.type === 'Weapon') details = `<div class="text-gray-400 text-[9px] mt-0.5 ml-1">Diff:${item.stats.diff} Dmg:${item.stats.dmg} Rng:${item.stats.range}</div>`;
-        else if(item.type === 'Armor') details = `<div class="text-gray-400 text-[9px] mt-0.5 ml-1">Rating:${item.stats.rating} Penalty:${item.stats.penalty}</div>`;
-        else if(item.type === 'Vehicle') details = `<div class="text-gray-400 text-[9px] mt-0.5 ml-1">Safe:${item.stats.safe} Max:${item.stats.max} Man:${item.stats.man}</div>`;
-        const statusColor = item.status === 'carried' ? 'text-green-400' : 'text-gray-500';
-        const statusLabel = item.status === 'carried' ? 'CARRIED' : 'OWNED';
-        d.innerHTML = `
-            <div class="flex-1 overflow-hidden mr-2"><div class="font-bold text-white uppercase truncate" title="${item.displayName || item.name}">${displayName}</div>${details}</div>
-            <div class="flex items-center gap-2 flex-shrink-0">
-                ${item.type !== 'Vehicle' ? `<button class="${statusColor} font-bold text-[8px] border border-[#333] px-1 hover:bg-[#222]" onclick="window.toggleInvStatus(${idx})">${statusLabel}</button>` : ''}
-                <button class="text-red-500 font-bold px-1 hover:text-red-300" onclick="window.removeInventory(${idx})">&times;</button>
-            </div>`;
-        if (item.type === 'Vehicle') listVehicles.appendChild(d);
-        else { if (item.status === 'carried') listCarried.appendChild(d); else listOwned.appendChild(d); }
-    });
-    window.updatePools();
-};
-
-window.removeInventory = (idx) => { window.state.inventory.splice(idx, 1); window.renderInventoryList(); };
-window.toggleInvStatus = (idx) => { const item = window.state.inventory[idx]; item.status = item.status === 'carried' ? 'owned' : 'carried'; window.renderInventoryList(); };
 
 function renderRow(contId, label, type, min, max = 5) {
     const cont = typeof contId === 'string' ? document.getElementById(contId) : contId;
     if (!cont) return;
     const val = window.state.dots[type][label] || min;
-    const div = document.createElement('div'); div.className = 'flex flex-col py-1';
+    const div = document.createElement('div'); 
     
-    // Updated HTML structure for renderRow to include specialty input
-    div.innerHTML = `
-        <div class="flex justify-between items-center w-full">
-            <span class="trait-label uppercase">${label}</span>
-            <div class="dot-row" data-n="${label}" data-t="${type}">${renderDots(val, max)}</div>
-        </div>
-    `;
+    // Assign ID for easier refresh
+    div.id = 'trait-row-' + type + '-' + label.replace(/[^a-zA-Z0-9]/g, '');
     
-    // Specialty Input Logic (V1.10 - Dropdown/Datalist)
-    if (val >= 4) {
-        const specDiv = document.createElement('div');
-        specDiv.className = 'w-full mt-1';
-        const specVal = window.state.specialties[label] || "";
-        const listId = `list-${label.replace(/\s+/g, '')}`;
-        
-        // Dynamically create datalist options from SPECIALTY_EXAMPLES
-        let optionsHTML = '';
-        if (SPECIALTY_EXAMPLES[label]) {
-            optionsHTML = SPECIALTY_EXAMPLES[label].map(s => `<option value="${s}">`).join('');
+    // Check for specialty eligibility
+    let showSpecialty = false;
+    let warningMsg = "";
+
+    if (type !== 'virt') {
+        if (type === 'attr') {
+            if (val >= 4) showSpecialty = true;
+        } else if (type === 'abil') {
+            if (val >= 1) {
+                showSpecialty = true;
+                if (!BROAD_ABILITIES.includes(label) && val < 4) {
+                    warningMsg = "Rule Note: Standard V20 requires 4 dots for specialties, but you may override.";
+                } else if (BROAD_ABILITIES.includes(label)) {
+                    warningMsg = "Rule Note: This ability is too broad to be used without a specialty.";
+                }
+            }
         }
-        
-        specDiv.innerHTML = `
-            <input type="text" list="${listId}" class="specialty-input w-full text-[9px] bg-transparent border-b border-gray-700 text-[#d4af37] italic pl-2" placeholder="Specialty..." value="${specVal}">
-            <datalist id="${listId}">${optionsHTML}</datalist>
-        `;
-        
-        const input = specDiv.querySelector('input');
-        input.onblur = (e) => {
-            window.state.specialties[label] = e.target.value;
-        };
-        input.disabled = window.state.isPlayMode;
-        
-        div.appendChild(specDiv);
     }
+
+    // HTML Construction: Flex row to handle "Name - Specialty - Dots"
+    div.className = 'flex items-center justify-between w-full py-1';
+    
+    let specInputHTML = '';
+    if (showSpecialty) {
+        const specVal = window.state.specialties[label] || "";
+        // Hide logic for Play Mode + Empty
+        if (window.state.isPlayMode && !specVal) {
+            specInputHTML = '<div class="flex-1"></div>'; 
+        } else {
+            const listId = `list-${label.replace(/[^a-zA-Z0-9]/g, '')}`;
+            let optionsHTML = '';
+            if (SPECIALTY_EXAMPLES && SPECIALTY_EXAMPLES[label]) {
+                optionsHTML = SPECIALTY_EXAMPLES[label].map(s => `<option value="${s}">`).join('');
+            }
+            
+            specInputHTML = `
+                <div class="flex-1 mx-2 relative">
+                    <input type="text" list="${listId}" class="specialty-input w-full text-[10px] italic bg-transparent border-b border-gray-700 text-[#d4af37] text-center" placeholder="Specialty..." value="${specVal}">
+                    <datalist id="${listId}">${optionsHTML}</datalist>
+                </div>
+            `;
+        }
+    } else {
+        // Spacer to keep layout somewhat consistent if desired, or just nothing for "Name .... Dots"
+        specInputHTML = '<div class="flex-1"></div>'; 
+    }
+
+    div.innerHTML = `
+        <span class="trait-label font-bold uppercase text-[11px] whitespace-nowrap cursor-pointer hover:text-gold">${label}</span>
+        ${specInputHTML}
+        <div class="dot-row flex-shrink-0" data-n="${label}" data-t="${type}">${renderDots(val, max)}</div>
+    `;
 
     div.querySelector('.trait-label').onclick = () => { if(window.state.isPlayMode) window.handleTraitClick(label, type); };
     div.querySelector('.dot-row').onclick = (e) => { if (e.target.dataset.v) setDots(label, type, parseInt(e.target.dataset.v), min, max); };
+    
+    // Attach specialty input listeners if present
+    if(showSpecialty && (!window.state.isPlayMode || (window.state.isPlayMode && window.state.specialties[label]))) {
+        const input = div.querySelector('input');
+        if(input) {
+            input.onblur = (e) => { window.state.specialties[label] = e.target.value; };
+            if (warningMsg) { input.onfocus = () => showNotification(warningMsg); }
+            input.disabled = window.state.isPlayMode;
+        }
+    }
+
     cont.appendChild(div);
 }
 
@@ -749,8 +879,57 @@ window.handleTraitClick = function(name, type) {
     else { if (window.state.activePool.length >= 2) window.state.activePool.shift(); window.state.activePool.push({name, val}); }
     document.querySelectorAll('.trait-label').forEach(el => el.classList.toggle('selected', window.state.activePool.some(p => p.name === el.innerText)));
     const display = document.getElementById('pool-display');
+    const hint = document.getElementById('specialty-hint');
+    
+    // Create specialty hint container if missing (dynamic insertion)
+    if (!hint && display) {
+        const hDiv = document.createElement('div');
+        hDiv.id = 'specialty-hint';
+        hDiv.className = 'text-[9px] text-[#4ade80] mt-1 h-4 flex items-center';
+        display.parentNode.insertBefore(hDiv, display.nextSibling);
+    }
+    
     if (window.state.activePool.length > 0) {
         setSafeText('pool-display', window.state.activePool.map(p => `${p.name} (${p.val})`).join(' + '));
+        
+        // Scan for potential specialties
+        const specs = window.state.activePool
+            .map(p => window.state.specialties[p.name])
+            .filter(s => s); // remove empty/undefined
+            
+        const hintEl = document.getElementById('specialty-hint');
+        if (hintEl) {
+            if (specs.length > 0) {
+                 // Check if already applied
+                 const isApplied = document.getElementById('use-specialty')?.checked;
+                 
+                 if(isApplied) {
+                     hintEl.innerHTML = `<span class="text-[#d4af37] font-bold">Specialty Active! (10s = 2 Successes)</span>`;
+                 } else {
+                     hintEl.innerHTML = `
+                        <span>Possible Specialty: ${specs.join(', ')}</span>
+                        <button id="apply-spec-btn" class="ml-2 bg-[#d4af37] text-black px-1 rounded hover:bg-white pointer-events-auto text-[9px] font-bold uppercase">APPLY</button>
+                     `;
+                     // Bind click
+                     const btn = document.getElementById('apply-spec-btn');
+                     if(btn) {
+                         btn.onclick = (e) => {
+                             e.stopPropagation(); 
+                             const cb = document.getElementById('use-specialty');
+                             if(cb) {
+                                 cb.checked = true;
+                                 showNotification(`Applied: ${specs.join(', ')}`);
+                                 // Refresh hint text immediately to show active state
+                                 hintEl.innerHTML = `<span class="text-[#d4af37] font-bold">Specialty Active! (10s = 2 Successes)</span>`;
+                             }
+                         };
+                     }
+                 }
+            } else {
+                hintEl.innerHTML = '';
+            }
+        }
+        
         document.getElementById('dice-tray').classList.add('open');
     } else { window.clearPool(); }
 };
@@ -769,17 +948,81 @@ function renderDynamicAdvantageRow(containerId, type, list, isAbil = false) {
     } else { if (window.state.dots[type]) existingItems = Object.keys(window.state.dots[type]); }
 
     const buildRow = (name = "") => {
-        const row = document.createElement('div'); row.className = 'flex flex-col gap-1 mb-2 advantage-row';
-        const head = document.createElement('div'); head.className = 'flex justify-between items-center';
+        const row = document.createElement('div'); 
+        // Layout: Flex Row for Name - Specialty - Dots - Remove
+        row.className = 'flex items-center justify-between gap-1 mb-2 advantage-row w-full';
+        
+        // 1. Input/Select (Name)
         let inputField;
-        if (isAbil) { inputField = document.createElement('input'); inputField.type = 'text'; inputField.placeholder = "Write-in..."; inputField.className = 'flex-1 mr-4 text-[10px] font-bold uppercase !bg-black/20 !border-b !border-[#333]'; inputField.value = name; } 
-        else { inputField = document.createElement('select'); inputField.className = 'flex-1 mr-4 text-[11px] font-bold uppercase'; inputField.innerHTML = `<option value="">-- Choose ${type} --</option>` + list.map(item => `<option value="${item}" ${item === name ? 'selected' : ''}>${item}</option>`).join(''); }
-        const dotCont = document.createElement('div'); dotCont.className = 'dot-row';
+        if (isAbil) { 
+            inputField = document.createElement('input'); 
+            inputField.type = 'text'; 
+            inputField.placeholder = "Write-in..."; 
+            // Name should be bold, font slightly larger than specialty
+            inputField.className = 'font-bold uppercase !bg-black/20 !border-b !border-[#333] text-[11px] w-24 flex-shrink-0'; 
+            inputField.value = name; 
+        } else { 
+            inputField = document.createElement('select'); 
+            inputField.className = 'font-bold uppercase text-[11px] w-24 flex-shrink-0'; 
+            inputField.innerHTML = `<option value="">-- Choose ${type} --</option>` + list.map(item => `<option value="${item}" ${item === name ? 'selected' : ''}>${item}</option>`).join(''); 
+        }
+
+        // 2. Specialty Logic
+        let showSpecialty = false;
+        let warningMsg = "";
+        if (name && (isAbil || type === 'attr')) { // Logic for custom/dynamic rows
+             const currentVal = window.state.dots[type][name] || 0;
+             if (currentVal >= 1) {
+                 showSpecialty = true;
+                 if (currentVal < 4) {
+                     warningMsg = "Rule Note: Standard V20 requires 4 dots for specialties, but you may override.";
+                 }
+                 // Custom abilities check for broadness if name matches standard list, but these are custom writes usually
+                 if (BROAD_ABILITIES.includes(name)) warningMsg = "Rule Note: This ability is too broad to be used without a specialty.";
+             }
+        }
+
+        // 3. Specialty Input HTML
+        const specWrapper = document.createElement('div');
+        specWrapper.className = 'flex-1 mx-2 relative'; // Takes remaining middle space
+        
+        if (showSpecialty) {
+             const specVal = window.state.specialties[name] || "";
+             // Hide logic for Play Mode + Empty
+             if (window.state.isPlayMode && !specVal) {
+                 specWrapper.innerHTML = '';
+             } else {
+                 const listId = `list-${name.replace(/[^a-zA-Z0-9]/g, '')}`;
+                 let optionsHTML = '';
+                 if (SPECIALTY_EXAMPLES && SPECIALTY_EXAMPLES[name]) {
+                     optionsHTML = SPECIALTY_EXAMPLES[name].map(s => `<option value="${s}">`).join('');
+                 }
+                 
+                 specWrapper.innerHTML = `
+                    <input type="text" list="${listId}" class="specialty-input w-full text-[10px] italic bg-transparent border-b border-gray-700 text-[#d4af37] text-center" placeholder="Specialty..." value="${specVal}">
+                    <datalist id="${listId}">${optionsHTML}</datalist>
+                 `;
+                 const inp = specWrapper.querySelector('input');
+                 inp.onblur = (e) => { window.state.specialties[name] = e.target.value; };
+                 if(warningMsg) inp.onfocus = () => showNotification(warningMsg);
+                 inp.disabled = window.state.isPlayMode;
+             }
+        }
+
+        // 4. Dots
+        const dotCont = document.createElement('div'); 
+        dotCont.className = 'dot-row flex-shrink-0';
         const val = name ? (window.state.dots[type][name] || 0) : 0;
         dotCont.innerHTML = renderDots(val, 5);
         if (name) { dotCont.dataset.n = name; dotCont.dataset.t = type; }
-        const removeBtn = document.createElement('div'); removeBtn.className = 'remove-btn'; removeBtn.innerHTML = '&times;';
+
+        // 5. Remove Button
+        const removeBtn = document.createElement('div'); 
+        removeBtn.className = 'remove-btn flex-shrink-0 ml-1'; 
+        removeBtn.innerHTML = '&times;';
         if (!name) removeBtn.style.visibility = 'hidden';
+
+        // Event Listeners for Update Logic (Same as before)
         let curName = name;
         let category = null;
         if (containerId === 'custom-talents') category = 'Talents'; else if (containerId === 'custom-skills') category = 'Skills'; else if (containerId === 'custom-knowledges') category = 'Knowledges';
@@ -805,8 +1048,11 @@ function renderDynamicAdvantageRow(containerId, type, list, isAbil = false) {
             }
             window.updatePools();
         };
+        
         if (isAbil) inputField.onblur = (e) => onUpdate(e.target.value); else inputField.onchange = (e) => onUpdate(e.target.value);
+        
         removeBtn.onclick = () => { if (curName) { delete window.state.dots[type][curName]; if (window.state.customAbilityCategories && window.state.customAbilityCategories[curName]) delete window.state.customAbilityCategories[curName]; } row.remove(); window.updatePools(); };
+        
         dotCont.onclick = (e) => { 
             if (!curName || !e.target.dataset.v) return; 
             let val = parseInt(e.target.dataset.v);
@@ -830,102 +1076,63 @@ function renderDynamicAdvantageRow(containerId, type, list, isAbil = false) {
                     if (currentSpent + val > 5) { showNotification("Max 5 Creation Dots for Backgrounds!"); return; }
                 }
             }
-            window.state.dots[type][curName] = val; dotCont.innerHTML = renderDots(val, 5); window.updatePools(); 
+            window.state.dots[type][curName] = val; 
+            
+            // --- UPDATED LOGIC TO RE-RENDER FOR SPECIALTY INPUT ---
+            // If we cross 0->1 or 1->0, we need to rebuild the row to show/hide specialty
+            const wasZero = currentVal === 0;
+            const isZero = val === 0;
+            if (wasZero !== isZero) {
+                // Simplest way to refresh structure for dynamic row is to replace it
+                // But we want to keep focus if possible? Or just rebuild.
+                // Since this function is closed over `row`, we can't easily recall `buildRow` on the same element.
+                // We will manually update the specWrapper HTML
+                let showSpecialty = false;
+                let warningMsg = "";
+                if (curName && (isAbil || type === 'attr') && val >= 1) {
+                     showSpecialty = true;
+                     if (val < 4) warningMsg = "Rule Note: Standard V20 requires 4 dots for specialties, but you may override.";
+                     if (BROAD_ABILITIES.includes(curName)) warningMsg = "Rule Note: This ability is too broad to be used without a specialty.";
+                }
+                
+                specWrapper.innerHTML = '';
+                if (showSpecialty) {
+                     const specVal = window.state.specialties[curName] || "";
+                     // Hide logic for Play Mode + Empty
+                     if (window.state.isPlayMode && !specVal) {
+                         // Keep empty
+                     } else {
+                         const listId = `list-${curName.replace(/[^a-zA-Z0-9]/g, '')}`;
+                         let optionsHTML = '';
+                         if (SPECIALTY_EXAMPLES && SPECIALTY_EXAMPLES[curName]) {
+                             optionsHTML = SPECIALTY_EXAMPLES[curName].map(s => `<option value="${s}">`).join('');
+                         }
+                         
+                         specWrapper.innerHTML = `
+                            <input type="text" list="${listId}" class="specialty-input w-full text-[10px] italic bg-transparent border-b border-gray-700 text-[#d4af37] text-center" placeholder="Specialty..." value="${specVal}">
+                            <datalist id="${listId}">${optionsHTML}</datalist>
+                         `;
+                         const inp = specWrapper.querySelector('input');
+                         inp.onblur = (e) => { window.state.specialties[curName] = e.target.value; };
+                         if(warningMsg) inp.onfocus = () => showNotification(warningMsg);
+                         inp.disabled = window.state.isPlayMode;
+                     }
+                }
+            }
+            // -------------------------------------------------------
+
+            dotCont.innerHTML = renderDots(val, 5); 
+            window.updatePools(); 
         };
-        head.appendChild(inputField); head.appendChild(dotCont); head.appendChild(removeBtn);
-        row.appendChild(head); 
-        
-        // Custom trait specialty injection logic
-        if (curName && (window.state.dots[type][curName] || 0) >= 4) {
-             const specDiv = document.createElement('div');
-             specDiv.className = 'w-full mt-1 ml-1';
-             const specVal = window.state.specialties[curName] || "";
-             // Use generic list for custom items or look up if name matches known ability
-             const listId = `list-${curName.replace(/[^a-zA-Z0-9]/g, '')}`;
-             let optionsHTML = '';
-             if (SPECIALTY_EXAMPLES[curName]) {
-                 optionsHTML = SPECIALTY_EXAMPLES[curName].map(s => `<option value="${s}">`).join('');
-             }
-             
-             specDiv.innerHTML = `
-                <input type="text" list="${listId}" class="specialty-input w-full text-[9px] bg-transparent border-b border-gray-700 text-[#d4af37] italic pl-2" placeholder="Specialty..." value="${specVal}">
-                <datalist id="${listId}">${optionsHTML}</datalist>
-             `;
-             
-             const input = specDiv.querySelector('input');
-             input.onblur = (e) => { window.state.specialties[curName] = e.target.value; };
-             input.disabled = window.state.isPlayMode;
-             row.appendChild(specDiv);
-        }
-        
+
+        row.appendChild(inputField);
+        row.appendChild(specWrapper);
+        row.appendChild(dotCont);
+        row.appendChild(removeBtn);
         container.appendChild(row);
     };
     existingItems.forEach(item => buildRow(item));
     buildRow();
-}
-
-function renderDynamicTraitRow(containerId, type, list) {
-    const container = document.getElementById(containerId);
-    if (!container) return;
-    const stateArray = type === 'Merit' ? (window.state.merits || []) : (window.state.flaws || []);
-    container.innerHTML = '';
-    const appendRow = (data = null) => {
-        const row = document.createElement('div'); row.className = 'flex gap-2 items-center mb-2 trait-row';
-        let options = `<option value="">-- Select ${type} --</option>`;
-        list.forEach(item => {
-            const rangeText = item.range ? `(${item.range}pt)` : `(${item.v}pt)`;
-            options += `<option value="${item.n}" data-val="${item.v}" data-var="${item.variable||false}">${item.n} ${rangeText}</option>`;
-        });
-        options += '<option value="Custom">-- Custom / Write-in --</option>';
-        row.innerHTML = `<div class="flex-1 relative"><select class="w-full text-[11px] font-bold uppercase bg-[#111] text-white border-b border-[#444]">${options}</select><input type="text" placeholder="Custom Name..." class="hidden w-full text-[11px] font-bold uppercase border-b border-[#444] bg-transparent text-white"></div><input type="number" class="w-10 text-center text-[11px] !border !border-[#444] font-bold" min="1"><div class="remove-btn">&times;</div>`;
-        container.appendChild(row);
-        const selectEl = row.querySelector('select');
-        const textEl = row.querySelector('input[type="text"]');
-        const numEl = row.querySelector('input[type="number"]');
-        const removeBtn = row.querySelector('.remove-btn');
-        const isLocked = !window.state.freebieMode;
-        selectEl.disabled = isLocked; textEl.disabled = isLocked; numEl.disabled = isLocked;
-        if(isLocked) { selectEl.classList.add('opacity-50'); textEl.classList.add('opacity-50'); numEl.classList.add('opacity-50'); }
-        if (data) {
-            const exists = list.some(l => l.n === data.name);
-            if (exists) {
-                selectEl.value = data.name; numEl.value = data.val;
-                const itemData = list.find(l => l.n === data.name);
-                if (itemData && !itemData.variable) { numEl.disabled = true; numEl.classList.add('opacity-50'); }
-            } else { selectEl.value = "Custom"; selectEl.classList.add('hidden'); textEl.classList.remove('hidden'); textEl.value = data.name; numEl.value = data.val; }
-        } else { numEl.value = ""; removeBtn.style.visibility = 'hidden'; }
-        const syncState = () => {
-            const allRows = container.querySelectorAll('.trait-row');
-            const newState = [];
-            allRows.forEach(r => {
-                const s = r.querySelector('select');
-                const t = r.querySelector('input[type="text"]');
-                const n = r.querySelector('input[type="number"]');
-                let name = s.value === 'Custom' ? t.value : s.value;
-                let val = parseInt(n.value) || 0;
-                if (name && name !== 'Custom') newState.push({ name, val });
-            });
-            if (type === 'Merit') window.state.merits = newState; else window.state.flaws = newState;
-            window.updatePools();
-        };
-        selectEl.addEventListener('change', (e) => {
-            if (selectEl.value === 'Custom') { selectEl.classList.add('hidden'); textEl.classList.remove('hidden'); textEl.focus(); numEl.value = 1; numEl.disabled = false; numEl.classList.remove('opacity-50'); } 
-            else if (selectEl.value) {
-                const opt = selectEl.options[selectEl.selectedIndex];
-                const baseVal = opt.dataset.val;
-                const isVar = opt.dataset.var === "true";
-                numEl.value = baseVal;
-                if (!isVar) { numEl.disabled = true; numEl.classList.add('opacity-50'); } else { numEl.disabled = false; numEl.classList.remove('opacity-50'); }
-                if (row === container.lastElementChild) { removeBtn.style.visibility = 'visible'; appendRow(); }
-            } else { numEl.value = ""; numEl.disabled = false; }
-            syncState();
-        });
-        textEl.addEventListener('blur', () => { if (textEl.value === "") { textEl.classList.add('hidden'); selectEl.classList.remove('hidden'); selectEl.value = ""; } else { if (row === container.lastElementChild) { removeBtn.style.visibility = 'visible'; appendRow(); } } syncState(); });
-        numEl.addEventListener('change', syncState);
-        removeBtn.addEventListener('click', () => { row.remove(); syncState(); });
-    };
-    if (stateArray.length > 0) stateArray.forEach(d => appendRow(d));
-    appendRow();
 }
 
 // Inventory UI Setup
@@ -1275,7 +1482,10 @@ try {
     // ---------------------------------------
     
     // Render the initial UI
-    window.changeStep(1); 
+    window.changeStep(1);
+    
+    console.log("Script Loaded Successfully.");
+    
 } catch(e) {
     console.error("UI Init Error:", e);
     const notif = document.getElementById('notification');
