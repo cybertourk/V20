@@ -405,33 +405,39 @@ window.updatePools = function() {
         box.dataset.state = healthStates[i] || 0;
     });
     
-    // --- WEAKNESS RENDER (NEW) ---
+    // --- WEAKNESS RENDER (UPDATED) ---
+    // This explicitly finds the play mode container and injects content
     const weaknessCont = document.getElementById('weakness-play-container');
     if (weaknessCont) {
-        // Clear previous content
         weaknessCont.innerHTML = '';
         
-        const clan = document.getElementById('c-clan')?.value;
-        const weaknessText = CLAN_WEAKNESSES[clan] || "No Clan Selected";
-        const customWeakness = window.state.textFields['custom-weakness'] || "";
+        // Grab Clan from State or DOM
+        const clan = window.state.textFields['c-clan'] || document.getElementById('c-clan')?.value || "None";
+        const weaknessText = CLAN_WEAKNESSES[clan] || "Select a Clan to see weakness.";
+        
+        // Grab Custom Note from State
+        const customNote = window.state.textFields['custom-weakness'] || "";
 
         weaknessCont.innerHTML = `
-            <div class="text-[10px] font-bold text-gray-400 mb-1">CLAN WEAKNESS</div>
-            <div class="text-[10px] text-red-400 italic mb-2 leading-tight">${weaknessText}</div>
-            <div class="text-[10px] font-bold text-gray-400 mb-1">SPECIFIC FLAW</div>
-            <textarea id="custom-weakness-input" class="w-full h-16 bg-black/40 border border-[#333] text-[10px] text-white p-1" placeholder="Clarify weakness (e.g. 'Only Brunettes')...">${customWeakness}</textarea>
+            <div class="bg-black/40 border border-[#333] p-3 h-full flex flex-col">
+                <div class="text-[10px] font-bold text-gold border-b border-[#444] mb-2 pb-1 uppercase tracking-widest">Clan Weakness</div>
+                <div class="text-[10px] text-red-400 italic mb-3 leading-snug flex-1">${weaknessText}</div>
+                
+                <div class="text-[9px] font-bold text-gray-500 mb-1 uppercase">Notes / Specifics</div>
+                <textarea id="custom-weakness-input" class="w-full h-16 bg-[#111] border border-[#444] text-[10px] text-white p-2 focus:border-gold outline-none resize-none" placeholder="e.g. 'Only Brunettes'">${customNote}</textarea>
+            </div>
         `;
         
-        // Bind save event for custom input
+        // Bind save listener
         const ta = document.getElementById('custom-weakness-input');
         if(ta) {
-            ta.onblur = (e) => {
+            ta.addEventListener('blur', (e) => {
+                if(!window.state.textFields) window.state.textFields = {};
                 window.state.textFields['custom-weakness'] = e.target.value;
-            };
+            });
         }
     }
 
-    
     const cList = document.getElementById('combat-list-create');
     if(cList && window.state.inventory) {
         cList.innerHTML = '';
@@ -989,7 +995,6 @@ window.togglePlayMode = function() {
         rc.appendChild(vs);
         VIRTUES.forEach(v => renderRow(vs, v, 'virt', 1)); 
         
-        // --- SOCIAL PROFILE RENDER ---
         const pg = document.getElementById('play-social-grid'); if(pg) {
             pg.innerHTML = ''; BACKGROUNDS.forEach(s => { const dots = window.state.dots.back[s] || 0; const safeId = 'desc-' + s.toLowerCase().replace(/[^a-z0-9]/g, '-'); const el = document.getElementById(safeId); const txt = el ? el.value : ""; if(dots || txt) pg.innerHTML += `<div class="border-l-2 border-[#333] pl-4 mb-4"><div class="flex justify-between items-center"><label class="label-text text-gold">${s}</label><div class="text-[8px] font-bold text-white">${renderDots(dots,5)}</div></div><div class="text-xs text-gray-200 mt-1">${txt || "No description."}</div></div>`; });
         }
