@@ -56,7 +56,11 @@ window.deleteCharacter = FBManager.deleteCharacter;
 window.fullRefresh = function() {
     try {
         console.log("Starting Full UI Refresh...");
+        
+        // 1. Text Fields
         hydrateInputs();
+        
+        // 2. Dynamic Rows
         renderDynamicAdvantageRow('list-disc', 'disc', DISCIPLINES);
         renderDynamicAdvantageRow('list-back', 'back', BACKGROUNDS);
         renderDynamicAdvantageRow('custom-talents', 'abil', [], true);
@@ -69,9 +73,26 @@ window.fullRefresh = function() {
         renderDynamicTraitRow('merits-list-create', 'Merit', V20_MERITS_LIST);
         renderDynamicTraitRow('flaws-list-create', 'Flaw', V20_FLAWS_LIST);
         
+        // 3. Priority Buttons (NEW FIX)
+        // This loops through all buttons and highlights them if they match the loaded state
+        if (window.state.prios) {
+            document.querySelectorAll('.prio-btn').forEach(btn => {
+                const { cat, group, v } = btn.dataset;
+                const savedVal = window.state.prios[cat]?.[group];
+                // Compare saved value with button value. Use loose equality (==) for string/int safety
+                if (savedVal == v) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            });
+        }
+        
+        // 4. Standard Rows
         Object.keys(ATTRIBUTES).forEach(c => ATTRIBUTES[c].forEach(a => { refreshTraitRow(a, 'attr'); }));
         Object.keys(ABILITIES).forEach(c => ABILITIES[c].forEach(a => { refreshTraitRow(a, 'abil'); }));
 
+        // 5. Other Traits
         for(let i=0; i<8; i++) {
             const nameInput = document.getElementById(`ot-n-${i}`);
             if(nameInput) {
@@ -82,6 +103,7 @@ window.fullRefresh = function() {
             }
         }
         
+        // 6. Virtues
         VIRTUES.forEach(v => {
             const row = document.querySelector(`#list-virt .dot-row[data-n="${v}"]`);
             if(row) row.innerHTML = renderDots(window.state.dots.virt[v] || 1, 5);
@@ -92,6 +114,8 @@ window.fullRefresh = function() {
         window.updatePools();
         
         console.log("UI Refresh Complete.");
+        
+        // Restore Phase
         if(window.state.furthestPhase) window.changeStep(window.state.furthestPhase);
 
     } catch(e) {
