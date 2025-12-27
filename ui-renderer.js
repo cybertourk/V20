@@ -916,7 +916,20 @@ window.togglePlayMode = function() {
 
     if (window.state.isPlayMode) {
         const row = document.getElementById('play-concept-row');
-        if (row) row.innerHTML = `<div><span class="label-text">Name:</span> <span class="text-white font-bold">${document.getElementById('c-name').value}</span></div><div><span class="label-text">Nature:</span> <span class="text-white font-bold">${document.getElementById('c-nature').value}</span></div><div><span class="label-text">Clan:</span> <span class="text-white font-bold">${document.getElementById('c-clan').value}</span></div><div><span class="label-text">Player:</span> <span class="text-white font-bold">${document.getElementById('c-player').value}</span></div><div><span class="label-text">Demeanor:</span> <span class="text-white font-bold">${document.getElementById('c-demeanor').value}</span></div><div><span class="label-text">Generation:</span> <span class="text-white font-bold">${document.getElementById('c-gen').value}</span></div>`;
+        if (row) {
+            const getVal = (id) => document.getElementById(id)?.value || '';
+            row.innerHTML = `
+                <div><span class="label-text">Name:</span> <span class="text-white font-bold">${getVal('c-name')}</span></div>
+                <div><span class="label-text">Player:</span> <span class="text-white font-bold">${getVal('c-player')}</span></div>
+                <div><span class="label-text">Chronicle:</span> <span class="text-white font-bold">${getVal('c-chronicle')}</span></div>
+                <div><span class="label-text">Nature:</span> <span class="text-white font-bold">${getVal('c-nature')}</span></div>
+                <div><span class="label-text">Demeanor:</span> <span class="text-white font-bold">${getVal('c-demeanor')}</span></div>
+                <div><span class="label-text">Concept:</span> <span class="text-white font-bold">${getVal('c-concept')}</span></div>
+                <div><span class="label-text">Clan:</span> <span class="text-white font-bold">${getVal('c-clan')}</span></div>
+                <div><span class="label-text">Generation:</span> <span class="text-white font-bold">${getVal('c-gen')}</span></div>
+                <div><span class="label-text">Sire:</span> <span class="text-white font-bold">${getVal('c-sire')}</span></div>
+            `;
+        }
         
         const ra = document.getElementById('play-row-attr'); ra.innerHTML = '';
         Object.entries(ATTRIBUTES).forEach(([c,l]) => { 
