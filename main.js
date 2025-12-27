@@ -4,7 +4,18 @@ import {
     DISCIPLINES, BACKGROUNDS, VIRTUES, V20_MERITS_LIST, V20_FLAWS_LIST, VIT 
 } from "./data.js";
 import * as FBManager from "./firebase-manager.js";
-import { renderDots, renderSocialProfile, setupInventoryListeners } from "./ui-renderer.js"; // Explicitly import new functions
+import { 
+    renderDots, 
+    renderSocialProfile, 
+    setupInventoryListeners,
+    renderRow, 
+    renderDynamicAdvantageRow,
+    renderDynamicTraitRow,
+    renderDerangementsList,
+    renderBloodBondRow,
+    renderDynamicHavenRow,
+    renderInventoryList
+} from "./ui-renderer.js"; 
 
 // --- ERROR HANDLER ---
 window.onerror = function(msg, url, line) {
@@ -56,26 +67,26 @@ function initUI() {
         if (s1) {
             Object.keys(ATTRIBUTES).forEach(c => ATTRIBUTES[c].forEach(a => { 
                 window.state.dots.attr[a] = 1; 
-                window.renderRow('list-attr-'+c.toLowerCase(), a, 'attr', 1); 
+                renderRow('list-attr-'+c.toLowerCase(), a, 'attr', 1); 
             }));
             Object.keys(ABILITIES).forEach(c => ABILITIES[c].forEach(a => { 
                 window.state.dots.abil[a] = 0; 
-                window.renderRow('list-abil-'+c.toLowerCase(), a, 'abil', 0); 
+                renderRow('list-abil-'+c.toLowerCase(), a, 'abil', 0); 
             }));
         }
         
         // Render Initial Lists
-        window.renderDynamicAdvantageRow('list-disc', 'disc', DISCIPLINES);
-        window.renderDynamicAdvantageRow('list-back', 'back', BACKGROUNDS);
-        window.renderDynamicAdvantageRow('custom-talents', 'abil', [], true);
-        window.renderDynamicAdvantageRow('custom-skills', 'abil', [], true);
-        window.renderDynamicAdvantageRow('custom-knowledges', 'abil', [], true);
-        window.renderDerangementsList(); 
+        renderDynamicAdvantageRow('list-disc', 'disc', DISCIPLINES);
+        renderDynamicAdvantageRow('list-back', 'back', BACKGROUNDS);
+        renderDynamicAdvantageRow('custom-talents', 'abil', [], true);
+        renderDynamicAdvantageRow('custom-skills', 'abil', [], true);
+        renderDynamicAdvantageRow('custom-knowledges', 'abil', [], true);
+        renderDerangementsList(); 
         
         // Render Virtues
         VIRTUES.forEach(v => { 
             window.state.dots.virt[v] = 1; 
-            window.renderRow('list-virt', v, 'virt', 1); 
+            renderRow('list-virt', v, 'virt', 1); 
         });
         
         // Render Vitals inputs
@@ -89,13 +100,13 @@ function initUI() {
             });
         }
         
-        window.renderDynamicTraitRow('merits-list-create', 'Merit', V20_MERITS_LIST);
-        window.renderDynamicTraitRow('flaws-list-create', 'Flaw', V20_FLAWS_LIST);
-        window.renderInventoryList();
+        renderDynamicTraitRow('merits-list-create', 'Merit', V20_MERITS_LIST);
+        renderDynamicTraitRow('flaws-list-create', 'Flaw', V20_FLAWS_LIST);
+        renderInventoryList();
         
         // Setup Logic that was missing
-        window.renderSocialProfile();
-        window.setupInventoryListeners();
+        renderSocialProfile();
+        setupInventoryListeners();
         
         // Render Other Traits
         const otherT = document.getElementById('other-traits-rows-create');
@@ -158,8 +169,8 @@ function initUI() {
             window.updatePools();
         });
 
-        window.renderBloodBondRow();
-        window.renderDynamicHavenRow();
+        renderBloodBondRow();
+        renderDynamicHavenRow();
         
         // Button Bindings
         const cmdNew = document.getElementById('cmd-new');
