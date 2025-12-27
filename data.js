@@ -49,7 +49,6 @@ export const DISCIPLINES = [
     "Thaumaturgy", "Vicissitude"
 ];
 
-// V20 Rules: Restored Black Hand Membership and Rituals per Core Rulebook
 export const BACKGROUNDS = [
     "Allies", "Alternate Identity", "Black Hand Membership", "Contacts", 
     "Domain", "Fame", "Generation", "Herd", "Influence", "Mentor", 
@@ -92,7 +91,16 @@ export const GEN_LIMITS = {
     4: { m: 50, pt: 10 }
 };
 
-export const HEALTH_STATES = ["Bruised", "Hurt", "Injured", "Wounded", "Mauled", "Crippled", "Incapacitated"];
+// Updated to Objects for UI rendering
+export const HEALTH_STATES = [
+    { l: "Bruised", p: 0 },
+    { l: "Hurt", p: -1 },
+    { l: "Injured", p: -1 },
+    { l: "Wounded", p: -2 },
+    { l: "Mauled", p: -2 },
+    { l: "Crippled", p: -5 },
+    { l: "Incapacitated", p: 0 }
+];
 
 export const SPECIALTY_EXAMPLES = {
     "Athletics": ["Running", "Climbing", "Swimming", "Parkour", "Throwing", "Dodge"],
