@@ -383,52 +383,61 @@
                 </div>
             </div>
 
-            <!-- Play Mode Sheet (Updated Layout) -->
+            <!-- Play Mode Sheet (NEW LAYOUT) -->
             <div id="play-mode-sheet" class="hidden">
                 <div id="play-mode-1" class="step-container space-y-10 active">
                     <div id="play-concept-row" class="grid grid-cols-3 gap-6 text-[11px] uppercase border-b border-[#333] pb-6 font-bold text-gold"></div>
                     <div id="play-rows-container" class="space-y-10"><div id="play-row-attr" class="grid grid-cols-1 md:grid-cols-3 gap-10"></div><div id="play-row-abil" class="grid grid-cols-1 md:grid-cols-3 gap-10"></div><div id="play-row-adv" class="grid grid-cols-1 md:grid-cols-3 gap-10"></div></div>
                     
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-10 border-t border-[#333] pt-10">
-                        <!-- Humanity/Willpower -->
-                        <div class="sheet-section">
-                            <div class="section-title">Humanity / Path</div>
-                            <div class="flex flex-col items-center gap-4 py-2">
-                                <select id="c-path-name" class="text-center text-gold font-bold uppercase tracking-widest !bg-transparent !border-b !border-[#333] mb-1 appearance-none cursor-pointer w-full text-sm"></select>
-                                <div id="humanity-dots-play" class="flex justify-center"></div>
-                                <div class="flex items-center gap-2 mt-2">
-                                    <span class="label-text text-gray-500">Bearing:</span>
-                                    <input type="text" id="c-bearing-name" class="w-24 text-xs !border-b !border-[#333]">
-                                    <input type="number" id="c-bearing-value" class="w-10 text-center text-xs !border-b !border-[#333]" placeholder="( )">
+                    <!-- NEW BOTTOM SECTION LAYOUT -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-10 border-t border-[#333] pt-10">
+                        <!-- Left Column: Status Stats -->
+                        <div class="flex flex-col gap-8">
+                            <!-- Humanity -->
+                            <div class="sheet-section">
+                                <div class="section-title">Humanity / Path</div>
+                                <div class="flex flex-col items-center gap-4 py-2">
+                                    <select id="c-path-name" class="text-center text-gold font-bold uppercase tracking-widest !bg-transparent !border-b !border-[#333] mb-1 appearance-none cursor-pointer w-full text-sm"></select>
+                                    <div id="humanity-dots-play" class="flex justify-center"></div>
+                                    <div class="flex items-center gap-2 mt-2">
+                                        <span class="label-text text-gray-500">Bearing:</span>
+                                        <input type="text" id="c-bearing-name" class="w-24 text-xs !border-b !border-[#333]">
+                                        <input type="number" id="c-bearing-value" class="w-10 text-center text-xs !border-b !border-[#333]" placeholder="( )">
+                                    </div>
                                 </div>
                             </div>
-                            <div class="mt-6 border-t border-[#333] pt-4">
+
+                            <!-- Willpower -->
+                            <div class="sheet-section">
                                 <div class="section-title">Willpower</div>
-                                <div id="willpower-dots-play" class="flex justify-center mb-2"></div>
-                                <div id="willpower-boxes-play" class="flex justify-center"></div>
+                                <div id="willpower-dots-play" class="flex justify-center mb-4"></div>
+                                <div id="willpower-boxes-play" class="flex justify-center gap-1"></div>
+                            </div>
+
+                            <!-- Blood Pool -->
+                            <div class="sheet-section">
+                                <div class="section-title">Blood Pool</div>
+                                <div id="blood-boxes-play" class="grid grid-cols-10 gap-2 justify-center mt-4 px-4"></div>
+                                <div class="text-center mt-4 text-xs text-gray-500 font-bold uppercase tracking-wider">Blood Per Turn: <span class="text-white">1</span></div>
                             </div>
                         </div>
 
-                        <!-- Blood Pool -->
-                        <div class="sheet-section">
-                            <div class="section-title">Blood Pool</div>
-                            <div id="blood-boxes-play" class="grid grid-cols-10 gap-1.5 justify-center mt-2"></div>
-                        </div>
+                        <!-- Right Column: Health & Weakness -->
+                        <div class="flex flex-col gap-8">
+                            <!-- Health -->
+                            <div class="sheet-section">
+                                <div class="section-title">Health</div>
+                                <div id="health-chart-play" class="space-y-2 mt-2"></div>
+                            </div>
 
-                        <!-- Health & Weakness (Side-by-Side) -->
-                        <div class="grid grid-cols-1 gap-4 h-full">
-                            <div class="sheet-section flex flex-col h-full">
-                                <div class="flex flex-row gap-4 h-full">
-                                    <!-- Left: Health -->
-                                    <div class="flex-1">
-                                        <div class="section-title">Health</div>
-                                        <div id="health-chart-play" class="space-y-1.5"></div>
-                                    </div>
-                                    <!-- Right: Weakness -->
-                                    <div class="flex-1 border-l border-[#333] pl-4" id="weakness-play-container">
-                                        <!-- Injected by UI Renderer -->
-                                    </div>
-                                </div>
+                            <!-- Weakness -->
+                            <div class="sheet-section" id="weakness-play-container">
+                                <!-- Populated by JS -->
+                            </div>
+
+                            <!-- Experience -->
+                            <div class="sheet-section" id="experience-play-container">
+                                <!-- Populated by JS -->
                             </div>
                         </div>
                     </div>
