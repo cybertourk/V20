@@ -4,7 +4,7 @@ import {
     DISCIPLINES, BACKGROUNDS, VIRTUES, V20_MERITS_LIST, V20_FLAWS_LIST, VIT 
 } from "./data.js";
 import * as FBManager from "./firebase-manager.js";
-import "./ui-renderer.js"; // Imports side-effects (window.renderRow, etc.)
+import { renderDots } from "./ui-renderer.js"; // Explicitly import renderDots
 
 // --- ERROR HANDLER ---
 window.onerror = function(msg, url, line) {
@@ -96,18 +96,8 @@ function initUI() {
             const d2 = document.createElement('div'); d2.className = 'flex items-center gap-2 mb-2';
             d2.innerHTML = `<input type="text" id="ot-n-${i}" placeholder="Other..." class="w-40 text-[11px] font-bold"><div class="dot-row" id="ot-dr-${i}"></div>`;
             otherT.appendChild(d2);
-            const dr = d2.querySelector('.dot-row'); dr.innerHTML = renderDots(0, 5); // renderDots is local to ui-renderer, but we can assume innerHTML inject works or use window helper if exposed. 
-            // Correction: renderDots is not global. UI Renderer handles its own internals. 
-            // We need to fix this slightly. We should move this logic to UI Renderer or expose renderDots.
-            // For now, let's assume the UI renderer handles the main sheet. 
-            // Actually, looking at ui-renderer.js, renderRow handles the main stuff.
-            // This specific "Other Traits" loop was in the original script.js. 
-            // To make this robust, let's fix the dot click handler here by relying on a window helper or moving it.
-            // BETTER FIX: The click handler relies on `renderDots`. 
-            // I will inject a simple helper here since renderDots isn't globally exposed by default, 
-            // OR I will trust the user to click and UI Renderer to handle updates via setDots/updatePools.
+            const dr = d2.querySelector('.dot-row'); dr.innerHTML = renderDots(0, 5); // renderDots is now available
             
-            // Re-attaching logic safely:
             dr.onclick = (e) => { 
                 const n = document.getElementById(`ot-n-${i}`).value || `Other_${i}`; 
                 if(e.target.classList.contains('dot')) { 
@@ -116,8 +106,7 @@ function initUI() {
                     if (v === currentVal) v = v - 1; 
                     window.state.dots.other[n] = v; 
                     // Manual re-render of just this dot row since it's "custom"
-                    let h = ''; for(let k=1; k<=5; k++) h += `<span class="dot ${k <= v ? 'filled' : ''}" data-v="${k}"></span>`;
-                    dr.innerHTML = h;
+                    dr.innerHTML = renderDots(window.state.dots.other[n], 5);
                 } 
             };
         }
