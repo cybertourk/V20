@@ -34,8 +34,6 @@ export const ATTRIBUTES = {
     Mental: ["Perception", "Intelligence", "Wits"]
 };
 
-// V20 Rules: "Dodge" is removed as a Talent (it is a function of Dex+Athletics/Brawl). 
-// "Awareness" is added as the detection Talent.
 export const ABILITIES = {
     Talents: ["Alertness", "Athletics", "Awareness", "Brawl", "Empathy", "Expression", "Intimidation", "Leadership", "Streetwise", "Subterfuge"],
     Skills: ["Animal Ken", "Crafts", "Drive", "Etiquette", "Firearms", "Larceny", "Melee", "Performance", "Stealth", "Survival"],
@@ -91,7 +89,6 @@ export const GEN_LIMITS = {
     4: { m: 50, pt: 10 }
 };
 
-// Updated to Objects for UI rendering
 export const HEALTH_STATES = [
     { l: "Bruised", p: 0 },
     { l: "Hurt", p: -1 },
@@ -102,53 +99,58 @@ export const HEALTH_STATES = [
     { l: "Incapacitated", p: 0 }
 ];
 
+// Updated to official V20 Core Rulebook examples
 export const SPECIALTY_EXAMPLES = {
-    // Attributes
-    "Strength": ["Deadlift", "Power Lifting", "Punching", "Carrying", "Jumping", "Grip"],
-    "Dexterity": ["Lithe", "Agility", "Lightning Reflexes", "Speed", "Fine Manipulation"],
-    "Stamina": ["Tireless", "Determination", "Toughness", "Pain Tolerance"],
-    "Charisma": ["Graceful", "Eloquent", "Commanding", "Charming", "Inspiring"],
-    "Manipulation": ["Persuasive", "Seductive", "Cunning", "Smooth", "Glib"],
-    "Appearance": ["Bold", "Exotic", "Innocent", "Noble", "Alluring"],
+    // Physical Attributes
+    "Strength": ["Never Lets Go", "Powerful Arms", "Reserves of Strength", "Vicious"],
+    "Dexterity": ["Precise", "Swift", "Feline Grace", "Lightning Reflexes"],
+    "Stamina": ["Tireless", "Determined", "Tough as Nails", "Vigorous"],
+
+    // Social Attributes
+    "Charisma": ["Graceful", "Smooth Talker", "Forceful", "Urbane", "Witty", "Eloquent", "Hustler"],
+    "Manipulation": ["Persuasive", "Seductive", "Well-Reasoned", "Misdirection", "Conjurer of 'Facts'"],
+    "Appearance": ["Unconventional Looks", "Photogenic", "Fashion Sense", "Unforgettable Face", "Memorable Pose"],
+
+    // Mental Attributes
     "Perception": ["Attentive", "Insightful", "Careful", "Discerning", "Tactical"],
-    "Intelligence": ["Creative", "Analytical", "Book Knowledge", "Problem Solving"],
-    "Wits": ["Clever", "Sharp", "Ambushes", "Retorts", "Changes in Strategy"],
+    "Intelligence": ["Book Knowledge", "Creative", "Analytical", "Problem Solver", "Subject Authority"],
+    "Wits": ["Getting the Jump on Others", "Witty Bon Mots", "Changes in Strategy", "Ambushes"],
 
     // Talents
     "Alertness": ["Noises", "Eavesdropping", "Fine Details", "Hidden Weapons", "Crowds", "Forests", "Animals"],
-    "Athletics": ["Running", "Climbing", "Swimming", "Parkour", "Throwing", "Dodge"],
-    "Awareness": ["Auras", "Ambushes", "Supernatural", "Wilds"],
-    "Brawl": ["Boxing", "Grappling", "Dirty Fighting", "Throws", "Kicks"],
-    "Empathy": ["Emotions", "Personalities", "Motives", "Truths"],
-    "Expression": ["Acting", "Poetry", "Prose", "Public Speaking"],
-    "Intimidation": ["Physical", "Social", "Veiled Threats", "Stare Down"],
-    "Leadership": ["Command", "Oratory", "Tactics", "Morale"],
-    "Streetwise": ["Gangs", "Drugs", "Fencing", "Rumors", "Turf"],
-    "Subterfuge": ["Lying", "Seduction", "Misdirection", "Impeccable Manners"],
+    "Athletics": ["Swimming", "Rock Climbing", "Acrobatics", "Dancing", "Parkour", "Specific Sports"], 
+    "Awareness": ["Ghostly Activity", "Mystical Objects", "Someone's In My Head", "Debunking"],
+    "Brawl": ["Dirty Fighting", "Strikes", "Throws", "Submission Holds", "Specific Martial Arts"],
+    "Empathy": ["Emotions", "Insight", "Motives", "Gaining Trust"],
+    "Expression": ["Acting", "Poetry", "Fiction", "Impromptu", "Conversation", "Social Media"],
+    "Intimidation": ["Veiled Threats", "Pulling Rank", "Physical Coercion", "Blackmail", "Internet"],
+    "Leadership": ["Oratory", "Compelling", "Friendly", "Open", "Noble", "Military", "Multimedia"],
+    "Streetwise": ["Fencing", "Illegal Drugs", "Illegal Weapons", "Free Wifi", "Gangs", "Being On the Guest List", "Local Slang"],
+    "Subterfuge": ["Seduction", "Impeccable Lies", "Feigning Mortality", "The Long Con"],
 
     // Skills
-    "Animal Ken": ["Training", "Falconry", "Dogs", "Horses", "Stray Cats"],
-    "Crafts": ["Mechanics", "Sewing", "Carpentry", "Blacksmithing"],
-    "Drive": ["High Speed", "Stunts", "Tailgating", "Evasion"],
-    "Etiquette": ["High Society", "Business", "Street", "Kindred"],
-    "Firearms": ["Pistols", "Rifles", "Shotguns", "Fast Draw", "Sniping"],
-    "Larceny": ["Lockpicking", "Pickpocketing", "Safecracking", "Security"],
-    "Melee": ["Knives", "Swords", "Clubs", "Axes", "Improvised"],
-    "Performance": ["Singing", "Dancing", "Music", "Comedy"],
+    "Animal Ken": ["Dogs", "Attack Training", "Big Cats", "Horses", "Farm Animals", "Falconry"],
+    "Crafts": ["Pottery", "Sewing", "Home Repair", "Carpentry", "Appraisal", "Carburetors"],
+    "Drive": ["Off-Road", "Motorcycles", "High Speed", "Heavy Traffic", "Avoiding Traffic Cops"],
+    "Etiquette": ["At Elysium", "Business", "High Society", "Sabbat Protocol"],
+    "Firearms": ["Fast-Draw", "Gunsmithing", "Pistols", "Marksmanship", "Revolvers", "Shotguns"],
+    "Larceny": ["Safecracking", "Misdirection", "Lockpicking", "Hotwiring", "Pickpocketing"],
+    "Melee": ["Knives", "Swords", "Improvised Weaponry", "Riposte", "Disarms"],
+    "Performance": ["Dancing", "Singing", "Rock and Roll", "Acting", "Guitar Solos", "Drunken Karaoke"],
     "Stealth": ["Hiding", "Silent Movement", "Shadowing", "Crowds"],
-    "Survival": ["Urban", "Forest", "Desert", "Tracking", "Scrounging"],
+    "Survival": ["Tracking", "Woodlands", "Jungle", "Street Life", "Hunting", "Urban Exploration"],
 
     // Knowledges
-    "Academics": ["History", "Literature", "Philosophy", "Art", "Theology"],
-    "Computer": ["Hacking", "Programming", "Hardware", "Data Retrieval"],
-    "Finance": ["Stocks", "Laundering", "Accounting", "Appraisal"],
-    "Investigation": ["Search", "Forensics", "Research", "Analysis"],
-    "Law": ["Criminal", "Civil", "Kindred", "Police Procedure"],
-    "Medicine": ["First Aid", "Surgery", "Pharmacy", "Pathology"],
-    "Occult": ["Kindred Lore", "Rituals", "Ghosts", "Demons", "Magic"],
-    "Politics": ["City", "State", "Federal", "Kindred", "Bribery"],
-    "Science": ["Biology", "Chemistry", "Physics", "Geology"],
-    "Technology": ["Electronics", "Security Systems", "Communications"]
+    "Academics": ["Poststructuralism", "Impressionist Painting", "Imperial Rome", "Color Theory", "Linguistics"],
+    "Computer": ["The YouTubes", "Computer Languages", "Internet", "Database Administration", "HCI", "Viruses", "Specific Devices"],
+    "Finance": ["Stock Market", "Laundering", "Appraisal", "Foreign Currencies", "Accounting", "Fencing", "Corporations", "Federal Bailouts"],
+    "Investigation": ["Forensics", "Shadowing", "Search", "Discolorations", "Database Research"],
+    "Law": ["Criminal", "Suits", "Courtroom Protocol", "Contracts", "Police Procedure", "The Traditions", "The Code of Milan"],
+    "Medicine": ["Organ Transplants", "Emergency Care", "Poison Treatments", "Pathology", "Pharmaceuticals", "The Kindred Condition"],
+    "Occult": ["Kindred Lore", "Rituals", "Infernalism", "Witches", "Noddist Lore"],
+    "Politics": ["City", "State", "Federal", "Bureaucracy", "Dogma", "Radical", "Camarilla"],
+    "Science": ["Chemistry", "Biology", "Geology", "Physics", "Astronomy"],
+    "Technology": ["Telecom", "Computers", "Security", "Communications", "Improvised Solutions", "Industrial Espionage"]
 };
 
 export const V20_MERITS_LIST = [
