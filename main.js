@@ -14,7 +14,8 @@ import {
     renderDerangementsList,
     renderBloodBondRow,
     renderDynamicHavenRow,
-    renderInventoryList
+    renderInventoryList,
+    updateWalkthrough // Import this to force UI updates
 } from "./ui-renderer.js"; 
 
 // --- ERROR HANDLER ---
@@ -29,12 +30,10 @@ window.onerror = function(msg, url, line) {
 };
 
 // --- STATE MANAGEMENT ---
-// This must be initialized before any UI rendering happens
 window.state = {
     isPlayMode: false, freebieMode: false, activePool: [], currentPhase: 1, furthestPhase: 1,
     dots: { attr: {}, abil: {}, disc: {}, back: {}, virt: {}, other: {} },
     prios: { attr: {}, abil: {} },
-    // status.health_states: Array of 7 integers. 0=Empty, 1=Bashing(/), 2=Lethal(X), 3=Aggravated(*)
     status: { humanity: 7, willpower: 5, tempWillpower: 5, health_states: [0,0,0,0,0,0,0], blood: 0 },
     specialties: {}, 
     socialExtras: {}, textFields: {}, havens: [], bloodBonds: [], vehicles: [], customAbilityCategories: {},
@@ -45,7 +44,6 @@ window.state = {
 let user = null;
 
 // --- BINDING EXPORTS TO WINDOW ---
-// This ensures inline HTML onclicks (like in the file browser) work correctly
 window.handleNew = FBManager.handleNew;
 window.handleSaveClick = FBManager.handleSaveClick;
 window.handleLoadClick = FBManager.handleLoadClick;
@@ -92,7 +90,7 @@ function initUI() {
         // Render Vitals inputs
         const vitalCont = document.getElementById('vitals-create-inputs');
         if(vitalCont) {
-            vitalCont.innerHTML = ''; // Clear to prevent duplicates
+            vitalCont.innerHTML = ''; 
             VIT.forEach(v => { 
                 const d = document.createElement('div'); 
                 d.innerHTML = `<label class="label-text">${v}</label><input type="text" id="bio-${v}">`; 
@@ -104,7 +102,6 @@ function initUI() {
         renderDynamicTraitRow('flaws-list-create', 'Flaw', V20_FLAWS_LIST);
         renderInventoryList();
         
-        // Setup Logic that was missing
         renderSocialProfile();
         setupInventoryListeners();
         
@@ -114,7 +111,7 @@ function initUI() {
             const d2 = document.createElement('div'); d2.className = 'flex items-center gap-2 mb-2';
             d2.innerHTML = `<input type="text" id="ot-n-${i}" placeholder="Other..." class="w-40 text-[11px] font-bold"><div class="dot-row" id="ot-dr-${i}"></div>`;
             otherT.appendChild(d2);
-            const dr = d2.querySelector('.dot-row'); dr.innerHTML = renderDots(0, 5); // renderDots is now available
+            const dr = d2.querySelector('.dot-row'); dr.innerHTML = renderDots(0, 5); 
             
             dr.onclick = (e) => { 
                 const n = document.getElementById(`ot-n-${i}`).value || `Other_${i}`; 
@@ -123,7 +120,6 @@ function initUI() {
                     const currentVal = window.state.dots.other[n] || 0; 
                     if (v === currentVal) v = v - 1; 
                     window.state.dots.other[n] = v; 
-                    // Manual re-render of just this dot row since it's "custom"
                     dr.innerHTML = renderDots(window.state.dots.other[n], 5);
                 } 
             };
@@ -140,7 +136,6 @@ function initUI() {
                         ATTRIBUTES[g].forEach(a => {
                             window.state.dots.attr[a] = 1; 
                             const row = document.querySelector(`.dot-row[data-n="${a}"][data-t="attr"]`); 
-                            // We need to manually reset the HTML dots here or trigger a refresh
                             if(row) window.setDots(a, 'attr', 1, 1);
                         }); 
                     } else { 
@@ -148,14 +143,9 @@ function initUI() {
                             window.state.dots.abil[a] = 0; 
                             window.setDots(a, 'abil', 0, 0);
                         }); 
-                        // Reset customs
                         if (window.state.customAbilityCategories) { 
                             Object.entries(window.state.customAbilityCategories).forEach(([name, c]) => { 
-                                if (c === g) {
-                                    window.state.dots.abil[name] = 0;
-                                    // Find row and reset
-                                    // This is tricky without a specific ID. updatePools handles math.
-                                } 
+                                if (c === g) window.state.dots.abil[name] = 0;
                             }); 
                         } 
                     }
@@ -172,6 +162,31 @@ function initUI() {
         renderBloodBondRow();
         renderDynamicHavenRow();
         
+        // --- BIND LIVE UPDATES FOR VALIDATION (NEW) ---
+        // This ensures typing in Step 1 immediately updates state so checkStepComplete passes
+        const criticalFields = ['c-name', 'c-nature', 'c-demeanor', 'c-clan', 'c-player', 'c-concept', 'c-sire'];
+        criticalFields.forEach(id => {
+            const el = document.getElementById(id);
+            if(el) {
+                // Update state on keyup/change
+                const updateState = (e) => {
+                    window.state.textFields[id] = e.target.value;
+                    updateWalkthrough(); // Force "Next" button to light up
+                };
+                el.addEventListener('keyup', updateState);
+                el.addEventListener('change', updateState);
+            }
+        });
+
+        // Global fallback listener for all other inputs
+        document.body.addEventListener('change', (e) => {
+            if(e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') {
+                if(e.target.id && !e.target.id.startsWith('search')) {
+                    window.state.textFields[e.target.id] = e.target.value;
+                }
+            }
+        });
+
         // Button Bindings
         const cmdNew = document.getElementById('cmd-new');
         if(cmdNew) cmdNew.onclick = window.handleNew;
@@ -191,7 +206,7 @@ function initUI() {
         const topFreebieBtn = document.getElementById('toggle-freebie-btn');
         if(topFreebieBtn) topFreebieBtn.onclick = window.toggleFreebieMode;
 
-        // Play Mode Click Listener (Delegation)
+        // Play Mode Click Listener
         document.addEventListener('click', function(e) {
             if (!window.state.isPlayMode) return;
             if (!e.target.classList.contains('box')) return;
