@@ -30,17 +30,22 @@ function setSafeText(id, val) {
     if(el) el.innerText = val; 
 }
 
-function renderDots(count, max = 5) { 
+// EXPORTED HELPERS
+export function renderDots(count, max = 5) { 
     let h = ''; 
     for(let i=1; i<=max; i++) h += `<span class="dot ${i <= count ? 'filled' : ''}" data-v="${i}"></span>`; 
     return h; 
 }
 
-function renderBoxes(count, checked = 0, type = '') { 
+export function renderBoxes(count, checked = 0, type = '') { 
     let h = ''; 
     for(let i=1; i<=count; i++) h += `<span class="box ${i <= checked ? 'checked' : ''}" data-v="${i}" data-type="${type}"></span>`; 
     return h; 
 }
+
+// Attach to window for legacy/console support
+window.renderDots = renderDots;
+window.renderBoxes = renderBoxes;
 
 // --- SYNC & HYDRATE ---
 
@@ -61,7 +66,163 @@ window.hydrateInputs = function() {
     });
 };
 
-// --- INVENTORY UI ---
+// --- BACKGROUND DESCRIPTIONS (SOCIAL PROFILE) ---
+
+export function renderSocialProfile() {
+    const list = document.getElementById('social-profile-list');
+    if (!list) return;
+    list.innerHTML = '';
+    
+    // Check Backgrounds
+    if (window.state.dots.back) {
+        Object.entries(window.state.dots.back).forEach(([name, val]) => {
+            if (val > 0) {
+                const safeId = 'desc-' + name.toLowerCase().replace(/[^a-z0-9]/g, '-');
+                const box = document.createElement('div');
+                box.className = 'flex flex-col gap-1';
+                // Try to find existing value in state textFields
+                const existingVal = window.state.textFields[safeId] || "";
+                
+                box.innerHTML = `
+                    <label class="label-text text-gold">${name} (${val} dots)</label>
+                    <textarea id="${safeId}" class="h-20 w-full text-xs bg-black/40 border border-[#333] text-white p-2" placeholder="Describe your ${name}...">${existingVal}</textarea>
+                `;
+                list.appendChild(box);
+                
+                // Bind blur to save
+                const ta = box.querySelector('textarea');
+                ta.onblur = (e) => {
+                    window.state.textFields[safeId] = e.target.value;
+                };
+            }
+        });
+    }
+    
+    if (list.innerHTML === '') {
+        list.innerHTML = '<div class="text-gray-500 italic text-xs">Select Backgrounds in Step 4 to add descriptions here.</div>';
+    }
+}
+
+// --- INVENTORY UI & LOGIC ---
+
+export function setupInventoryListeners() {
+    const typeSelect = document.getElementById('inv-type');
+    const baseSelect = document.getElementById('inv-base-select');
+    const baseWrapper = document.getElementById('inv-base-wrapper');
+    const addBtn = document.getElementById('add-inv-btn');
+    
+    if(!typeSelect || !addBtn) return; // Guard if elements missing
+
+    // 1. Handle Type Change
+    typeSelect.onchange = () => {
+        const t = typeSelect.value;
+        
+        // Toggle Rows
+        document.getElementById('inv-stats-row').classList.toggle('hidden', t !== 'Weapon');
+        document.getElementById('inv-armor-row').classList.toggle('hidden', t !== 'Armor');
+        document.getElementById('inv-vehicle-row').classList.toggle('hidden', t !== 'Vehicle');
+        
+        // Toggle Base Template Selector
+        if (['Weapon', 'Armor', 'Vehicle'].includes(t)) {
+            baseWrapper.classList.remove('hidden');
+            baseSelect.innerHTML = '<option value="">-- Custom / Manual --</option>';
+            let source = [];
+            if(t==='Weapon') source = V20_WEAPONS_LIST;
+            if(t==='Armor') source = V20_ARMOR_LIST;
+            if(t==='Vehicle') source = V20_VEHICLE_LIST;
+            
+            source.forEach((item, i) => {
+                baseSelect.add(new Option(item.name, i));
+            });
+        } else {
+            baseWrapper.classList.add('hidden');
+            baseSelect.innerHTML = '';
+        }
+    };
+
+    // 2. Handle Template Selection (Auto-fill)
+    baseSelect.onchange = () => {
+        const t = typeSelect.value;
+        const idx = baseSelect.value;
+        if (idx === "") return;
+        
+        let item = null;
+        if(t==='Weapon') item = V20_WEAPONS_LIST[idx];
+        if(t==='Armor') item = V20_ARMOR_LIST[idx];
+        if(t==='Vehicle') item = V20_VEHICLE_LIST[idx];
+        
+        if (item) {
+            document.getElementById('inv-name').value = item.name;
+            if (t==='Weapon') {
+                document.getElementById('inv-diff').value = item.diff;
+                document.getElementById('inv-dmg').value = item.dmg;
+                document.getElementById('inv-range').value = item.range;
+                document.getElementById('inv-rate').value = item.rate;
+                document.getElementById('inv-clip').value = item.clip;
+            }
+            if (t==='Armor') {
+                document.getElementById('inv-rating').value = item.rating;
+                document.getElementById('inv-penalty').value = item.penalty;
+            }
+            if (t==='Vehicle') {
+                document.getElementById('inv-safe').value = item.safe;
+                document.getElementById('inv-max').value = item.max;
+                document.getElementById('inv-man').value = item.man;
+            }
+        }
+    };
+
+    // 3. Handle Add Button
+    addBtn.onclick = () => {
+        const type = typeSelect.value;
+        const name = document.getElementById('inv-name').value || "Unnamed Item";
+        const isCarried = document.getElementById('inv-carried').checked;
+        
+        const newItem = {
+            type,
+            name,
+            displayName: name,
+            status: isCarried ? 'carried' : 'owned',
+            stats: {}
+        };
+        
+        // Capture Base Type name if selected (for display purposes)
+        if (baseSelect.value !== "") {
+            newItem.baseType = baseSelect.options[baseSelect.selectedIndex].text;
+        }
+
+        if (type === 'Weapon') {
+            newItem.stats = {
+                diff: document.getElementById('inv-diff').value || 6,
+                dmg: document.getElementById('inv-dmg').value || "",
+                range: document.getElementById('inv-range').value || "",
+                rate: document.getElementById('inv-rate').value || "",
+                clip: document.getElementById('inv-clip').value || ""
+            };
+        } else if (type === 'Armor') {
+            newItem.stats = {
+                rating: document.getElementById('inv-rating').value || 0,
+                penalty: document.getElementById('inv-penalty').value || 0
+            };
+        } else if (type === 'Vehicle') {
+            newItem.stats = {
+                safe: document.getElementById('inv-safe').value || "",
+                max: document.getElementById('inv-max').value || "",
+                man: document.getElementById('inv-man').value || ""
+            };
+        }
+
+        if (!window.state.inventory) window.state.inventory = [];
+        window.state.inventory.push(newItem);
+        
+        // Clear inputs
+        document.getElementById('inv-name').value = "";
+        baseSelect.value = "";
+        
+        window.renderInventoryList();
+        window.showNotification("Item Added");
+    };
+}
 
 window.renderInventoryList = function() {
     const listCarried = document.getElementById('inv-list-carried');
@@ -348,6 +509,7 @@ window.updatePools = function() {
         setSafeText('active-armor-names', activeArmor.length > 0 ? activeArmor.join(', ') : "None");
     }
     
+    window.renderSocialProfile(); // Ensure this is called on updates
     window.updateWalkthrough();
 };
 
@@ -494,6 +656,7 @@ window.setDots = function(name, type, val, min, max = 5) {
         document.querySelectorAll(`.dot-row[data-n="${name}"][data-t="${type}"]`).forEach(el => el.innerHTML = renderDots(newVal, max));
     }
     window.updatePools();
+    if(type === 'back') window.renderSocialProfile();
 };
 
 window.renderDynamicAdvantageRow = function(containerId, type, list, isAbil = false) {
@@ -582,10 +745,11 @@ window.renderDynamicAdvantageRow = function(containerId, type, list, isAbil = fa
                 if (row === container.lastElementChild) { removeBtn.style.visibility = 'visible'; buildRow(); }
             }
             window.updatePools();
+            if(type === 'back') window.renderSocialProfile();
         };
         
         if (isAbil) inputField.onblur = (e) => onUpdate(e.target.value); else inputField.onchange = (e) => onUpdate(e.target.value);
-        removeBtn.onclick = () => { if (curName) { delete window.state.dots[type][curName]; if (window.state.customAbilityCategories && window.state.customAbilityCategories[curName]) delete window.state.customAbilityCategories[curName]; } row.remove(); window.updatePools(); };
+        removeBtn.onclick = () => { if (curName) { delete window.state.dots[type][curName]; if (window.state.customAbilityCategories && window.state.customAbilityCategories[curName]) delete window.state.customAbilityCategories[curName]; } row.remove(); window.updatePools(); if(type==='back') window.renderSocialProfile(); };
         
         dotCont.onclick = (e) => { 
             if (!curName || !e.target.dataset.v) return; 
@@ -615,71 +779,6 @@ window.renderDynamicAdvantageRow = function(containerId, type, list, isAbil = fa
     };
     existingItems.forEach(item => buildRow(item));
     buildRow();
-};
-
-window.renderDynamicTraitRow = function(containerId, type, list) {
-    const container = document.getElementById(containerId);
-    if (!container) return;
-    const stateArray = type === 'Merit' ? (window.state.merits || []) : (window.state.flaws || []);
-    container.innerHTML = '';
-    
-    const appendRow = (data = null) => {
-        const row = document.createElement('div'); row.className = 'flex gap-2 items-center mb-2 trait-row';
-        let options = `<option value="">-- Select ${type} --</option>`;
-        list.forEach(item => { options += `<option value="${item.n}" data-val="${item.v}" data-var="${item.variable||false}">${item.n} (${item.range ? item.range + 'pt' : item.v + 'pt'})</option>`; });
-        options += '<option value="Custom">-- Custom / Write-in --</option>';
-        row.innerHTML = `<div class="flex-1 relative"><select class="w-full text-[11px] font-bold uppercase bg-[#111] text-white border-b border-[#444]">${options}</select><input type="text" placeholder="Custom Name..." class="hidden w-full text-[11px] font-bold uppercase border-b border-[#444] bg-transparent text-white"></div><input type="number" class="w-10 text-center text-[11px] !border !border-[#444] font-bold" min="1"><div class="remove-btn">&times;</div>`;
-        container.appendChild(row);
-        
-        const selectEl = row.querySelector('select');
-        const textEl = row.querySelector('input[type="text"]');
-        const numEl = row.querySelector('input[type="number"]');
-        const removeBtn = row.querySelector('.remove-btn');
-        const isLocked = !window.state.freebieMode;
-        
-        selectEl.disabled = isLocked; textEl.disabled = isLocked; numEl.disabled = isLocked;
-        if(isLocked) { selectEl.classList.add('opacity-50'); textEl.classList.add('opacity-50'); numEl.classList.add('opacity-50'); }
-        
-        if (data) {
-            const exists = list.some(l => l.n === data.name);
-            if (exists) {
-                selectEl.value = data.name; numEl.value = data.val;
-                const itemData = list.find(l => l.n === data.name);
-                if (itemData && !itemData.variable) { numEl.disabled = true; numEl.classList.add('opacity-50'); }
-            } else { selectEl.value = "Custom"; selectEl.classList.add('hidden'); textEl.classList.remove('hidden'); textEl.value = data.name; numEl.value = data.val; }
-        } else { numEl.value = ""; removeBtn.style.visibility = 'hidden'; }
-        
-        const syncState = () => {
-            const allRows = container.querySelectorAll('.trait-row');
-            const newState = [];
-            allRows.forEach(r => {
-                const s = r.querySelector('select');
-                const t = r.querySelector('input[type="text"]');
-                const n = r.querySelector('input[type="number"]');
-                let name = s.value === 'Custom' ? t.value : s.value;
-                let val = parseInt(n.value) || 0;
-                if (name && name !== 'Custom') newState.push({ name, val });
-            });
-            if (type === 'Merit') window.state.merits = newState; else window.state.flaws = newState;
-            window.updatePools();
-        };
-        
-        selectEl.addEventListener('change', () => {
-            if (selectEl.value === 'Custom') { selectEl.classList.add('hidden'); textEl.classList.remove('hidden'); textEl.focus(); numEl.value = 1; numEl.disabled = false; numEl.classList.remove('opacity-50'); } 
-            else if (selectEl.value) {
-                const opt = selectEl.options[selectEl.selectedIndex];
-                numEl.value = opt.dataset.val;
-                if (opt.dataset.var !== "true") { numEl.disabled = true; numEl.classList.add('opacity-50'); } else { numEl.disabled = false; numEl.classList.remove('opacity-50'); }
-                if (row === container.lastElementChild) { removeBtn.style.visibility = 'visible'; appendRow(); }
-            }
-            syncState();
-        });
-        textEl.addEventListener('blur', () => { if (textEl.value === "") { textEl.classList.add('hidden'); selectEl.classList.remove('hidden'); selectEl.value = ""; } else { if (row === container.lastElementChild) { removeBtn.style.visibility = 'visible'; appendRow(); } } syncState(); });
-        numEl.addEventListener('change', syncState);
-        removeBtn.addEventListener('click', () => { row.remove(); syncState(); });
-    };
-    if (stateArray.length > 0) stateArray.forEach(d => appendRow(d));
-    appendRow();
 };
 
 window.renderBloodBondRow = function() {
@@ -917,6 +1016,7 @@ window.fullRefresh = function() {
     window.renderBloodBondRow();
     window.renderDynamicHavenRow();
     window.renderInventoryList();
+    window.renderSocialProfile();
     
     // Re-render standard dots (Attributes/Abilities)
     if(window.state.dots.attr) Object.keys(ATTRIBUTES).forEach(c => ATTRIBUTES[c].forEach(a => { window.refreshTraitRow(a, 'attr'); }));
