@@ -406,7 +406,6 @@ window.updatePools = function() {
     });
     
     // --- WEAKNESS RENDER (UPDATED) ---
-    // This explicitly finds the play mode container and injects content
     const weaknessCont = document.getElementById('weakness-play-container');
     if (weaknessCont) {
         weaknessCont.innerHTML = '';
@@ -419,12 +418,12 @@ window.updatePools = function() {
         const customNote = window.state.textFields['custom-weakness'] || "";
 
         weaknessCont.innerHTML = `
-            <div class="bg-black/40 border border-[#333] p-3 h-full flex flex-col">
-                <div class="text-[10px] font-bold text-gold border-b border-[#444] mb-2 pb-1 uppercase tracking-widest">Clan Weakness</div>
-                <div class="text-[10px] text-red-400 italic mb-3 leading-snug flex-1">${weaknessText}</div>
+            <div class="section-title">Weakness</div>
+            <div class="bg-[#111] p-3 border border-[#333] h-full flex flex-col mt-2">
+                <div class="text-[11px] text-gray-300 italic mb-3 leading-snug flex-1">${weaknessText}</div>
                 
-                <div class="text-[9px] font-bold text-gray-500 mb-1 uppercase">Notes / Specifics</div>
-                <textarea id="custom-weakness-input" class="w-full h-16 bg-[#111] border border-[#444] text-[10px] text-white p-2 focus:border-gold outline-none resize-none" placeholder="e.g. 'Only Brunettes'">${customNote}</textarea>
+                <div class="text-[9px] font-bold text-gray-500 mb-1 uppercase">Specifics / Notes</div>
+                <textarea id="custom-weakness-input" class="w-full h-16 bg-black border border-[#444] text-[10px] text-white p-2 focus:border-gold outline-none resize-none" placeholder="e.g. 'Only Brunettes'">${customNote}</textarea>
             </div>
         `;
         
@@ -434,6 +433,26 @@ window.updatePools = function() {
             ta.addEventListener('blur', (e) => {
                 if(!window.state.textFields) window.state.textFields = {};
                 window.state.textFields['custom-weakness'] = e.target.value;
+            });
+        }
+    }
+
+    // --- EXPERIENCE RENDER (NEW) ---
+    const xpCont = document.getElementById('experience-play-container');
+    if (xpCont) {
+        xpCont.innerHTML = '';
+        const xpVal = window.state.textFields['xp-points'] || "";
+        
+        xpCont.innerHTML = `
+            <div class="section-title mt-6">Experience</div>
+            <textarea id="xp-points-input" class="w-full h-24 mt-2 bg-[#111] border border-[#333] text-[11px] text-white p-2 focus:border-gold outline-none resize-none" placeholder="Log experience points here...">${xpVal}</textarea>
+        `;
+
+        const xpTa = document.getElementById('xp-points-input');
+        if(xpTa) {
+            xpTa.addEventListener('blur', (e) => {
+                if(!window.state.textFields) window.state.textFields = {};
+                window.state.textFields['xp-points'] = e.target.value;
             });
         }
     }
@@ -944,7 +963,7 @@ window.togglePlayMode = function() {
     
     // Disable inputs not needed in Play Mode
     document.querySelectorAll('input, select, textarea').forEach(el => {
-        if (['save-filename', 'char-select', 'roll-diff', 'use-specialty', 'c-path-name', 'c-path-name-create', 'c-bearing-name', 'c-bearing-value', 'custom-weakness-input'].includes(el.id)) return;
+        if (['save-filename', 'char-select', 'roll-diff', 'use-specialty', 'c-path-name', 'c-path-name-create', 'c-bearing-name', 'c-bearing-value', 'custom-weakness-input', 'xp-points-input'].includes(el.id)) return;
         el.disabled = window.state.isPlayMode;
     });
 
@@ -954,12 +973,12 @@ window.togglePlayMode = function() {
     if (window.state.isPlayMode) {
         // HIDE ALL PHASES
         phases.forEach(el => el.classList.add('hidden'));
-        phases.forEach(el => el.classList.remove('active')); // Ensure 'active' is gone to prevent CSS conflict
+        phases.forEach(el => el.classList.remove('active')); 
 
         // SHOW PLAY SHEET
         if (playSheet) {
             playSheet.classList.remove('hidden');
-            playSheet.style.display = 'block'; // Force display if hidden class lingers
+            playSheet.style.display = 'block'; 
         }
 
         // --- POPULATE HEADER ---
@@ -1062,7 +1081,6 @@ window.togglePlayMode = function() {
         if (document.getElementById('play-havens-list')) { const ph = document.getElementById('play-havens-list'); ph.innerHTML = ''; window.state.havens.forEach(h => { ph.innerHTML += `<div class="border-l-2 border-gold pl-4 mb-4"><div class="flex justify-between"><div><div class="font-bold text-white uppercase text-[10px]">${h.name}</div><div class="text-[9px] text-gold italic">${h.loc}</div></div></div><div class="text-xs text-gray-400 mt-1">${h.desc}</div></div>`; }); }
         
         // --- WEAKNESS RENDER (UPDATED) ---
-        // This explicitly finds the play mode container and injects content
         const weaknessCont = document.getElementById('weakness-play-container');
         if (weaknessCont) {
             weaknessCont.innerHTML = '';
@@ -1075,12 +1093,12 @@ window.togglePlayMode = function() {
             const customNote = window.state.textFields['custom-weakness'] || "";
 
             weaknessCont.innerHTML = `
-                <div class="bg-black/40 border border-[#333] p-3 h-full flex flex-col">
-                    <div class="text-[10px] font-bold text-gold border-b border-[#444] mb-2 pb-1 uppercase tracking-widest">Clan Weakness</div>
-                    <div class="text-[10px] text-red-400 italic mb-3 leading-snug flex-1">${weaknessText}</div>
+                <div class="section-title">Weakness</div>
+                <div class="bg-[#111] p-3 border border-[#333] h-full flex flex-col mt-2">
+                    <div class="text-[11px] text-gray-300 italic mb-3 leading-snug flex-1">${weaknessText}</div>
                     
-                    <div class="text-[9px] font-bold text-gray-500 mb-1 uppercase">Notes / Specifics</div>
-                    <textarea id="custom-weakness-input" class="w-full h-16 bg-[#111] border border-[#444] text-[10px] text-white p-2 focus:border-gold outline-none resize-none" placeholder="e.g. 'Only Brunettes'">${customNote}</textarea>
+                    <div class="text-[9px] font-bold text-gray-500 mb-1 uppercase">Specifics / Notes</div>
+                    <textarea id="custom-weakness-input" class="w-full h-16 bg-black border border-[#444] text-[10px] text-white p-2 focus:border-gold outline-none resize-none" placeholder="e.g. 'Only Brunettes'">${customNote}</textarea>
                 </div>
             `;
             
@@ -1090,6 +1108,26 @@ window.togglePlayMode = function() {
                 ta.addEventListener('blur', (e) => {
                     if(!window.state.textFields) window.state.textFields = {};
                     window.state.textFields['custom-weakness'] = e.target.value;
+                });
+            }
+        }
+
+        // --- EXPERIENCE RENDER (NEW) ---
+        const xpCont = document.getElementById('experience-play-container');
+        if (xpCont) {
+            xpCont.innerHTML = '';
+            const xpVal = window.state.textFields['xp-points'] || "";
+            
+            xpCont.innerHTML = `
+                <div class="section-title mt-6">Experience</div>
+                <textarea id="xp-points-input" class="w-full h-24 mt-2 bg-[#111] border border-[#333] text-[11px] text-white p-2 focus:border-gold outline-none resize-none" placeholder="Log experience points here...">${xpVal}</textarea>
+            `;
+
+            const xpTa = document.getElementById('xp-points-input');
+            if(xpTa) {
+                xpTa.addEventListener('blur', (e) => {
+                    if(!window.state.textFields) window.state.textFields = {};
+                    window.state.textFields['xp-points'] = e.target.value;
                 });
             }
         }
