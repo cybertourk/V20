@@ -73,13 +73,11 @@ window.fullRefresh = function() {
         renderDynamicTraitRow('merits-list-create', 'Merit', V20_MERITS_LIST);
         renderDynamicTraitRow('flaws-list-create', 'Flaw', V20_FLAWS_LIST);
         
-        // 3. Priority Buttons (NEW FIX)
-        // This loops through all buttons and highlights them if they match the loaded state
+        // 3. Priority Buttons
         if (window.state.prios) {
             document.querySelectorAll('.prio-btn').forEach(btn => {
                 const { cat, group, v } = btn.dataset;
                 const savedVal = window.state.prios[cat]?.[group];
-                // Compare saved value with button value. Use loose equality (==) for string/int safety
                 if (savedVal == v) {
                     btn.classList.add('active');
                 } else {
@@ -283,13 +281,17 @@ onAuthStateChanged(auth, async (u) => {
 
             if(ns && ds && typeof ARCHETYPES !== 'undefined') {
                 const sortedArch = [...ARCHETYPES].sort(); 
-                ns.innerHTML = ''; ds.innerHTML = ''; 
-                sortedArch.forEach(a => { ns.add(new Option(a,a)); if(ds) ds.add(new Option(a,a)); });
+                ns.innerHTML = '<option value="" disabled selected>Choose Nature...</option>'; 
+                ds.innerHTML = '<option value="" disabled selected>Choose Demeanor...</option>'; 
+                sortedArch.forEach(a => { 
+                    ns.add(new Option(a,a)); 
+                    if(ds) ds.add(new Option(a,a)); 
+                });
             }
 
             if(cs && typeof CLANS !== 'undefined') {
                 const sortedClans = [...CLANS].sort();
-                cs.innerHTML = '';
+                cs.innerHTML = '<option value="" disabled selected>Choose Clan...</option>';
                 sortedClans.forEach(c => cs.add(new Option(c,c)));
             }
 
