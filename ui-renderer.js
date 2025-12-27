@@ -2,7 +2,7 @@ import {
     ATTRIBUTES, ABILITIES, DISCIPLINES, BACKGROUNDS, VIRTUES, 
     V20_MERITS_LIST, V20_FLAWS_LIST, STEPS_CONFIG, GEN_LIMITS, 
     HEALTH_STATES, SPECIALTY_EXAMPLES, VIT, DERANGEMENTS, 
-    V20_WEAPONS_LIST, V20_ARMOR_LIST, V20_VEHICLE_LIST 
+    V20_WEAPONS_LIST, V20_ARMOR_LIST, V20_VEHICLE_LIST, CLAN_WEAKNESSES 
 } from "./data.js";
 
 import { 
@@ -404,6 +404,33 @@ window.updatePools = function() {
         box.classList.remove('checked'); 
         box.dataset.state = healthStates[i] || 0;
     });
+    
+    // --- WEAKNESS RENDER (NEW) ---
+    const weaknessCont = document.getElementById('weakness-play-container');
+    if (weaknessCont) {
+        // Clear previous content
+        weaknessCont.innerHTML = '';
+        
+        const clan = document.getElementById('c-clan')?.value;
+        const weaknessText = CLAN_WEAKNESSES[clan] || "No Clan Selected";
+        const customWeakness = window.state.textFields['custom-weakness'] || "";
+
+        weaknessCont.innerHTML = `
+            <div class="text-[10px] font-bold text-gray-400 mb-1">CLAN WEAKNESS</div>
+            <div class="text-[10px] text-red-400 italic mb-2 leading-tight">${weaknessText}</div>
+            <div class="text-[10px] font-bold text-gray-400 mb-1">SPECIFIC FLAW</div>
+            <textarea id="custom-weakness-input" class="w-full h-16 bg-black/40 border border-[#333] text-[10px] text-white p-1" placeholder="Clarify weakness (e.g. 'Only Brunettes')...">${customWeakness}</textarea>
+        `;
+        
+        // Bind save event for custom input
+        const ta = document.getElementById('custom-weakness-input');
+        if(ta) {
+            ta.onblur = (e) => {
+                window.state.textFields['custom-weakness'] = e.target.value;
+            };
+        }
+    }
+
     
     const cList = document.getElementById('combat-list-create');
     if(cList && window.state.inventory) {
@@ -910,7 +937,7 @@ window.togglePlayMode = function() {
     if(pBtnText) pBtnText.innerText = window.state.isPlayMode ? "Edit" : "Play";
     
     document.querySelectorAll('input, select, textarea').forEach(el => {
-        if (['save-filename', 'char-select', 'roll-diff', 'use-specialty', 'c-path-name', 'c-path-name-create', 'c-bearing-name', 'c-bearing-value'].includes(el.id)) return;
+        if (['save-filename', 'char-select', 'roll-diff', 'use-specialty', 'c-path-name', 'c-path-name-create', 'c-bearing-name', 'c-bearing-value', 'custom-weakness-input'].includes(el.id)) return;
         el.disabled = window.state.isPlayMode;
     });
 
@@ -929,25 +956,6 @@ window.togglePlayMode = function() {
                 <div><span class="label-text">Generation:</span> <span class="text-white font-bold">${getVal('c-gen')}</span></div>
                 <div><span class="label-text">Sire:</span> <span class="text-white font-bold">${getVal('c-sire')}</span></div>
             `;
-        }
-        
-        // Add Weakness Display
-        const weaknessRow = document.getElementById('play-weakness-row');
-        if (weaknessRow) {
-            const wVal = document.getElementById('c-clan-weakness')?.value || "None";
-            weaknessRow.innerHTML = `<div class="bg-red-900/20 border border-red-900/50 p-2 text-xs italic text-gray-300 mt-2"><span class="font-bold text-red-500">Clan Weakness:</span> ${wVal}</div>`;
-        } else {
-            // If the row doesn't exist, create it below the concept row
-            const conceptContainer = document.getElementById('play-mode-sheet');
-            if (conceptContainer) {
-                const wDiv = document.createElement('div');
-                wDiv.id = 'play-weakness-row';
-                const wVal = document.getElementById('c-clan-weakness')?.value || "None";
-                wDiv.innerHTML = `<div class="bg-red-900/20 border border-red-900/50 p-2 text-xs italic text-gray-300 mt-2 mb-2"><span class="font-bold text-red-500">Clan Weakness:</span> ${wVal}</div>`;
-                // Insert after concept grid
-                const grid = document.getElementById('play-concept-row');
-                if(grid && grid.parentNode) grid.parentNode.insertBefore(wDiv, grid.nextSibling);
-            }
         }
         
         const ra = document.getElementById('play-row-attr'); ra.innerHTML = '';
@@ -981,6 +989,7 @@ window.togglePlayMode = function() {
         rc.appendChild(vs);
         VIRTUES.forEach(v => renderRow(vs, v, 'virt', 1)); 
         
+        // --- SOCIAL PROFILE RENDER ---
         const pg = document.getElementById('play-social-grid'); if(pg) {
             pg.innerHTML = ''; BACKGROUNDS.forEach(s => { const dots = window.state.dots.back[s] || 0; const safeId = 'desc-' + s.toLowerCase().replace(/[^a-z0-9]/g, '-'); const el = document.getElementById(safeId); const txt = el ? el.value : ""; if(dots || txt) pg.innerHTML += `<div class="border-l-2 border-[#333] pl-4 mb-4"><div class="flex justify-between items-center"><label class="label-text text-gold">${s}</label><div class="text-[8px] font-bold text-white">${renderDots(dots,5)}</div></div><div class="text-xs text-gray-200 mt-1">${txt || "No description."}</div></div>`; });
         }
