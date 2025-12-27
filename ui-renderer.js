@@ -412,9 +412,13 @@ window.updatePools = function() {
     updateWalkthrough();
 };
 
-export function refreshTraitRow(label, type) {
-    const safeId = 'trait-row-' + type + '-' + label.replace(/[^a-zA-Z0-9]/g, '');
-    const rowDiv = document.getElementById(safeId);
+export function refreshTraitRow(label, type, targetEl) {
+    let rowDiv = targetEl;
+    if (!rowDiv) {
+        const safeId = 'trait-row-' + type + '-' + label.replace(/[^a-zA-Z0-9]/g, '');
+        rowDiv = document.getElementById(safeId);
+    }
+    
     if(!rowDiv) return;
 
     const min = (type === 'attr') ? 1 : 0;
@@ -470,7 +474,7 @@ export function renderRow(contId, label, type, min, max = 5) {
     div.id = 'trait-row-' + type + '-' + label.replace(/[^a-zA-Z0-9]/g, '');
     div.className = 'flex items-center justify-between w-full py-1';
     cont.appendChild(div);
-    refreshTraitRow(label, type);
+    refreshTraitRow(label, type, div); // Pass the div directly to ensure it updates even before being attached to main DOM
 }
 
 export function setDots(name, type, val, min, max = 5) {
