@@ -12,7 +12,7 @@ export const ARCHETYPES = [
     "Architect", "Autocrat", "Bon Vivant", "Bravo", "Capitalist", 
     "Caregiver", "Celebrant", "Chameleon", "Child", "Competitor", 
     "Conformist", "Conniver", "Creep Show", "Critic", "Curmudgeon", 
-    "Daviant", "Director", "Enigma", "Eye of the Storm", "Fanatic", 
+    "Deviant", "Director", "Enigma", "Eye of the Storm", "Fanatic", 
     "Gallant", "Guru", "Idealist", "Judge", "Loner", "Martyr", 
     "Masochist", "Monster", "Pedagogue", "Penitent", "Perfectionist", 
     "Rebel", "Rogue", "Survivor", "Thrill-Seeker", "Traditionalist", 
@@ -34,8 +34,10 @@ export const ATTRIBUTES = {
     Mental: ["Perception", "Intelligence", "Wits"]
 };
 
+// V20 Rules: "Dodge" is removed as a Talent (it is a function of Dex+Athletics/Brawl). 
+// "Awareness" is added as the detection Talent.
 export const ABILITIES = {
-    Talents: ["Alertness", "Athletics", "Brawl", "Dodge", "Empathy", "Expression", "Intimidation", "Leadership", "Streetwise", "Subterfuge"],
+    Talents: ["Alertness", "Athletics", "Awareness", "Brawl", "Empathy", "Expression", "Intimidation", "Leadership", "Streetwise", "Subterfuge"],
     Skills: ["Animal Ken", "Crafts", "Drive", "Etiquette", "Firearms", "Larceny", "Melee", "Performance", "Stealth", "Survival"],
     Knowledges: ["Academics", "Computer", "Finance", "Investigation", "Law", "Medicine", "Occult", "Politics", "Science", "Technology"]
 };
@@ -47,6 +49,7 @@ export const DISCIPLINES = [
     "Thaumaturgy", "Vicissitude"
 ];
 
+// V20 Rules: Restored Black Hand Membership and Rituals per Core Rulebook
 export const BACKGROUNDS = [
     "Allies", "Alternate Identity", "Black Hand Membership", "Contacts", 
     "Domain", "Fame", "Generation", "Herd", "Influence", "Mentor", 
@@ -92,9 +95,9 @@ export const GEN_LIMITS = {
 export const HEALTH_STATES = ["Bruised", "Hurt", "Injured", "Wounded", "Mauled", "Crippled", "Incapacitated"];
 
 export const SPECIALTY_EXAMPLES = {
-    "Athletics": ["Running", "Climbing", "Swimming", "Parkour", "Throwing"],
+    "Athletics": ["Running", "Climbing", "Swimming", "Parkour", "Throwing", "Dodge"],
+    "Awareness": ["Auras", "Ambushes", "Supernatural", "Wilds"],
     "Brawl": ["Boxing", "Grappling", "Dirty Fighting", "Throws", "Kicks"],
-    "Dodge": ["Cover", "Dive", "Leap", "Sidestep", "Duck"],
     "Empathy": ["Emotions", "Personalities", "Motives", "Truths"],
     "Expression": ["Acting", "Poetry", "Prose", "Public Speaking"],
     "Intimidation": ["Physical", "Social", "Veiled Threats", "Stare Down"],
