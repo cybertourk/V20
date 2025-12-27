@@ -1,106 +1,212 @@
-// V20 DATA ARCHIVE
-// Extracted from script.js to reduce file size and improve maintainability.
+// DATA CONSTANTS (Converted to ES6 Exports)
 
-export const APP_VERSION = "v1.12 (Data Split)";
+export const APP_VERSION = "v1.1.0";
 
-export const CLANS = ["Assamite", "Brujah", "Followers of Set", "Gangrel", "Giovanni", "Lasombra", "Malkavian", "Nosferatu", "Ravnos", "Toreador", "Tremere", "Tzimisce", "Ventrue", "Caitiff"];
+export const CLANS = [
+    "Assamite", "Brujah", "Followers of Set", "Gangrel", "Giovanni", 
+    "Lasombra", "Malkavian", "Nosferatu", "Ravnos", "Toreador", 
+    "Tremere", "Tzimisce", "Ventrue", "Caitiff"
+];
 
-export const ARCHETYPES = ["Architect", "Autocrat", "Bon Vivant", "Bravo", "Capitalist", "Caregiver", "Celebrant", "Chameleon", "Child", "Competitor", "Conformist", "Conniver", "Curmudgeon", "Dabbler", "Deviant", "Director", "Enigma", "Eye of the Storm", "Fanatic", "Gallant", "Guru", "Idealist", "Judge", "Loner", "Martyr", "Masochist", "Monster", "Pedagogue", "Penitent", "Perfectionist", "Rebel", "Rogue", "Sadist", "Scientist", "Sociopath", "Soldier", "Survivor", "Thrill-Seeker", "Traditionalist", "Trickster", "Visionary"];
+export const ARCHETYPES = [
+    "Architect", "Autocrat", "Bon Vivant", "Bravo", "Capitalist", 
+    "Caregiver", "Celebrant", "Chameleon", "Child", "Competitor", 
+    "Conformist", "Conniver", "Creep Show", "Critic", "Curmudgeon", 
+    "Daviant", "Director", "Enigma", "Eye of the Storm", "Fanatic", 
+    "Gallant", "Guru", "Idealist", "Judge", "Loner", "Martyr", 
+    "Masochist", "Monster", "Pedagogue", "Penitent", "Perfectionist", 
+    "Rebel", "Rogue", "Survivor", "Thrill-Seeker", "Traditionalist", 
+    "Trickster", "Visionary"
+];
 
-export const ATTRIBUTES = { 
-    Physical: ["Strength", "Dexterity", "Stamina"], 
-    Social: ["Charisma", "Manipulation", "Appearance"], 
-    Mental: ["Perception", "Intelligence", "Wits"] 
+export const PATHS = [
+    "Humanity", "Path of Blood", "Path of Caine", "Path of Cathari", 
+    "Path of Death and the Soul", "Path of Ecstasy", "Path of Entelechy", 
+    "Path of Feral Heart", "Path of Harmony", "Path of Honorable Accord", 
+    "Path of Lilith", "Path of Metamorphosis", "Path of Night", 
+    "Path of Paradox", "Path of Power and the Inner Voice", 
+    "Path of the Scorched Heart", "Path of Self-Focus", "Path of Typhon"
+];
+
+export const ATTRIBUTES = {
+    Physical: ["Strength", "Dexterity", "Stamina"],
+    Social: ["Charisma", "Manipulation", "Appearance"],
+    Mental: ["Perception", "Intelligence", "Wits"]
 };
 
-export const ABILITIES = { 
-    Talents: ["Alertness", "Athletics", "Awareness", "Brawl", "Empathy", "Expression", "Intimidation", "Leadership", "Streetwise", "Subterfuge"], 
-    Skills: ["Animal Ken", "Crafts", "Drive", "Etiquette", "Firearms", "Larceny", "Melee", "Performance", "Stealth", "Survival"], 
-    Knowledges: ["Academics", "Computer", "Finance", "Investigation", "Law", "Medicine", "Occult", "Politics", "Science", "Technology"] 
+export const ABILITIES = {
+    Talents: ["Alertness", "Athletics", "Brawl", "Dodge", "Empathy", "Expression", "Intimidation", "Leadership", "Streetwise", "Subterfuge"],
+    Skills: ["Animal Ken", "Crafts", "Drive", "Etiquette", "Firearms", "Larceny", "Melee", "Performance", "Stealth", "Survival"],
+    Knowledges: ["Academics", "Computer", "Finance", "Investigation", "Law", "Medicine", "Occult", "Politics", "Science", "Technology"]
 };
 
-export const BACKGROUNDS = ["Allies", "Alternate Identity", "Black Hand Membership", "Contacts", "Domain", "Fame", "Generation", "Herd", "Influence", "Mentor", "Resources", "Retainers", "Rituals", "Status"];
+export const DISCIPLINES = [
+    "Animalism", "Auspex", "Celerity", "Chimerstry", "Dementation", 
+    "Dominate", "Fortitude", "Necromancy", "Obfuscate", "Obtenebration", 
+    "Potence", "Presence", "Protean", "Quietus", "Serpentis", 
+    "Thaumaturgy", "Vicissitude"
+];
 
-export const DISCIPLINES = ["Animalism", "Auspex", "Celerity", "Chimerstry", "Dementation", "Dominate", "Fortitude", "Necromancy", "Obfuscate", "Obtenebration", "Potence", "Presence", "Protean", "Quietus", "Serpentis", "Thaumaturgy", "Vicissitude"];
+export const BACKGROUNDS = [
+    "Allies", "Alternate Identity", "Black Hand Membership", "Contacts", 
+    "Domain", "Fame", "Generation", "Herd", "Influence", "Mentor", 
+    "Resources", "Retainers", "Rituals", "Status"
+];
 
 export const VIRTUES = ["Conscience", "Self-Control", "Courage"];
 
-export const PATHS = ["Humanity", "Path of Blood", "Path of Bones", "Path of Caine", "Path of Cathari", "Path of the Feral Heart", "Path of the Honorable Accord", "Path of Lilith", "Path of Metamorphosis", "Path of Night", "Path of Paradox", "Path of Typhon"];
+export const VIT = ["Age", "Hair", "Eyes", "Height", "Weight", "Sex"];
 
-export const VIT = ["age", "app-age", "dob", "rip", "hair", "eyes", "race", "nat", "height", "weight", "sex"];
-
-export const HEALTH_STATES = [{l: "Bruised", p: 0}, {l: "Hurt", p: -1}, {l: "Injured", p: -1}, {l: "Wounded", p: -2}, {l: "Mauled", p: -2}, {l: "Crippled", p: -5}, {l: "Incap", p: -99}];
-
-export const GEN_LIMITS = { 
-    15: {m:10,p:1}, 14: {m:10,p:1}, 13: {m:10,p:1}, 12: {m:11,p:1}, 11: {m:12,p:1}, 10: {m:13,p:1}, 
-    9: {m:14,p:2}, 8: {m:15,p:3}, 7: {m:20,p:4}, 6: {m:30,p:6}, 5: {m:40,p:10}, 4: {m:50,p:15}, 3: {m:100,p:100} 
-};
-
-export const SPECIALTY_EXAMPLES = {
-    // Attributes
-    "Strength": ["Dead Lift", "Punch", "Jump", "Crush", "Holding On"],
-    "Dexterity": ["Speed", "Agility", "Flexibility", "Balance", "Reflexes"],
-    "Stamina": ["Endurance", "Determination", "Hold Breath", "Resilience"],
-    "Charisma": ["Smooth Talker", "Eloquent", "Outspoken", "Charming", "Command"],
-    "Manipulation": ["Persuasive", "Cunning", "Blackmailer", "Seductive"],
-    "Appearance": ["Bold", "Exotic", "Classic", "Innocent", "Alluring"],
-    "Perception": ["Insight", "Attentive", "Patient", "Uncanny"],
-    "Intelligence": ["Memory", "Research", "Analysis", "Strategy", "Logic"],
-    "Wits": ["Clever", "Ambushes", "Comebacks", "Changes in Strategy"],
-    // Talents
-    "Alertness": ["Noises", "Traps", "Ambushes", "Hidden Weapons"],
-    "Athletics": ["Acrobatics", "Climbing", "Running", "Swimming", "Throwing"],
-    "Awareness": ["Auras", "Spirits", "Magic", "Shifting"],
-    "Brawl": ["Boxing", "Wrestling", "Dirty Fighting", "Throws", "Claws"],
-    "Empathy": ["Emotions", "Personalities", "Truths", "Motives"],
-    "Expression": ["Poetry", "Acting", "Guitar", "Writing", "Oratory"],
-    "Intimidation": ["Physical", "Veiled Threats", "Social", "Stare Down"],
-    "Leadership": ["Command", "Oratory", "Military", "Motivation"],
-    "Streetwise": ["Fencing", "Drugs", "Gangs", "Rumors", "Turf"],
-    "Subterfuge": ["Lying", "Seduction", "Impeccable Logic", "The Long Con"],
-    // Skills
-    "Animal Ken": ["Dogs", "Wolves", "Cats", "Horses", "Training"],
-    "Crafts": ["Pottery", "Sewing", "Carpentry", "Blacksmithing", "Mechanics"],
-    "Drive": ["Curves", "High Speed", "Stunts", "Heavy Traffic", "Tail"],
-    "Etiquette": ["Camarilla", "Sabbat", "High Society", "Business", "Street"],
-    "Firearms": ["Pistols", "Rifles", "Shotguns", "Sniping", "Quick Draw"],
-    "Larceny": ["Lockpicking", "Pickpocket", "Safecracking", "Security"],
-    "Melee": ["Knives", "Swords", "Axes", "Clubs", "Disarm"],
-    "Performance": ["Singing", "Dancing", "Comedy", "Instrument"],
-    "Stealth": ["Shadowing", "Hiding", "Silent Movement", "Crowds"],
-    "Survival": ["Forest", "Jungle", "Desert", "Urban", "Tracking"],
-    // Knowledges
-    "Academics": ["History", "Literature", "Philosophy", "Art", "Theology"],
-    "Computer": ["Hacking", "Programming", "Hardware", "Data Retrieval"],
-    "Finance": ["Stock Market", "Laundering", "Appraisal", "Accounting"],
-    "Investigation": ["Search", "Forensics", "Research", "Interrogation"],
-    "Law": ["Criminal", "Civil", "Kindred Law", "Police Procedure"],
-    "Medicine": ["First Aid", "Surgery", "Pharmacy", "Pathology", "Poison"],
-    "Occult": ["Kindred Lore", "Magic", "Ghosts", "Demons", "Rituals"],
-    "Politics": ["City", "National", "Camarilla", "Sabbat", "Bribery"],
-    "Science": ["Biology", "Chemistry", "Physics", "Geology", "Botany"],
-    "Technology": ["Electronics", "Security", "Communications", "Invention"]
-};
-
-export const DERANGEMENTS = ["Amnesia", "Anxiety", "Bipolar Disorder", "Bulimia", "Fugue", "Hysteria", "Megalomania", "Multiple Personalities", "Obsessive-Compulsive", "Paranoia", "Phobia", "Schizophrenia", "Sanguinary Animism"];
-
-export const V20_MERITS_LIST = [{ n: "Acute Sense", t: "Merit", v: 1 }, { n: "Ambidextrous", t: "Merit", v: 1 }, { n: "Catlike Balance", t: "Merit", v: 1 }, { n: "Early Riser", t: "Merit", v: 1 }, { n: "Eat Food", t: "Merit", v: 1 }, { n: "Blush of Health", t: "Merit", v: 2 }, { n: "Enchanting Voice", t: "Merit", v: 2 }, { n: "Daredevil", t: "Merit", v: 3 }, { n: "Efficient Digestion", t: "Merit", v: 3 }, { n: "Huge Size", t: "Merit", v: 4 }, { n: "Prestigious Sire", t: "Merit", v: 1 }, { n: "Natural Leader", t: "Merit", v: 1 }, { n: "Specific Interests", t: "Merit", v: 1 }, { n: "Harmless", t: "Merit", v: 1 }, { n: "Protege", t: "Merit", v: 1 }, { n: "Rep", t: "Merit", v: 1 }, { n: "Language", t: "Merit", v: 1 }, { n: "Common Sense", t: "Merit", v: 1 }, { n: "Concentration", t: "Merit", v: 1 }, { n: "Time Sense", t: "Merit", v: 1 }, { n: "Code of Honor", t: "Merit", v: 1 }, { n: "Eidetic Memory", t: "Merit", v: 2 }, { n: "Light Sleeper", t: "Merit", v: 2 }, { n: "Calm Heart", t: "Merit", v: 3 }, { n: "Iron Will", t: "Merit", v: 3 }, { n: "Medium", t: "Merit", v: 2 }, { n: "Magic Resistance", t: "Merit", v: 2 }, { n: "Oracular Ability", t: "Merit", v: 3 }, { n: "Unbondable", t: "Merit", v: 3 }, { n: "Lucky", t: "Merit", v: 3 }, { n: "True Faith", t: "Merit", v: 7 }];
-
-export const V20_FLAWS_LIST = [{ n: "Deep Sleeper", t: "Flaw", v: 1 }, { n: "Intolerance", t: "Flaw", v: 1 }, { n: "Nightmare", t: "Flaw", v: 1 }, { n: "Prey Exclusion", t: "Flaw", v: 1 }, { n: "Overconfident", t: "Flaw", v: 1 }, { n: "Shy", t: "Flaw", v: 1 }, { n: "Soft-Hearted", t: "Flaw", v: 1 }, { n: "Speech Impediment", t: "Flaw", v: 1 }, { n: "Bad Sight", t: "Flaw", v: 2 }, { n: "One Eye", t: "Flaw", v: 2 }, { n: "Short Fuse", t: "Flaw", v: 2 }, { n: "Vengeful", t: "Flaw", v: 2 }, { n: "Amnesia", t: "Flaw", v: 2 }, { n: "Lunacy", t: "Flaw", v: 2 }, { n: "Phobia", t: "Flaw", v: 2 }, { n: "Addiction", t: "Flaw", v: 3 }, { n: "Lame", t: "Flaw", v: 3 }, { n: "Deformity", t: "Flaw", v: 3 }, { n: "Deaf", t: "Flaw", v: 4 }, { n: "Hunted", t: "Flaw", v: 4 }, { n: "Blind", t: "Flaw", v: 6 }, { n: "Enemy", t: "Flaw", v: 1, range: "1-5", variable: true }, { n: "Dark Secret", t: "Flaw", v: 1, range: "1-5", variable: true }, { n: "Cursed", t: "Flaw", v: 1, range: "1-5", variable: true }, { n: "Mistaken Identity", t: "Flaw", v: 1 }, { n: "Beacon of the Unholy", t: "Flaw", v: 2 }, { n: "Death Sight", t: "Flaw", v: 2 }, { n: "Haunted", t: "Flaw", v: 3 }, { n: "Flashbacks", t: "Flaw", v: 1, range: "1-2", variable: true }];
-
-export const V20_WEAPONS_LIST = [{ n: "Sap / Blackjack", diff: 4, dmg: "Str+1(B)", range: "-", rate: "1", clip: "-" }, { n: "Club / Bat", diff: 4, dmg: "Str+2(B)", range: "-", rate: "1", clip: "-" }, { n: "Knife", diff: 4, dmg: "Str+1(L)", range: "-", rate: "1", clip: "-" }, { n: "Sword", diff: 6, dmg: "Str+2(L)", range: "-", rate: "1", clip: "-" }, { n: "Axe", diff: 7, dmg: "Str+3(L)", range: "-", rate: "1", clip: "-" }, { n: "Stake", diff: 6, dmg: "Str+1(L)", range: "-", rate: "1", clip: "-" }, { n: "Revolver, Lt", diff: 6, dmg: "4", range: "12", rate: "3", clip: "6" }, { n: "Revolver, Hvy", diff: 7, dmg: "6", range: "35", rate: "2", clip: "6" }, { n: "Pistol, Lt", diff: 6, dmg: "4", range: "20", rate: "4", clip: "17+1" }, { n: "Pistol, Hvy", diff: 7, dmg: "5", range: "30", rate: "3", clip: "7+1" }, { n: "Rifle", diff: 8, dmg: "8", range: "200", rate: "1", clip: "5+1" }, { n: "SMG, Small", diff: 7, dmg: "4", range: "25", rate: "3", clip: "30+1" }, { n: "SMG, Large", diff: 6, dmg: "6", range: "50", rate: "3", clip: "30+1" }, { n: "Assault Rifle", diff: 7, dmg: "7", range: "150", rate: "3", clip: "30+1" }, { n: "Shotgun", diff: 6, dmg: "8", range: "20", rate: "1", clip: "5+1" }, { n: "Shotgun, Sawed-Off", diff: 7, dmg: "8", range: "10", rate: "2", clip: "2" }];
-
-export const V20_ARMOR_LIST = [{ n: "Class I (Reinforced Clothing)", r: 1, p: 0 }, { n: "Class II (Armor T-Shirt)", r: 2, p: 1 }, { n: "Class III (Kevlar Vest)", r: 3, p: 1 }, { n: "Class IV (Flak Jacket)", r: 4, p: 2 }, { n: "Class V (Full Riot Gear)", r: 5, p: 3 }];
-
-export const V20_VEHICLE_LIST = [{ n: "6-Wheel Truck", safe: "60/95", max: "90/145", man: 3 }, { n: "Tank (modern)", safe: "60/95", max: "100/160", man: 4 }, { n: "Tank (WWII)", safe: "30/50", max: "40/65", man: 3 }, { n: "Bus", safe: "60/95", max: "100/160", man: 3 }, { n: "18-Wheeler", safe: "70/110", max: "110/175", man: 4 }, { n: "Sedan", safe: "70/110", max: "120/195", man: 5 }, { n: "Minivan", safe: "70/110", max: "120/195", man: 6 }, { n: "Compact", safe: "70/110", max: "130/210", man: 6 }, { n: "Sporty Compact", safe: "100/160", max: "140/225", man: 7 }, { n: "Sport Coupe", safe: "110/175", max: "150/240", man: 8 }, { n: "Sports Car", safe: "110/175", max: "160/255", man: 8 }, { n: "Exotic Car", safe: "130/210", max: "190+/305+", man: 9 }, { n: "Luxury Sedan", safe: "85/135", max: "155/250", man: 7 }, { n: "Sport Sedan", safe: "85/135", max: "165/265", man: 8 }, { n: "Midsize", safe: "75/120", max: "125/200", man: 6 }, { n: "SUV/ Crossover", safe: "70/110", max: "115/185", man: 6 }, { n: "Formula One Racer", safe: "140/225", max: "240/385", man: 10 }];
+export const DERANGEMENTS = [
+    "Megalomaniac", "Sanguinary Animism", "Multiple Personalities", 
+    "Schizophrenia", "Paranoia", "Bulimia", "Hysteria", "Manic-Depressive", 
+    "Fugue", "Obsessive-Compulsive"
+];
 
 export const STEPS_CONFIG = [
-    { id: 1, icon: 'fa-id-card', label: 'Concept', msg: 'Define your Identity' },
-    { id: 2, icon: 'fa-hand-fist', label: 'Attributes', msg: 'Assign Attribute Points' },
-    { id: 3, icon: 'fa-graduation-cap', label: 'Abilities', msg: 'Assign Ability Points' },
-    { id: 4, icon: 'fa-bolt', label: 'Advantages', msg: 'Select Advantages' },
-    { id: 5, icon: 'fa-users', label: 'Social', msg: 'Detail Backgrounds' },
-    { id: 6, icon: 'fa-box-open', label: 'Gear', msg: 'Manage Inventory' },
-    { id: 7, icon: 'fa-brain', label: 'Bio', msg: 'Flesh out History' },
-    { id: 8, icon: 'fa-check-circle', label: 'Finish', msg: 'Finalize Character' }
+    { id: 1, label: "Concept", icon: "fa-user", msg: "Define Name & Clan" },
+    { id: 2, label: "Attributes", icon: "fa-child", msg: "Assign Attributes (7/5/3)" },
+    { id: 3, label: "Abilities", icon: "fa-fist-raised", msg: "Assign Abilities (13/9/5)" },
+    { id: 4, label: "Advantages", icon: "fa-star", msg: "Discs (3), Backs (5), Virt (7)" },
+    { id: 5, label: "Possessions", icon: "fa-gem", msg: "Inventory & Havens" },
+    { id: 6, label: "Merits", icon: "fa-balance-scale", msg: "Merits & Flaws" },
+    { id: 7, label: "Bio", icon: "fa-address-card", msg: "Appearance & Goals" },
+    { id: 8, label: "Finalize", icon: "fa-check-circle", msg: "Review & Confirm" }
+];
+
+export const GEN_LIMITS = {
+    15: { m: 10, pt: 1 },
+    14: { m: 10, pt: 1 },
+    13: { m: 10, pt: 1 },
+    12: { m: 11, pt: 1 },
+    11: { m: 12, pt: 1 },
+    10: { m: 13, pt: 1 },
+    9: { m: 14, pt: 2 },
+    8: { m: 15, pt: 3 },
+    7: { m: 20, pt: 4 },
+    6: { m: 30, pt: 6 },
+    5: { m: 40, pt: 8 },
+    4: { m: 50, pt: 10 }
+};
+
+export const HEALTH_STATES = ["Bruised", "Hurt", "Injured", "Wounded", "Mauled", "Crippled", "Incapacitated"];
+
+export const SPECIALTY_EXAMPLES = {
+    "Athletics": ["Running", "Climbing", "Swimming", "Parkour", "Throwing"],
+    "Brawl": ["Boxing", "Grappling", "Dirty Fighting", "Throws", "Kicks"],
+    "Dodge": ["Cover", "Dive", "Leap", "Sidestep", "Duck"],
+    "Empathy": ["Emotions", "Personalities", "Motives", "Truths"],
+    "Expression": ["Acting", "Poetry", "Prose", "Public Speaking"],
+    "Intimidation": ["Physical", "Social", "Veiled Threats", "Stare Down"],
+    "Leadership": ["Command", "Oratory", "Tactics", "Morale"],
+    "Streetwise": ["Gangs", "Drugs", "Fencing", "Rumors", "Turf"],
+    "Subterfuge": ["Lying", "Seduction", "Misdirection", "Impeccable Manners"],
+    "Animal Ken": ["Training", "Falconry", "Dogs", "Horses", "Stray Cats"],
+    "Crafts": ["Mechanics", "Sewing", "Carpentry", "Blacksmithing"],
+    "Drive": ["High Speed", "Stunts", "Tailgating", "Evasion"],
+    "Etiquette": ["High Society", "Business", "Street", "Kindred"],
+    "Firearms": ["Pistols", "Rifles", "Shotguns", "Fast Draw", "Sniping"],
+    "Larceny": ["Lockpicking", "Pickpocketing", "Safecracking", "Security"],
+    "Melee": ["Knives", "Swords", "Clubs", "Axes", "Improvised"],
+    "Performance": ["Singing", "Dancing", "Music", "Comedy"],
+    "Stealth": ["Hiding", "Silent Movement", "Shadowing", "Crowds"],
+    "Survival": ["Urban", "Forest", "Desert", "Tracking", "Scrounging"],
+    "Academics": ["History", "Literature", "Philosophy", "Art", "Theology"],
+    "Computer": ["Hacking", "Programming", "Hardware", "Data Retrieval"],
+    "Finance": ["Stocks", "Laundering", "Accounting", "Appraisal"],
+    "Investigation": ["Search", "Forensics", "Research", "Analysis"],
+    "Law": ["Criminal", "Civil", "Kindred", "Police Procedure"],
+    "Medicine": ["First Aid", "Surgery", "Pharmacy", "Pathology"],
+    "Occult": ["Kindred Lore", "Rituals", "Ghosts", "Demons", "Magic"],
+    "Politics": ["City", "State", "Federal", "Kindred", "Bribery"],
+    "Science": ["Biology", "Chemistry", "Physics", "Geology"],
+    "Technology": ["Electronics", "Security Systems", "Communications"]
+};
+
+export const V20_MERITS_LIST = [
+    { n: "Acute Sense (Auditory)", v: 1, variable: false },
+    { n: "Acute Sense (Olfactory)", v: 1, variable: false },
+    { n: "Acute Sense (Taste)", v: 1, variable: false },
+    { n: "Acute Sense (Tactile)", v: 1, variable: false },
+    { n: "Acute Sense (Visual)", v: 1, variable: false },
+    { n: "Common Sense", v: 1, variable: false },
+    { n: "Concentration", v: 1, variable: false },
+    { n: "Time Sense", v: 1, variable: false },
+    { n: "Code of Honor", v: 1, variable: false },
+    { n: "Computer Aptitude", v: 1, variable: false },
+    { n: "Higher Purpose", v: 1, variable: false },
+    { n: "Language", v: 1, variable: false },
+    { n: "Ambidextrous", v: 1, variable: false },
+    { n: "Eat Food", v: 1, variable: false },
+    { n: "Catlike Balance", v: 1, variable: false },
+    { n: "Blush of Health", v: 2, variable: false },
+    { n: "Enchanting Voice", v: 2, variable: false },
+    { n: "Daredevil", v: 3, variable: false },
+    { n: "Efficient Digestion", v: 3, variable: false },
+    { n: "Fast Learner", v: 3, variable: false },
+    { n: "Iron Will", v: 3, variable: false },
+    { n: "Huge Size", v: 4, variable: false },
+    { n: "Unbondable", v: 5, variable: false },
+    { n: "Lucky", v: 3, variable: false }
+];
+
+export const V20_FLAWS_LIST = [
+    { n: "Deep Sleeper", v: 1, variable: false },
+    { n: "Nightmares", v: 1, variable: false },
+    { n: "Phobia (Mild)", v: 1, variable: false },
+    { n: "Shy", v: 1, variable: false },
+    { n: "Soft-Hearted", v: 1, variable: false },
+    { n: "Speech Impediment", v: 1, variable: false },
+    { n: "Short", v: 1, variable: false },
+    { n: "Smell of the Grave", v: 1, variable: false },
+    { n: "Tic/Twitch", v: 1, variable: false },
+    { n: "Vengeful", v: 2, variable: false },
+    { n: "Amnesia", v: 2, variable: false },
+    { n: "Lunacy", v: 2, variable: false },
+    { n: "Phobia (Severe)", v: 3, variable: false },
+    { n: "Short Fuse", v: 2, variable: false },
+    { n: "Stereotype", v: 2, variable: false },
+    { n: "Territorial", v: 2, variable: false },
+    { n: "Thirst for Innocence", v: 2, variable: false },
+    { n: "Vulnerability to Silver", v: 2, variable: false },
+    { n: "Open Wound", v: 2, variable: false },
+    { n: "Addiction", v: 3, variable: false },
+    { n: "Conspicuous Consumption", v: 4, variable: false },
+    { n: "Permanent Wound", v: 3, variable: false },
+    { n: "Slow Healing", v: 3, variable: false },
+    { n: "Deaf", v: 4, variable: false },
+    { n: "Lame", v: 3, variable: false },
+    { n: "Monstrous", v: 3, variable: false },
+    { n: "One Eye", v: 2, variable: false },
+    { n: "Mute", v: 4, variable: false },
+    { n: "Thin-Blooded", v: 4, variable: false },
+    { n: "Blind", v: 6, variable: false }
+];
+
+export const V20_WEAPONS_LIST = [
+    { name: "Sap/Club", diff: 4, dmg: "Str+1(B)", range: "-", rate: "-", clip: "-" },
+    { name: "Knife", diff: 4, dmg: "Str+1(L)", range: "-", rate: "-", clip: "-" },
+    { name: "Sword", diff: 6, dmg: "Str+2(L)", range: "-", rate: "-", clip: "-" },
+    { name: "Axe", diff: 7, dmg: "Str+3(L)", range: "-", rate: "-", clip: "-" },
+    { name: "Stake", diff: 6, dmg: "Str(L)", range: "-", rate: "-", clip: "-" },
+    { name: "Pistol, Lt.", diff: 6, dmg: "4(L)", range: "20", rate: "3", clip: "17+1" },
+    { name: "Pistol, Hvy.", diff: 6, dmg: "5(L)", range: "35", rate: "2", clip: "7+1" },
+    { name: "Rifle", diff: 8, dmg: "8(L)", range: "200", rate: "1", clip: "5+1" },
+    { name: "SMG, Small", diff: 6, dmg: "4(L)", range: "25", rate: "3", clip: "30+1" },
+    { name: "SMG, Large", diff: 6, dmg: "4(L)", range: "50", rate: "3", clip: "32+1" },
+    { name: "Shotgun", diff: 6, dmg: "8(L)", range: "20", rate: "1", clip: "5+1" }
+];
+
+export const V20_ARMOR_LIST = [
+    { name: "Heavy Clothing", rating: 1, penalty: 0 },
+    { name: "Kevlar Vest", rating: 2, penalty: 0 },
+    { name: "Flak Jacket", rating: 3, penalty: 1 },
+    { name: "Full Riot Gear", rating: 5, penalty: 2 }
+];
+
+export const V20_VEHICLE_LIST = [
+    { name: "Motorcycle", safe: "100", max: "180", man: "8" },
+    { name: "Sedan", safe: "70", max: "120", man: "6" },
+    { name: "Sports Car", safe: "110", max: "190", man: "8" },
+    { name: "SUV/Truck", safe: "70", max: "110", man: "5" }
 ];
