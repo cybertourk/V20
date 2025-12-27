@@ -3,554 +3,448 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>V20 Character Creator</title>
-    <link rel="stylesheet" href="styles.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Tailwind CSS for utility classes -->
+    <title>V20 Official Neonate Sheet</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Firebase SDKs (Imports handled in modules, but CDN links for context if needed) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
+    <link rel="stylesheet" href="styles.css">
 </head>
-<body class="bg-black text-white font-serif overflow-hidden h-screen flex flex-col">
+<body class="p-2 md:p-8">
 
-    <!-- TOP BAR -->
-    <header class="bg-[#1a0505] border-b border-[#4a0404] p-2 flex justify-between items-center shadow-lg z-50 h-12 flex-shrink-0">
-        <div class="flex items-center gap-4">
-            <h1 class="text-xl font-bold text-[#8b0000] tracking-widest uppercase" style="text-shadow: 1px 1px 2px black;">V20<span class="text-xs text-gray-500 ml-1" id="app-version"></span></h1>
-            
-            <!-- File Name Input -->
-            <input type="text" id="save-filename" placeholder="Character Name..." 
-                   class="bg-black/50 border border-[#444] text-gray-300 text-xs px-2 py-1 w-48 rounded focus:border-[#d4af37] focus:outline-none">
-            
-            <button id="cmd-new" class="text-xs text-gray-400 hover:text-white uppercase font-bold"><i class="fas fa-file"></i> New</button>
-            <button id="cmd-save" class="text-xs text-gray-400 hover:text-white uppercase font-bold"><i class="fas fa-save"></i> Save</button>
-            <button id="cmd-load" class="text-xs text-gray-400 hover:text-white uppercase font-bold"><i class="fas fa-folder-open"></i> Load</button>
-        </div>
-
-        <div class="flex items-center gap-3">
-            <button id="toggle-freebie-btn" class="border border-[#444] px-2 py-1 text-[10px] uppercase font-bold text-gray-400 hover:border-blue-500 hover:text-blue-200 transition-colors" disabled>
-                <i class="fas fa-unlock-alt mr-1"></i> <span id="freebie-btn-text">Freebies</span>
-            </button>
-            <button id="play-mode-btn" class="bg-[#8b0000] text-white px-3 py-1 text-xs font-bold uppercase rounded shadow hover:bg-red-700 transition-colors border border-[#ff4444]">
-                <i class="fas fa-gamepad mr-1"></i> <span id="play-btn-text">Play</span>
-            </button>
-        </div>
-    </header>
-
-    <!-- LOADING OVERLAY -->
-    <div id="loading-overlay" class="fixed inset-0 bg-black z-[100] flex flex-col items-center justify-center">
-        <div class="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-[#8b0000]"></div>
-        <div class="mt-4 text-[#8b0000] font-bold tracking-widest animate-pulse">AWAKENING BLOOD...</div>
+    <div id="loading-overlay" class="fixed inset-0 bg-black flex flex-col items-center justify-center z-[9999]">
+        <h1 class="text-[#8b0000] text-7xl font-bold animate-pulse tracking-[0.5em] heading">V20</h1>
+        <p class="text-[11px] text-gray-400 tracking-[0.4em] mt-6 uppercase font-bold">Initializing Official Log...</p>
     </div>
 
-    <!-- MAIN CONTENT AREA -->
-    <div class="flex flex-1 overflow-hidden relative">
+    <div id="notification"></div>
+    
+    <nav id="main-menubar" class="fixed top-0 left-0 w-full h-16 bg-[#050505] border-b-2 border-[#500] z-50 flex items-center justify-between px-6 shadow-2xl">
         
-        <!-- LEFT NAV (Phase Steps) -->
-        <nav id="sheet-nav" class="w-16 bg-[#0f0f0f] border-r border-[#333] flex flex-col items-center py-4 gap-2 overflow-y-auto flex-shrink-0 z-40">
-            <!-- Nav items injected by JS -->
-        </nav>
+        <div class="flex flex-col justify-center leading-none select-none cursor-default group">
+            <h1 class="text-2xl text-[#af0000] font-bold tracking-[0.2em] font-cinzel group-hover:text-[#ff0000] transition-colors shadow-black drop-shadow-md">VAMPIRE</h1>
+            <span class="text-[0.6rem] text-[#d4af37] tracking-[0.3em] font-serif italic uppercase opacity-80 group-hover:opacity-100 transition-opacity">The Masquerade</span>
+        </div>
 
-        <!-- CENTER WORKSPACE -->
-        <main class="flex-1 relative overflow-y-auto p-4 bg-[url('https://www.transparenttextures.com/patterns/black-linen.png')]">
+        <div class="flex items-center gap-2 bg-black/40 px-4 py-1.5 rounded-full border border-[#222]">
+            <button id="cmd-new" class="text-xs text-gray-400 font-bold uppercase hover:text-white hover:bg-[#222] px-3 py-1 rounded transition border border-transparent hover:border-[#444]">
+                <i class="fas fa-file-circle-plus mr-1"></i> New
+            </button>
+            <div class="h-4 w-px bg-[#333]"></div>
+            <button id="cmd-save" class="text-xs text-gray-400 font-bold uppercase hover:text-white hover:bg-[#222] px-3 py-1 rounded transition border border-transparent hover:border-[#444]">
+                <i class="fas fa-save mr-1"></i> Save
+            </button>
+            <div class="h-4 w-px bg-[#333]"></div>
+            <button id="cmd-load" class="text-xs text-gray-400 font-bold uppercase hover:text-white hover:bg-[#222] px-3 py-1 rounded transition border border-transparent hover:border-[#444]">
+                <i class="fas fa-folder-open mr-1"></i> Load
+            </button>
+        </div>
+
+        <div class="flex items-center gap-4">
             
-            <!-- Walkthrough Guide Overlay -->
-            <div id="walkthrough-guide" class="absolute top-4 right-4 z-30 flex items-center gap-2 pointer-events-none transition-opacity duration-300">
-                <div id="guide-message" class="bg-black/90 border border-[#d4af37] text-[#f0e6d2] px-4 py-2 rounded text-xs font-bold shadow-lg w-48 text-right">
-                    Initialize...
-                </div>
-                <div id="guide-icon" class="w-10 h-10 rounded-full bg-[#1a0505] border-2 border-[#d4af37] flex items-center justify-center text-[#d4af37] shadow-lg cursor-pointer pointer-events-auto hover:scale-110 transition-transform" onclick="window.nextStep()">
-                    <i class="fas fa-chevron-right"></i>
-                </div>
+            <button id="toggle-freebie-btn" class="flex items-center gap-2 px-3 py-1 rounded border border-[#333] hover:border-blue-500/50 hover:bg-blue-900/20 transition text-xs font-bold text-gray-400 disabled:opacity-30 disabled:cursor-not-allowed">
+                <i class="fas fa-balance-scale"></i>
+                <span id="freebie-btn-text">Freebies</span>
+            </button>
+            
+            <div id="top-freebie-counter">
+                <span id="f-total-top">0</span>/<input type="number" id="c-freebie-total" value="15" class="w-8 bg-transparent text-gold border-b border-[#333] text-center font-bold">
             </div>
 
-            <!-- STEP 1: CONCEPT -->
+            <button id="play-mode-btn" class="flex items-center gap-2 px-3 py-1 rounded border border-[#d4af37] text-[#d4af37] hover:bg-[#d4af37] hover:text-black transition text-xs font-bold uppercase tracking-wider shadow-[0_0_10px_rgba(212,175,55,0.2)]">
+                <i class="fas fa-gamepad"></i>
+                <span id="play-btn-text">Play</span>
+            </button>
+
+            <div class="h-8 w-px bg-[#333]"></div>
+
+            <div class="flex gap-2 text-gray-500">
+                <button id="export-btn" class="hover:text-white w-8 h-8 rounded hover:bg-[#222] transition" title="Export JSON"><i class="fas fa-file-export"></i></button>
+                <button id="import-trigger" class="hover:text-white w-8 h-8 rounded hover:bg-[#222] transition" title="Import JSON"><i class="fas fa-file-import"></i></button>
+                <button id="print-btn" class="hover:text-white w-8 h-8 rounded hover:bg-[#222] transition" title="Print Sheet"><i class="fas fa-print"></i></button>
+                <input type="file" id="import-input" class="hidden" accept=".json">
+            </div>
+        </div>
+    </nav>
+
+    <div id="walkthrough-guide" class="fixed bottom-24 right-20 z-40 flex items-center gap-4 translate-y-20 opacity-0 pointer-events-none md:pointer-events-auto">
+        <div id="guide-message" class="bg-black/90 border border-[#d4af37] text-[#f0e6d2] px-4 py-2 rounded text-xs font-bold shadow-lg w-48 text-right">
+            Initialize Character...
+        </div>
+        <div id="guide-icon" class="w-12 h-12 rounded-full bg-[#af0000] border-2 border-[#d4af37] flex items-center justify-center shadow-[0_0_15px_rgba(175,0,0,0.6)] cursor-pointer transition-transform" onclick="window.nextStep()">
+            <i class="fas fa-ankh text-white text-xl"></i>
+        </div>
+    </div>
+
+    <div id="freebie-sidebar">
+        <div id="sb-toggle-btn" onclick="window.toggleSidebarLedger()">Ledger</div>
+        <h3 class="heading text-gold text-sm border-b border-gold pb-2 mb-4 text-center">Freebie Ledger</h3>
+        <div class="space-y-2 text-xs">
+            <div class="cost-row"><span>Attributes (5/dot)</span><span id="sb-attr" class="cost-val">0</span></div>
+            <div class="cost-row"><span>Abilities (2/dot)</span><span id="sb-abil" class="cost-val">0</span></div>
+            <div class="cost-row"><span>Disciplines (7/dot)</span><span id="sb-disc" class="cost-val">0</span></div>
+            <div class="cost-row"><span>Backgrounds (1/dot)</span><span id="sb-back" class="cost-val">0</span></div>
+            <div class="cost-row"><span>Virtues (2/dot)</span><span id="sb-virt" class="cost-val">0</span></div>
+            <div class="cost-row"><span>Humanity (2/dot)</span><span id="sb-human" class="cost-val">0</span></div>
+            <div class="cost-row"><span>Willpower (1/dot)</span><span id="sb-will" class="cost-val">0</span></div>
+            <div class="cost-row"><span>Merits (Cost)</span><span id="sb-merit" class="cost-val">0</span></div>
+            <div class="cost-row"><span>Flaws (Bonus)</span><span id="sb-flaw" class="text-green-400 font-bold">0</span></div>
+            <div class="mt-4 pt-2 border-t border-[#444] flex justify-between font-bold text-sm">
+                <span>Remaining:</span>
+                <span id="sb-total" class="text-green-400">15</span>
+            </div>
+        </div>
+    </div>
+
+    <div id="dice-tray" class="p-5">
+        <div class="flex justify-between items-center mb-4 border-b border-[#444] pb-2">
+            <h3 class="heading text-xs text-[#d4af37] uppercase tracking-widest font-bold">Dice Engine</h3>
+            <button id="clear-pool-btn" class="text-[10px] text-gray-400 hover:text-white uppercase font-bold tracking-tighter" onclick="window.clearPool()">[ Clear Pool ]</button>
+        </div>
+        <div id="pool-display" class="text-[11px] text-gray-200 mb-3 italic font-medium">Select traits to build pool...</div>
+        <div id="specialty-container" class="items-center gap-2 mb-4 px-3 py-2 bg-white/10 border border-white/20 rounded">
+            <input type="checkbox" id="use-specialty" class="w-4 h-4 cursor-pointer">
+            <label for="use-specialty" class="text-[10px] uppercase font-black text-white cursor-pointer tracking-tight">Specialty Applied (10s = 2 Successes)</label>
+        </div>
+        <div class="flex items-center gap-3 mb-5">
+            <span class="text-[10px] uppercase font-black text-gray-300">Diff:</span>
+            <input type="number" id="roll-diff" value="6" class="w-14 text-center !border !border-[#555] !bg-black !text-white !font-bold">
+            <button id="roll-btn" class="flex-1 bg-[#8b0000] text-white text-[11px] py-3 uppercase font-black tracking-widest hover:bg-red-600 transition shadow-lg" onclick="window.rollPool()">Roll Pool</button>
+        </div>
+        <div id="roll-results" class="max-h-52 overflow-y-auto space-y-3"></div>
+    </div>
+
+    <div id="sheet-content" class="max-w-5xl mx-auto shadow-2xl bg-black/30 pb-20 border-x border-b border-[#222]">
+
+        <nav id="sheet-nav" class="flex justify-center bg-black sticky top-0 z-40 border-b border-[#333]"></nav>
+        
+        <div class="mt-8 md:mt-12"></div>
+
+        <div class="p-6 md:p-12">
             <div id="phase-1" class="step-container active">
-                <h2 class="section-header">Character Concept</h2>
-                <div class="grid grid-cols-2 gap-4">
-                    <div class="form-group">
-                        <label>Name</label><input type="text" id="c-name" class="w-full">
+                <div class="sheet-section !mt-0">
+                    <div class="section-title">Character Concept</div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                        <div class="space-y-5">
+                            <div><label class="label-text">Name</label><input type="text" id="c-name"></div>
+                            <div><label class="label-text">Player</label><input type="text" id="c-player"></div>
+                            <div><label class="label-text">Chronicle</label><input type="text" id="c-chronicle"></div>
+                        </div>
+                        <div class="space-y-5">
+                            <div><label class="label-text">Nature</label><select id="c-nature"></select></div>
+                            <div><label class="label-text">Demeanor</label><select id="c-demeanor"></select></div>
+                            <div><label class="label-text">Concept</label><input type="text" id="c-concept"></div>
+                        </div>
+                        <div class="space-y-5">
+                            <div><label class="label-text">Clan</label><select id="c-clan"></select></div>
+                            <div><label class="label-text">Generation</label><input type="number" id="c-gen" value="13"></div>
+                            <div><label class="label-text">Sire</label><input type="text" id="c-sire"></div>
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label>Player</label><input type="text" id="c-player" class="w-full">
-                    </div>
-                    <div class="form-group">
-                        <label>Chronicle</label><input type="text" id="c-chronicle" class="w-full">
-                    </div>
-                    <div class="form-group">
-                        <label>Nature</label><select id="c-nature" class="w-full"></select>
-                    </div>
-                    <div class="form-group">
-                        <label>Demeanor</label><select id="c-demeanor" class="w-full"></select>
-                    </div>
-                    <div class="form-group">
-                        <label>Concept</label><input type="text" id="c-concept" class="w-full">
-                    </div>
-                    <div class="form-group">
-                        <label>Clan</label><select id="c-clan" class="w-full"></select>
-                    </div>
-                    <div class="form-group">
-                        <label>Generation</label><input type="number" id="c-gen" value="13" min="4" max="15" class="w-full">
-                    </div>
-                    <div class="form-group">
-                        <label>Sire</label><input type="text" id="c-sire" class="w-full">
-                    </div>
-                </div>
-                <div class="mt-4">
-                    <label class="label-text">Clan Weakness Info (Auto)</label>
-                    <textarea id="c-clan-weakness" class="w-full h-20 bg-black/20 text-gray-400 text-xs p-2 border border-[#333]" readonly></textarea>
                 </div>
             </div>
 
-            <!-- STEP 2: ATTRIBUTES -->
             <div id="phase-2" class="step-container">
-                <h2 class="section-header">Attributes <span class="text-xs text-gray-400 ml-2 font-normal">(7/5/3)</span></h2>
-                <div class="grid grid-cols-3 gap-6">
-                    <!-- Physical -->
-                    <div class="sheet-section">
-                        <div class="column-title flex justify-between">
-                            Physical <span id="p-phys" class="text-[#d4af37] text-[10px]">[0]</span>
-                        </div>
-                        <div class="flex justify-center gap-1 mb-2">
-                            <button class="prio-btn" data-cat="attr" data-group="Physical" data-v="7">Pri</button>
-                            <button class="prio-btn" data-cat="attr" data-group="Physical" data-v="5">Sec</button>
-                            <button class="prio-btn" data-cat="attr" data-group="Physical" data-v="3">Ter</button>
-                        </div>
-                        <div id="list-attr-physical"></div>
-                    </div>
-                    <!-- Social -->
-                    <div class="sheet-section">
-                        <div class="column-title flex justify-between">
-                            Social <span id="p-social" class="text-[#d4af37] text-[10px]">[0]</span>
-                        </div>
-                        <div class="flex justify-center gap-1 mb-2">
-                            <button class="prio-btn" data-cat="attr" data-group="Social" data-v="7">Pri</button>
-                            <button class="prio-btn" data-cat="attr" data-group="Social" data-v="5">Sec</button>
-                            <button class="prio-btn" data-cat="attr" data-group="Social" data-v="3">Ter</button>
-                        </div>
-                        <div id="list-attr-social"></div>
-                    </div>
-                    <!-- Mental -->
-                    <div class="sheet-section">
-                        <div class="column-title flex justify-between">
-                            Mental <span id="p-mental" class="text-[#d4af37] text-[10px]">[0]</span>
-                        </div>
-                        <div class="flex justify-center gap-1 mb-2">
-                            <button class="prio-btn" data-cat="attr" data-group="Mental" data-v="7">Pri</button>
-                            <button class="prio-btn" data-cat="attr" data-group="Mental" data-v="5">Sec</button>
-                            <button class="prio-btn" data-cat="attr" data-group="Mental" data-v="3">Ter</button>
-                        </div>
-                        <div id="list-attr-mental"></div>
+                <div class="sheet-section !mt-0">
+                    <div class="section-title">Step Two: Attributes</div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-10">
+                        <div id="list-attr-physical"><h3 class="column-title">Physical <span id="p-phys" class="pool-counter"></span></h3><div class="flex justify-center gap-2 mb-4 creation-only"><button data-cat="attr" data-group="Physical" data-v="7" class="prio-btn">7</button><button data-cat="attr" data-group="Physical" data-v="5" class="prio-btn">5</button><button data-cat="attr" data-group="Physical" data-v="3" class="prio-btn">3</button></div></div>
+                        <div id="list-attr-social"><h3 class="column-title">Social <span id="p-social" class="pool-counter"></span></h3><div class="flex justify-center gap-2 mb-4 creation-only"><button data-cat="attr" data-group="Social" data-v="7" class="prio-btn">7</button><button data-cat="attr" data-group="Social" data-v="5" class="prio-btn">5</button><button data-cat="attr" data-group="Social" data-v="3" class="prio-btn">3</button></div></div>
+                        <div id="list-attr-mental"><h3 class="column-title">Mental <span id="p-mental" class="pool-counter"></span></h3><div class="flex justify-center gap-2 mb-4 creation-only"><button data-cat="attr" data-group="Mental" data-v="7" class="prio-btn">7</button><button data-cat="attr" data-group="Mental" data-v="5" class="prio-btn">5</button><button data-cat="attr" data-group="Mental" data-v="3" class="prio-btn">3</button></div></div>
                     </div>
                 </div>
             </div>
 
-            <!-- STEP 3: ABILITIES -->
             <div id="phase-3" class="step-container">
-                <h2 class="section-header">Abilities <span class="text-xs text-gray-400 ml-2 font-normal">(13/9/5)</span></h2>
-                <div class="grid grid-cols-3 gap-6">
-                    <!-- Talents -->
-                    <div class="sheet-section">
-                        <div class="column-title flex justify-between">
-                            Talents <span id="p-tal" class="text-[#d4af37] text-[10px]">[0]</span>
-                        </div>
-                        <div class="flex justify-center gap-1 mb-2">
-                            <button class="prio-btn" data-cat="abil" data-group="Talents" data-v="13">Pri</button>
-                            <button class="prio-btn" data-cat="abil" data-group="Talents" data-v="9">Sec</button>
-                            <button class="prio-btn" data-cat="abil" data-group="Talents" data-v="5">Ter</button>
-                        </div>
-                        <div id="list-abil-talents"></div>
-                        <div class="mt-2 border-t border-[#333] pt-1"><div class="text-[9px] text-gray-500 mb-1">CUSTOM TALENTS</div><div id="custom-talents"></div></div>
-                    </div>
-                    <!-- Skills -->
-                    <div class="sheet-section">
-                        <div class="column-title flex justify-between">
-                            Skills <span id="p-ski" class="text-[#d4af37] text-[10px]">[0]</span>
-                        </div>
-                        <div class="flex justify-center gap-1 mb-2">
-                            <button class="prio-btn" data-cat="abil" data-group="Skills" data-v="13">Pri</button>
-                            <button class="prio-btn" data-cat="abil" data-group="Skills" data-v="9">Sec</button>
-                            <button class="prio-btn" data-cat="abil" data-group="Skills" data-v="5">Ter</button>
-                        </div>
-                        <div id="list-abil-skills"></div>
-                        <div class="mt-2 border-t border-[#333] pt-1"><div class="text-[9px] text-gray-500 mb-1">CUSTOM SKILLS</div><div id="custom-skills"></div></div>
-                    </div>
-                    <!-- Knowledges -->
-                    <div class="sheet-section">
-                        <div class="column-title flex justify-between">
-                            Knowledges <span id="p-kno" class="text-[#d4af37] text-[10px]">[0]</span>
-                        </div>
-                        <div class="flex justify-center gap-1 mb-2">
-                            <button class="prio-btn" data-cat="abil" data-group="Knowledges" data-v="13">Pri</button>
-                            <button class="prio-btn" data-cat="abil" data-group="Knowledges" data-v="9">Sec</button>
-                            <button class="prio-btn" data-cat="abil" data-group="Knowledges" data-v="5">Ter</button>
-                        </div>
-                        <div id="list-abil-knowledges"></div>
-                        <div class="mt-2 border-t border-[#333] pt-1"><div class="text-[9px] text-gray-500 mb-1">CUSTOM KNOWLEDGES</div><div id="custom-knowledges"></div></div>
+                <div class="sheet-section !mt-0">
+                    <div class="section-title">Step Three: Abilities</div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-10">
+                        <div class="flex flex-col h-full"><div id="list-abil-talents"><h3 class="column-title">Talents <span id="p-tal" class="pool-counter"></span></h3><div class="flex justify-center gap-2 mb-4 creation-only"><button data-cat="abil" data-group="Talents" data-v="13" class="prio-btn">13</button><button data-cat="abil" data-group="Talents" data-v="9" class="prio-btn">9</button><button data-cat="abil" data-group="Talents" data-v="5" class="prio-btn">5</button></div></div><div id="custom-talents" class="mt-auto pt-4 border-t border-[#333]"></div></div>
+                        <div class="flex flex-col h-full"><div id="list-abil-skills"><h3 class="column-title">Skills <span id="p-ski" class="pool-counter"></span></h3><div class="flex justify-center gap-2 mb-4 creation-only"><button data-cat="abil" data-group="Skills" data-v="13" class="prio-btn">13</button><button data-cat="abil" data-group="Skills" data-v="9" class="prio-btn">9</button><button data-cat="abil" data-group="Skills" data-v="5" class="prio-btn">5</button></div></div><div id="custom-skills" class="mt-auto pt-4 border-t border-[#333]"></div></div>
+                        <div class="flex flex-col h-full"><div id="list-abil-knowledges"><h3 class="column-title">Knowledges <span id="p-kno" class="pool-counter"></span></h3><div class="flex justify-center gap-2 mb-4 creation-only"><button data-cat="abil" data-group="Knowledges" data-v="13" class="prio-btn">13</button><button data-cat="abil" data-group="Knowledges" data-v="9" class="prio-btn">9</button><button data-cat="abil" data-group="Knowledges" data-v="5" class="prio-btn">5</button></div></div><div id="custom-knowledges" class="mt-auto pt-4 border-t border-[#333]"></div></div>
                     </div>
                 </div>
             </div>
 
-            <!-- STEP 4: ADVANTAGES -->
             <div id="phase-4" class="step-container">
-                <h2 class="section-header">Advantages</h2>
-                <div class="grid grid-cols-3 gap-6">
-                    <div class="sheet-section">
-                        <div class="column-title">Disciplines <span id="p-disc" class="text-[#d4af37] text-[10px]">[3]</span></div>
-                        <div id="list-disc"></div>
-                    </div>
-                    <div class="sheet-section">
-                        <div class="column-title">Backgrounds <span id="p-back" class="text-[#d4af37] text-[10px]">[5]</span></div>
-                        <div id="list-back"></div>
-                    </div>
-                    <div class="sheet-section">
-                        <div class="column-title">Virtues <span id="p-virt" class="text-[#d4af37] text-[10px]">[7]</span></div>
-                        <div id="list-virt"></div>
+                <div class="sheet-section !mt-0">
+                    <div class="section-title">Step Four: Advantages</div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-10">
+                        <div><h3 class="column-title">Disciplines <span id="p-disc" class="pool-counter">[3]</span></h3><div id="list-disc" class="space-y-3 mt-2"></div></div>
+                        <div><h3 class="column-title">Backgrounds <span id="p-back" class="pool-counter">[5]</span></h3><div id="list-back" class="space-y-3 mt-2"></div></div>
+                        <div><h3 class="column-title">Virtues <span id="p-virt" class="pool-counter">[7]</span></h3><div id="list-virt" class="space-y-5 mt-2"></div></div>
                     </div>
                 </div>
             </div>
 
-            <!-- STEP 5: POSSESSIONS -->
-            <div id="phase-5" class="step-container">
-                <h2 class="section-header">Possessions & Assets</h2>
-                <div class="grid grid-cols-2 gap-4">
-                    <!-- Inventory Management -->
+            <div id="phase-5" class="step-container space-y-10">
+                <div class="flex flex-col gap-8">
+                    <div class="sheet-section !mt-0">
+                        <div class="section-title">Background Descriptions</div>
+                        <div id="social-profile-list" class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6"></div>
+                    </div>
+                    
                     <div class="sheet-section">
-                        <div class="column-title">Inventory</div>
-                        <div class="flex flex-col gap-2 mb-2 bg-[#111] p-2 border border-[#333]">
-                            <select id="inv-type" class="w-full text-xs bg-black text-white border border-[#444] p-1">
-                                <option value="Item">General Item</option>
-                                <option value="Weapon">Weapon</option>
-                                <option value="Armor">Armor</option>
-                                <option value="Vehicle">Vehicle</option>
-                            </select>
-                            <div id="inv-base-wrapper" class="hidden">
-                                <select id="inv-base-select" class="w-full text-xs bg-black text-white border border-[#444] p-1"></select>
+                        <div class="section-title">Blood Bonds / Vinculi</div>
+                        <div id="blood-bond-list" class="space-y-3 mt-4"></div>
+                    </div>
+
+                    <div class="sheet-section">
+                        <div class="section-title">Possessions & Gear</div>
+                        <div id="inventory-manager" class="p-2 space-y-4 border-b border-[#333] pb-4 mb-4">
+                            <div class="flex flex-col gap-2 mb-2">
+                                <label class="label-text">1. Select Item Type</label>
+                                <select id="inv-type" class="w-full text-[11px] bg-[#111] border border-[#444] text-white p-2">
+                                    <option value="Gear">General Gear</option>
+                                    <option value="Weapon">Weapon</option>
+                                    <option value="Armor">Armor</option>
+                                    <option value="Vehicle">Vehicle</option>
+                                </select>
+                                
+                                <div id="inv-base-wrapper" class="hidden">
+                                    <label class="label-text">2. Choose Base Template (Auto-fills Stats)</label>
+                                    <select id="inv-base-select" class="w-full text-[11px] bg-[#111] border border-[#444] text-white p-2"></select>
+                                </div>
+
+                                <div>
+                                    <label class="label-text">3. Specific Description / Name (Optional)</label>
+                                    <input type="text" id="inv-name" placeholder="e.g. 'Ceremonial Dagger' or 'Grandpa's Revolver'" class="w-full text-[11px] bg-transparent border-b border-[#444] text-white p-2">
+                                </div>
                             </div>
-                            <input type="text" id="inv-name" placeholder="Item Name..." class="w-full text-xs bg-black text-white border border-[#444] p-1">
-                            <div class="flex items-center gap-2"><input type="checkbox" id="inv-carried"> <span class="text-xs text-gray-400">Carried?</span></div>
                             
-                            <!-- Dynamic Stats Inputs -->
-                            <div id="inv-stats-row" class="hidden grid grid-cols-5 gap-1">
-                                <input type="text" id="inv-diff" placeholder="Diff" class="text-[9px] bg-black text-white border border-[#444] p-1 text-center">
-                                <input type="text" id="inv-dmg" placeholder="Dmg" class="text-[9px] bg-black text-white border border-[#444] p-1 text-center">
-                                <input type="text" id="inv-range" placeholder="Rng" class="text-[9px] bg-black text-white border border-[#444] p-1 text-center">
-                                <input type="text" id="inv-rate" placeholder="Rate" class="text-[9px] bg-black text-white border border-[#444] p-1 text-center">
-                                <input type="text" id="inv-clip" placeholder="Clip" class="text-[9px] bg-black text-white border border-[#444] p-1 text-center">
-                            </div>
-                            <div id="inv-armor-row" class="hidden grid grid-cols-2 gap-1">
-                                <input type="text" id="inv-rating" placeholder="Rating (1-5)" class="text-[9px] bg-black text-white border border-[#444] p-1 text-center">
-                                <input type="text" id="inv-penalty" placeholder="Dex Penalty" class="text-[9px] bg-black text-white border border-[#444] p-1 text-center">
-                            </div>
-                            <div id="inv-vehicle-row" class="hidden grid grid-cols-3 gap-1">
-                                <input type="text" id="inv-safe" placeholder="Safe Spd" class="text-[9px] bg-black text-white border border-[#444] p-1 text-center">
-                                <input type="text" id="inv-max" placeholder="Max Spd" class="text-[9px] bg-black text-white border border-[#444] p-1 text-center">
-                                <input type="text" id="inv-man" placeholder="Maneuver" class="text-[9px] bg-black text-white border border-[#444] p-1 text-center">
+                            <div id="inv-stats-row" class="hidden grid grid-cols-5 gap-2">
+                                <input type="text" id="inv-diff" placeholder="Diff" class="text-center text-[9px] bg-transparent border-b border-[#444] text-white">
+                                <input type="text" id="inv-dmg" placeholder="Dmg" class="text-center text-[9px] bg-transparent border-b border-[#444] text-white">
+                                <input type="text" id="inv-range" placeholder="Rng" class="text-center text-[9px] bg-transparent border-b border-[#444] text-white">
+                                <input type="text" id="inv-rate" placeholder="Rate" class="text-center text-[9px] bg-transparent border-b border-[#444] text-white">
+                                <input type="text" id="inv-clip" placeholder="Clip" class="text-center text-[9px] bg-transparent border-b border-[#444] text-white">
                             </div>
 
-                            <button id="add-inv-btn" class="bg-[#222] text-xs py-1 border border-[#444] hover:bg-[#333]">Add Item</button>
+                            <div id="inv-armor-row" class="hidden grid grid-cols-2 gap-2">
+                                <input type="text" id="inv-rating" placeholder="Rating" class="text-center text-[9px] bg-transparent border-b border-[#444] text-white">
+                                <input type="text" id="inv-penalty" placeholder="Penalty" class="text-center text-[9px] bg-transparent border-b border-[#444] text-white">
+                            </div>
+
+                            <div id="inv-vehicle-row" class="hidden grid grid-cols-3 gap-2">
+                                <input type="text" id="inv-safe" placeholder="Safe Spd" class="text-center text-[9px] bg-transparent border-b border-[#444] text-white">
+                                <input type="text" id="inv-max" placeholder="Max Spd" class="text-center text-[9px] bg-transparent border-b border-[#444] text-white">
+                                <input type="text" id="inv-man" placeholder="Maneuver" class="text-center text-[9px] bg-transparent border-b border-[#444] text-white">
+                            </div>
+
+                            <div class="flex justify-between items-center">
+                                <div class="flex gap-2 items-center">
+                                    <input type="checkbox" id="inv-carried" checked class="w-3 h-3">
+                                    <label for="inv-carried" class="text-[9px] text-gray-400 uppercase">Carried</label>
+                                </div>
+                                <button id="add-inv-btn" class="bg-[#8b0000] px-4 py-2 text-[10px] font-bold text-white uppercase hover:bg-red-700 shadow-md">Add Item</button>
+                            </div>
                         </div>
-                        <div class="h-48 overflow-y-auto">
-                            <div class="text-[10px] text-gray-500 font-bold border-b border-[#333] mb-1">CARRIED</div>
-                            <div id="inv-list-carried"></div>
-                            <div class="text-[10px] text-gray-500 font-bold border-b border-[#333] mt-2 mb-1">OWNED / STASHED</div>
-                            <div id="inv-list-owned"></div>
-                            <div class="text-[10px] text-gray-500 font-bold border-b border-[#333] mt-2 mb-1">VEHICLES</div>
-                            <div id="vehicle-list"></div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            <div>
+                                <h3 class="column-title">Gear (Carried)</h3>
+                                <div id="inv-list-carried" class="space-y-2 min-h-[50px]"></div>
+                            </div>
+                            <div>
+                                <h3 class="column-title">Equipment (Owned)</h3>
+                                <div id="inv-list-owned" class="space-y-2 min-h-[50px]"></div>
+                            </div>
+                        </div>
+
+                        <div class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-8">
+                             <div>
+                                <h3 class="column-title">Feeding Grounds</h3>
+                                <textarea id="inv-feeding-grounds" class="h-24 w-full text-xs" placeholder="Describe your hunting grounds..."></textarea>
+                            </div>
+                             <div>
+                                <h3 class="column-title">Vehicles</h3>
+                                <div id="vehicle-list" class="space-y-2"></div>
+                            </div>
                         </div>
                     </div>
                     
-                    <!-- Havens -->
-                    <div class="sheet-section">
-                        <div class="column-title">Havens</div>
-                        <div id="multi-haven-list" class="h-64 overflow-y-auto pr-1">
-                            <!-- Dynamic Havens -->
-                        </div>
-                        <button class="w-full text-[10px] text-gray-400 bg-[#111] border border-[#333] py-1 hover:text-white" onclick="window.renderDynamicHavenRow()">+ Add Haven</button>
-                    </div>
+                    <div class="sheet-section"><div class="section-title">Havens</div><div id="multi-haven-list" class="space-y-6"></div></div>
                 </div>
             </div>
 
-            <!-- STEP 6: MERITS & FLAWS -->
-            <div id="phase-6" class="step-container">
-                <h2 class="section-header">Merits & Flaws</h2>
-                <div class="grid grid-cols-2 gap-4">
-                    <div class="sheet-section">
-                        <div class="column-title">Merits</div>
-                        <div id="merit-locked-msg" class="text-xs text-gray-500 italic p-2 hidden">Merits are purchased with Freebie Points (Step 8). Enable Freebie Mode to edit.</div>
-                        <div id="merits-list-create"></div>
-                    </div>
-                    <div class="sheet-section">
-                        <div class="column-title">Flaws</div>
-                        <div id="flaw-locked-msg" class="text-xs text-gray-500 italic p-2 hidden">Flaws grant Freebie Points (Step 8). Enable Freebie Mode to edit.</div>
-                        <div id="flaws-list-create"></div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- STEP 7: BIOGRAPHY -->
-            <div id="phase-7" class="step-container">
-                <h2 class="section-header">Biography & Details</h2>
-                <div class="grid grid-cols-2 gap-4">
-                    <!-- Vitals -->
-                    <div class="sheet-section">
-                        <div class="column-title">Vitals</div>
-                        <div id="vitals-create-inputs" class="grid grid-cols-2 gap-2"></div>
-                        <label class="label-text mt-2">Feeding Grounds</label>
-                        <textarea id="inv-feeding-grounds" class="w-full h-16 bg-black/40 border border-[#333] text-xs p-1"></textarea>
-                    </div>
-                    <!-- History -->
-                    <div class="sheet-section">
-                        <div class="column-title">History</div>
-                        <textarea id="char-history" class="w-full h-40 bg-black/40 border border-[#333] text-white p-2 text-xs" placeholder="Character Backstory..."></textarea>
-                    </div>
-                    <!-- Goals -->
-                    <div class="sheet-section col-span-2">
-                        <div class="grid grid-cols-2 gap-4">
+            <div id="phase-6" class="step-container space-y-10">
+                <div class="flex flex-col gap-10">
+                    <div class="sheet-section !mt-0">
+                        <div class="section-title">Merits & Flaws</div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
                             <div>
-                                <label class="label-text">Goals</label>
-                                <textarea id="bio-goals-st" class="w-full h-16 bg-black/40 border border-[#333] text-xs p-1" placeholder="Short Term Goals..."></textarea>
-                                <textarea id="bio-goals-lt" class="w-full h-16 bg-black/40 border border-[#333] text-xs p-1 mt-1" placeholder="Long Term Goals..."></textarea>
+                                <h3 class="column-title">Merits</h3>
+                                <div class="text-xs text-center text-gray-500 mb-2 italic" id="merit-locked-msg">Enable Freebie Mode to edit Merits</div>
+                                <div id="merits-list-create" class="space-y-3 mt-4"></div>
                             </div>
                             <div>
-                                <label class="label-text">Description</label>
-                                <textarea id="bio-desc" class="w-full h-20 bg-black/40 border border-[#333] text-xs p-1" placeholder="Visual Description..."></textarea>
-                                <label class="label-text mt-1">Languages</label>
-                                <textarea id="bio-languages" class="w-full h-12 bg-black/40 border border-[#333] text-xs p-1" placeholder="Languages..."></textarea>
+                                <h3 class="column-title">Flaws</h3>
+                                <div class="text-xs text-center text-gray-500 mb-2 italic" id="flaw-locked-msg">Enable Freebie Mode to edit Flaws</div>
+                                <div id="flaws-list-create" class="space-y-3 mt-4"></div>
                             </div>
                         </div>
                     </div>
-                </div>
-            </div>
-
-            <!-- STEP 8: FINALIZE / FREEBIES -->
-            <div id="phase-8" class="step-container">
-                <h2 class="section-header">Finalize & Freebie Points</h2>
-                <div class="grid grid-cols-2 gap-6">
+                    
                     <div class="sheet-section">
-                        <div class="column-title">Starting Status</div>
-                        <div class="flex justify-between items-center mb-2">
-                            <span class="label-text">Humanity/Path</span>
-                            <div id="phase8-humanity-dots" class="dot-row"></div>
-                        </div>
-                        <div class="flex justify-between items-center mb-2">
-                            <span class="label-text">Willpower</span>
-                            <div id="phase8-willpower-dots" class="dot-row"></div>
-                        </div>
-                        <div class="mt-4">
-                            <label class="label-text">Path Name</label>
-                            <select id="c-path-name-create" class="w-full text-xs bg-black text-white p-1 border border-[#333]"></select>
-                        </div>
-                    </div>
-                    <div class="sheet-section">
-                        <div class="column-title">Other Traits</div>
-                        <div id="other-traits-rows-create"></div>
-                    </div>
-                </div>
-                <div class="bg-gray-900/50 p-4 border border-[#444] mt-4 text-center">
-                    <h3 class="text-gold font-bold mb-2">Review Character</h3>
-                    <p class="text-xs text-gray-400 mb-4">Ensure all dots are spent and freebie points are balanced. (Standard: 15 Freebies)</p>
-                    <button id="confirm-save-btn" class="bg-[#d4af37] text-black px-6 py-2 font-bold uppercase rounded hover:bg-white transition-colors">Save Character</button>
-                </div>
-            </div>
-
-            <!-- PLAY MODE SHEET -->
-            <div id="play-mode-sheet" class="hidden">
-                <!-- Header Grid -->
-                <div class="grid grid-cols-3 gap-2 bg-[#1a0505] p-2 border-b-2 border-[#8b0000] mb-4 text-[10px]" id="play-concept-row">
-                    <!-- Populated by JS -->
-                </div>
-
-                <!-- Attributes & Abilities -->
-                <div class="grid grid-cols-3 gap-4 mb-4">
-                    <div class="col-span-1" id="play-row-attr"></div>
-                    <div class="col-span-1" id="play-row-abil"></div>
-                    <div class="col-span-1" id="play-row-adv"></div>
-                </div>
-
-                <!-- Status Row -->
-                <div class="grid grid-cols-3 gap-4 mb-4">
-                    <!-- Humanity/Willpower -->
-                    <div class="sheet-section">
-                        <div class="flex justify-between items-center mb-1">
-                            <span class="text-[10px] font-bold text-gray-400">HUMANITY / PATH</span>
-                            <div id="humanity-dots-play" class="dot-row scale-75 origin-right"></div>
-                        </div>
-                        <div class="mb-2">
-                            <div class="text-[9px] text-[#d4af37] text-right" id="play-path-label"></div>
-                            <div class="flex justify-between text-[9px] text-gray-500">
-                                <span>Bearing:</span> <span id="c-bearing-display" class="text-white"></span>
+                        <div class="section-title">Other Traits & Rituals</div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
+                            <div>
+                                <h3 class="column-title">Traits</h3>
+                                <div id="other-traits-rows-create" class="space-y-1 mt-4"></div>
+                            </div>
+                            <div>
+                                <h3 class="column-title">Rituals</h3>
+                                <div id="rituals-list-create" class="space-y-4"><textarea id="rituals-list-create-ta" class="w-full h-40" placeholder="List Rituals here..."></textarea></div>
                             </div>
                         </div>
-                        <div class="flex justify-between items-center mb-1 pt-2 border-t border-[#333]">
-                            <span class="text-[10px] font-bold text-gray-400">WILLPOWER</span>
-                            <div id="willpower-dots-play" class="dot-row scale-75 origin-right"></div>
-                        </div>
-                        <div id="willpower-boxes-play" class="flex justify-end gap-1 mt-1"></div>
                     </div>
 
-                    <!-- Blood Pool -->
-                    <div class="sheet-section text-center">
-                        <div class="text-[10px] font-bold text-[#8b0000] mb-2">BLOOD POOL</div>
-                        <div id="blood-boxes-play" class="grid grid-cols-10 gap-1 justify-center px-4"></div>
-                        <div class="text-[9px] text-gray-500 mt-2">Click to spend/regain</div>
-                    </div>
-
-                    <!-- Health & Weakness Row (Updated) -->
-                    <div class="grid grid-cols-2 gap-4">
-                        <!-- Health (Left) -->
-                        <div class="sheet-section">
-                            <div class="text-[10px] font-bold text-gray-400 mb-1 text-center">HEALTH</div>
-                            <div id="health-chart-play" class="flex flex-col gap-1"></div>
+                    <div class="sheet-section">
+                        <div class="section-title">Combat Maneuvers & Weapons</div>
+                        <div class="flex flex-col">
+                            <div class="grid grid-cols-6 gap-2 text-[10px] uppercase text-gray-400 font-bold border-b border-[#555] pb-1 mb-2 text-center">
+                                <div class="col-span-2 text-left pl-2">Attack</div>
+                                <div>Diff</div>
+                                <div>Dmg</div>
+                                <div>Range</div>
+                                <div>Clip</div>
+                            </div>
+                            <div class="grid grid-cols-6 gap-2 text-[10px] border-b border-[#222] py-1 text-center text-gray-500">
+                                <div class="col-span-2 text-left pl-2 font-bold text-white">Bite</div>
+                                <div>5</div><div>Str+1(A)</div><div>-</div><div>-</div>
+                            </div>
+                            <div class="grid grid-cols-6 gap-2 text-[10px] border-b border-[#222] py-1 text-center text-gray-500">
+                                <div class="col-span-2 text-left pl-2 font-bold text-white">Clinch</div>
+                                <div>6</div><div>Str(B)</div><div>-</div><div>-</div>
+                            </div>
+                             <div class="grid grid-cols-6 gap-2 text-[10px] border-b border-[#222] py-1 text-center text-gray-500">
+                                <div class="col-span-2 text-left pl-2 font-bold text-white">Grapple</div>
+                                <div>6</div><div>Str(B)</div><div>-</div><div>-</div>
+                            </div>
+                            <div class="grid grid-cols-6 gap-2 text-[10px] border-b border-[#222] py-1 text-center text-gray-500">
+                                <div class="col-span-2 text-left pl-2 font-bold text-white">Kick</div>
+                                <div>7</div><div>Str+1(B)</div><div>-</div><div>-</div>
+                            </div>
+                            <div class="grid grid-cols-6 gap-2 text-[10px] border-b border-[#222] py-1 text-center text-gray-500">
+                                <div class="col-span-2 text-left pl-2 font-bold text-white">Punch</div>
+                                <div>6</div><div>Str(B)</div><div>-</div><div>-</div>
+                            </div>
+                             <div class="grid grid-cols-6 gap-2 text-[10px] border-b border-[#222] py-1 text-center text-gray-500">
+                                <div class="col-span-2 text-left pl-2 font-bold text-white">Tackle</div>
+                                <div>7</div><div>Str+1(B)</div><div>-</div><div>-</div>
+                            </div>
+                            
+                            <div id="combat-list-create" class="space-y-1 mt-2"></div>
                         </div>
-                        
-                        <!-- Weakness (Right) - Explicit container -->
-                        <div class="sheet-section" id="weakness-play-container">
-                            <!-- Populated by JS -->
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Combat & Equipment -->
-                <div class="grid grid-cols-2 gap-4 mb-4">
-                    <div class="sheet-section">
-                        <div class="column-title">Combat Actions</div>
-                        <table class="w-full text-left">
-                            <thead class="text-[9px] text-gray-500 border-b border-[#333]">
-                                <tr><th>Weapon</th><th>Diff</th><th>Dmg</th><th>Rng</th><th>Rate</th><th>Clip</th></tr>
-                            </thead>
-                            <tbody id="combat-rows-play"></tbody>
-                        </table>
-                        <div class="mt-2 text-[10px] flex justify-between border-t border-[#333] pt-1">
-                            <span>Armor: <span id="armor-desc-play" class="text-white">None</span></span>
-                            <span class="text-gray-400">Rating: <span id="armor-rating-play" class="text-white">0</span> Penalty: <span id="armor-penalty-play" class="text-white">0</span></span>
-                        </div>
-                    </div>
-                    <div class="sheet-section">
-                        <div class="column-title">Inventory & Vehicles</div>
-                        <div class="text-[10px] mb-2"><span class="text-gray-500">Carried:</span> <span id="play-gear-carried" class="text-white"></span></div>
-                        <div class="text-[10px] mb-2"><span class="text-gray-500">Owned:</span> <span id="play-gear-owned" class="text-white"></span></div>
-                        <div id="play-vehicles" class="mt-2"></div>
-                    </div>
-                </div>
-
-                <!-- Expanded Details -->
-                <div class="grid grid-cols-3 gap-4">
-                    <div class="sheet-section">
-                        <div class="column-title">Merits & Flaws</div>
-                        <div id="merit-flaw-rows-play"></div>
-                    </div>
-                    <div class="sheet-section">
-                        <div class="column-title">Other Traits</div>
-                        <div id="other-traits-rows-play"></div>
-                        <div class="column-title mt-4">Derangements</div>
-                        <div id="play-derangements" class="text-[10px] text-red-300"></div>
-                        <div class="column-title mt-4">Blood Bonds</div>
-                        <div id="play-blood-bonds"></div>
-                    </div>
-                    <div class="sheet-section">
-                        <div class="column-title">Social / Backgrounds</div>
-                        <div id="play-social-grid"></div>
-                        <div class="mt-4">
-                            <div class="column-title">Rituals</div>
-                            <div id="rituals-list-play" class="text-[10px] text-gray-300 whitespace-pre-wrap"></div>
+                        <div class="grid grid-cols-3 gap-6 mt-6 pt-4 border-t border-[#333] text-center">
+                            <div><label class="label-text">Total Armor Rating</label><div id="total-armor-rating" class="text-lg font-bold text-white">0</div></div>
+                            <div><label class="label-text">Total Penalty</label><div id="total-armor-penalty" class="text-lg font-bold text-red-400">0</div></div>
+                            <div><label class="label-text">Active Armor</label><div id="active-armor-names" class="text-[9px] text-gray-400">None</div></div>
                         </div>
                     </div>
                 </div>
-                
-                <div class="grid grid-cols-2 gap-4 mt-4">
-                    <div class="sheet-section">
-                        <div class="column-title">Biography</div>
-                        <div id="play-vitals-list"></div>
-                        <div class="mt-2 text-[10px]"><span class="text-gray-500 font-bold">Languages:</span> <span id="play-languages"></span></div>
-                        <div class="mt-2 text-[10px]"><span class="text-gray-500 font-bold">Description:</span> <div id="play-bio-desc" class="text-gray-300 italic"></div></div>
-                        <div class="mt-2 text-[10px]"><span class="text-gray-500 font-bold">Feeding Grounds:</span> <div id="play-feeding-grounds" class="text-gray-300"></div></div>
-                        <div class="mt-2 text-[10px]"><span class="text-gray-500 font-bold">Havens:</span> <div id="play-havens-list" class="mt-1"></div></div>
+            </div>
+
+            <div id="phase-7" class="step-container space-y-10">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
+                    <div class="sheet-section !mt-0"><div class="section-title">Physical Appearance</div><div id="vitals-create-inputs" class="grid grid-cols-2 gap-4"></div><div class="mt-6"><label class="label-text">Description / Sketch Notes</label><textarea id="bio-desc" class="h-32"></textarea></div></div>
+                    <div class="space-y-6"><div class="sheet-section !mt-0"><div class="section-title">Mental Traits & Goals</div><div class="space-y-4"><div><label class="label-text text-gold">Derangements</label><div id="derangements-list" class="space-y-2 mt-2"></div></div><div><label class="label-text text-gold">Languages</label><textarea id="bio-languages" class="h-20"></textarea></div><div><label class="label-text text-gold">Short-Term Goals</label><textarea id="bio-goals-st" class="h-20"></textarea></div><div><label class="label-text text-gold">Long-Term Goals</label><textarea id="bio-goals-lt" class="h-20"></textarea></div></div></div></div>
+                </div>
+            </div>
+
+            <div id="phase-8" class="step-container space-y-10">
+                <div class="sheet-section !mt-0">
+                    <div class="section-title">Final Touches</div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
+                        <div class="space-y-8">
+                            <div class="bg-black/30 p-6 border border-[#333]">
+                                <label class="label-text block text-center mb-4 text-gold font-bold">Check Base Totals</label>
+                                <div class="flex flex-col gap-6">
+                                    <div class="flex justify-between items-center text-[11px] py-1">
+                                        <div class="flex flex-col flex-1 mr-4">
+                                            <label class="label-text text-gold">Humanity / Path</label>
+                                            <select id="c-path-name-create" class="w-full text-xs bg-transparent border-b border-[#333] text-white p-1 appearance-none cursor-pointer">
+                                                </select>
+                                        </div>
+                                        <div class="dot-row" id="phase8-humanity-dots"></div>
+                                    </div>
+                                    <div class="flex justify-between items-center text-[11px] py-1">
+                                        <span class="trait-label uppercase">Willpower</span>
+                                        <div class="dot-row" id="phase8-willpower-dots"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="space-y-6"><div class="sheet-section !m-0"><div class="section-title">Final Character History</div><textarea id="char-history" class="w-full h-64" placeholder="Full Background History..."></textarea></div><button id="finalize-btn" class="w-full bg-[#af0000] text-white py-4 heading text-sm tracking-widest hover:bg-red-600 transition shadow-2xl font-black uppercase" onclick="window.togglePlayMode()">Finalize Character Log</button></div>
                     </div>
-                    <div class="sheet-section">
-                        <div class="column-title">Goals & History</div>
-                        <div class="text-[10px] mb-2"><span class="text-gold font-bold">Short Term:</span> <div id="play-goals-st"></div></div>
-                        <div class="text-[10px] mb-2"><span class="text-gold font-bold">Long Term:</span> <div id="play-goals-lt"></div></div>
-                        <div class="text-[10px] mt-4"><span class="text-gray-500 font-bold">History:</span> <div id="play-history" class="h-24 overflow-y-auto text-gray-300"></div></div>
-                    </div>
-                </div>
-
-            </div>
-
-        </main>
-
-        <!-- RIGHT SIDEBAR (Freebie Calc & Dice) -->
-        <aside id="freebie-sidebar" class="w-64 bg-[#111] border-l border-[#333] flex flex-col z-40 transform translate-x-full transition-transform duration-300 fixed right-0 top-12 bottom-0">
-            <div class="bg-[#1a0505] p-2 border-b border-[#444] flex justify-between items-center cursor-pointer" onclick="window.toggleSidebarLedger()">
-                <h3 class="text-sm font-bold text-gold uppercase">Freebie Ledger</h3>
-                <span class="text-xs text-gray-400"><i class="fas fa-chevron-left"></i></span>
-            </div>
-            
-            <div class="p-2 flex-1 overflow-y-auto text-xs">
-                <div class="flex justify-between border-b border-[#333] py-1"><span>Attributes (5/dot)</span> <span id="sb-attr" class="text-red-400">0</span></div>
-                <div class="flex justify-between border-b border-[#333] py-1"><span>Abilities (2/dot)</span> <span id="sb-abil" class="text-red-400">0</span></div>
-                <div class="flex justify-between border-b border-[#333] py-1"><span>Disciplines (7/dot)</span> <span id="sb-disc" class="text-red-400">0</span></div>
-                <div class="flex justify-between border-b border-[#333] py-1"><span>Backgrounds (1/dot)</span> <span id="sb-back" class="text-red-400">0</span></div>
-                <div class="flex justify-between border-b border-[#333] py-1"><span>Virtues (2/dot)</span> <span id="sb-virt" class="text-red-400">0</span></div>
-                <div class="flex justify-between border-b border-[#333] py-1"><span>Humanity (2/dot)</span> <span id="sb-human" class="text-red-400">0</span></div>
-                <div class="flex justify-between border-b border-[#333] py-1"><span>Willpower (1/dot)</span> <span id="sb-will" class="text-red-400">0</span></div>
-                <div class="flex justify-between border-b border-[#333] py-1"><span>Merits (Variable)</span> <span id="sb-merit" class="text-red-400">0</span></div>
-                <div class="flex justify-between border-b border-[#333] py-1"><span>Flaws (Bonus)</span> <span id="sb-flaw" class="text-green-400">0</span></div>
-                
-                <div class="mt-4 pt-2 border-t border-gray-500 font-bold flex justify-between text-sm">
-                    <span>TOTAL SPENT:</span> <span id="f-total-top" class="text-white">0</span>
-                </div>
-                <div class="flex justify-between mt-1 text-sm">
-                    <span>REMAINING:</span> <span id="sb-total" class="text-gold">15</span>
-                </div>
-                
-                <div class="mt-4">
-                    <label class="label-text">Freebie Limit Override</label>
-                    <input type="number" id="c-freebie-total" value="15" class="w-full bg-black border border-[#444] text-center">
                 </div>
             </div>
-        </aside>
 
-        <!-- DICE TRAY (Bottom Overlay) -->
-        <div id="dice-tray" class="fixed bottom-0 right-0 w-64 bg-[#0f0f0f] border-t border-l border-[#d4af37] p-2 transform translate-y-full transition-transform duration-300 z-50">
-            <div class="flex justify-between items-center mb-2">
-                <span class="text-gold font-bold text-xs uppercase"><i class="fas fa-dice-d20"></i> Dice Tray</span>
-                <button onclick="window.clearPool()" class="text-[10px] text-gray-500 hover:text-white">CLEAR</button>
+            <div id="play-mode-1" class="step-container space-y-10">
+                <div id="play-concept-row" class="grid grid-cols-3 gap-6 text-[11px] uppercase border-b border-[#333] pb-6 font-bold text-gold"></div>
+                <div id="play-rows-container" class="space-y-10"><div id="play-row-attr" class="grid grid-cols-1 md:grid-cols-3 gap-10"></div><div id="play-row-abil" class="grid grid-cols-1 md:grid-cols-3 gap-10"></div><div id="play-row-adv" class="grid grid-cols-1 md:grid-cols-3 gap-10"></div></div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-10 border-t border-[#333] pt-10"><div class="sheet-section"><div class="section-title">Humanity / Path</div><div class="flex flex-col items-center gap-4 py-2">
+                    <select id="c-path-name" class="text-center text-gold font-bold uppercase tracking-widest !bg-transparent !border-b !border-[#333] mb-1 appearance-none cursor-pointer w-full text-sm">
+                        </select>
+                    <div id="humanity-dots-play" class="flex justify-center"></div><div class="flex items-center gap-2 mt-2"><span class="label-text text-gray-500">Bearing:</span><input type="text" id="c-bearing-name" class="w-24 text-xs !border-b !border-[#333]"><input type="number" id="c-bearing-value" class="w-10 text-center text-xs !border-b !border-[#333]" placeholder="( )"></div></div></div><div class="sheet-section"><div class="section-title">Willpower</div><div id="willpower-dots-play" class="flex justify-center mb-2"></div><div id="willpower-boxes-play" class="flex justify-center"></div></div><div class="sheet-section"><div class="section-title">Blood Pool</div><div id="blood-boxes-play" class="grid grid-cols-10 gap-1.5 justify-center mt-2"></div></div><div class="sheet-section"><div class="section-title">Health</div><div id="health-chart-play" class="space-y-1.5"></div></div></div>
             </div>
-            <div id="pool-display" class="text-[10px] text-white mb-2 h-8 overflow-hidden">Select traits...</div>
-            <div class="flex gap-1 mb-2">
-                <input type="number" id="roll-diff" value="6" min="2" max="10" class="w-10 text-center bg-black text-white border border-[#444] text-xs" title="Difficulty">
-                <button onclick="window.rollPool()" class="flex-1 bg-[#8b0000] text-white text-xs font-bold uppercase rounded hover:bg-red-700">ROLL</button>
+
+            <div id="play-mode-2" class="step-container space-y-10">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-10"><div class="sheet-section !mt-0"><div class="section-title">Merits & Flaws</div><div id="merit-flaw-rows-play" class="space-y-2 text-white font-bold"></div></div><div class="sheet-section !mt-0"><div class="section-title">Other Traits</div><div id="other-traits-rows-play" class="space-y-1"></div><div class="mt-8 border-t border-[#333] pt-4"><div class="section-title">Rituals</div><div id="rituals-list-play" class="text-xs text-white whitespace-pre-wrap mt-2 p-2 bg-black/40 border border-[#333] min-h-[100px]"></div></div></div></div>
+                <div class="sheet-section">
+                    <div class="section-title">Combat Maneuvers</div>
+                    <table class="w-full text-[11px] uppercase text-left mt-4 border-collapse">
+                        <thead><tr class="border-b border-[#555] text-gray-400 font-bold"><th class="p-2">Weapon</th><th class="p-2">Diff</th><th class="p-2">Dmg</th><th class="p-2">Rng</th><th class="p-2">Rate</th><th class="p-2">Clip</th></tr></thead>
+                        <tbody id="combat-rows-play"></tbody>
+                    </table>
+                    <div class="grid grid-cols-3 gap-6 mt-6 pt-4 border-t border-[#333] font-bold"><div><label class="label-text">Armor Rating</label><div id="armor-rating-play" class="text-white"></div></div><div><label class="label-text">Armor Penalty</label><div id="armor-penalty-play" class="text-white"></div></div><div><label class="label-text">Armor Desc</label><div id="armor-desc-play" class="text-xs text-gray-400 whitespace-pre-wrap"></div></div></div>
+                </div>
             </div>
-            <div class="flex items-center gap-2 mb-2">
-                <input type="checkbox" id="use-specialty"> <label for="use-specialty" class="text-[10px] text-gray-400">Specialty (10=2)</label>
+
+            <div id="play-mode-3" class="step-container space-y-10">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-8"><div class="md:col-span-2 space-y-6"><div class="sheet-section !mt-0"><div class="section-title">Background Descriptions</div><div id="play-social-grid" class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4"></div></div><div class="sheet-section"><div class="section-title">Blood Bonds / Vinculi</div><div id="play-blood-bonds" class="space-y-2 mt-4 text-xs font-bold"></div></div></div><div class="space-y-6"><div class="sheet-section !mt-0"><div class="section-title">Possessions</div><div class="space-y-4 mt-2">
+                    <div><label class="label-text text-gold">Gear (Carried)</label><div id="play-gear-carried" class="text-xs text-white whitespace-pre-wrap"></div></div>
+                    <div><label class="label-text text-gold">Equipment (Owned)</label><div id="play-gear-owned" class="text-xs text-white whitespace-pre-wrap"></div></div>
+                    <div><label class="label-text text-gold">Vehicles</label><div id="play-vehicles" class="space-y-2 font-bold text-white"></div></div>
+                    <div><label class="label-text text-gold">Feeding Grounds</label><div id="play-feeding-grounds" class="text-xs text-white whitespace-pre-wrap"></div></div></div></div><div class="sheet-section"><div class="section-title">Havens</div><div id="play-havens-list" class="space-y-4 mt-2"></div></div></div></div>
             </div>
-            <div id="roll-results" class="h-32 overflow-y-auto bg-black/50 border border-[#333] p-1"></div>
+
+            <div id="play-mode-4" class="step-container space-y-10"><div class="grid grid-cols-1 md:grid-cols-3 gap-8"><div class="sheet-section !mt-0"><div class="section-title">Vitals</div><div id="play-vitals-list" class="space-y-3 py-2 text-[11px] uppercase font-bold text-white"></div><div class="mt-6 border-t border-[#333] pt-4"><label class="label-text text-gold">Physical Description</label><div id="play-bio-desc" class="text-xs text-gray-300 whitespace-pre-wrap"></div></div></div><div class="md:col-span-2 space-y-6"><div class="grid grid-cols-2 gap-6"><div class="sheet-section !mt-0"><div class="section-title">Derangements</div><div id="play-derangements" class="text-xs text-white p-2"></div></div><div class="sheet-section !mt-0"><div class="section-title">Languages</div><div id="play-languages" class="text-xs text-white p-2"></div></div></div><div class="sheet-section"><div class="section-title">Goals</div><div class="grid grid-cols-2 gap-6 mt-2"><div class="border-l-2 border-gold pl-4"><label class="label-text text-gold">Short-Term</label><div id="play-goals-st" class="text-xs text-gray-200 mt-1"></div></div><div class="border-l-2 border-gold pl-4"><label class="label-text text-gold">Long-Term</label><div id="play-goals-lt" class="text-xs text-gray-200 mt-1"></div></div></div></div><div class="sheet-section"><div class="section-title">Full History</div><div id="play-history" class="text-sm text-gray-300 whitespace-pre-wrap p-4"></div></div></div></div></div>
+
         </div>
-
     </div>
-
-    <!-- MODALS -->
-    <div id="modal-overlay" class="hidden fixed inset-0 bg-black/80 z-[60] flex items-center justify-center">
-        <div class="bg-[#1a0505] border border-[#d4af37] p-4 w-96 shadow-2xl relative">
-            <h3 id="modal-title" class="text-lg font-bold text-gold mb-2 uppercase">Alert</h3>
-            <div id="modal-content" class="text-sm text-gray-300 mb-4"></div>
-            <div class="flex justify-end gap-2">
-                <button id="modal-cancel" class="text-xs text-gray-400 uppercase hover:text-white hidden">Cancel</button>
-                <button id="modal-ok" class="bg-[#8b0000] text-white px-4 py-1 text-xs font-bold uppercase hover:bg-red-700">OK</button>
+    
+    <div id="save-modal" class="modal-overlay">
+        <div class="modal-box">
+            <h2 class="heading text-xl text-gold mb-4 border-b border-[#333] pb-2">Inscribe Character</h2>
+            <div class="space-y-4">
+                <div>
+                    <label class="label-text">Character Name (Filename)</label>
+                    <input type="text" id="save-name-input" class="w-full text-sm font-bold bg-[#111] p-2 border border-[#333] focus:border-gold">
+                </div>
+                <div>
+                    <label class="label-text">Folder / Group</label>
+                    <input type="text" id="save-folder-input" list="folder-datalist" placeholder="e.g. Chronicle 1" class="w-full text-sm font-bold bg-[#111] p-2 border border-[#333] focus:border-gold">
+                    <datalist id="folder-datalist"></datalist>
+                </div>
+            </div>
+            <div class="flex justify-end gap-2 mt-6">
+                <button class="standard-button px-4 py-2 text-xs uppercase font-bold" onclick="document.getElementById('save-modal').classList.remove('active')">Cancel</button>
+                <button id="confirm-save-btn" class="bg-[#8b0000] text-white px-6 py-2 text-xs uppercase font-bold hover:bg-red-700 shadow-md">Inscribe</button>
             </div>
         </div>
     </div>
 
-    <!-- NOTIFICATION TOAST -->
-    <div id="notification" class="fixed top-16 left-1/2 transform -translate-x-1/2 bg-black/90 text-white px-6 py-2 rounded border border-[#d4af37] shadow-xl z-[70] hidden text-xs font-bold uppercase tracking-wider"></div>
+    <div id="load-modal" class="modal-overlay">
+        <div class="modal-box w-[500px]">
+            <h2 class="heading text-xl text-gold mb-4 border-b border-[#333] pb-2">Recall Character</h2>
+            <div id="file-browser" class="h-64 overflow-y-auto bg-[#050505] border border-[#333] p-2">
+                <div class="text-center text-gray-500 italic mt-10">Connecting to Archives...</div>
+            </div>
+            <div class="flex justify-end gap-2 mt-6">
+                <button class="standard-button px-4 py-2 text-xs uppercase font-bold" onclick="document.getElementById('load-modal').classList.remove('active')">Cancel</button>
+            </div>
+        </div>
+    </div>
 
-    <!-- SCRIPTS -->
-    <!-- Note: type="module" allows imports in main.js -->
-    <script type="module" src="firebase-config.js"></script>
-    <script type="module" src="data.js"></script>
-    <script type="module" src="v20-rules.js"></script>
-    <script type="module" src="ui-renderer.js"></script>
-    <script type="module" src="firebase-manager.js"></script>
     <script type="module" src="main.js"></script>
 
 </body>
