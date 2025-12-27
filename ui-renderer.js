@@ -30,17 +30,22 @@ function setSafeText(id, val) {
     if(el) el.innerText = val; 
 }
 
-function renderDots(count, max = 5) { 
+// EXPORTED HELPERS
+export function renderDots(count, max = 5) { 
     let h = ''; 
     for(let i=1; i<=max; i++) h += `<span class="dot ${i <= count ? 'filled' : ''}" data-v="${i}"></span>`; 
     return h; 
 }
 
-function renderBoxes(count, checked = 0, type = '') { 
+export function renderBoxes(count, checked = 0, type = '') { 
     let h = ''; 
     for(let i=1; i<=count; i++) h += `<span class="box ${i <= checked ? 'checked' : ''}" data-v="${i}" data-type="${type}"></span>`; 
     return h; 
 }
+
+// Attach to window for legacy/console support
+window.renderDots = renderDots;
+window.renderBoxes = renderBoxes;
 
 // --- SYNC & HYDRATE ---
 
