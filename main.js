@@ -1,7 +1,7 @@
 import { auth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "./firebase-config.js";
 import { 
     APP_VERSION, CLANS, ARCHETYPES, PATHS, ATTRIBUTES, ABILITIES, 
-    DISCIPLINES, BACKGROUNDS, VIRTUES, V20_MERITS_LIST, V20_FLAWS_LIST, VIT 
+    DISCIPLINES, BACKGROUNDS, VIRTUES, V20_MERITS_LIST, V20_FLAWS_LIST, VIT, CLAN_WEAKNESSES 
 } from "./data.js";
 import * as FBManager from "./firebase-manager.js";
 import { 
@@ -106,6 +106,13 @@ window.fullRefresh = function() {
             const row = document.querySelector(`#list-virt .dot-row[data-n="${v}"]`);
             if(row) row.innerHTML = renderDots(window.state.dots.virt[v] || 1, 5);
         });
+
+        // 7. Update Weakness if Clan is Selected
+        const currentClan = window.state.textFields['c-clan'];
+        if (currentClan && CLAN_WEAKNESSES[currentClan]) {
+            const weaknessArea = document.getElementById('c-clan-weakness');
+            if (weaknessArea) weaknessArea.value = CLAN_WEAKNESSES[currentClan];
+        }
 
         renderSocialProfile();
         updateWalkthrough();
@@ -293,6 +300,19 @@ onAuthStateChanged(auth, async (u) => {
                 const sortedClans = [...CLANS].sort();
                 cs.innerHTML = '<option value="" disabled selected>Choose Clan...</option>';
                 sortedClans.forEach(c => cs.add(new Option(c,c)));
+                
+                // Add listener to auto-populate weakness
+                cs.addEventListener('change', (e) => {
+                    const clan = e.target.value;
+                    const weaknessArea = document.getElementById('c-clan-weakness');
+                    
+                    if (weaknessArea && CLAN_WEAKNESSES[clan]) {
+                        weaknessArea.value = CLAN_WEAKNESSES[clan];
+                        // Also update state for persistence
+                        if (!window.state.textFields) window.state.textFields = {};
+                        window.state.textFields['c-clan-weakness'] = CLAN_WEAKNESSES[clan];
+                    }
+                });
             }
 
             const ps1 = document.getElementById('c-path-name');
