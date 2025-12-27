@@ -931,6 +931,25 @@ window.togglePlayMode = function() {
             `;
         }
         
+        // Add Weakness Display
+        const weaknessRow = document.getElementById('play-weakness-row');
+        if (weaknessRow) {
+            const wVal = document.getElementById('c-clan-weakness')?.value || "None";
+            weaknessRow.innerHTML = `<div class="bg-red-900/20 border border-red-900/50 p-2 text-xs italic text-gray-300 mt-2"><span class="font-bold text-red-500">Clan Weakness:</span> ${wVal}</div>`;
+        } else {
+            // If the row doesn't exist, create it below the concept row
+            const conceptContainer = document.getElementById('play-mode-sheet');
+            if (conceptContainer) {
+                const wDiv = document.createElement('div');
+                wDiv.id = 'play-weakness-row';
+                const wVal = document.getElementById('c-clan-weakness')?.value || "None";
+                wDiv.innerHTML = `<div class="bg-red-900/20 border border-red-900/50 p-2 text-xs italic text-gray-300 mt-2 mb-2"><span class="font-bold text-red-500">Clan Weakness:</span> ${wVal}</div>`;
+                // Insert after concept grid
+                const grid = document.getElementById('play-concept-row');
+                if(grid && grid.parentNode) grid.parentNode.insertBefore(wDiv, grid.nextSibling);
+            }
+        }
+        
         const ra = document.getElementById('play-row-attr'); ra.innerHTML = '';
         Object.entries(ATTRIBUTES).forEach(([c,l]) => { 
             const s = document.createElement('div'); 
