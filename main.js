@@ -4,7 +4,7 @@ import {
     DISCIPLINES, BACKGROUNDS, VIRTUES, V20_MERITS_LIST, V20_FLAWS_LIST, VIT 
 } from "./data.js";
 import * as FBManager from "./firebase-manager.js";
-import { renderDots } from "./ui-renderer.js"; // Explicitly import renderDots
+import { renderDots, renderSocialProfile, setupInventoryListeners } from "./ui-renderer.js"; // Explicitly import new functions
 
 // --- ERROR HANDLER ---
 window.onerror = function(msg, url, line) {
@@ -80,15 +80,22 @@ function initUI() {
         
         // Render Vitals inputs
         const vitalCont = document.getElementById('vitals-create-inputs');
-        if(vitalCont) VIT.forEach(v => { 
-            const d = document.createElement('div'); 
-            d.innerHTML = `<label class="label-text">${v}</label><input type="text" id="bio-${v}">`; 
-            vitalCont.appendChild(d); 
-        });
+        if(vitalCont) {
+            vitalCont.innerHTML = ''; // Clear to prevent duplicates
+            VIT.forEach(v => { 
+                const d = document.createElement('div'); 
+                d.innerHTML = `<label class="label-text">${v}</label><input type="text" id="bio-${v}">`; 
+                vitalCont.appendChild(d); 
+            });
+        }
         
         window.renderDynamicTraitRow('merits-list-create', 'Merit', V20_MERITS_LIST);
         window.renderDynamicTraitRow('flaws-list-create', 'Flaw', V20_FLAWS_LIST);
         window.renderInventoryList();
+        
+        // Setup Logic that was missing
+        window.renderSocialProfile();
+        window.setupInventoryListeners();
         
         // Render Other Traits
         const otherT = document.getElementById('other-traits-rows-create');
