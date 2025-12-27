@@ -457,6 +457,16 @@ window.updatePools = function() {
         }
     }
 
+    // --- BLOOD PER TURN RENDER (NEW) ---
+    const bptInput = document.getElementById('blood-per-turn-input');
+    if (bptInput) {
+        const savedBPT = window.state.status.blood_per_turn || 1;
+        bptInput.value = savedBPT;
+        bptInput.onchange = (e) => {
+            window.state.status.blood_per_turn = parseInt(e.target.value) || 1;
+        };
+    }
+
     const cList = document.getElementById('combat-list-create');
     if(cList && window.state.inventory) {
         cList.innerHTML = '';
@@ -963,7 +973,7 @@ window.togglePlayMode = function() {
     
     // Disable inputs not needed in Play Mode
     document.querySelectorAll('input, select, textarea').forEach(el => {
-        if (['save-filename', 'char-select', 'roll-diff', 'use-specialty', 'c-path-name', 'c-path-name-create', 'c-bearing-name', 'c-bearing-value', 'custom-weakness-input', 'xp-points-input'].includes(el.id)) return;
+        if (['save-filename', 'char-select', 'roll-diff', 'use-specialty', 'c-path-name', 'c-path-name-create', 'c-bearing-name', 'c-bearing-value', 'custom-weakness-input', 'xp-points-input', 'blood-per-turn-input'].includes(el.id)) return;
         el.disabled = window.state.isPlayMode;
     });
 
@@ -1130,6 +1140,16 @@ window.togglePlayMode = function() {
                     window.state.textFields['xp-points'] = e.target.value;
                 });
             }
+        }
+
+        // --- BLOOD PER TURN RENDER (NEW) ---
+        const bptInput = document.getElementById('blood-per-turn-input');
+        if (bptInput) {
+            const savedBPT = window.state.status.blood_per_turn || 1;
+            bptInput.value = savedBPT;
+            bptInput.onchange = (e) => {
+                window.state.status.blood_per_turn = parseInt(e.target.value) || 1;
+            };
         }
 
         window.changeStep(1); // Force switch to first Play Mode tab (Sheet)
