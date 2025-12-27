@@ -551,6 +551,7 @@ export function setDots(name, type, val, min, max = 5) {
     window.updatePools();
     if(type === 'back') renderSocialProfile();
 }
+window.setDots = setDots;
 
 export function renderDynamicAdvantageRow(containerId, type, list, isAbil = false) {
     const container = document.getElementById(containerId);
@@ -669,6 +670,7 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
     existingItems.forEach(item => buildRow(item));
     buildRow();
 }
+window.renderDynamicAdvantageRow = renderDynamicAdvantageRow;
 
 export function renderDynamicTraitRow(containerId, type, list) {
     const container = document.getElementById(containerId);
@@ -734,6 +736,7 @@ export function renderDynamicTraitRow(containerId, type, list) {
     if (stateArray.length > 0) stateArray.forEach(d => appendRow(d));
     appendRow();
 }
+window.renderDynamicTraitRow = renderDynamicTraitRow;
 
 export function renderBloodBondRow() {
     const cont = document.getElementById('blood-bond-list'); if (!cont) return;
@@ -751,6 +754,7 @@ export function renderBloodBondRow() {
     typeSel.onchange = onUpd; nI.onblur = onUpd; rI.onblur = onUpd; del.onclick = () => { row.remove(); onUpd(); };
     cont.appendChild(row);
 }
+window.renderBloodBondRow = renderBloodBondRow;
 
 export function renderDerangementsList() {
     const cont = document.getElementById('derangements-list'); if (!cont) return;
@@ -771,6 +775,7 @@ export function renderDerangementsList() {
         if (val && val !== 'Custom') { window.state.derangements.push(val); renderDerangementsList(); window.updatePools(); }
     };
 }
+window.renderDerangementsList = renderDerangementsList;
 
 export function renderDynamicHavenRow() {
     const cont = document.getElementById('multi-haven-list'); if (!cont) return;
@@ -786,6 +791,9 @@ export function renderDynamicHavenRow() {
     [nameIn, locIn, descIn].forEach(el => el.onblur = onUpd); del.onclick = () => { row.remove(); onUpd(); };
     cont.appendChild(row);
 }
+window.renderDynamicHavenRow = renderDynamicHavenRow;
+
+// --- NAVIGATION & MODES ---
 
 export function updateWalkthrough() {
     if (window.state.isPlayMode) { document.getElementById('walkthrough-guide').classList.add('opacity-0', 'pointer-events-none'); return; } 
@@ -812,6 +820,7 @@ export function updateWalkthrough() {
         }
     }
 }
+window.updateWalkthrough = updateWalkthrough;
 
 window.nextStep = function() {
     const current = window.state.currentPhase;
@@ -828,6 +837,7 @@ window.changeStep = function(s) {
     const target = document.getElementById(prefix + s);
     if (target) { target.classList.add('active'); window.state.currentPhase = s; }
     
+    // Update Nav
     const nav = document.getElementById('sheet-nav');
     if (nav) {
         nav.innerHTML = '';
