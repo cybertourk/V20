@@ -8,7 +8,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
     <link rel="stylesheet" href="styles.css">
 </head>
-<body class="p-2 md:p-8">
+<body class="p-2 md:p-8 bg-black text-white font-serif">
 
     <div id="loading-overlay" class="fixed inset-0 bg-black flex flex-col items-center justify-center z-[9999]">
         <h1 class="text-[#8b0000] text-7xl font-bold animate-pulse tracking-[0.5em] heading">V20</h1>
@@ -119,6 +119,7 @@
         <div class="mt-8 md:mt-12"></div>
 
         <div class="p-6 md:p-12">
+            <!-- Edit Mode Phases -->
             <div id="phase-1" class="step-container active">
                 <div class="sheet-section !mt-0">
                     <div class="section-title">Character Concept</div>
@@ -138,6 +139,10 @@
                             <div><label class="label-text">Generation</label><input type="number" id="c-gen" value="13"></div>
                             <div><label class="label-text">Sire</label><input type="text" id="c-sire"></div>
                         </div>
+                    </div>
+                    <div class="mt-4">
+                        <label class="label-text">Clan Weakness Info (Auto)</label>
+                        <textarea id="c-clan-weakness" class="w-full h-20 bg-black/20 text-gray-400 text-xs p-2 border border-[#333]" readonly></textarea>
                     </div>
                 </div>
             </div>
@@ -378,36 +383,79 @@
                 </div>
             </div>
 
-            <div id="play-mode-1" class="step-container space-y-10">
-                <div id="play-concept-row" class="grid grid-cols-3 gap-6 text-[11px] uppercase border-b border-[#333] pb-6 font-bold text-gold"></div>
-                <div id="play-rows-container" class="space-y-10"><div id="play-row-attr" class="grid grid-cols-1 md:grid-cols-3 gap-10"></div><div id="play-row-abil" class="grid grid-cols-1 md:grid-cols-3 gap-10"></div><div id="play-row-adv" class="grid grid-cols-1 md:grid-cols-3 gap-10"></div></div>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-10 border-t border-[#333] pt-10"><div class="sheet-section"><div class="section-title">Humanity / Path</div><div class="flex flex-col items-center gap-4 py-2">
-                    <select id="c-path-name" class="text-center text-gold font-bold uppercase tracking-widest !bg-transparent !border-b !border-[#333] mb-1 appearance-none cursor-pointer w-full text-sm">
-                        </select>
-                    <div id="humanity-dots-play" class="flex justify-center"></div><div class="flex items-center gap-2 mt-2"><span class="label-text text-gray-500">Bearing:</span><input type="text" id="c-bearing-name" class="w-24 text-xs !border-b !border-[#333]"><input type="number" id="c-bearing-value" class="w-10 text-center text-xs !border-b !border-[#333]" placeholder="( )"></div></div></div><div class="sheet-section"><div class="section-title">Willpower</div><div id="willpower-dots-play" class="flex justify-center mb-2"></div><div id="willpower-boxes-play" class="flex justify-center"></div></div><div class="sheet-section"><div class="section-title">Blood Pool</div><div id="blood-boxes-play" class="grid grid-cols-10 gap-1.5 justify-center mt-2"></div></div><div class="sheet-section"><div class="section-title">Health</div><div id="health-chart-play" class="space-y-1.5"></div></div></div>
-            </div>
+            <!-- Play Mode Sheet (Updated Layout) -->
+            <div id="play-mode-sheet" class="hidden">
+                <div id="play-mode-1" class="step-container space-y-10 active">
+                    <div id="play-concept-row" class="grid grid-cols-3 gap-6 text-[11px] uppercase border-b border-[#333] pb-6 font-bold text-gold"></div>
+                    <div id="play-rows-container" class="space-y-10"><div id="play-row-attr" class="grid grid-cols-1 md:grid-cols-3 gap-10"></div><div id="play-row-abil" class="grid grid-cols-1 md:grid-cols-3 gap-10"></div><div id="play-row-adv" class="grid grid-cols-1 md:grid-cols-3 gap-10"></div></div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-10 border-t border-[#333] pt-10">
+                        <!-- Humanity/Willpower -->
+                        <div class="sheet-section">
+                            <div class="section-title">Humanity / Path</div>
+                            <div class="flex flex-col items-center gap-4 py-2">
+                                <select id="c-path-name" class="text-center text-gold font-bold uppercase tracking-widest !bg-transparent !border-b !border-[#333] mb-1 appearance-none cursor-pointer w-full text-sm"></select>
+                                <div id="humanity-dots-play" class="flex justify-center"></div>
+                                <div class="flex items-center gap-2 mt-2">
+                                    <span class="label-text text-gray-500">Bearing:</span>
+                                    <input type="text" id="c-bearing-name" class="w-24 text-xs !border-b !border-[#333]">
+                                    <input type="number" id="c-bearing-value" class="w-10 text-center text-xs !border-b !border-[#333]" placeholder="( )">
+                                </div>
+                            </div>
+                            <div class="mt-6 border-t border-[#333] pt-4">
+                                <div class="section-title">Willpower</div>
+                                <div id="willpower-dots-play" class="flex justify-center mb-2"></div>
+                                <div id="willpower-boxes-play" class="flex justify-center"></div>
+                            </div>
+                        </div>
 
-            <div id="play-mode-2" class="step-container space-y-10">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-10"><div class="sheet-section !mt-0"><div class="section-title">Merits & Flaws</div><div id="merit-flaw-rows-play" class="space-y-2 text-white font-bold"></div></div><div class="sheet-section !mt-0"><div class="section-title">Other Traits</div><div id="other-traits-rows-play" class="space-y-1"></div><div class="mt-8 border-t border-[#333] pt-4"><div class="section-title">Rituals</div><div id="rituals-list-play" class="text-xs text-white whitespace-pre-wrap mt-2 p-2 bg-black/40 border border-[#333] min-h-[100px]"></div></div></div></div>
-                <div class="sheet-section">
-                    <div class="section-title">Combat Maneuvers</div>
-                    <table class="w-full text-[11px] uppercase text-left mt-4 border-collapse">
-                        <thead><tr class="border-b border-[#555] text-gray-400 font-bold"><th class="p-2">Weapon</th><th class="p-2">Diff</th><th class="p-2">Dmg</th><th class="p-2">Rng</th><th class="p-2">Rate</th><th class="p-2">Clip</th></tr></thead>
-                        <tbody id="combat-rows-play"></tbody>
-                    </table>
-                    <div class="grid grid-cols-3 gap-6 mt-6 pt-4 border-t border-[#333] font-bold"><div><label class="label-text">Armor Rating</label><div id="armor-rating-play" class="text-white"></div></div><div><label class="label-text">Armor Penalty</label><div id="armor-penalty-play" class="text-white"></div></div><div><label class="label-text">Armor Desc</label><div id="armor-desc-play" class="text-xs text-gray-400 whitespace-pre-wrap"></div></div></div>
+                        <!-- Blood Pool -->
+                        <div class="sheet-section">
+                            <div class="section-title">Blood Pool</div>
+                            <div id="blood-boxes-play" class="grid grid-cols-10 gap-1.5 justify-center mt-2"></div>
+                        </div>
+
+                        <!-- Health & Weakness (Side-by-Side) -->
+                        <div class="grid grid-cols-1 gap-4 h-full">
+                            <div class="sheet-section flex flex-col h-full">
+                                <div class="flex flex-row gap-4 h-full">
+                                    <!-- Left: Health -->
+                                    <div class="flex-1">
+                                        <div class="section-title">Health</div>
+                                        <div id="health-chart-play" class="space-y-1.5"></div>
+                                    </div>
+                                    <!-- Right: Weakness -->
+                                    <div class="flex-1 border-l border-[#333] pl-4" id="weakness-play-container">
+                                        <!-- Injected by UI Renderer -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-            </div>
 
-            <div id="play-mode-3" class="step-container space-y-10">
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-8"><div class="md:col-span-2 space-y-6"><div class="sheet-section !mt-0"><div class="section-title">Background Descriptions</div><div id="play-social-grid" class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4"></div></div><div class="sheet-section"><div class="section-title">Blood Bonds / Vinculi</div><div id="play-blood-bonds" class="space-y-2 mt-4 text-xs font-bold"></div></div></div><div class="space-y-6"><div class="sheet-section !mt-0"><div class="section-title">Possessions</div><div class="space-y-4 mt-2">
-                    <div><label class="label-text text-gold">Gear (Carried)</label><div id="play-gear-carried" class="text-xs text-white whitespace-pre-wrap"></div></div>
-                    <div><label class="label-text text-gold">Equipment (Owned)</label><div id="play-gear-owned" class="text-xs text-white whitespace-pre-wrap"></div></div>
-                    <div><label class="label-text text-gold">Vehicles</label><div id="play-vehicles" class="space-y-2 font-bold text-white"></div></div>
-                    <div><label class="label-text text-gold">Feeding Grounds</label><div id="play-feeding-grounds" class="text-xs text-white whitespace-pre-wrap"></div></div></div></div><div class="sheet-section"><div class="section-title">Havens</div><div id="play-havens-list" class="space-y-4 mt-2"></div></div></div></div>
-            </div>
+                <div id="play-mode-2" class="step-container space-y-10">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-10"><div class="sheet-section !mt-0"><div class="section-title">Merits & Flaws</div><div id="merit-flaw-rows-play" class="space-y-2 text-white font-bold"></div></div><div class="sheet-section !mt-0"><div class="section-title">Other Traits</div><div id="other-traits-rows-play" class="space-y-1"></div><div class="mt-8 border-t border-[#333] pt-4"><div class="section-title">Rituals</div><div id="rituals-list-play" class="text-xs text-white whitespace-pre-wrap mt-2 p-2 bg-black/40 border border-[#333] min-h-[100px]"></div></div></div></div>
+                    <div class="sheet-section">
+                        <div class="section-title">Combat Maneuvers</div>
+                        <table class="w-full text-[11px] uppercase text-left mt-4 border-collapse">
+                            <thead><tr class="border-b border-[#555] text-gray-400 font-bold"><th class="p-2">Weapon</th><th class="p-2">Diff</th><th class="p-2">Dmg</th><th class="p-2">Rng</th><th class="p-2">Rate</th><th class="p-2">Clip</th></tr></thead>
+                            <tbody id="combat-rows-play"></tbody>
+                        </table>
+                        <div class="grid grid-cols-3 gap-6 mt-6 pt-4 border-t border-[#333] font-bold"><div><label class="label-text">Armor Rating</label><div id="armor-rating-play" class="text-white"></div></div><div><label class="label-text">Armor Penalty</label><div id="armor-penalty-play" class="text-white"></div></div><div><label class="label-text">Armor Desc</label><div id="armor-desc-play" class="text-xs text-gray-400 whitespace-pre-wrap"></div></div></div>
+                    </div>
+                </div>
 
-            <div id="play-mode-4" class="step-container space-y-10"><div class="grid grid-cols-1 md:grid-cols-3 gap-8"><div class="sheet-section !mt-0"><div class="section-title">Vitals</div><div id="play-vitals-list" class="space-y-3 py-2 text-[11px] uppercase font-bold text-white"></div><div class="mt-6 border-t border-[#333] pt-4"><label class="label-text text-gold">Physical Description</label><div id="play-bio-desc" class="text-xs text-gray-300 whitespace-pre-wrap"></div></div></div><div class="md:col-span-2 space-y-6"><div class="grid grid-cols-2 gap-6"><div class="sheet-section !mt-0"><div class="section-title">Derangements</div><div id="play-derangements" class="text-xs text-white p-2"></div></div><div class="sheet-section !mt-0"><div class="section-title">Languages</div><div id="play-languages" class="text-xs text-white p-2"></div></div></div><div class="sheet-section"><div class="section-title">Goals</div><div class="grid grid-cols-2 gap-6 mt-2"><div class="border-l-2 border-gold pl-4"><label class="label-text text-gold">Short-Term</label><div id="play-goals-st" class="text-xs text-gray-200 mt-1"></div></div><div class="border-l-2 border-gold pl-4"><label class="label-text text-gold">Long-Term</label><div id="play-goals-lt" class="text-xs text-gray-200 mt-1"></div></div></div></div><div class="sheet-section"><div class="section-title">Full History</div><div id="play-history" class="text-sm text-gray-300 whitespace-pre-wrap p-4"></div></div></div></div></div>
+                <div id="play-mode-3" class="step-container space-y-10">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-8"><div class="md:col-span-2 space-y-6"><div class="sheet-section !mt-0"><div class="section-title">Background Descriptions</div><div id="play-social-grid" class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4"></div></div><div class="sheet-section"><div class="section-title">Blood Bonds / Vinculi</div><div id="play-blood-bonds" class="space-y-2 mt-4 text-xs font-bold"></div></div></div><div class="space-y-6"><div class="sheet-section !mt-0"><div class="section-title">Possessions</div><div class="space-y-4 mt-2">
+                        <div><label class="label-text text-gold">Gear (Carried)</label><div id="play-gear-carried" class="text-xs text-white whitespace-pre-wrap"></div></div>
+                        <div><label class="label-text text-gold">Equipment (Owned)</label><div id="play-gear-owned" class="text-xs text-white whitespace-pre-wrap"></div></div>
+                        <div><label class="label-text text-gold">Vehicles</label><div id="play-vehicles" class="space-y-2 font-bold text-white"></div></div>
+                        <div><label class="label-text text-gold">Feeding Grounds</label><div id="play-feeding-grounds" class="text-xs text-white whitespace-pre-wrap"></div></div></div></div><div class="sheet-section"><div class="section-title">Havens</div><div id="play-havens-list" class="space-y-4 mt-2"></div></div></div></div>
+                </div>
+
+                <div id="play-mode-4" class="step-container space-y-10"><div class="grid grid-cols-1 md:grid-cols-3 gap-8"><div class="sheet-section !mt-0"><div class="section-title">Vitals</div><div id="play-vitals-list" class="space-y-3 py-2 text-[11px] uppercase font-bold text-white"></div><div class="mt-6 border-t border-[#333] pt-4"><label class="label-text text-gold">Physical Description</label><div id="play-bio-desc" class="text-xs text-gray-300 whitespace-pre-wrap"></div></div></div><div class="md:col-span-2 space-y-6"><div class="grid grid-cols-2 gap-6"><div class="sheet-section !mt-0"><div class="section-title">Derangements</div><div id="play-derangements" class="text-xs text-white p-2"></div></div><div class="sheet-section !mt-0"><div class="section-title">Languages</div><div id="play-languages" class="text-xs text-white p-2"></div></div></div><div class="sheet-section"><div class="section-title">Goals</div><div class="grid grid-cols-2 gap-6 mt-2"><div class="border-l-2 border-gold pl-4"><label class="label-text text-gold">Short-Term</label><div id="play-goals-st" class="text-xs text-gray-200 mt-1"></div></div><div class="border-l-2 border-gold pl-4"><label class="label-text text-gold">Long-Term</label><div id="play-goals-lt" class="text-xs text-gray-200 mt-1"></div></div></div></div><div class="sheet-section"><div class="section-title">Full History</div><div id="play-history" class="text-sm text-gray-300 whitespace-pre-wrap p-4"></div></div></div></div></div>
+            </div>
 
         </div>
     </div>
