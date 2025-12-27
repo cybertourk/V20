@@ -99,24 +99,16 @@ export const HEALTH_STATES = [
     { l: "Incapacitated", p: 0 }
 ];
 
-// Updated to official V20 Core Rulebook examples
 export const SPECIALTY_EXAMPLES = {
-    // Physical Attributes
     "Strength": ["Never Lets Go", "Powerful Arms", "Reserves of Strength", "Vicious"],
     "Dexterity": ["Precise", "Swift", "Feline Grace", "Lightning Reflexes"],
     "Stamina": ["Tireless", "Determined", "Tough as Nails", "Vigorous"],
-
-    // Social Attributes
     "Charisma": ["Graceful", "Smooth Talker", "Forceful", "Urbane", "Witty", "Eloquent", "Hustler"],
     "Manipulation": ["Persuasive", "Seductive", "Well-Reasoned", "Misdirection", "Conjurer of 'Facts'"],
     "Appearance": ["Unconventional Looks", "Photogenic", "Fashion Sense", "Unforgettable Face", "Memorable Pose"],
-
-    // Mental Attributes
     "Perception": ["Attentive", "Insightful", "Careful", "Discerning", "Tactical"],
     "Intelligence": ["Book Knowledge", "Creative", "Analytical", "Problem Solver", "Subject Authority"],
     "Wits": ["Getting the Jump on Others", "Witty Bon Mots", "Changes in Strategy", "Ambushes"],
-
-    // Talents
     "Alertness": ["Noises", "Eavesdropping", "Fine Details", "Hidden Weapons", "Crowds", "Forests", "Animals"],
     "Athletics": ["Swimming", "Rock Climbing", "Acrobatics", "Dancing", "Parkour", "Specific Sports"], 
     "Awareness": ["Ghostly Activity", "Mystical Objects", "Someone's In My Head", "Debunking"],
@@ -127,8 +119,6 @@ export const SPECIALTY_EXAMPLES = {
     "Leadership": ["Oratory", "Compelling", "Friendly", "Open", "Noble", "Military", "Multimedia"],
     "Streetwise": ["Fencing", "Illegal Drugs", "Illegal Weapons", "Free Wifi", "Gangs", "Being On the Guest List", "Local Slang"],
     "Subterfuge": ["Seduction", "Impeccable Lies", "Feigning Mortality", "The Long Con"],
-
-    // Skills
     "Animal Ken": ["Dogs", "Attack Training", "Big Cats", "Horses", "Farm Animals", "Falconry"],
     "Crafts": ["Pottery", "Sewing", "Home Repair", "Carpentry", "Appraisal", "Carburetors"],
     "Drive": ["Off-Road", "Motorcycles", "High Speed", "Heavy Traffic", "Avoiding Traffic Cops"],
@@ -139,8 +129,6 @@ export const SPECIALTY_EXAMPLES = {
     "Performance": ["Dancing", "Singing", "Rock and Roll", "Acting", "Guitar Solos", "Drunken Karaoke"],
     "Stealth": ["Hiding", "Silent Movement", "Shadowing", "Crowds"],
     "Survival": ["Tracking", "Woodlands", "Jungle", "Street Life", "Hunting", "Urban Exploration"],
-
-    // Knowledges
     "Academics": ["Poststructuralism", "Impressionist Painting", "Imperial Rome", "Color Theory", "Linguistics"],
     "Computer": ["The YouTubes", "Computer Languages", "Internet", "Database Administration", "HCI", "Viruses", "Specific Devices"],
     "Finance": ["Stock Market", "Laundering", "Appraisal", "Foreign Currencies", "Accounting", "Fencing", "Corporations", "Federal Bailouts"],
@@ -240,3 +228,20 @@ export const V20_VEHICLE_LIST = [
     { name: "Sports Car", safe: "110", max: "190", man: "8" },
     { name: "SUV/Truck", safe: "70", max: "110", man: "5" }
 ];
+
+export const CLAN_WEAKNESSES = {
+    "Assamite": "Due to the Tremere blood-curse, consuming Kindred blood deals 1 unsoakable lethal damage per point. Diablerie deals automatic aggravated damage equal to victim's Willpower and provides no benefits.",
+    "Brujah": "Frenzy difficulties are 2 higher than normal. Cannot spend Willpower to avoid frenzy (but can to end it).",
+    "Followers of Set": "Suffer 2 additional health levels of damage from sunlight. -1 die to all rolls in bright light.",
+    "Gangrel": "Gain a temporary animal feature after each frenzy. Features can become permanent over time.",
+    "Giovanni": "The Kiss causes excruciating pain and deals double damage to mortals (2 health levels per blood point).",
+    "Lasombra": "Cast no reflection in mirrors, water, or other surfaces.",
+    "Malkavian": "Suffer from a permanent, incurable derangement chosen at character creation. Can spend Willpower to ignore it for a scene.",
+    "Nosferatu": "Appearance is permanently 0 and cannot be raised. Automatic failure on Appearance rolls.",
+    "Ravnos": "Must indulge in a specific vice when the opportunity arises unless a Self-Control/Instincts roll (diff 6) is succeeded.",
+    "Toreador": "Must make a Self-Control/Instincts roll (diff 6) when encountering something beautiful or be enthralled/unable to act for the scene.",
+    "Tremere": "It takes only 2 drinks of another vampire's blood to become blood bound (first drink counts as two).",
+    "Tzimisce": "Must rest with at least two handfuls of native soil. Failure halves dice pools every 24 hours until reduced to 1 die.",
+    "Ventrue": "Can only feed on a specific type of mortal blood (e.g. blue-eyed men). Other blood provides no nourishment and is vomited.",
+    "Caitiff": "No inherent Clan weakness, but suffer social stigma. Cannot take Clan-specific Merits/Flaws."
+};
