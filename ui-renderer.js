@@ -942,12 +942,27 @@ window.togglePlayMode = function() {
     const pBtn = document.getElementById('play-mode-btn'); const pBtnText = document.getElementById('play-btn-text');
     if(pBtnText) pBtnText.innerText = window.state.isPlayMode ? "Edit" : "Play";
     
+    // Disable inputs not needed in Play Mode
     document.querySelectorAll('input, select, textarea').forEach(el => {
         if (['save-filename', 'char-select', 'roll-diff', 'use-specialty', 'c-path-name', 'c-path-name-create', 'c-bearing-name', 'c-bearing-value', 'custom-weakness-input'].includes(el.id)) return;
         el.disabled = window.state.isPlayMode;
     });
 
+    const playSheet = document.getElementById('play-mode-sheet');
+    const phases = document.querySelectorAll('.step-container');
+
     if (window.state.isPlayMode) {
+        // HIDE ALL PHASES
+        phases.forEach(el => el.classList.add('hidden'));
+        phases.forEach(el => el.classList.remove('active')); // Ensure 'active' is gone to prevent CSS conflict
+
+        // SHOW PLAY SHEET
+        if (playSheet) {
+            playSheet.classList.remove('hidden');
+            playSheet.style.display = 'block'; // Force display if hidden class lingers
+        }
+
+        // --- POPULATE HEADER ---
         const row = document.getElementById('play-concept-row');
         if (row) {
             const getVal = (id) => document.getElementById(id)?.value || '';
@@ -964,37 +979,48 @@ window.togglePlayMode = function() {
             `;
         }
         
-        const ra = document.getElementById('play-row-attr'); ra.innerHTML = '';
-        Object.entries(ATTRIBUTES).forEach(([c,l]) => { 
-            const s = document.createElement('div'); 
-            s.className='sheet-section !mt-0'; 
-            s.innerHTML=`<div class="column-title">${c}</div>`; 
-            ra.appendChild(s); 
-            l.forEach(a=>renderRow(s,a,'attr',1)); 
-        });
+        // --- POPULATE ATTRIBUTES & ABILITIES ---
+        const ra = document.getElementById('play-row-attr'); 
+        if (ra) {
+            ra.innerHTML = '';
+            Object.entries(ATTRIBUTES).forEach(([c,l]) => { 
+                const s = document.createElement('div'); 
+                s.className='sheet-section !mt-0'; 
+                s.innerHTML=`<div class="column-title">${c}</div>`; 
+                ra.appendChild(s); 
+                l.forEach(a=>renderRow(s,a,'attr',1)); 
+            });
+        }
         
-        const rb = document.getElementById('play-row-abil'); rb.innerHTML = '';
-        Object.entries(ABILITIES).forEach(([c,l]) => { 
-            const s = document.createElement('div'); 
-            s.className='sheet-section !mt-0'; 
-            s.innerHTML=`<div class="column-title">${c}</div>`; 
-            rb.appendChild(s);
-            l.forEach(a=>renderRow(s,a,'abil',0)); 
-        });
+        const rb = document.getElementById('play-row-abil'); 
+        if (rb) {
+            rb.innerHTML = '';
+            Object.entries(ABILITIES).forEach(([c,l]) => { 
+                const s = document.createElement('div'); 
+                s.className='sheet-section !mt-0'; 
+                s.innerHTML=`<div class="column-title">${c}</div>`; 
+                rb.appendChild(s);
+                l.forEach(a=>renderRow(s,a,'abil',0)); 
+            });
+        }
         
-        const rc = document.getElementById('play-row-adv'); rc.innerHTML = '';
-        const ds = document.createElement('div'); ds.className='sheet-section !mt-0'; ds.innerHTML='<div class="column-title">Disciplines</div>';
-        rc.appendChild(ds);
-        Object.entries(window.state.dots.disc).forEach(([n,v]) => { if(v>0) renderRow(ds,n,'disc',0); }); 
+        const rc = document.getElementById('play-row-adv'); 
+        if (rc) {
+            rc.innerHTML = '';
+            const ds = document.createElement('div'); ds.className='sheet-section !mt-0'; ds.innerHTML='<div class="column-title">Disciplines</div>';
+            rc.appendChild(ds);
+            Object.entries(window.state.dots.disc).forEach(([n,v]) => { if(v>0) renderRow(ds,n,'disc',0); }); 
+            
+            const bs = document.createElement('div'); bs.className='sheet-section !mt-0'; bs.innerHTML='<div class="column-title">Backgrounds</div>';
+            rc.appendChild(bs);
+            Object.entries(window.state.dots.back).forEach(([n,v]) => { if(v>0) renderRow(bs,n,'back',0); }); 
+            
+            const vs = document.createElement('div'); vs.className='sheet-section !mt-0'; vs.innerHTML='<div class="column-title">Virtues</div>';
+            rc.appendChild(vs);
+            VIRTUES.forEach(v => renderRow(vs, v, 'virt', 1)); 
+        }
         
-        const bs = document.createElement('div'); bs.className='sheet-section !mt-0'; bs.innerHTML='<div class="column-title">Backgrounds</div>';
-        rc.appendChild(bs);
-        Object.entries(window.state.dots.back).forEach(([n,v]) => { if(v>0) renderRow(bs,n,'back',0); }); 
-        
-        const vs = document.createElement('div'); vs.className='sheet-section !mt-0'; vs.innerHTML='<div class="column-title">Virtues</div>';
-        rc.appendChild(vs);
-        VIRTUES.forEach(v => renderRow(vs, v, 'virt', 1)); 
-        
+        // --- SOCIAL PROFILE RENDER ---
         const pg = document.getElementById('play-social-grid'); if(pg) {
             pg.innerHTML = ''; BACKGROUNDS.forEach(s => { const dots = window.state.dots.back[s] || 0; const safeId = 'desc-' + s.toLowerCase().replace(/[^a-z0-9]/g, '-'); const el = document.getElementById(safeId); const txt = el ? el.value : ""; if(dots || txt) pg.innerHTML += `<div class="border-l-2 border-[#333] pl-4 mb-4"><div class="flex justify-between items-center"><label class="label-text text-gold">${s}</label><div class="text-[8px] font-bold text-white">${renderDots(dots,5)}</div></div><div class="text-xs text-gray-200 mt-1">${txt || "No description."}</div></div>`; });
         }
@@ -1035,8 +1061,55 @@ window.togglePlayMode = function() {
         if (document.getElementById('play-vehicles')) { const pv = document.getElementById('play-vehicles'); pv.innerHTML = ''; if (window.state.inventory) { window.state.inventory.filter(i => i.type === 'Vehicle').forEach(v => { let display = v.displayName || v.name; pv.innerHTML += `<div class="mb-2 border-b border-[#333] pb-1"><div class="font-bold text-white uppercase text-[10px]">${display}</div><div class="text-[9px] text-gray-400">Safe:${v.stats.safe} | Max:${v.stats.max} | Man:${v.stats.man}</div></div>`; }); } }
         if (document.getElementById('play-havens-list')) { const ph = document.getElementById('play-havens-list'); ph.innerHTML = ''; window.state.havens.forEach(h => { ph.innerHTML += `<div class="border-l-2 border-gold pl-4 mb-4"><div class="flex justify-between"><div><div class="font-bold text-white uppercase text-[10px]">${h.name}</div><div class="text-[9px] text-gold italic">${h.loc}</div></div></div><div class="text-xs text-gray-400 mt-1">${h.desc}</div></div>`; }); }
         
-        window.changeStep(1);
+        // --- WEAKNESS RENDER (UPDATED) ---
+        // This explicitly finds the play mode container and injects content
+        const weaknessCont = document.getElementById('weakness-play-container');
+        if (weaknessCont) {
+            weaknessCont.innerHTML = '';
+            
+            // Grab Clan from State or DOM
+            const clan = window.state.textFields['c-clan'] || document.getElementById('c-clan')?.value || "None";
+            const weaknessText = CLAN_WEAKNESSES[clan] || "Select a Clan to see weakness.";
+            
+            // Grab Custom Note from State
+            const customNote = window.state.textFields['custom-weakness'] || "";
+
+            weaknessCont.innerHTML = `
+                <div class="bg-black/40 border border-[#333] p-3 h-full flex flex-col">
+                    <div class="text-[10px] font-bold text-gold border-b border-[#444] mb-2 pb-1 uppercase tracking-widest">Clan Weakness</div>
+                    <div class="text-[10px] text-red-400 italic mb-3 leading-snug flex-1">${weaknessText}</div>
+                    
+                    <div class="text-[9px] font-bold text-gray-500 mb-1 uppercase">Notes / Specifics</div>
+                    <textarea id="custom-weakness-input" class="w-full h-16 bg-[#111] border border-[#444] text-[10px] text-white p-2 focus:border-gold outline-none resize-none" placeholder="e.g. 'Only Brunettes'">${customNote}</textarea>
+                </div>
+            `;
+            
+            // Bind save listener
+            const ta = document.getElementById('custom-weakness-input');
+            if(ta) {
+                ta.addEventListener('blur', (e) => {
+                    if(!window.state.textFields) window.state.textFields = {};
+                    window.state.textFields['custom-weakness'] = e.target.value;
+                });
+            }
+        }
+
+        window.changeStep(1); // Force switch to first Play Mode tab (Sheet)
     } else {
+        // HIDE PLAY SHEET
+        if (playSheet) {
+            playSheet.classList.add('hidden');
+            playSheet.style.display = 'none'; // Force hide
+        }
+
+        // SHOW PHASES (Correct Logic for Edit Mode)
+        const current = window.state.currentPhase || 1;
+        const currentPhaseEl = document.getElementById(`phase-${current}`);
+        if (currentPhaseEl) {
+            currentPhaseEl.classList.remove('hidden');
+            currentPhaseEl.classList.add('active');
+        }
+        
         window.changeStep(window.state.furthestPhase || 1);
     }
 };
