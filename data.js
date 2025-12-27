@@ -103,6 +103,19 @@ export const HEALTH_STATES = [
 ];
 
 export const SPECIALTY_EXAMPLES = {
+    // Attributes
+    "Strength": ["Deadlift", "Power Lifting", "Punching", "Carrying", "Jumping", "Grip"],
+    "Dexterity": ["Lithe", "Agility", "Lightning Reflexes", "Speed", "Fine Manipulation"],
+    "Stamina": ["Tireless", "Determination", "Toughness", "Pain Tolerance"],
+    "Charisma": ["Graceful", "Eloquent", "Commanding", "Charming", "Inspiring"],
+    "Manipulation": ["Persuasive", "Seductive", "Cunning", "Smooth", "Glib"],
+    "Appearance": ["Bold", "Exotic", "Innocent", "Noble", "Alluring"],
+    "Perception": ["Attentive", "Insightful", "Careful", "Discerning", "Tactical"],
+    "Intelligence": ["Creative", "Analytical", "Book Knowledge", "Problem Solving"],
+    "Wits": ["Clever", "Sharp", "Ambushes", "Retorts", "Changes in Strategy"],
+
+    // Talents
+    "Alertness": ["Noises", "Eavesdropping", "Fine Details", "Hidden Weapons", "Crowds", "Forests", "Animals"],
     "Athletics": ["Running", "Climbing", "Swimming", "Parkour", "Throwing", "Dodge"],
     "Awareness": ["Auras", "Ambushes", "Supernatural", "Wilds"],
     "Brawl": ["Boxing", "Grappling", "Dirty Fighting", "Throws", "Kicks"],
@@ -112,6 +125,8 @@ export const SPECIALTY_EXAMPLES = {
     "Leadership": ["Command", "Oratory", "Tactics", "Morale"],
     "Streetwise": ["Gangs", "Drugs", "Fencing", "Rumors", "Turf"],
     "Subterfuge": ["Lying", "Seduction", "Misdirection", "Impeccable Manners"],
+
+    // Skills
     "Animal Ken": ["Training", "Falconry", "Dogs", "Horses", "Stray Cats"],
     "Crafts": ["Mechanics", "Sewing", "Carpentry", "Blacksmithing"],
     "Drive": ["High Speed", "Stunts", "Tailgating", "Evasion"],
@@ -122,6 +137,8 @@ export const SPECIALTY_EXAMPLES = {
     "Performance": ["Singing", "Dancing", "Music", "Comedy"],
     "Stealth": ["Hiding", "Silent Movement", "Shadowing", "Crowds"],
     "Survival": ["Urban", "Forest", "Desert", "Tracking", "Scrounging"],
+
+    // Knowledges
     "Academics": ["History", "Literature", "Philosophy", "Art", "Theology"],
     "Computer": ["Hacking", "Programming", "Hardware", "Data Retrieval"],
     "Finance": ["Stocks", "Laundering", "Accounting", "Appraisal"],
