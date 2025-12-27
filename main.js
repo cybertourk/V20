@@ -9,13 +9,15 @@ import {
     renderSocialProfile, 
     setupInventoryListeners,
     renderRow, 
+    refreshTraitRow, // Added this import
+    hydrateInputs,   // Added this import
     renderDynamicAdvantageRow,
     renderDynamicTraitRow,
     renderDerangementsList,
     renderBloodBondRow,
     renderDynamicHavenRow,
     renderInventoryList,
-    updateWalkthrough // Import this to force UI updates
+    updateWalkthrough 
 } from "./ui-renderer.js"; 
 
 // --- ERROR HANDLER ---
@@ -49,6 +51,78 @@ window.handleSaveClick = FBManager.handleSaveClick;
 window.handleLoadClick = FBManager.handleLoadClick;
 window.performSave = FBManager.performSave;
 window.deleteCharacter = FBManager.deleteCharacter;
+
+// --- CRITICAL FIX: FULL UI REFRESH FUNCTION ---
+// This was missing, causing Loaded characters to not appear visually.
+window.fullRefresh = function() {
+    try {
+        console.log("Starting Full UI Refresh...");
+        
+        // 1. Text Fields
+        hydrateInputs();
+        
+        // 2. Dynamic Rows (Disciplines, Backgrounds)
+        renderDynamicAdvantageRow('list-disc', 'disc', DISCIPLINES);
+        renderDynamicAdvantageRow('list-back', 'back', BACKGROUNDS);
+        
+        // 3. Custom Abilities (Pass empty array, let it pull from state)
+        renderDynamicAdvantageRow('custom-talents', 'abil', [], true);
+        renderDynamicAdvantageRow('custom-skills', 'abil', [], true);
+        renderDynamicAdvantageRow('custom-knowledges', 'abil', [], true);
+        
+        // 4. Lists (Derangements, Bonds, Havens, Inventory)
+        renderDerangementsList();
+        renderBloodBondRow();
+        renderDynamicHavenRow();
+        renderInventoryList();
+        
+        // 5. Merits & Flaws
+        renderDynamicTraitRow('merits-list-create', 'Merit', V20_MERITS_LIST);
+        renderDynamicTraitRow('flaws-list-create', 'Flaw', V20_FLAWS_LIST);
+        
+        // 6. Standard Rows (Attributes & Abilities) - Refresh Dots
+        Object.keys(ATTRIBUTES).forEach(c => ATTRIBUTES[c].forEach(a => {
+            refreshTraitRow(a, 'attr');
+        }));
+        Object.keys(ABILITIES).forEach(c => ABILITIES[c].forEach(a => {
+            refreshTraitRow(a, 'abil');
+        }));
+
+        // 7. Other Traits
+        for(let i=0; i<8; i++) {
+            const nameInput = document.getElementById(`ot-n-${i}`);
+            if(nameInput) {
+                // Determine name from input or default
+                const name = nameInput.value || `Other_${i}`;
+                const val = window.state.dots.other[name] || 0;
+                const dr = document.getElementById(`ot-dr-${i}`);
+                if(dr) dr.innerHTML = renderDots(val, 5);
+            }
+        }
+        
+        // 8. Virtues (Reset dots)
+        VIRTUES.forEach(v => {
+            const row = document.querySelector(`#list-virt .dot-row[data-n="${v}"]`);
+            if(row) row.innerHTML = renderDots(window.state.dots.virt[v] || 1, 5);
+        });
+
+        // 9. Final Updates
+        renderSocialProfile();
+        updateWalkthrough();
+        window.updatePools();
+        
+        console.log("UI Refresh Complete.");
+        
+        // Restore Phase
+        if(window.state.furthestPhase) {
+            window.changeStep(window.state.furthestPhase);
+        }
+
+    } catch(e) {
+        console.error("Refresh Error:", e);
+        window.showNotification("Error Refreshing UI");
+    }
+};
 
 // --- INITIALIZATION LOGIC ---
 
