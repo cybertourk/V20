@@ -385,6 +385,25 @@ window.updatePools = function() {
         }
         el.innerHTML = h;
     });
+
+    // --- HEALTH CHART RENDER ---
+    const healthCont = document.getElementById('health-chart-play');
+    if(healthCont && healthCont.children.length === 0) {
+         HEALTH_STATES.forEach((h, i) => {
+            const d = document.createElement('div'); 
+            d.className = 'flex justify-between items-center text-[10px] uppercase border-b border-[#333] py-2 font-bold';
+            const penaltyText = h.p !== 0 ? h.p : '';
+            d.innerHTML = `<span>${h.l}</span><div class="flex gap-3"><span class="text-red-500">${penaltyText}</span><div class="box" data-v="${i+1}" data-type="health"></div></div>`;
+            healthCont.appendChild(d);
+        });
+    }
+
+    // Update Health Boxes
+    const healthStates = window.state.status.health_states || [0,0,0,0,0,0,0];
+    document.querySelectorAll('#health-chart-play .box').forEach((box, i) => {
+        box.classList.remove('checked'); 
+        box.dataset.state = healthStates[i] || 0;
+    });
     
     const cList = document.getElementById('combat-list-create');
     if(cList && window.state.inventory) {
