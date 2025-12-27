@@ -58,13 +58,14 @@ window.syncInputs = function() {
     });
 };
 
-window.hydrateInputs = function() {
+export function hydrateInputs() {
     if(!window.state || !window.state.textFields) return;
     Object.entries(window.state.textFields).forEach(([id, val]) => { 
         const el = document.getElementById(id); 
         if (el) el.value = val; 
     });
 };
+window.hydrateInputs = hydrateInputs;
 
 // --- BACKGROUND DESCRIPTIONS (SOCIAL PROFILE) ---
 
@@ -102,6 +103,7 @@ export function renderSocialProfile() {
         list.innerHTML = '<div class="text-gray-500 italic text-xs">Select Backgrounds in Step 4 to add descriptions here.</div>';
     }
 }
+window.renderSocialProfile = renderSocialProfile;
 
 // --- INVENTORY UI & LOGIC ---
 
@@ -223,8 +225,9 @@ export function setupInventoryListeners() {
         window.showNotification("Item Added");
     };
 }
+window.setupInventoryListeners = setupInventoryListeners;
 
-window.renderInventoryList = function() {
+export function renderInventoryList() {
     const listCarried = document.getElementById('inv-list-carried');
     const listOwned = document.getElementById('inv-list-owned');
     const listVehicles = document.getElementById('vehicle-list');
@@ -262,6 +265,7 @@ window.renderInventoryList = function() {
     });
     window.updatePools();
 };
+window.renderInventoryList = renderInventoryList;
 
 window.removeInventory = (idx) => { window.state.inventory.splice(idx, 1); window.renderInventoryList(); };
 window.toggleInvStatus = (idx) => { const item = window.state.inventory[idx]; item.status = item.status === 'carried' ? 'owned' : 'carried'; window.renderInventoryList(); };
@@ -515,7 +519,7 @@ window.updatePools = function() {
 
 // --- DOM BUILDERS ---
 
-window.refreshTraitRow = function(label, type) {
+export function refreshTraitRow(label, type) {
     const safeId = 'trait-row-' + type + '-' + label.replace(/[^a-zA-Z0-9]/g, '');
     const rowDiv = document.getElementById(safeId);
     if(!rowDiv) return;
@@ -566,8 +570,9 @@ window.refreshTraitRow = function(label, type) {
         }
     }
 };
+window.refreshTraitRow = refreshTraitRow;
 
-window.renderRow = function(contId, label, type, min, max = 5) {
+export function renderRow(contId, label, type, min, max = 5) {
     const cont = typeof contId === 'string' ? document.getElementById(contId) : contId;
     if (!cont) return;
     const div = document.createElement('div'); 
@@ -576,8 +581,9 @@ window.renderRow = function(contId, label, type, min, max = 5) {
     cont.appendChild(div);
     window.refreshTraitRow(label, type);
 };
+window.renderRow = renderRow;
 
-window.setDots = function(name, type, val, min, max = 5) {
+export function setDots(name, type, val, min, max = 5) {
     if (window.state.isPlayMode) return;
     
     if (type === 'status') {
@@ -658,8 +664,9 @@ window.setDots = function(name, type, val, min, max = 5) {
     window.updatePools();
     if(type === 'back') window.renderSocialProfile();
 };
+window.setDots = setDots;
 
-window.renderDynamicAdvantageRow = function(containerId, type, list, isAbil = false) {
+export function renderDynamicAdvantageRow(containerId, type, list, isAbil = false) {
     const container = document.getElementById(containerId);
     if (!container) return;
     container.innerHTML = '';
@@ -780,8 +787,75 @@ window.renderDynamicAdvantageRow = function(containerId, type, list, isAbil = fa
     existingItems.forEach(item => buildRow(item));
     buildRow();
 };
+window.renderDynamicAdvantageRow = renderDynamicAdvantageRow;
 
-window.renderBloodBondRow = function() {
+export function renderDynamicTraitRow(containerId, type, list) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    const stateArray = type === 'Merit' ? (window.state.merits || []) : (window.state.flaws || []);
+    container.innerHTML = '';
+    
+    const appendRow = (data = null) => {
+        const row = document.createElement('div'); row.className = 'flex gap-2 items-center mb-2 trait-row';
+        let options = `<option value="">-- Select ${type} --</option>`;
+        list.forEach(item => { options += `<option value="${item.n}" data-val="${item.v}" data-var="${item.variable||false}">${item.n} (${item.range ? item.range + 'pt' : item.v + 'pt'})</option>`; });
+        options += '<option value="Custom">-- Custom / Write-in --</option>';
+        row.innerHTML = `<div class="flex-1 relative"><select class="w-full text-[11px] font-bold uppercase bg-[#111] text-white border-b border-[#444]">${options}</select><input type="text" placeholder="Custom Name..." class="hidden w-full text-[11px] font-bold uppercase border-b border-[#444] bg-transparent text-white"></div><input type="number" class="w-10 text-center text-[11px] !border !border-[#444] font-bold" min="1"><div class="remove-btn">&times;</div>`;
+        container.appendChild(row);
+        
+        const selectEl = row.querySelector('select');
+        const textEl = row.querySelector('input[type="text"]');
+        const numEl = row.querySelector('input[type="number"]');
+        const removeBtn = row.querySelector('.remove-btn');
+        const isLocked = !window.state.freebieMode;
+        
+        selectEl.disabled = isLocked; textEl.disabled = isLocked; numEl.disabled = isLocked;
+        if(isLocked) { selectEl.classList.add('opacity-50'); textEl.classList.add('opacity-50'); numEl.classList.add('opacity-50'); }
+        
+        if (data) {
+            const exists = list.some(l => l.n === data.name);
+            if (exists) {
+                selectEl.value = data.name; numEl.value = data.val;
+                const itemData = list.find(l => l.n === data.name);
+                if (itemData && !itemData.variable) { numEl.disabled = true; numEl.classList.add('opacity-50'); }
+            } else { selectEl.value = "Custom"; selectEl.classList.add('hidden'); textEl.classList.remove('hidden'); textEl.value = data.name; numEl.value = data.val; }
+        } else { numEl.value = ""; removeBtn.style.visibility = 'hidden'; }
+        
+        const syncState = () => {
+            const allRows = container.querySelectorAll('.trait-row');
+            const newState = [];
+            allRows.forEach(r => {
+                const s = r.querySelector('select');
+                const t = r.querySelector('input[type="text"]');
+                const n = r.querySelector('input[type="number"]');
+                let name = s.value === 'Custom' ? t.value : s.value;
+                let val = parseInt(n.value) || 0;
+                if (name && name !== 'Custom') newState.push({ name, val });
+            });
+            if (type === 'Merit') window.state.merits = newState; else window.state.flaws = newState;
+            window.updatePools();
+        };
+        
+        selectEl.addEventListener('change', () => {
+            if (selectEl.value === 'Custom') { selectEl.classList.add('hidden'); textEl.classList.remove('hidden'); textEl.focus(); numEl.value = 1; numEl.disabled = false; numEl.classList.remove('opacity-50'); } 
+            else if (selectEl.value) {
+                const opt = selectEl.options[selectEl.selectedIndex];
+                numEl.value = opt.dataset.val;
+                if (opt.dataset.var !== "true") { numEl.disabled = true; numEl.classList.add('opacity-50'); } else { numEl.disabled = false; numEl.classList.remove('opacity-50'); }
+                if (row === container.lastElementChild) { removeBtn.style.visibility = 'visible'; appendRow(); }
+            }
+            syncState();
+        });
+        textEl.addEventListener('blur', () => { if (textEl.value === "") { textEl.classList.add('hidden'); selectEl.classList.remove('hidden'); selectEl.value = ""; } else { if (row === container.lastElementChild) { removeBtn.style.visibility = 'visible'; appendRow(); } } syncState(); });
+        numEl.addEventListener('change', syncState);
+        removeBtn.addEventListener('click', () => { row.remove(); syncState(); });
+    };
+    if (stateArray.length > 0) stateArray.forEach(d => appendRow(d));
+    appendRow();
+};
+window.renderDynamicTraitRow = renderDynamicTraitRow;
+
+export function renderBloodBondRow() {
     const cont = document.getElementById('blood-bond-list'); if (!cont) return;
     const row = document.createElement('div'); row.className = 'flex gap-2 items-center border-b border-[#222] pb-2 advantage-row';
     row.innerHTML = `<select class="w-24 text-[10px] uppercase font-bold mr-2 border-b border-[#333] bg-transparent"><option value="Bond">Bond</option><option value="Vinculum">Vinculum</option></select><input type="text" placeholder="Bound to..." class="flex-1 text-xs"><input type="number" placeholder="Lvl" class="w-10 text-center text-xs" min="1" max="3"><div class="remove-btn">&times;</div>`;
@@ -797,8 +871,9 @@ window.renderBloodBondRow = function() {
     typeSel.onchange = onUpd; nI.onblur = onUpd; rI.onblur = onUpd; del.onclick = () => { row.remove(); onUpd(); };
     cont.appendChild(row);
 };
+window.renderBloodBondRow = renderBloodBondRow;
 
-window.renderDerangementsList = function() {
+export function renderDerangementsList() {
     const cont = document.getElementById('derangements-list'); if (!cont) return;
     cont.innerHTML = '';
     window.state.derangements.forEach((d, idx) => {
@@ -817,8 +892,9 @@ window.renderDerangementsList = function() {
         if (val && val !== 'Custom') { window.state.derangements.push(val); window.renderDerangementsList(); window.updatePools(); }
     };
 };
+window.renderDerangementsList = renderDerangementsList;
 
-window.renderDynamicHavenRow = function() {
+export function renderDynamicHavenRow() {
     const cont = document.getElementById('multi-haven-list'); if (!cont) return;
     const row = document.createElement('div'); row.className = 'border-b border-[#222] pb-4 advantage-row';
     row.innerHTML = `<div class="flex justify-between items-center mb-2"><input type="text" placeholder="Haven Title..." class="flex-1 text-[10px] font-bold text-gold uppercase !border-b !border-[#333]"><div class="remove-btn">&times;</div></div><input type="text" placeholder="Location..." class="text-xs mb-2 !border-b !border-[#333]"><textarea class="h-16 text-xs" placeholder="Details..."></textarea>`;
@@ -832,10 +908,11 @@ window.renderDynamicHavenRow = function() {
     [nameIn, locIn, descIn].forEach(el => el.onblur = onUpd); del.onclick = () => { row.remove(); onUpd(); };
     cont.appendChild(row);
 };
+window.renderDynamicHavenRow = renderDynamicHavenRow;
 
 // --- NAVIGATION & MODES ---
 
-window.updateWalkthrough = function() {
+export function updateWalkthrough() {
     if (window.state.isPlayMode) { document.getElementById('walkthrough-guide').classList.add('opacity-0', 'pointer-events-none'); return; } 
     else { document.getElementById('walkthrough-guide').classList.remove('opacity-0', 'pointer-events-none'); }
     const current = window.state.currentPhase;
@@ -860,6 +937,7 @@ window.updateWalkthrough = function() {
         }
     }
 };
+window.updateWalkthrough = updateWalkthrough;
 
 window.nextStep = function() {
     const current = window.state.currentPhase;
