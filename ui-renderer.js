@@ -896,20 +896,35 @@ window.togglePlayMode = function() {
         if (row) row.innerHTML = `<div><span class="label-text">Name:</span> <span class="text-white font-bold">${document.getElementById('c-name').value}</span></div><div><span class="label-text">Nature:</span> <span class="text-white font-bold">${document.getElementById('c-nature').value}</span></div><div><span class="label-text">Clan:</span> <span class="text-white font-bold">${document.getElementById('c-clan').value}</span></div><div><span class="label-text">Player:</span> <span class="text-white font-bold">${document.getElementById('c-player').value}</span></div><div><span class="label-text">Demeanor:</span> <span class="text-white font-bold">${document.getElementById('c-demeanor').value}</span></div><div><span class="label-text">Generation:</span> <span class="text-white font-bold">${document.getElementById('c-gen').value}</span></div>`;
         
         const ra = document.getElementById('play-row-attr'); ra.innerHTML = '';
-        Object.entries(ATTRIBUTES).forEach(([c,l]) => { const s = document.createElement('div'); s.className='sheet-section !mt-0'; s.innerHTML=`<div class="column-title">${c}</div>`; l.forEach(a=>renderRow(s,a,'attr',1)); ra.appendChild(s); });
+        Object.entries(ATTRIBUTES).forEach(([c,l]) => { 
+            const s = document.createElement('div'); 
+            s.className='sheet-section !mt-0'; 
+            s.innerHTML=`<div class="column-title">${c}</div>`; 
+            ra.appendChild(s); 
+            l.forEach(a=>renderRow(s,a,'attr',1)); 
+        });
         
         const rb = document.getElementById('play-row-abil'); rb.innerHTML = '';
-        Object.entries(ABILITIES).forEach(([c,l]) => { const s = document.createElement('div'); s.className='sheet-section !mt-0'; s.innerHTML=`<div class="column-title">${c}</div>`; l.forEach(a=>renderRow(s,a,'abil',0)); rb.appendChild(s); });
+        Object.entries(ABILITIES).forEach(([c,l]) => { 
+            const s = document.createElement('div'); 
+            s.className='sheet-section !mt-0'; 
+            s.innerHTML=`<div class="column-title">${c}</div>`; 
+            rb.appendChild(s);
+            l.forEach(a=>renderRow(s,a,'abil',0)); 
+        });
         
         const rc = document.getElementById('play-row-adv'); rc.innerHTML = '';
         const ds = document.createElement('div'); ds.className='sheet-section !mt-0'; ds.innerHTML='<div class="column-title">Disciplines</div>';
-        Object.entries(window.state.dots.disc).forEach(([n,v]) => { if(v>0) renderRow(ds,n,'disc',0); }); rc.appendChild(ds);
+        rc.appendChild(ds);
+        Object.entries(window.state.dots.disc).forEach(([n,v]) => { if(v>0) renderRow(ds,n,'disc',0); }); 
         
         const bs = document.createElement('div'); bs.className='sheet-section !mt-0'; bs.innerHTML='<div class="column-title">Backgrounds</div>';
-        Object.entries(window.state.dots.back).forEach(([n,v]) => { if(v>0) renderRow(bs,n,'back',0); }); rc.appendChild(bs);
+        rc.appendChild(bs);
+        Object.entries(window.state.dots.back).forEach(([n,v]) => { if(v>0) renderRow(bs,n,'back',0); }); 
         
         const vs = document.createElement('div'); vs.className='sheet-section !mt-0'; vs.innerHTML='<div class="column-title">Virtues</div>';
-        VIRTUES.forEach(v => renderRow(vs, v, 'virt', 1)); rc.appendChild(vs);
+        rc.appendChild(vs);
+        VIRTUES.forEach(v => renderRow(vs, v, 'virt', 1)); 
         
         const pg = document.getElementById('play-social-grid'); if(pg) {
             pg.innerHTML = ''; BACKGROUNDS.forEach(s => { const dots = window.state.dots.back[s] || 0; const safeId = 'desc-' + s.toLowerCase().replace(/[^a-z0-9]/g, '-'); const el = document.getElementById(safeId); const txt = el ? el.value : ""; if(dots || txt) pg.innerHTML += `<div class="border-l-2 border-[#333] pl-4 mb-4"><div class="flex justify-between items-center"><label class="label-text text-gold">${s}</label><div class="text-[8px] font-bold text-white">${renderDots(dots,5)}</div></div><div class="text-xs text-gray-200 mt-1">${txt || "No description."}</div></div>`; });
@@ -955,33 +970,6 @@ window.togglePlayMode = function() {
     } else {
         window.changeStep(window.state.furthestPhase || 1);
     }
-};
-
-window.fullRefresh = function() {
-    hydrateInputs();
-    
-    const mList = document.getElementById('merits-list-create');
-    if(mList) { mList.innerHTML = ''; renderDynamicTraitRow('merits-list-create', 'Merit', V20_MERITS_LIST); }
-    const fList = document.getElementById('flaws-list-create');
-    if(fList) { fList.innerHTML = ''; renderDynamicTraitRow('flaws-list-create', 'Flaw', V20_FLAWS_LIST); }
-    
-    renderDynamicAdvantageRow('list-disc', 'disc', DISCIPLINES);
-    renderDynamicAdvantageRow('list-back', 'back', BACKGROUNDS);
-    renderDynamicAdvantageRow('custom-talents', 'abil', [], true);
-    renderDynamicAdvantageRow('custom-skills', 'abil', [], true);
-    renderDynamicAdvantageRow('custom-knowledges', 'abil', [], true);
-    renderDerangementsList();
-    renderBloodBondRow();
-    renderDynamicHavenRow();
-    renderInventoryList();
-    renderSocialProfile();
-    
-    if(window.state.dots.attr) Object.keys(ATTRIBUTES).forEach(c => ATTRIBUTES[c].forEach(a => { refreshTraitRow(a, 'attr'); }));
-    if(window.state.dots.abil) Object.keys(ABILITIES).forEach(c => ABILITIES[c].forEach(a => { refreshTraitRow(a, 'abil'); }));
-    
-    window.updatePools();
-    if (window.state.isPlayMode) { window.togglePlayMode(); window.togglePlayMode(); } 
-    window.changeStep(window.state.furthestPhase || 1);
 };
 
 // --- BIND WINDOW FOR HTML EVENTS ---
