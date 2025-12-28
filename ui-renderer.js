@@ -279,9 +279,22 @@ window.updatePools = function() {
     if (window.state.status.tempWillpower === undefined) window.state.status.tempWillpower = window.state.status.willpower || 5;
     if (window.state.status.health_states === undefined || !Array.isArray(window.state.status.health_states)) window.state.status.health_states = [0,0,0,0,0,0,0];
 
-    // FIX: REMOVED AGGRESSIVE RESET OF HUMANITY/WILLPOWER HERE
-    // The previous code block that forced Humanity = Virtues is deleted.
-    // This allows Freebie-purchased points to persist even when not in Freebie Mode.
+    // FIX FOR FRESH CHARACTERS:
+    // This logic detects the specific uninitialized default state (Hum=7, Will=5) where Virtues are still at base (1).
+    // If detected, it forces a sync to the correct base values (Hum=2, Will=1).
+    const bH = (window.state.dots.virt?.Conscience || 1) + (window.state.dots.virt?.["Self-Control"] || 1);
+    const bW = (window.state.dots.virt?.Courage || 1);
+
+    if (!window.state.freebieMode && !window.state.isPlayMode) {
+         // Check if we are at the dangerous "Default" state
+         if (window.state.status.humanity === 7 && bH === 2) {
+             window.state.status.humanity = 2;
+         }
+         if (window.state.status.willpower === 5 && bW === 1) {
+             window.state.status.willpower = 1;
+             window.state.status.tempWillpower = 1;
+         }
+    }
 
     const curH = window.state.status.humanity;
     const curW = window.state.status.willpower;
