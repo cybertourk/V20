@@ -202,6 +202,373 @@ export function renderInventoryList() {
     window.updatePools();
 }
 
+// --- MISSING FUNCTIONS ADDED BELOW ---
+
+export function renderRow(containerId, name, type, min = 1) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    
+    const div = document.createElement('div');
+    div.className = "flex justify-between items-center h-6";
+    const val = window.state.dots[type][name] || min;
+    
+    // Check for specialty
+    let specialtyIndicator = "";
+    if (val >= 4) {
+        const spec = window.state.specialties[name] || "";
+        specialtyIndicator = `<span class="text-[9px] text-[#d4af37] ml-2 italic tracking-tighter">${spec}</span>`;
+    }
+
+    div.innerHTML = `
+        <span class="trait-label cursor-pointer hover:text-white transition-colors" onclick="window.handleTraitClick('${name}', '${type}')">${name}${specialtyIndicator}</span>
+        <div class="dot-row flex" data-n="${name}" data-t="${type}">
+            ${renderDots(val, 5)}
+        </div>
+    `;
+    
+    // Add click listeners to dots
+    const dots = div.querySelectorAll('.dot');
+    dots.forEach(d => {
+        d.onclick = (e) => {
+            const v = parseInt(e.target.dataset.v);
+            window.setDots(name, type, v, min);
+        };
+    });
+    
+    // Specialty Input logic
+    if (val >= 4) {
+        div.querySelector('.trait-label').onclick = (e) => {
+            if(window.state.isPlayMode) window.handleTraitClick(name, type);
+            else promptSpecialty(name);
+        };
+    }
+
+    container.appendChild(div);
+}
+
+function promptSpecialty(name) {
+    if (!window.state.specialties) window.state.specialties = {};
+    const current = window.state.specialties[name] || "";
+    const newSpec = prompt(`Specialty for ${name}:`, current);
+    if (newSpec !== null) {
+        window.state.specialties[name] = newSpec;
+        refreshTraitRow(name, Object.keys(window.state.dots.attr).includes(name) ? 'attr' : 'abil');
+    }
+}
+
+export function refreshTraitRow(name, type) {
+    const dotRows = document.querySelectorAll(`.dot-row[data-n="${name}"][data-t="${type}"]`);
+    dotRows.forEach(row => {
+        const val = window.state.dots[type][name] || 0;
+        row.innerHTML = renderDots(val, 5);
+        
+        row.querySelectorAll('.dot').forEach(d => {
+            d.onclick = (e) => window.setDots(name, type, parseInt(e.target.dataset.v), 0);
+        });
+
+        const label = row.parentElement.querySelector('.trait-label');
+        if(label) {
+            let specHtml = "";
+            if (val >= 4) {
+                if (!window.state.specialties) window.state.specialties = {};
+                const spec = window.state.specialties[name] || "";
+                specHtml = ` <span class="text-[9px] text-[#d4af37] ml-2 italic tracking-tighter">${spec}</span>`;
+                
+                if (!window.state.isPlayMode) {
+                   label.onclick = () => promptSpecialty(name);
+                }
+            } else {
+                 if (!window.state.isPlayMode) label.onclick = null; 
+            }
+            label.innerHTML = `${name}${specHtml}`;
+        }
+    });
+}
+
+export function renderDynamicAdvantageRow(containerId, type, sourceList, isCustom = false) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    container.innerHTML = '';
+
+    const collection = window.state.dots[type] || {};
+    
+    Object.entries(collection).forEach(([name, val]) => {
+        // Skip if standard ability (handled by initUI static rendering)
+        if (type === 'abil' && !isCustom) return; 
+
+        const div = document.createElement('div');
+        div.className = "flex justify-between items-center mb-1";
+        div.innerHTML = `
+            <div class="flex items-center gap-2">
+                ${isCustom || type === 'disc' || type === 'back' ? `<i class="fas fa-minus-circle text-[#500] cursor-pointer text-[10px] hover:text-red-500" onclick="window.removeDynamic('${name}', '${type}')"></i>` : ''}
+                <span class="trait-label cursor-pointer" onclick="window.handleTraitClick('${name}', '${type}')">${name}</span>
+            </div>
+            <div class="dot-row" data-n="${name}" data-t="${type}">
+                ${renderDots(val, 5)}
+            </div>
+        `;
+        
+        div.querySelectorAll('.dot').forEach(d => {
+            d.onclick = (e) => window.setDots(name, type, parseInt(e.target.dataset.v), 1);
+        });
+        
+        container.appendChild(div);
+    });
+
+    const controls = document.createElement('div');
+    controls.className = "flex gap-1 mt-2";
+    
+    if (sourceList && sourceList.length > 0) {
+        const select = document.createElement('select');
+        select.className = "text-[10px] bg-[#111] border border-[#333] text-gray-400 flex-1";
+        select.innerHTML = `<option value="">+ Add ${type === 'disc' ? 'Discipline' : 'Background'}</option>`;
+        sourceList.forEach(item => {
+            if (!window.state.dots[type][item]) {
+                select.add(new Option(item, item));
+            }
+        });
+        select.onchange = (e) => {
+            if(e.target.value) {
+                window.state.dots[type][e.target.value] = 1;
+                if(type==='back') renderSocialProfile();
+                renderDynamicAdvantageRow(containerId, type, sourceList, isCustom);
+                window.updatePools();
+            }
+        };
+        controls.appendChild(select);
+    } 
+    
+    if (isCustom || type === 'disc' || type === 'back') {
+         const input = document.createElement('input');
+         input.type = "text";
+         input.placeholder = "Custom...";
+         input.className = "w-20 text-[10px] bg-[#111] border border-[#333] text-gray-400 px-1";
+         const btn = document.createElement('button');
+         btn.innerHTML = '<i class="fas fa-plus"></i>';
+         btn.className = "text-gray-400 hover:text-white px-2 border border-[#333] text-[10px]";
+         btn.onclick = () => {
+             const val = input.value.trim();
+             if(val) {
+                 window.state.dots[type][val] = 1;
+                 if(type === 'abil' && isCustom) {
+                     let cat = "Talents";
+                     if(containerId.includes('skills')) cat = "Skills";
+                     if(containerId.includes('knowledges')) cat = "Knowledges";
+                     if(!window.state.customAbilityCategories) window.state.customAbilityCategories = {};
+                     window.state.customAbilityCategories[val] = cat;
+                 }
+                 if(type==='back') renderSocialProfile();
+                 renderDynamicAdvantageRow(containerId, type, sourceList, isCustom);
+                 window.updatePools();
+             }
+         };
+         controls.appendChild(input);
+         controls.appendChild(btn);
+    }
+    
+    container.appendChild(controls);
+}
+
+window.removeDynamic = function(name, type) {
+    if(confirm(`Remove ${name}?`)) {
+        delete window.state.dots[type][name];
+        if(window.state.customAbilityCategories) delete window.state.customAbilityCategories[name];
+        window.fullRefresh(); 
+    }
+};
+
+export function renderDynamicTraitRow(containerId, typeLabel, sourceList) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    container.innerHTML = '';
+    
+    const list = typeLabel === 'Merit' ? window.state.merits : window.state.flaws;
+    if(!list) return;
+
+    list.forEach((item, idx) => {
+        const div = document.createElement('div');
+        div.className = "flex justify-between items-center text-xs border-b border-[#222] pb-1";
+        div.innerHTML = `
+            <span class="text-gray-300">${item.n}</span>
+            <div class="flex items-center gap-2">
+                <span class="${typeLabel === 'Merit' ? 'text-gold' : 'text-red-400'} font-bold">${item.val}</span>
+                <i class="fas fa-times text-gray-600 hover:text-red-500 cursor-pointer" onclick="window.removeMF('${typeLabel}', ${idx})"></i>
+            </div>
+        `;
+        container.appendChild(div);
+    });
+
+    const controls = document.createElement('div');
+    controls.className = "mt-2 flex flex-col gap-1";
+    
+    const select = document.createElement('select');
+    select.className = "w-full bg-[#111] border border-[#333] text-[10px] text-gray-400";
+    select.innerHTML = `<option value="">Select ${typeLabel}...</option>`;
+    sourceList.forEach(s => select.add(new Option(`${s.n} (${s.v})`, JSON.stringify(s))));
+    
+    select.onchange = (e) => {
+        if(!e.target.value) return;
+        const data = JSON.parse(e.target.value);
+        if (typeLabel === 'Merit') window.state.merits.push({ n: data.n, val: data.v });
+        else window.state.flaws.push({ n: data.n, val: data.v });
+        
+        renderDynamicTraitRow(containerId, typeLabel, sourceList);
+        window.updatePools();
+        e.target.value = "";
+    };
+    
+    controls.appendChild(select);
+    container.appendChild(controls);
+}
+
+window.removeMF = (type, idx) => {
+    if(type === 'Merit') window.state.merits.splice(idx, 1);
+    else window.state.flaws.splice(idx, 1);
+    window.fullRefresh();
+}
+
+export function renderBloodBondRow() {
+    const c = document.getElementById('blood-bond-list');
+    if(!c) return;
+    c.innerHTML = '';
+    
+    if(!window.state.bloodBonds) window.state.bloodBonds = [];
+    
+    window.state.bloodBonds.forEach((b, i) => {
+        const d = document.createElement('div');
+        d.className = "flex gap-2 mb-2 items-center";
+        d.innerHTML = `
+            <input type="text" value="${b.regnant}" class="bg-[#111] border-b border-[#444] text-xs text-white flex-1 p-1" onchange="window.updateBond(${i}, 'regnant', this.value)" placeholder="Regnant Name">
+            <select class="bg-[#111] text-xs text-red-400 border border-[#333] p-1" onchange="window.updateBond(${i}, 'level', this.value)">
+                <option value="1" ${b.level == 1 ? 'selected' : ''}>1 - Taste</option>
+                <option value="2" ${b.level == 2 ? 'selected' : ''}>2 - Bound</option>
+                <option value="3" ${b.level == 3 ? 'selected' : ''}>3 - Thrall</option>
+            </select>
+            <i class="fas fa-trash text-gray-600 hover:text-red-500 cursor-pointer text-xs" onclick="window.removeBond(${i})"></i>
+        `;
+        c.appendChild(d);
+    });
+    
+    const btn = document.createElement('button');
+    btn.className = "text-[10px] bg-[#222] text-gray-300 px-2 py-1 mt-1 rounded border border-[#444] hover:bg-[#333]";
+    btn.innerText = "+ Add Bond";
+    btn.onclick = () => {
+        window.state.bloodBonds.push({ regnant: "", level: 1 });
+        renderBloodBondRow();
+    };
+    c.appendChild(btn);
+}
+window.updateBond = (i, f, v) => { window.state.bloodBonds[i][f] = v; };
+window.removeBond = (i) => { window.state.bloodBonds.splice(i, 1); renderBloodBondRow(); };
+
+export function renderDerangementsList() {
+    const c = document.getElementById('derangements-list');
+    if(!c) return;
+    c.innerHTML = '';
+    if(!window.state.derangements) window.state.derangements = [];
+    
+    window.state.derangements.forEach((d, i) => {
+        const div = document.createElement('div');
+        div.className = "flex justify-between items-center text-xs border-b border-[#222] py-1";
+        div.innerHTML = `<span class="text-red-300 italic">${d.name}</span><i class="fas fa-trash text-[9px] cursor-pointer hover:text-red-500" onclick="window.removeDerangement(${i})"></i>`;
+        c.appendChild(div);
+    });
+    
+    const inp = document.createElement('div');
+    inp.className = "flex gap-1 mt-2";
+    inp.innerHTML = `
+        <input type="text" id="new-derangement" placeholder="New Derangement" class="flex-1 bg-[#111] border border-[#333] text-[10px] px-1 text-white">
+        <button class="bg-[#333] text-white px-2 text-[10px]" onclick="window.addDerangement()">Add</button>
+    `;
+    c.appendChild(inp);
+}
+window.addDerangement = () => {
+    const el = document.getElementById('new-derangement');
+    if(el && el.value) {
+        window.state.derangements.push({ name: el.value });
+        renderDerangementsList();
+    }
+}
+window.removeDerangement = (i) => {
+    window.state.derangements.splice(i, 1);
+    renderDerangementsList();
+}
+
+export function renderDynamicHavenRow() {
+    const c = document.getElementById('multi-haven-list');
+    if(!c) return;
+    c.innerHTML = '';
+    
+    if(!window.state.havens) window.state.havens = [];
+    
+    window.state.havens.forEach((h, i) => {
+        const d = document.createElement('div');
+        d.className = "bg-black/40 border border-[#333] p-2 mb-2";
+        d.innerHTML = `
+            <div class="flex justify-between mb-1">
+                <input type="text" class="bg-transparent font-bold text-gold text-xs border-b border-[#444] w-2/3" value="${h.name}" placeholder="Haven Name" onchange="window.updateHaven(${i}, 'name', this.value)">
+                <i class="fas fa-trash text-gray-600 hover:text-red-500 cursor-pointer" onclick="window.removeHaven(${i})"></i>
+            </div>
+            <div class="grid grid-cols-2 gap-2 mt-2">
+                <div><label class="text-[9px] uppercase text-gray-500">Location</label><input type="text" class="w-full bg-[#111] text-[10px] text-gray-300 border-none" value="${h.location || ''}" onchange="window.updateHaven(${i}, 'location', this.value)"></div>
+                <div><label class="text-[9px] uppercase text-gray-500">Description</label><input type="text" class="w-full bg-[#111] text-[10px] text-gray-300 border-none" value="${h.desc || ''}" onchange="window.updateHaven(${i}, 'desc', this.value)"></div>
+            </div>
+        `;
+        c.appendChild(d);
+    });
+    
+    const btn = document.createElement('button');
+    btn.className = "text-[10px] bg-[#222] text-gray-300 px-2 py-1 mt-1 rounded border border-[#444] hover:bg-[#333]";
+    btn.innerText = "+ Add Haven";
+    btn.onclick = () => {
+        window.state.havens.push({ name: "New Haven", location: "", desc: "" });
+        renderDynamicHavenRow();
+    };
+    c.appendChild(btn);
+}
+window.updateHaven = (i, f, v) => { window.state.havens[i][f] = v; };
+window.removeHaven = (i) => { window.state.havens.splice(i, 1); renderDynamicHavenRow(); };
+
+export function updateWalkthrough() {
+    const el = document.getElementById('guide-message');
+    if(!el) return;
+    
+    let msg = "Welcome, Neonate.";
+    const step = window.state.currentPhase;
+    
+    if(step === 1) msg = "Step 1: Define your Concept & Clan.";
+    else if(step === 2) msg = "Step 2: Assign Attribute dots (7/5/3).";
+    else if(step === 3) msg = "Step 3: Assign Ability dots (13/9/5).";
+    else if(step === 4) msg = "Step 4: Advantages (Disc 3, Back 5, Virt 7).";
+    else if(step === 5) msg = "Step 5: Details & Possessions.";
+    else if(step === 6) msg = "Step 6: Merits & Flaws.";
+    else if(step === 7) msg = "Step 7: Flesh out your history.";
+    else if(step === 8) msg = "Final Review. Ready to Embrace?";
+    
+    el.innerText = msg;
+    
+    const complete = checkStepComplete(step, window.state);
+    const icon = document.getElementById('guide-icon');
+    if(icon) {
+        if(complete) icon.classList.add('ready');
+        else icon.classList.remove('ready');
+    }
+}
+
+window.nextStep = () => {
+    const cur = window.state.currentPhase;
+    if (checkStepComplete(cur, window.state)) {
+        if(cur < 8) {
+            window.changeStep(cur + 1);
+            if(cur + 1 > window.state.furthestPhase) window.state.furthestPhase = cur + 1;
+        } else {
+            window.togglePlayMode();
+        }
+    } else {
+        window.showNotification("Complete current step first.");
+    }
+};
+
 window.removeInventory = (idx) => { window.state.inventory.splice(idx, 1); renderInventoryList(); };
 window.toggleInvStatus = (idx) => { const item = window.state.inventory[idx]; item.status = item.status === 'carried' ? 'owned' : 'carried'; renderInventoryList(); };
 
@@ -345,7 +712,6 @@ window.updatePools = function() {
 
     const fbBtn = document.getElementById('toggle-freebie-btn');
     if (fbBtn) {
-        // UNLOCKED: Freebie Mode is always accessible
         fbBtn.disabled = false; 
     }
 
@@ -453,7 +819,6 @@ window.updatePools = function() {
                     window.state.textFields['xp-points'] = e.target.value;
                 });
             }
-            // XP Mode Toggle
             const btn = document.getElementById('toggle-xp-mode-btn');
             if(btn) {
                 btn.onclick = () => {
@@ -476,7 +841,6 @@ window.updatePools = function() {
             };
         }
 
-        // Show Play Sheet, Hide Creation
         if (playSheet) {
             playSheet.classList.remove('hidden');
             playSheet.style.display = 'block';
@@ -488,17 +852,14 @@ window.updatePools = function() {
             }
         });
         
-        // Ensure play mode Step 1 is active (or maintain current)
         window.changeStep(1); 
         
     } else {
-        // --- CREATION MODE UPDATES ---
         if (playSheet) {
             playSheet.classList.add('hidden');
             playSheet.style.display = 'none'; 
         }
         
-        // Hide Play Mode containers
         document.querySelectorAll('.step-container').forEach(el => {
             if (el.id.startsWith('play-mode-')) {
                 el.classList.remove('active');
@@ -517,45 +878,36 @@ window.updatePools = function() {
 };
 
 window.changeStep = function(step) {
-    // Determine context (Play Mode vs Creation)
     const isPlay = window.state.isPlayMode;
     const prefix = isPlay ? 'play-mode-' : 'phase-';
     
-    // Hide all relevant containers
     document.querySelectorAll('.step-container').forEach(el => {
-        // Only hide the ones matching the current mode to avoid cross-mode pollution
         if (el.id.startsWith(prefix)) {
             el.classList.remove('active');
         }
     });
 
-    // Show target
     const targetEl = document.getElementById(prefix + step);
     if(targetEl) {
         targetEl.classList.add('active');
-        // If it's Creation Mode, update the global state tracker
         if (!isPlay) window.state.currentPhase = step;
     }
     
-    // Update Nav (if it exists)
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
     const navItem = document.getElementById('nav-' + step);
     if(navItem) navItem.classList.add('active');
     
-    // Scroll top
     window.scrollTo(0,0);
 };
 
 window.togglePlayMode = function() {
-    // Toggle state
     window.state.isPlayMode = !window.state.isPlayMode;
     
     const btn = document.getElementById('play-mode-btn');
     const txt = document.getElementById('play-btn-text');
     
     if (window.state.isPlayMode) {
-        // ENTERING PLAY MODE
-        window.state.freebieMode = false; // Disable freebies automatically
+        window.state.freebieMode = false; 
         if(btn) {
             btn.classList.add('bg-[#d4af37]', 'text-black');
             btn.classList.remove('text-[#d4af37]');
@@ -563,8 +915,7 @@ window.togglePlayMode = function() {
         }
         window.showNotification("Entered Play Mode");
     } else {
-        // EXITING PLAY MODE (Back to Edit)
-        window.state.xpMode = false; // Disable XP mode if active
+        window.state.xpMode = false;
         if(btn) {
             btn.classList.remove('bg-[#d4af37]', 'text-black');
             btn.classList.add('text-[#d4af37]');
@@ -610,20 +961,16 @@ window.renderDynamicHavenRow = renderDynamicHavenRow;
 window.updateWalkthrough = updateWalkthrough;
 
 export function setDots(name, type, val, min, max = 5) {
-    
-    // 1. XP MODE (Explicit Toggle via Button in Play Mode)
     if (window.state.xpMode) {
         const currentVal = (type === 'status') 
             ? (name === 'Humanity' ? window.state.status.humanity : window.state.status.willpower)
             : (window.state.dots[type][name] || min);
             
-        // No action if clicking same value
         if (val === currentVal) return;
         
         const isUpgrade = val > currentVal;
         
         if (isUpgrade) {
-             // Enforce +1 increment for XP buys to ensure correct cost calculation
              if (val > currentVal + 1) {
                  window.showNotification("XP Buy: Can only increase by 1 dot at a time.");
                  return;
@@ -634,13 +981,12 @@ export function setDots(name, type, val, min, max = 5) {
              if (type === 'status') typeKey = name.toLowerCase(); 
              
              let cost = 0;
-             if (type === 'back') cost = 0; // Backgrounds
+             if (type === 'back') cost = 0; 
              else cost = getXpCost(currentVal, typeKey, false, isCaitiff);
              
              const label = type === 'back' ? `${cost} XP (Roleplay Reward?)` : `${cost} XP`;
              
              if (confirm(`Experience Expenditure:\nIncrease ${name} (${currentVal} -> ${val})?\nCost: ${label}`)) {
-                 // Log it
                  const logEl = document.getElementById('xp-points-input');
                  if (logEl) {
                     const date = new Date().toLocaleDateString();
@@ -652,9 +998,7 @@ export function setDots(name, type, val, min, max = 5) {
              } else return;
 
         } else {
-             // Downgrade
              if (!confirm(`Reduce ${name} to ${val}?\nWARNING: No XP is refunded automatically.`)) return;
-             // Log it
              const logEl = document.getElementById('xp-points-input');
              if (logEl) {
                 const date = new Date().toLocaleDateString();
@@ -665,7 +1009,6 @@ export function setDots(name, type, val, min, max = 5) {
              }
         }
 
-        // Apply Update
         if (type === 'status') {
             if (name === 'Humanity') window.state.status.humanity = val;
             if (name === 'Willpower') { window.state.status.willpower = val; window.state.status.tempWillpower = val; }
@@ -673,7 +1016,6 @@ export function setDots(name, type, val, min, max = 5) {
             window.state.dots[type][name] = val;
         }
 
-        // Render
         if (type === 'attr' || type === 'abil') refreshTraitRow(name, type);
         else if (type === 'status') window.updatePools(); 
         else document.querySelectorAll(`.dot-row[data-n="${name}"][data-t="${type}"]`).forEach(el => el.innerHTML = renderDots(val, max));
@@ -682,10 +1024,8 @@ export function setDots(name, type, val, min, max = 5) {
         return;
     }
 
-    // Block standard Play Mode clicks (Read Only)
     if (window.state.isPlayMode && !window.state.xpMode) return;
     
-    // 2. STATUS LOGIC (Freebie Mode)
     if (type === 'status') {
         if (!window.state.freebieMode) return;
         if (name === 'Humanity') {
@@ -699,7 +1039,6 @@ export function setDots(name, type, val, min, max = 5) {
             window.state.status.willpower = val;
             window.state.status.tempWillpower = val;
         }
-        // No hard stop, just UI update
         window.updatePools(); return;
     }
 
@@ -708,11 +1047,8 @@ export function setDots(name, type, val, min, max = 5) {
     if (val === currentVal) newVal = val - 1;
     if (newVal < min) newVal = min;
 
-    // 3. FREEBIE MODE (No Soft Cap, just calculation)
     if (window.state.freebieMode) {
-        // Allow modification freely. Overspending is visible in the ledger.
     } else {
-        // 4. CREATION MODE (STRICT)
         if (type === 'attr') {
             let group = null; Object.keys(ATTRIBUTES).forEach(k => { if(ATTRIBUTES[k].includes(name)) group = k; });
             if (group) {
@@ -747,7 +1083,6 @@ export function setDots(name, type, val, min, max = 5) {
 
     window.state.dots[type][name] = newVal;
     
-    // DELTA LOGIC FOR VIRTUES (Creation Only)
     if (type === 'virt' && !window.state.isPlayMode && !window.state.freebieMode) {
          const delta = newVal - currentVal;
          if (delta !== 0) {
