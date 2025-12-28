@@ -275,30 +275,38 @@ function initUI() {
     }
 }
 
+// --- AUTHENTICATION & STARTUP ---
+
 onAuthStateChanged(auth, async (u) => {
+    const loader = document.getElementById('loading-overlay');
+    
     if(u) {
         user = u;
-        const loader = document.getElementById('loading-overlay');
-        if(loader) loader.style.display = 'none';
+        console.log("User signed in:", user.uid);
 
         try {
+            // 1. POPULATE DROPDOWNS FIRST
+            // This fixes the race condition where data is loaded before options exist.
+            
+            // Nature / Demeanor
             const ns = document.getElementById('c-nature');
             const ds = document.getElementById('c-demeanor');
-            const cs = document.getElementById('c-clan');
-
             if(ns && ds && typeof ARCHETYPES !== 'undefined') {
-                const sortedArch = [...ARCHETYPES].sort(); 
                 ns.innerHTML = '<option value="" disabled selected>Choose Nature...</option>'; 
                 ds.innerHTML = '<option value="" disabled selected>Choose Demeanor...</option>'; 
+                
+                const sortedArch = [...ARCHETYPES].sort(); 
                 sortedArch.forEach(a => { 
                     ns.add(new Option(a,a)); 
-                    if(ds) ds.add(new Option(a,a)); 
+                    ds.add(new Option(a,a)); 
                 });
             }
 
+            // Clans
+            const cs = document.getElementById('c-clan');
             if(cs && typeof CLANS !== 'undefined') {
-                const sortedClans = [...CLANS].sort();
                 cs.innerHTML = '<option value="" disabled selected>Choose Clan...</option>';
+                const sortedClans = [...CLANS].sort();
                 sortedClans.forEach(c => cs.add(new Option(c,c)));
                 
                 // Add listener to auto-populate weakness
@@ -315,9 +323,9 @@ onAuthStateChanged(auth, async (u) => {
                 });
             }
 
+            // Paths
             const ps1 = document.getElementById('c-path-name');
             const ps2 = document.getElementById('c-path-name-create');
-            
             if (typeof PATHS !== 'undefined') {
                 if(ps1) { ps1.innerHTML = ''; PATHS.forEach(p => ps1.add(new Option(p,p))); }
                 if(ps2) { ps2.innerHTML = ''; PATHS.forEach(p => ps2.add(new Option(p,p))); }
@@ -331,16 +339,49 @@ onAuthStateChanged(auth, async (u) => {
                 if(ps1) ps1.value = e.target.value; 
                 if(window.state.textFields) window.state.textFields['c-path-name'] = e.target.value; 
             });
+
+            // 2. HYDRATE INPUTS AFTER POPULATION
+            // This ensures that if we have state loaded, the dropdowns select the correct value
+            hydrateInputs();
+            
+            // Re-check Clan Weakness based on hydrated value
+            const currentClan = document.getElementById('c-clan')?.value;
+            if (currentClan && CLAN_WEAKNESSES[currentClan]) {
+                const weaknessArea = document.getElementById('c-clan-weakness');
+                if (weaknessArea) weaknessArea.value = CLAN_WEAKNESSES[currentClan];
+            }
+
             const freebieInp = document.getElementById('c-freebie-total');
             if(freebieInp) freebieInp.oninput = window.updatePools;
+
+            // Remove Loader
+            if(loader) loader.style.display = 'none';
 
         } catch (dbErr) {
             console.error("DB Init Error:", dbErr);
             window.showNotification("DB Conn Error");
         }
     } else {
-        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) await signInWithCustomToken(auth, __initial_auth_token);
-        else await signInAnonymously(auth);
+        // --- SAFE AUTHENTICATION ---
+        // Wraps auth in try/catch to prevent infinite loading screen
+        try {
+            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                await signInWithCustomToken(auth, __initial_auth_token);
+            } else {
+                await signInAnonymously(auth);
+            }
+        } catch (e) {
+            console.error("Authentication Error:", e);
+            if(loader) {
+                loader.innerHTML = `
+                    <div class="text-center">
+                        <h2 class="text-[#af0000] font-bold text-xl">CONNECTION FAILED</h2>
+                        <p class="text-gray-400 text-xs mt-2">Could not access the archives.</p>
+                        <button onclick="window.location.reload()" class="mt-4 border border-[#444] px-4 py-2 text-white hover:bg-[#222]">RETRY</button>
+                    </div>
+                `;
+            }
+        }
     }
 });
 
