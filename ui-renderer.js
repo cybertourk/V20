@@ -279,14 +279,10 @@ window.updatePools = function() {
     if (window.state.status.tempWillpower === undefined) window.state.status.tempWillpower = window.state.status.willpower || 5;
     if (window.state.status.health_states === undefined || !Array.isArray(window.state.status.health_states)) window.state.status.health_states = [0,0,0,0,0,0,0];
 
-    if (!window.state.freebieMode && !window.state.isPlayMode) {
-        const bH = (window.state.dots.virt?.Conscience || 1) + (window.state.dots.virt?.["Self-Control"] || 1);
-        const bW = (window.state.dots.virt?.Courage || 1);
-        window.state.status.humanity = bH;
-        window.state.status.willpower = bW;
-        window.state.status.tempWillpower = bW;
-    }
-    
+    // FIX: REMOVED AGGRESSIVE RESET OF HUMANITY/WILLPOWER HERE
+    // The previous code block that forced Humanity = Virtues is deleted.
+    // This allows Freebie-purchased points to persist even when not in Freebie Mode.
+
     const curH = window.state.status.humanity;
     const curW = window.state.status.willpower;
     const tempW = window.state.status.tempWillpower;
@@ -322,12 +318,16 @@ window.updatePools = function() {
          setSafeText('sb-disc', Math.max(0, discSpent - 3) * 7);
          setSafeText('sb-back', Math.max(0, backSpent - 5) * 1);
          setSafeText('sb-virt', Math.max(0, (virtTotalDots-3) - 7) * 2);
+         
+         // Calculate Freebie Costs based on Diff from Virtues
          const bH = (window.state.dots.virt?.Conscience || 1) + (window.state.dots.virt?.["Self-Control"] || 1);
          const bW = (window.state.dots.virt?.Courage || 1);
          const cH = window.state.status.humanity !== undefined ? window.state.status.humanity : bH;
          const cW = window.state.status.willpower !== undefined ? window.state.status.willpower : bW;
+         
          setSafeText('sb-human', Math.max(0, cH - bH) * 2);
          setSafeText('sb-will', Math.max(0, cW - bW) * 1);
+         
          let mfCost = 0, mfBonus = 0;
          if (window.state.merits) window.state.merits.forEach(m => mfCost += (parseInt(m.val) || 0));
          if (window.state.flaws) window.state.flaws.forEach(f => mfBonus += (parseInt(f.val) || 0));
@@ -344,7 +344,7 @@ window.updatePools = function() {
     const fbBtn = document.getElementById('toggle-freebie-btn');
     if (fbBtn) {
         const complete = checkCreationComplete(window.state);
-        if (!window.state.freebieMode) fbBtn.disabled = !complete; else fbBtn.disabled = false; 
+        if (!window.state.freebieMode) fbBtn.disabled = !complete.complete; else fbBtn.disabled = false; 
     }
 
     document.querySelectorAll('.dot-row').forEach(el => {
@@ -386,7 +386,6 @@ window.updatePools = function() {
         el.innerHTML = h;
     });
 
-    // --- HEALTH CHART RENDER ---
     const healthCont = document.getElementById('health-chart-play');
     if(healthCont && healthCont.children.length === 0) {
          HEALTH_STATES.forEach((h, i) => {
@@ -398,36 +397,26 @@ window.updatePools = function() {
         });
     }
 
-    // Update Health Boxes
     const healthStates = window.state.status.health_states || [0,0,0,0,0,0,0];
     document.querySelectorAll('#health-chart-play .box').forEach((box, i) => {
         box.classList.remove('checked'); 
         box.dataset.state = healthStates[i] || 0;
     });
     
-    // --- WEAKNESS RENDER (UPDATED) ---
     const weaknessCont = document.getElementById('weakness-play-container');
     if (weaknessCont) {
         weaknessCont.innerHTML = '';
-        
-        // Grab Clan from State or DOM
         const clan = window.state.textFields['c-clan'] || document.getElementById('c-clan')?.value || "None";
         const weaknessText = CLAN_WEAKNESSES[clan] || "Select a Clan to see weakness.";
-        
-        // Grab Custom Note from State
         const customNote = window.state.textFields['custom-weakness'] || "";
-
         weaknessCont.innerHTML = `
             <div class="section-title">Weakness</div>
             <div class="bg-[#111] p-3 border border-[#333] h-full flex flex-col mt-2">
                 <div class="text-[11px] text-gray-300 italic mb-3 leading-snug flex-1">${weaknessText}</div>
-                
                 <div class="text-[9px] font-bold text-gray-500 mb-1 uppercase">Specifics / Notes</div>
                 <textarea id="custom-weakness-input" class="w-full h-16 bg-black border border-[#444] text-[10px] text-white p-2 focus:border-gold outline-none resize-none" placeholder="e.g. 'Only Brunettes'">${customNote}</textarea>
             </div>
         `;
-        
-        // Bind save listener
         const ta = document.getElementById('custom-weakness-input');
         if(ta) {
             ta.addEventListener('blur', (e) => {
@@ -437,17 +426,14 @@ window.updatePools = function() {
         }
     }
 
-    // --- EXPERIENCE RENDER (NEW) ---
     const xpCont = document.getElementById('experience-play-container');
     if (xpCont) {
         xpCont.innerHTML = '';
         const xpVal = window.state.textFields['xp-points'] || "";
-        
         xpCont.innerHTML = `
             <div class="section-title mt-6">Experience</div>
             <textarea id="xp-points-input" class="w-full h-24 mt-2 bg-[#111] border border-[#333] text-[11px] text-white p-2 focus:border-gold outline-none resize-none" placeholder="Log experience points here...">${xpVal}</textarea>
         `;
-
         const xpTa = document.getElementById('xp-points-input');
         if(xpTa) {
             xpTa.addEventListener('blur', (e) => {
@@ -457,7 +443,6 @@ window.updatePools = function() {
         }
     }
 
-    // --- BLOOD PER TURN RENDER (NEW) ---
     const bptInput = document.getElementById('blood-per-turn-input');
     if (bptInput) {
         const savedBPT = window.state.status.blood_per_turn || 1;
@@ -555,16 +540,24 @@ export function renderRow(contId, label, type, min, max = 5) {
     div.id = 'trait-row-' + type + '-' + label.replace(/[^a-zA-Z0-9]/g, '');
     div.className = 'flex items-center justify-between w-full py-1';
     cont.appendChild(div);
-    refreshTraitRow(label, type, div); // Pass the div directly to ensure it updates even before being attached to main DOM
+    refreshTraitRow(label, type, div); 
 }
 
 export function setDots(name, type, val, min, max = 5) {
     if (window.state.isPlayMode) return;
     
+    // Status Logic (Direct Freebie/Play modification)
     if (type === 'status') {
         if (!window.state.freebieMode) return;
-        if (name === 'Humanity') window.state.status.humanity = val;
+        if (name === 'Humanity') {
+             // Ensure we don't drop below the base derived from Virtues
+             const baseH = (window.state.dots.virt?.Conscience || 1) + (window.state.dots.virt?.["Self-Control"] || 1);
+             if (val < baseH) val = baseH; // Floor it
+             window.state.status.humanity = val;
+        }
         else if (name === 'Willpower') {
+            const baseW = window.state.dots.virt?.Courage || 1;
+            if (val < baseW) val = baseW; // Floor it
             window.state.status.willpower = val;
             window.state.status.tempWillpower = val;
         }
@@ -577,6 +570,7 @@ export function setDots(name, type, val, min, max = 5) {
     if (val === currentVal) newVal = val - 1;
     if (newVal < min) newVal = min;
 
+    // Freebie Checks
     if (window.state.freebieMode) {
         const tempState = JSON.parse(JSON.stringify(window.state));
         if (!tempState.dots[type]) tempState.dots[type] = {};
@@ -585,6 +579,7 @@ export function setDots(name, type, val, min, max = 5) {
         const limit = parseInt(document.getElementById('c-freebie-total')?.value) || 15;
         if (projectedCost > limit) { window.showNotification("Freebie Limit Exceeded!"); return; }
     } else {
+        // Creation Mode Checks
         if (type === 'attr') {
             let group = null; Object.keys(ATTRIBUTES).forEach(k => { if(ATTRIBUTES[k].includes(name)) group = k; });
             if (group) {
@@ -619,13 +614,24 @@ export function setDots(name, type, val, min, max = 5) {
 
     window.state.dots[type][name] = newVal;
     
+    // UPDATED VIRTUE LOGIC:
+    // Apply DELTA to derived stats instead of resetting them.
     if (type === 'virt' && !window.state.isPlayMode && !window.state.freebieMode) {
-         const con = window.state.dots.virt.Conscience || 1;
-         const self = window.state.dots.virt["Self-Control"] || 1;
-         const cou = window.state.dots.virt.Courage || 1;
-         window.state.status.humanity = con + self;
-         window.state.status.willpower = cou;
-         window.state.status.tempWillpower = cou;
+         const delta = newVal - currentVal;
+         if (delta !== 0) {
+             if (name === 'Conscience' || name === 'Self-Control') {
+                 if (window.state.status.humanity === undefined) window.state.status.humanity = 2; // Initial Min
+                 window.state.status.humanity += delta;
+                 // Validation: Cannot drop below 0 (unlikely with creation rules)
+                 if (window.state.status.humanity < 0) window.state.status.humanity = 0;
+             }
+             if (name === 'Courage') {
+                 if (window.state.status.willpower === undefined) window.state.status.willpower = 1;
+                 window.state.status.willpower += delta;
+                 window.state.status.tempWillpower = window.state.status.willpower; // Sync temp in creation
+                 if (window.state.status.willpower < 0) window.state.status.willpower = 0;
+             }
+         }
     }
 
     if (type === 'attr' || type === 'abil') {
@@ -1090,29 +1096,20 @@ window.togglePlayMode = function() {
         if (document.getElementById('play-vehicles')) { const pv = document.getElementById('play-vehicles'); pv.innerHTML = ''; if (window.state.inventory) { window.state.inventory.filter(i => i.type === 'Vehicle').forEach(v => { let display = v.displayName || v.name; pv.innerHTML += `<div class="mb-2 border-b border-[#333] pb-1"><div class="font-bold text-white uppercase text-[10px]">${display}</div><div class="text-[9px] text-gray-400">Safe:${v.stats.safe} | Max:${v.stats.max} | Man:${v.stats.man}</div></div>`; }); } }
         if (document.getElementById('play-havens-list')) { const ph = document.getElementById('play-havens-list'); ph.innerHTML = ''; window.state.havens.forEach(h => { ph.innerHTML += `<div class="border-l-2 border-gold pl-4 mb-4"><div class="flex justify-between"><div><div class="font-bold text-white uppercase text-[10px]">${h.name}</div><div class="text-[9px] text-gold italic">${h.loc}</div></div></div><div class="text-xs text-gray-400 mt-1">${h.desc}</div></div>`; }); }
         
-        // --- WEAKNESS RENDER (UPDATED) ---
         const weaknessCont = document.getElementById('weakness-play-container');
         if (weaknessCont) {
             weaknessCont.innerHTML = '';
-            
-            // Grab Clan from State or DOM
             const clan = window.state.textFields['c-clan'] || document.getElementById('c-clan')?.value || "None";
             const weaknessText = CLAN_WEAKNESSES[clan] || "Select a Clan to see weakness.";
-            
-            // Grab Custom Note from State
             const customNote = window.state.textFields['custom-weakness'] || "";
-
             weaknessCont.innerHTML = `
                 <div class="section-title">Weakness</div>
                 <div class="bg-[#111] p-3 border border-[#333] h-full flex flex-col mt-2">
                     <div class="text-[11px] text-gray-300 italic mb-3 leading-snug flex-1">${weaknessText}</div>
-                    
                     <div class="text-[9px] font-bold text-gray-500 mb-1 uppercase">Specifics / Notes</div>
                     <textarea id="custom-weakness-input" class="w-full h-16 bg-black border border-[#444] text-[10px] text-white p-2 focus:border-gold outline-none resize-none" placeholder="e.g. 'Only Brunettes'">${customNote}</textarea>
                 </div>
             `;
-            
-            // Bind save listener
             const ta = document.getElementById('custom-weakness-input');
             if(ta) {
                 ta.addEventListener('blur', (e) => {
@@ -1122,17 +1119,14 @@ window.togglePlayMode = function() {
             }
         }
 
-        // --- EXPERIENCE RENDER (NEW) ---
         const xpCont = document.getElementById('experience-play-container');
         if (xpCont) {
             xpCont.innerHTML = '';
             const xpVal = window.state.textFields['xp-points'] || "";
-            
             xpCont.innerHTML = `
                 <div class="section-title mt-6">Experience</div>
                 <textarea id="xp-points-input" class="w-full h-24 mt-2 bg-[#111] border border-[#333] text-[11px] text-white p-2 focus:border-gold outline-none resize-none" placeholder="Log experience points here...">${xpVal}</textarea>
             `;
-
             const xpTa = document.getElementById('xp-points-input');
             if(xpTa) {
                 xpTa.addEventListener('blur', (e) => {
@@ -1142,7 +1136,6 @@ window.togglePlayMode = function() {
             }
         }
 
-        // --- BLOOD PER TURN RENDER (NEW) ---
         const bptInput = document.getElementById('blood-per-turn-input');
         if (bptInput) {
             const savedBPT = window.state.status.blood_per_turn || 1;
@@ -1152,27 +1145,22 @@ window.togglePlayMode = function() {
             };
         }
 
-        window.changeStep(1); // Force switch to first Play Mode tab (Sheet)
+        window.changeStep(1); 
     } else {
-        // HIDE PLAY SHEET
         if (playSheet) {
             playSheet.classList.add('hidden');
-            playSheet.style.display = 'none'; // Force hide
+            playSheet.style.display = 'none'; 
         }
-
-        // SHOW PHASES (Correct Logic for Edit Mode)
         const current = window.state.currentPhase || 1;
         const currentPhaseEl = document.getElementById(`phase-${current}`);
         if (currentPhaseEl) {
             currentPhaseEl.classList.remove('hidden');
             currentPhaseEl.classList.add('active');
         }
-        
         window.changeStep(window.state.furthestPhase || 1);
     }
 };
 
-// --- BIND WINDOW FOR HTML EVENTS ---
 window.hydrateInputs = hydrateInputs;
 window.renderSocialProfile = renderSocialProfile;
 window.setupInventoryListeners = setupInventoryListeners;
