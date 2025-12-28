@@ -50,6 +50,33 @@ export function hydrateInputs() {
     });
 }
 
+// --- NAVIGATION RENDERER (Restored) ---
+function renderNavigation() {
+    const nav = document.getElementById('sheet-nav');
+    if (!nav) return;
+    
+    nav.innerHTML = ''; // Clear just in case
+
+    STEPS_CONFIG.forEach(step => {
+        const div = document.createElement('div');
+        div.id = `nav-${step.id}`;
+        div.className = `nav-item ${step.id === 1 ? 'active' : ''}`;
+        div.onclick = () => window.changeStep(step.id);
+        
+        // Icon
+        const i = document.createElement('i');
+        i.className = `fas ${step.icon}`;
+        div.appendChild(i);
+        
+        // Tooltip / Text
+        const span = document.createElement('span');
+        span.innerText = step.label;
+        div.appendChild(span);
+        
+        nav.appendChild(div);
+    });
+}
+
 export function renderSocialProfile() {
     const list = document.getElementById('social-profile-list');
     if (!list) return;
@@ -201,8 +228,6 @@ export function renderInventoryList() {
     });
     window.updatePools();
 }
-
-// --- MISSING FUNCTIONS ADDED BELOW ---
 
 export function renderRow(containerId, name, type, min = 1) {
     const container = document.getElementById(containerId);
@@ -881,6 +906,10 @@ window.changeStep = function(step) {
     const isPlay = window.state.isPlayMode;
     const prefix = isPlay ? 'play-mode-' : 'phase-';
     
+    // Check if nav is populated (FIX for empty UI)
+    const navCheck = document.getElementById('sheet-nav');
+    if(navCheck && navCheck.children.length === 0) renderNavigation();
+
     document.querySelectorAll('.step-container').forEach(el => {
         if (el.id.startsWith(prefix)) {
             el.classList.remove('active');
