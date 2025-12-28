@@ -19,67 +19,50 @@ export function calculateTotalFreebiesSpent(state) {
     let spent = 0;
 
     // 1. Attributes (5 pts per dot)
-    // Creation gives: 7 (Primary) + 5 (Secondary) + 3 (Tertiary) + 3 (Base 1 for each of 3 cats) = 18 dots total? 
-    // Actually: 3 attributes per category. Base 1 each.
-    // Phys(3) + Soc(3) + Men(3) = 9 Base dots.
-    // Priorities add: 7 + 5 + 3 = 15 dots.
-    // Total Expected at end of creation = 24 dots.
     let totalAttr = 0;
     Object.keys(ATTRIBUTES).forEach(cat => {
         ATTRIBUTES[cat].forEach(a => {
             totalAttr += (state.dots.attr[a] || 1);
         });
     });
-    // Any dot above 24 costs 5 Freebies
     if (totalAttr > 24) spent += (totalAttr - 24) * 5;
 
     // 2. Abilities (2 pts per dot)
-    // Creation: 13 + 9 + 5 = 27 dots.
     let totalAbil = 0;
     Object.keys(ABILITIES).forEach(cat => {
         ABILITIES[cat].forEach(a => {
             totalAbil += (state.dots.abil[a] || 0);
         });
     });
-    // Add Custom Abilities
     if (state.customAbilityCategories) {
         Object.keys(state.dots.abil).forEach(k => {
             if (state.customAbilityCategories[k]) totalAbil += state.dots.abil[k];
         });
     }
-    // Correct for double counting if custom are in standard list (unlikely but safe)
-    // Simplified: Just iterate all abil dots? No, need to trust the standard sets + custom map.
-    // The previous loop covers standard. Custom map covers write-ins.
     
     if (totalAbil > 27) spent += (totalAbil - 27) * 2;
 
     // 3. Disciplines (7 pts per dot)
-    // Creation: 3 dots.
     let totalDisc = 0;
     Object.values(state.dots.disc || {}).forEach(v => totalDisc += v);
     if (totalDisc > 3) spent += (totalDisc - 3) * 7;
 
     // 4. Backgrounds (1 pt per dot)
-    // Creation: 5 dots.
     let totalBack = 0;
     Object.values(state.dots.back || {}).forEach(v => totalBack += v);
     if (totalBack > 5) spent += (totalBack - 5) * 1;
 
     // 5. Virtues (2 pts per dot)
-    // Creation: 7 dots + 3 Base (1 each) = 10 dots total.
     let totalVirt = 0;
     VIRTUES.forEach(v => totalVirt += (state.dots.virt[v] || 1));
     if (totalVirt > 10) spent += (totalVirt - 10) * 2;
 
     // 6. Humanity / Path (2 pts per dot)
-    // Base = Conscience + Self-Control.
     const baseH = (state.dots.virt?.Conscience || 1) + (state.dots.virt?.["Self-Control"] || 1);
     const currentH = state.status.humanity !== undefined ? state.status.humanity : baseH;
-    if (currentH > baseH) spent += (currentH - baseH) * 2; // Simple calculation, V20 p.83 says cost is 1? 
-    // CHECK RULEBOOK: "Humanity ... 2 per dot". (V20 Core p.84 Chart) -> Correct.
+    if (currentH > baseH) spent += (currentH - baseH) * 2;
 
     // 7. Willpower (1 pt per dot)
-    // Base = Courage.
     const baseW = state.dots.virt?.Courage || 1;
     const currentW = state.status.willpower !== undefined ? state.status.willpower : baseW;
     if (currentW > baseW) spent += (currentW - baseW) * 1;
@@ -89,8 +72,6 @@ export function calculateTotalFreebiesSpent(state) {
     
     let flawBonus = 0;
     if (state.flaws) state.flaws.forEach(f => flawBonus += (parseInt(f.val) || 0));
-    
-    // Max Flaw Bonus is usually 7 points in V20.
     const effectiveBonus = Math.min(flawBonus, 7);
     spent -= effectiveBonus;
 
@@ -119,18 +100,15 @@ export function checkCreationComplete(state) {
     }
 
     // 3. Verify Points Spent Matches Priorities
-    // Attributes
     for (const [group, val] of Object.entries(state.prios.attr)) {
         let sum = 0;
         ATTRIBUTES[group].forEach(a => sum += (state.dots.attr[a] || 1) - 1);
         if (sum !== val) return { complete: false, msg: `Attributes: ${group} needs ${val} dots.` };
     }
 
-    // Abilities
     for (const [group, val] of Object.entries(state.prios.abil)) {
         let sum = 0;
         ABILITIES[group].forEach(a => sum += (state.dots.abil[a] || 0));
-        // Check custom
         if (state.customAbilityCategories) {
             Object.entries(state.customAbilityCategories).forEach(([name, cat]) => {
                 if (cat === group) sum += (state.dots.abil[name] || 0);
@@ -163,17 +141,13 @@ export function checkCreationComplete(state) {
  */
 export function checkStepComplete(step, state) {
     if (step === 1) {
-        // Concept
         const f = state.textFields || {};
         return f['c-name'] && f['c-nature'] && f['c-demeanor'] && f['c-clan'] && f['c-gen'];
     }
     if (step === 2) {
-        // Attributes (7/5/3)
         if (!state.prios?.attr) return false;
         const prios = Object.values(state.prios.attr);
         if (!prios.includes(7) || !prios.includes(5) || !prios.includes(3)) return false;
-        
-        // Check sums
         for (const [group, target] of Object.entries(state.prios.attr)) {
             let sum = 0;
             ATTRIBUTES[group].forEach(a => sum += (state.dots.attr[a] || 1) - 1);
@@ -182,11 +156,9 @@ export function checkStepComplete(step, state) {
         return true;
     }
     if (step === 3) {
-        // Abilities (13/9/5)
         if (!state.prios?.abil) return false;
         const prios = Object.values(state.prios.abil);
         if (!prios.includes(13) || !prios.includes(9) || !prios.includes(5)) return false;
-        
         for (const [group, target] of Object.entries(state.prios.abil)) {
             let sum = 0;
             ABILITIES[group].forEach(a => sum += (state.dots.abil[a] || 0));
@@ -200,26 +172,15 @@ export function checkStepComplete(step, state) {
         return true;
     }
     if (step === 4) {
-        // Advantages
         let dSum = 0; Object.values(state.dots.disc || {}).forEach(v => dSum += v);
         let bSum = 0; Object.values(state.dots.back || {}).forEach(v => bSum += v);
         let vSum = 0; VIRTUES.forEach(v => vSum += (state.dots.virt[v] || 1) - 1);
         return dSum === 3 && bSum === 5 && vSum === 7;
     }
-    if (step === 5) {
-        // Possessions (Optional)
-        return true;
-    }
-    if (step === 6) {
-        // Merits (Optional)
-        return true;
-    }
-    if (step === 7) {
-        // Bio (Optional but encouraged)
-        return true;
-    }
+    if (step === 5) return true;
+    if (step === 6) return true;
+    if (step === 7) return true;
     if (step === 8) {
-        // Finalize
         const createCheck = checkCreationComplete(state);
         return createCheck.complete;
     }
@@ -236,17 +197,74 @@ export function getPool(state, attrName, abilName) {
 }
 
 /**
- * Calculates XP Cost for upgrades (V20 p.124)
+ * Calculates XP Cost for upgrades based on V20 Core p.124
+ * @param {number} currentRating - The dot value the character ALREADY has.
+ * @param {string} type - 'attr', 'abil', 'disc', 'virt', 'humanity', 'willpower', 'path'
+ * @param {boolean} isClan - If the Discipline is in-clan (ignored for Caitiff who use specific rule)
+ * @param {boolean} isCaitiff - If the character is Clanless (all Discs cost x6)
+ * @returns {number} The cost to buy the NEXT dot.
  */
-export function getXpCost(currentRating, type, isClan = false) {
-    const next = currentRating + 1;
+export function getXpCost(currentRating, type, isClan = false, isCaitiff = false) {
+    // Note: currentRating is what you HAVE. We are buying currentRating + 1.
+    // The multiplier applies to the NEW rating (currentRating + 1) for most things,
+    // OR "Current Rating" for Willpower.
+    
+    // Check Chart logic carefully: "current rating x N" usually implies the rating you are GOING TO?
+    // V20 p.124 Chart says: "Current Rating x 4" for Attributes.
+    // Example: Strength 2 to 3. Is cost 2x4=8 or 3x4=12?
+    // Standard V20 interpretation is NEW RATING.
+    // However, the text you provided says "current rating x 4". 
+    // Usually "current rating" in WW books refers to the dot you are buying (the level you are achieving).
+    // Let's stick to the standard V20 convention: Cost to go from 2 to 3 is 3 x Multiplier.
+    // UNLESS it is Willpower which is typically "current rating" meaning the one you have?
+    // Wait, the chart provided says "Willpower... current rating". 
+    // If I have 5 and want 6, cost is 5? That seems low. Standard is often "current rating" (5).
+    
+    const nextDot = currentRating + 1;
+
     switch(type) {
-        case 'attr': return next * 4;
-        case 'abil': return next * 2; 
-        case 'disc': return isClan ? next * 5 : next * 7;
-        case 'virt': return next * 2;
-        case 'humanity': return next * 2;
-        case 'willpower': return currentRating; 
+        case 'attr': 
+            // "Attribute... current rating x 4" -> Standard V20 is New Rating x 4.
+            return nextDot * 4; 
+            
+        case 'abil': 
+            // "New Ability... 3"
+            if (currentRating === 0) return 3;
+            // "Ability... current rating x 2" -> Standard V20 is New Rating x 2.
+            return nextDot * 2;
+            
+        case 'disc': 
+            // "New Discipline... 10"
+            if (currentRating === 0) return 10;
+            
+            // "Caitiff... current rating x 6"
+            if (isCaitiff) return nextDot * 6;
+
+            // "Clan Discipline... current rating x 5" -> Standard V20 is New Rating x 5
+            if (isClan) return nextDot * 5;
+            
+            // "Other Discipline... current rating x 7"
+            return nextDot * 7;
+            
+        case 'virt': 
+            // "Virtue... current rating x 2" -> Standard V20 is New Rating x 2
+            return nextDot * 2;
+            
+        case 'humanity': 
+            // "Humanity... current rating x 2" -> Standard V20 is New Rating x 2
+            return nextDot * 2;
+            
+        case 'willpower': 
+            // "Willpower... current rating" -> Usually implies the cost is the number you HAVE.
+            // Example: 4 to 5 costs 4 XP.
+            return currentRating;
+            
+        case 'path':
+            // "New Path... 7"
+            if (currentRating === 0) return 7;
+            // "Secondary Path... current rating x 4" -> Standard V20 is New Rating x 4
+            return nextDot * 4;
+
         default: return 0;
     }
 }
