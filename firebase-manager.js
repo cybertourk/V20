@@ -107,7 +107,7 @@ export async function deleteCharacter(id, name, event) {
 
 // --- BROWSER UI ---
 
-async function renderFileBrowser(user) {
+export async function renderFileBrowser(user) {
     const browser = document.getElementById('file-browser');
     browser.innerHTML = '<div class="text-center text-gray-500 italic mt-10">Consulting Archives...</div>';
     
@@ -178,7 +178,10 @@ async function renderFileBrowser(user) {
     }
 }
 
-async function loadSelectedChar(data) {
+export async function loadSelectedChar(data) {
+    // Safety check: if no data is passed (e.g. initial auto-load attempt), exit gracefully
+    if (!data) return;
+
     if(!confirm(`Recall ${data.meta?.filename}? Unsaved progress will be lost.`)) return;
     
     window.state = data;
