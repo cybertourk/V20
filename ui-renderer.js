@@ -369,114 +369,143 @@ window.updatePools = function() {
         p8w.onclick = (e) => { if (window.state.freebieMode && e.target.dataset.v) setDots('Willpower', 'status', parseInt(e.target.dataset.v), 1, 10); };
     }
 
-    document.querySelectorAll('#humanity-dots-play').forEach(el => el.innerHTML = renderDots(curH, 10));
-    document.querySelectorAll('#willpower-dots-play').forEach(el => el.innerHTML = renderDots(curW, 10));
-    document.querySelectorAll('#willpower-boxes-play').forEach(el => el.innerHTML = renderBoxes(curW, tempW, 'wp'));
+    const playSheet = document.getElementById('play-mode-sheet');
     
-    const bpContainer = document.querySelectorAll('#blood-boxes-play');
-    bpContainer.forEach(el => {
-        let h = '';
-        const currentBlood = window.state.status.blood || 0;
-        const maxBloodForGen = lim.m;
-        for (let i = 1; i <= 20; i++) {
-            let classes = "box";
-            if (i <= currentBlood) classes += " checked";
-            if (i > maxBloodForGen) classes += " cursor-not-allowed opacity-50 bg-[#1a1a1a]"; else classes += " cursor-pointer";
-            if (i > maxBloodForGen) classes += " pointer-events-none";
-            h += `<span class="${classes}" data-v="${i}" data-type="blood"></span>`;
-        }
-        el.innerHTML = h;
-    });
+    // --- PLAY MODE UPDATES ---
+    if (window.state.isPlayMode) {
 
-    const healthCont = document.getElementById('health-chart-play');
-    if(healthCont && healthCont.children.length === 0) {
-         HEALTH_STATES.forEach((h, i) => {
-            const d = document.createElement('div'); 
-            d.className = 'flex justify-between items-center text-[10px] uppercase border-b border-[#333] py-2 font-bold';
-            const penaltyText = h.p !== 0 ? h.p : '';
-            d.innerHTML = `<span>${h.l}</span><div class="flex gap-3"><span class="text-red-500">${penaltyText}</span><div class="box" data-v="${i+1}" data-type="health"></div></div>`;
-            healthCont.appendChild(d);
+        document.querySelectorAll('#humanity-dots-play').forEach(el => el.innerHTML = renderDots(curH, 10));
+        document.querySelectorAll('#willpower-dots-play').forEach(el => el.innerHTML = renderDots(curW, 10));
+        document.querySelectorAll('#willpower-boxes-play').forEach(el => el.innerHTML = renderBoxes(curW, tempW, 'wp'));
+        
+        const bpContainer = document.querySelectorAll('#blood-boxes-play');
+        bpContainer.forEach(el => {
+            let h = '';
+            const currentBlood = window.state.status.blood || 0;
+            const maxBloodForGen = lim.m;
+            for (let i = 1; i <= 20; i++) {
+                let classes = "box";
+                if (i <= currentBlood) classes += " checked";
+                if (i > maxBloodForGen) classes += " cursor-not-allowed opacity-50 bg-[#1a1a1a]"; else classes += " cursor-pointer";
+                if (i > maxBloodForGen) classes += " pointer-events-none";
+                h += `<span class="${classes}" data-v="${i}" data-type="blood"></span>`;
+            }
+            el.innerHTML = h;
         });
-    }
 
-    const healthStates = window.state.status.health_states || [0,0,0,0,0,0,0];
-    document.querySelectorAll('#health-chart-play .box').forEach((box, i) => {
-        box.classList.remove('checked'); 
-        box.dataset.state = healthStates[i] || 0;
-    });
-    
-    const weaknessCont = document.getElementById('weakness-play-container');
-    if (weaknessCont) {
-        weaknessCont.innerHTML = '';
-        const clan = window.state.textFields['c-clan'] || document.getElementById('c-clan')?.value || "None";
-        const weaknessText = CLAN_WEAKNESSES[clan] || "Select a Clan to see weakness.";
-        const customNote = window.state.textFields['custom-weakness'] || "";
-        weaknessCont.innerHTML = `
-            <div class="section-title">Weakness</div>
-            <div class="bg-[#111] p-3 border border-[#333] h-full flex flex-col mt-2">
-                <div class="text-[11px] text-gray-300 italic mb-3 leading-snug flex-1">${weaknessText}</div>
-                <div class="text-[9px] font-bold text-gray-500 mb-1 uppercase">Specifics / Notes</div>
-                <textarea id="custom-weakness-input" class="w-full h-16 bg-black border border-[#444] text-[10px] text-white p-2 focus:border-gold outline-none resize-none" placeholder="e.g. 'Only Brunettes'">${customNote}</textarea>
-            </div>
-        `;
-        const ta = document.getElementById('custom-weakness-input');
-        if(ta) {
-            ta.addEventListener('blur', (e) => {
-                if(!window.state.textFields) window.state.textFields = {};
-                window.state.textFields['custom-weakness'] = e.target.value;
+        const healthCont = document.getElementById('health-chart-play');
+        if(healthCont && healthCont.children.length === 0) {
+            HEALTH_STATES.forEach((h, i) => {
+                const d = document.createElement('div'); 
+                d.className = 'flex justify-between items-center text-[10px] uppercase border-b border-[#333] py-2 font-bold';
+                const penaltyText = h.p !== 0 ? h.p : '';
+                d.innerHTML = `<span>${h.l}</span><div class="flex gap-3"><span class="text-red-500">${penaltyText}</span><div class="box" data-v="${i+1}" data-type="health"></div></div>`;
+                healthCont.appendChild(d);
             });
         }
-    }
 
-    const xpCont = document.getElementById('experience-play-container');
-    if (xpCont) {
-        xpCont.innerHTML = '';
-        const xpVal = window.state.textFields['xp-points'] || "";
-        xpCont.innerHTML = `
-            <div class="flex justify-between items-center mt-6 mb-1">
-                <div class="section-title !mt-0">Experience</div>
-                <button id="toggle-xp-mode-btn" class="bg-[#333] text-white px-2 py-0.5 text-[9px] border border-[#555] hover:bg-gold hover:text-black uppercase font-bold transition-colors">
-                    ${window.state.xpMode ? "EXIT XP MODE" : "SPEND XP"}
-                </button>
-            </div>
-            <textarea id="xp-points-input" class="w-full h-24 bg-[#111] border ${window.state.xpMode ? 'border-gold' : 'border-[#333]'} text-[11px] text-white p-2 focus:border-gold outline-none resize-none" placeholder="Log experience points here...">${xpVal}</textarea>
-        `;
-        const xpTa = document.getElementById('xp-points-input');
-        if(xpTa) {
-            xpTa.addEventListener('blur', (e) => {
-                if(!window.state.textFields) window.state.textFields = {};
-                window.state.textFields['xp-points'] = e.target.value;
-            });
-        }
-        // XP Mode Toggle
-        const btn = document.getElementById('toggle-xp-mode-btn');
-        if(btn) {
-            btn.onclick = () => {
-                window.state.xpMode = !window.state.xpMode;
-                window.updatePools(); 
-            };
-            if(window.state.xpMode) {
-                btn.style.backgroundColor = '#d4af37';
-                btn.style.color = '#000';
+        const healthStates = window.state.status.health_states || [0,0,0,0,0,0,0];
+        document.querySelectorAll('#health-chart-play .box').forEach((box, i) => {
+            box.classList.remove('checked'); 
+            box.dataset.state = healthStates[i] || 0;
+        });
+        
+        const weaknessCont = document.getElementById('weakness-play-container');
+        if (weaknessCont) {
+            weaknessCont.innerHTML = '';
+            const clan = window.state.textFields['c-clan'] || document.getElementById('c-clan')?.value || "None";
+            const weaknessText = CLAN_WEAKNESSES[clan] || "Select a Clan to see weakness.";
+            const customNote = window.state.textFields['custom-weakness'] || "";
+            weaknessCont.innerHTML = `
+                <div class="section-title">Weakness</div>
+                <div class="bg-[#111] p-3 border border-[#333] h-full flex flex-col mt-2">
+                    <div class="text-[11px] text-gray-300 italic mb-3 leading-snug flex-1">${weaknessText}</div>
+                    <div class="text-[9px] font-bold text-gray-500 mb-1 uppercase">Specifics / Notes</div>
+                    <textarea id="custom-weakness-input" class="w-full h-16 bg-black border border-[#444] text-[10px] text-white p-2 focus:border-gold outline-none resize-none" placeholder="e.g. 'Only Brunettes'">${customNote}</textarea>
+                </div>
+            `;
+            const ta = document.getElementById('custom-weakness-input');
+            if(ta) {
+                ta.addEventListener('blur', (e) => {
+                    if(!window.state.textFields) window.state.textFields = {};
+                    window.state.textFields['custom-weakness'] = e.target.value;
+                });
             }
         }
-    }
 
-    const bptInput = document.getElementById('blood-per-turn-input');
-    if (bptInput) {
-        const savedBPT = window.state.status.blood_per_turn || 1;
-        bptInput.value = savedBPT;
-        bptInput.onchange = (e) => {
-            window.state.status.blood_per_turn = parseInt(e.target.value) || 1;
-        };
-    }
+        const xpCont = document.getElementById('experience-play-container');
+        if (xpCont) {
+            xpCont.innerHTML = '';
+            const xpVal = window.state.textFields['xp-points'] || "";
+            xpCont.innerHTML = `
+                <div class="flex justify-between items-center mt-6 mb-1">
+                    <div class="section-title !mt-0">Experience</div>
+                    <button id="toggle-xp-mode-btn" class="bg-[#333] text-white px-2 py-0.5 text-[9px] border border-[#555] hover:bg-gold hover:text-black uppercase font-bold transition-colors">
+                        ${window.state.xpMode ? "EXIT XP MODE" : "SPEND XP"}
+                    </button>
+                </div>
+                <textarea id="xp-points-input" class="w-full h-24 bg-[#111] border ${window.state.xpMode ? 'border-gold' : 'border-[#333]'} text-[11px] text-white p-2 focus:border-gold outline-none resize-none" placeholder="Log experience points here...">${xpVal}</textarea>
+            `;
+            const xpTa = document.getElementById('xp-points-input');
+            if(xpTa) {
+                xpTa.addEventListener('blur', (e) => {
+                    if(!window.state.textFields) window.state.textFields = {};
+                    window.state.textFields['xp-points'] = e.target.value;
+                });
+            }
+            // XP Mode Toggle
+            const btn = document.getElementById('toggle-xp-mode-btn');
+            if(btn) {
+                btn.onclick = () => {
+                    window.state.xpMode = !window.state.xpMode;
+                    window.updatePools(); 
+                };
+                if(window.state.xpMode) {
+                    btn.style.backgroundColor = '#d4af37';
+                    btn.style.color = '#000';
+                }
+            }
+        }
 
-    window.changeStep(1); 
+        const bptInput = document.getElementById('blood-per-turn-input');
+        if (bptInput) {
+            const savedBPT = window.state.status.blood_per_turn || 1;
+            bptInput.value = savedBPT;
+            bptInput.onchange = (e) => {
+                window.state.status.blood_per_turn = parseInt(e.target.value) || 1;
+            };
+        }
+
+        // Show Play Sheet, Hide Creation
+        if (playSheet) {
+            playSheet.classList.remove('hidden');
+            playSheet.style.display = 'block';
+        }
+        document.querySelectorAll('.step-container').forEach(el => {
+            if (!el.id.startsWith('play-mode-')) {
+                el.classList.remove('active');
+                el.classList.add('hidden');
+            }
+        });
+        
+        // Ensure play mode Step 1 is active (or maintain current)
+        window.changeStep(1); 
+        
     } else {
+        // --- CREATION MODE UPDATES ---
         if (playSheet) {
             playSheet.classList.add('hidden');
             playSheet.style.display = 'none'; 
         }
+        
+        // Hide Play Mode containers
+        document.querySelectorAll('.step-container').forEach(el => {
+            if (el.id.startsWith('play-mode-')) {
+                el.classList.remove('active');
+                el.classList.add('hidden');
+            }
+        });
+
         const current = window.state.currentPhase || 1;
         const currentPhaseEl = document.getElementById(`phase-${current}`);
         if (currentPhaseEl) {
@@ -485,6 +514,85 @@ window.updatePools = function() {
         }
         window.changeStep(window.state.furthestPhase || 1);
     }
+};
+
+window.changeStep = function(step) {
+    // Determine context (Play Mode vs Creation)
+    const isPlay = window.state.isPlayMode;
+    const prefix = isPlay ? 'play-mode-' : 'phase-';
+    
+    // Hide all relevant containers
+    document.querySelectorAll('.step-container').forEach(el => {
+        // Only hide the ones matching the current mode to avoid cross-mode pollution
+        if (el.id.startsWith(prefix)) {
+            el.classList.remove('active');
+        }
+    });
+
+    // Show target
+    const targetEl = document.getElementById(prefix + step);
+    if(targetEl) {
+        targetEl.classList.add('active');
+        // If it's Creation Mode, update the global state tracker
+        if (!isPlay) window.state.currentPhase = step;
+    }
+    
+    // Update Nav (if it exists)
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    const navItem = document.getElementById('nav-' + step);
+    if(navItem) navItem.classList.add('active');
+    
+    // Scroll top
+    window.scrollTo(0,0);
+};
+
+window.togglePlayMode = function() {
+    // Toggle state
+    window.state.isPlayMode = !window.state.isPlayMode;
+    
+    const btn = document.getElementById('play-mode-btn');
+    const txt = document.getElementById('play-btn-text');
+    
+    if (window.state.isPlayMode) {
+        // ENTERING PLAY MODE
+        window.state.freebieMode = false; // Disable freebies automatically
+        if(btn) {
+            btn.classList.add('bg-[#d4af37]', 'text-black');
+            btn.classList.remove('text-[#d4af37]');
+            if(txt) txt.innerText = "EDIT";
+        }
+        window.showNotification("Entered Play Mode");
+    } else {
+        // EXITING PLAY MODE (Back to Edit)
+        window.state.xpMode = false; // Disable XP mode if active
+        if(btn) {
+            btn.classList.remove('bg-[#d4af37]', 'text-black');
+            btn.classList.add('text-[#d4af37]');
+            if(txt) txt.innerText = "PLAY";
+        }
+        window.showNotification("Edit Mode");
+    }
+    
+    window.updatePools();
+};
+
+window.toggleFreebieMode = function() {
+    window.state.freebieMode = !window.state.freebieMode;
+    const btn = document.getElementById('toggle-freebie-btn');
+    const txt = document.getElementById('freebie-btn-text');
+    
+    if (window.state.freebieMode) {
+        if(btn) {
+            btn.classList.add('border-green-400', 'text-green-400');
+            if(txt) txt.innerText = "Freebies ON";
+        }
+    } else {
+        if(btn) {
+            btn.classList.remove('border-green-400', 'text-green-400');
+            if(txt) txt.innerText = "Freebies";
+        }
+    }
+    window.updatePools();
 };
 
 window.hydrateInputs = hydrateInputs;
