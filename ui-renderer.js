@@ -285,9 +285,6 @@ window.updatePools = function() {
         const bH = (window.state.dots.virt?.Conscience || 1) + (window.state.dots.virt?.["Self-Control"] || 1);
         const bW = (window.state.dots.virt?.Courage || 1);
         
-        // Only reset if they are completely uninitialized (Legacy check)
-        // If they have been set via XP/Freebie, we assume they might diverge.
-        // But in Creation, they strictly follow Virtues.
         if (window.state.status.humanity === 7 && bH === 2) window.state.status.humanity = 2;
         if (window.state.status.willpower === 5 && bW === 1) { window.state.status.willpower = 1; window.state.status.tempWillpower = 1; }
     }
@@ -456,7 +453,7 @@ window.updatePools = function() {
         if(btn) {
             btn.onclick = () => {
                 window.state.xpMode = !window.state.xpMode;
-                window.updatePools(); // Refresh UI to update border/state
+                window.updatePools(); 
             };
             if(window.state.xpMode) {
                 btn.style.backgroundColor = '#d4af37';
@@ -603,9 +600,9 @@ export function setDots(name, type, val, min, max = 5) {
     if (val === currentVal) newVal = val - 1;
     if (newVal < min) newVal = min;
 
-    // 3. FREEBIE MODE (Soft Cap Only - No Dialog)
+    // 3. FREEBIE MODE (No Soft Cap, just calculation)
     if (window.state.freebieMode) {
-        // Just allow it. The UI ledger shows overspending.
+        // Allow modification freely. Overspending is visible in the ledger.
     } else {
         // 4. CREATION MODE (STRICT)
         if (type === 'attr') {
