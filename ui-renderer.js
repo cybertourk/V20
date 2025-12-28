@@ -948,10 +948,10 @@ window.changeStep = function(s) {
         if (window.state.isPlayMode) {
              const steps = ["Sheet", "Traits", "Social", "Biography"];
              steps.forEach((text, i) => {
-                const it = document.createElement('div'); it.className = `nav-item ${window.state.currentPhase === (i+1) ? 'active' : ''}`;
-                it.innerHTML = `<i class="fas fa-scroll"></i><span style="display:block; font-size:9px; margin-top:2px;">${text}</span>`;
-                it.onclick = () => window.changeStep(i+1); nav.appendChild(it);
-            });
+                 const it = document.createElement('div'); it.className = `nav-item ${window.state.currentPhase === (i+1) ? 'active' : ''}`;
+                 it.innerHTML = `<i class="fas fa-scroll"></i><span style="display:block; font-size:9px; margin-top:2px;">${text}</span>`;
+                 it.onclick = () => window.changeStep(i+1); nav.appendChild(it);
+             });
         } else {
             const furthest = window.state.furthestPhase || 1;
             STEPS_CONFIG.forEach(step => {
