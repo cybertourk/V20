@@ -1,4 +1,4 @@
-class MechanicsRenderer {
+export default class MechanicsRenderer {
     constructor(uiManager) {
         this.uiManager = uiManager;
     }
@@ -11,114 +11,104 @@ class MechanicsRenderer {
     }
 
     renderWillpower(characterData) {
-        const container = document.getElementById('willpower-section');
-        if (!container) return;
-        container.innerHTML = '<h3>Willpower</h3>';
-
-        const row = document.createElement('div');
-        row.className = 'mechanic-row';
-
-        // Permanent Willpower (Dots)
-        const permCol = document.createElement('div');
-        permCol.className = 'mechanic-col';
-        permCol.innerHTML = '<h4>Permanent</h4>';
-        
-        const permDots = document.createElement('div');
-        permDots.className = 'dots-container';
-        const currentPerm = characterData.willpower || 1;
-        
-        for (let i = 1; i <= 10; i++) {
-            const dot = document.createElement('span');
-            dot.className = i <= currentPerm ? 'dot filled' : 'dot empty';
-            dot.onclick = () => this.uiManager.updateStat('willpower', null, i);
-            permDots.appendChild(dot);
-        }
-        permCol.appendChild(permDots);
-
-        // Temporary Willpower (Squares)
-        const tempCol = document.createElement('div');
-        tempCol.className = 'mechanic-col';
-        tempCol.innerHTML = '<h4>Current</h4>';
-
-        const tempContainer = document.createElement('div');
-        tempContainer.className = 'squares-container';
-        const currentTemp = characterData.willpower_pool !== undefined ? characterData.willpower_pool : currentPerm;
-
-        for (let i = 1; i <= 10; i++) {
-            const square = document.createElement('span');
-            // Show available squares up to Permanent rating
-            if (i > currentPerm) {
-                square.className = 'square disabled';
-            } else {
-                square.className = i <= currentTemp ? 'square filled' : 'square empty';
-                square.onclick = () => this.uiManager.updateStat('willpower_pool', null, i);
+        // --- Create Mode (Phase 8) ---
+        const createContainer = document.getElementById('phase8-willpower-dots');
+        if (createContainer) {
+            createContainer.innerHTML = '';
+            const currentPerm = characterData.willpower || 1;
+            for (let i = 1; i <= 10; i++) {
+                const dot = document.createElement('div');
+                const isFilled = i <= currentPerm;
+                dot.className = `w-3 h-3 rounded-full border border-[#444] cursor-pointer hover:border-white transition-colors ${isFilled ? 'bg-[#af0000] shadow-[0_0_5px_rgba(175,0,0,0.5)]' : 'bg-transparent'}`;
+                dot.onclick = () => this.uiManager.updateStat('willpower', null, i);
+                createContainer.appendChild(dot);
             }
-            tempContainer.appendChild(square);
         }
-        tempCol.appendChild(tempContainer);
 
-        row.appendChild(permCol);
-        row.appendChild(tempCol);
-        container.appendChild(row);
+        // --- Play Mode ---
+        const playDotsContainer = document.getElementById('willpower-dots-play');
+        const playBoxesContainer = document.getElementById('willpower-boxes-play');
+
+        if (playDotsContainer) {
+            playDotsContainer.innerHTML = '';
+            const currentPerm = characterData.willpower || 1;
+            for (let i = 1; i <= 10; i++) {
+                const dot = document.createElement('div');
+                const isFilled = i <= currentPerm;
+                dot.className = `w-3 h-3 rounded-full border border-[#444] mx-[1px] ${isFilled ? 'bg-[#af0000]' : 'bg-transparent'}`;
+                // Usually permanent WP isn't changed easily in play, but we can allow it or make it distinct
+                dot.onclick = () => this.uiManager.updateStat('willpower', null, i);
+                playDotsContainer.appendChild(dot);
+            }
+        }
+
+        if (playBoxesContainer) {
+            playBoxesContainer.innerHTML = '';
+            const currentPerm = characterData.willpower || 1;
+            const currentPool = characterData.willpower_pool !== undefined ? characterData.willpower_pool : currentPerm;
+
+            for (let i = 1; i <= 10; i++) {
+                const box = document.createElement('div');
+                if (i > currentPerm) {
+                    box.className = 'w-6 h-6 border border-[#222] bg-black opacity-30'; // Disabled
+                } else {
+                    const isFilled = i <= currentPool;
+                    // Square box style for temporary points
+                    box.className = `w-6 h-6 border border-[#555] cursor-pointer hover:border-white transition-colors flex items-center justify-center ${isFilled ? 'bg-[#d4af37] text-black shadow-[0_0_5px_rgba(212,175,55,0.4)]' : 'bg-transparent'}`;
+                    
+                    // Click logic: Toggle points. 
+                    box.onclick = () => this.uiManager.updateStat('willpower_pool', null, i);
+                }
+                playBoxesContainer.appendChild(box);
+            }
+        }
     }
 
     renderBloodPool(characterData) {
-        const container = document.getElementById('blood-section');
+        // --- Play Mode Only ---
+        const container = document.getElementById('blood-boxes-play');
         if (!container) return;
-        container.innerHTML = '<h3>Blood Pool</h3>';
+        container.innerHTML = '';
 
-        const poolContainer = document.createElement('div');
-        poolContainer.className = 'squares-container blood-pool';
-
-        // Default max blood for Gen 13 is 10. This logic might need expansion based on Generation.
-        // For now, render 20 squares but disable those above max.
-        const generation = characterData.backgrounds?.find(b => b.name.toLowerCase() === 'generation')?.value || 0;
-        // Simple lookup for V20 max blood based on Generation (approximate)
-        // 13th: 10, 12th: 11, ... 8th: 15, etc. 
-        // Base logic: 10 + (13 - Generation) if Gen <= 13? 
-        // Standard V20: Gen 13=10, 12=11, 11=12, 10=13, 9=14, 8=15, 7=20, 6=30, 5=40, 4=50
-        // We will default to 10 if not set, or allow manual override if data exists.
-        
-        let maxBlood = 10;
-        // Simple mapping for generation
-        const genMap = { 13: 10, 12: 11, 11: 12, 10: 13, 9: 14, 8: 15, 7: 20, 6: 30, 5: 40, 4: 50 };
-        // Calculate generation value (Base 13 usually, minus dots in Generation background isn't direct mapping in V20, usually Generation background adds to starting, decreasing generation.
-        // If 'Generation' background is 1, Gen is 12. If 5, Gen is 8.
-        const genBackground = characterData.backgrounds?.find(b => b.name.toLowerCase() === 'generation');
-        let currentGen = 13;
-        if (genBackground) {
-            currentGen = 13 - genBackground.value;
+        // Calculate Max Blood based on Generation
+        // V20 Core: 13th=10, 12th=11, 11th=12, 10th=13, 9th=14, 8th=15, 7th=20, 6th=30, 5th=40, 4th=50
+        let generation = 13;
+        if (characterData.backgrounds) {
+            const genBg = characterData.backgrounds.find(b => b.name.toLowerCase().includes('generation'));
+            if (genBg) {
+                generation = 13 - genBg.value;
+            }
         }
-        maxBlood = genMap[currentGen] || 10;
-        if (currentGen < 8) maxBlood = genMap[currentGen]; // Higher pools for elders
+        // Manual override if 'Generation' trait exists elsewhere, but usually derived.
+        if (characterData.generation) generation = parseInt(characterData.generation);
+
+        const genMap = { 13: 10, 12: 11, 11: 12, 10: 13, 9: 14, 8: 15, 7: 20, 6: 30, 5: 40, 4: 50 };
+        const maxBlood = genMap[generation] || 10;
 
         const currentBlood = characterData.blood_pool !== undefined ? characterData.blood_pool : maxBlood;
+        
+        // Render 20 boxes grid by default for visual balance, or dynamic
+        const totalBoxesToRender = Math.max(maxBlood, 20); // Maintain grid shape
 
-        const displayMax = Math.max(maxBlood, 20); // Show at least 20 slots for visual consistency
-
-        for (let i = 1; i <= displayMax; i++) {
-            const square = document.createElement('span');
+        for (let i = 1; i <= totalBoxesToRender; i++) {
+            const box = document.createElement('div');
+            
             if (i > maxBlood) {
-                square.className = 'square disabled';
+                 box.className = 'w-5 h-5 border border-[#222] bg-black opacity-20'; // Disabled/Unreachable
             } else {
-                square.className = i <= currentBlood ? 'square filled' : 'square empty';
-                square.onclick = () => this.uiManager.updateStat('blood_pool', null, i);
+                const isFilled = i <= currentBlood;
+                box.className = `w-5 h-5 border border-[#666] cursor-pointer hover:border-red-500 transition-colors ${isFilled ? 'bg-[#8b0000] shadow-[0_0_4px_#f00]' : 'bg-transparent'}`;
+                box.onclick = () => this.uiManager.updateStat('blood_pool', null, i);
             }
-            poolContainer.appendChild(square);
+            container.appendChild(box);
         }
-
-        const info = document.createElement('div');
-        info.className = 'small-text';
-        info.textContent = `Generation: ${currentGen} | Max Blood: ${maxBlood}`;
-
-        container.appendChild(info);
-        container.appendChild(poolContainer);
     }
 
     renderHealth(characterData) {
-        const container = document.getElementById('health-section');
+        // --- Play Mode ---
+        const container = document.getElementById('health-chart-play');
         if (!container) return;
-        container.innerHTML = '<h3>Health</h3>';
+        container.innerHTML = '';
 
         const levels = [
             { name: 'Bruised', penalty: 0 },
@@ -130,65 +120,65 @@ class MechanicsRenderer {
             { name: 'Incapacitated', penalty: 0 }
         ];
 
-        const healthBox = document.createElement('div');
-        healthBox.className = 'health-list';
-
-        // characterData.health could be a number (damage taken)
         const damageTaken = characterData.health || 0;
 
         levels.forEach((level, index) => {
             const row = document.createElement('div');
-            row.className = 'health-row';
+            row.className = 'flex justify-between items-center bg-white/5 p-1 px-2 rounded mb-1 cursor-pointer hover:bg-white/10 transition-colors group';
             
+            // Text Label
             const label = document.createElement('span');
-            label.textContent = `${level.name} (${level.penalty})`;
-            label.className = 'health-label';
+            label.className = `text-[10px] uppercase font-bold w-24 ${index < damageTaken ? 'text-red-400' : 'text-gray-400'}`;
+            label.textContent = level.name;
 
-            const box = document.createElement('span');
-            // If the current index is less than damageTaken, it is marked.
-            // Simplified: 0 damage = no boxes. 1 damage = Bruised box marked.
-            // Standard sheet often marks from top down.
-            const isMarked = (index < damageTaken);
+            // Penalty
+            const pen = document.createElement('span');
+            pen.className = 'text-[10px] text-gray-500 w-8 text-center';
+            pen.textContent = level.penalty === 0 ? '' : level.penalty;
+
+            // Box [ ] / [X] / [/]
+            // Simplified for web: Box is filled if damage reaches this level
+            const box = document.createElement('div');
+            const isMarked = index < damageTaken;
             
-            // Visual style: [ ] vs [X] vs [/]
-            box.className = isMarked ? 'health-box marked' : 'health-box';
-            box.textContent = isMarked ? 'X' : '';
-            
-            // Clicking a box sets damage to that level + 1 (because 0 index is 1st level)
-            // Or toggles. Let's make it set the damage level.
-            box.onclick = () => {
-                // If clicking the current max damage, reduce by 1 (toggle off)
+            box.className = `w-4 h-4 border border-[#555] flex items-center justify-center text-xs font-bold ${isMarked ? 'bg-[#8b0000] text-black border-red-500' : 'bg-black text-transparent'}`;
+            box.textContent = 'X';
+
+            row.onclick = () => {
+                // If clicking the current level, heal one level (go up)
                 if (damageTaken === index + 1) {
                     this.uiManager.updateStat('health', null, index);
                 } else {
+                    // Otherwise set damage to this level
                     this.uiManager.updateStat('health', null, index + 1);
                 }
             };
 
             row.appendChild(label);
+            row.appendChild(pen);
             row.appendChild(box);
-            healthBox.appendChild(row);
+            container.appendChild(row);
         });
-
-        container.appendChild(healthBox);
     }
 
     renderExperience(characterData) {
-        const container = document.getElementById('experience-section');
+        const container = document.getElementById('experience-play-container');
         if (!container) return;
-        
-        container.innerHTML = '<h3>Experience</h3>';
+        container.innerHTML = '';
+
+        const xp = characterData.experience || 0;
         
         const row = document.createElement('div');
-        row.className = 'xp-row';
-
-        const label = document.createElement('label');
-        label.textContent = 'Total Experience:';
+        row.className = 'flex flex-col gap-2';
         
+        const label = document.createElement('label');
+        label.className = 'text-xs text-gold uppercase font-bold tracking-widest';
+        label.textContent = 'Total Experience';
+
         const input = document.createElement('input');
         input.type = 'number';
-        input.value = characterData.experience || 0;
-        input.className = 'xp-input';
+        input.value = xp;
+        input.className = 'w-full bg-[#111] border border-[#333] p-2 text-white font-mono text-center focus:border-gold outline-none';
         input.onchange = (e) => this.uiManager.updateStat('experience', null, parseInt(e.target.value));
 
         row.appendChild(label);
