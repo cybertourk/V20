@@ -1,7 +1,8 @@
 import { auth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "./firebase-config.js";
 import { 
     APP_VERSION, CLANS, ARCHETYPES, PATHS, ATTRIBUTES, ABILITIES, 
-    DISCIPLINES, BACKGROUNDS, VIRTUES, V20_MERITS_LIST, V20_FLAWS_LIST, VIT, CLAN_WEAKNESSES 
+    DISCIPLINES, BACKGROUNDS, VIRTUES, V20_MERITS_LIST, V20_FLAWS_LIST, VIT, 
+    CLAN_WEAKNESSES, CLAN_DISCIPLINES 
 } from "./data.js";
 import * as FBManager from "./firebase-manager.js";
 import { 
@@ -10,13 +11,13 @@ import {
     setupInventoryListeners,
     renderRow, 
     refreshTraitRow,
-    hydrateInputs,
-    renderDynamicAdvantageRow,
-    renderDynamicTraitRow,
-    renderDerangementsList,
-    renderBloodBondRow,
-    renderDynamicHavenRow,
-    renderInventoryList,
+    hydrateInputs, 
+    renderDynamicAdvantageRow, 
+    renderDynamicTraitRow, 
+    renderDerangementsList, 
+    renderBloodBondRow, 
+    renderDynamicHavenRow, 
+    renderInventoryList, 
     updateWalkthrough 
 } from "./ui-renderer.js"; 
 
@@ -309,16 +310,29 @@ onAuthStateChanged(auth, async (u) => {
                 const sortedClans = [...CLANS].sort();
                 sortedClans.forEach(c => cs.add(new Option(c,c)));
                 
-                // Add listener to auto-populate weakness
+                // Add listener to auto-populate weakness AND Disciplines
                 cs.addEventListener('change', (e) => {
                     const clan = e.target.value;
-                    const weaknessArea = document.getElementById('c-clan-weakness');
                     
+                    // A. Weakness
+                    const weaknessArea = document.getElementById('c-clan-weakness');
                     if (weaknessArea && CLAN_WEAKNESSES[clan]) {
                         weaknessArea.value = CLAN_WEAKNESSES[clan];
                         // Also update state for persistence
                         if (!window.state.textFields) window.state.textFields = {};
                         window.state.textFields['c-clan-weakness'] = CLAN_WEAKNESSES[clan];
+                    }
+
+                    // B. Disciplines (Auto-fill 3 in-clan)
+                    if (CLAN_DISCIPLINES && CLAN_DISCIPLINES[clan]) {
+                        // Reset disc state
+                        window.state.dots.disc = {};
+                        // Add the 3 clan disciplines with 0 dots
+                        CLAN_DISCIPLINES[clan].forEach(d => {
+                            window.state.dots.disc[d] = 0;
+                        });
+                        // Update UI immediately
+                        renderDynamicAdvantageRow('list-disc', 'disc', DISCIPLINES);
                     }
                 });
             }
