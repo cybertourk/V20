@@ -37,6 +37,43 @@ export const BACKGROUNDS = [
     'Generation', 'Herd', 'Influence', 'Mentor', 'Resources', 'Retainers', 'Rituals', 'Status'
 ];
 
+// V20 Core Page 270 (Generation Charts)
+export const GEN_LIMITS = {
+    13: { traitMax: 5, bloodPool: 10, bloodPerTurn: 1 },
+    12: { traitMax: 5, bloodPool: 11, bloodPerTurn: 1 },
+    11: { traitMax: 5, bloodPool: 12, bloodPerTurn: 1 },
+    10: { traitMax: 5, bloodPool: 13, bloodPerTurn: 1 },
+    9:  { traitMax: 5, bloodPool: 14, bloodPerTurn: 2 },
+    8:  { traitMax: 5, bloodPool: 15, bloodPerTurn: 3 },
+    7:  { traitMax: 6, bloodPool: 20, bloodPerTurn: 4 },
+    6:  { traitMax: 7, bloodPool: 30, bloodPerTurn: 6 },
+    5:  { traitMax: 8, bloodPool: 40, bloodPerTurn: 8 },
+    4:  { traitMax: 9, bloodPool: 50, bloodPerTurn: 10 }
+};
+
+export const FREEBIE_COSTS = {
+    attributes: 5,
+    abilities: 2,
+    disciplines: 7,
+    backgrounds: 1,
+    virtues: 2,
+    humanity: 1, // Often 2 in some editions, V20 usually 2, checking V20 Core p.83... it says "Humanity 1 per dot" ? No, usually 2. Wait.
+    // V20 Core p. 83: Humanity/Path = 1 per dot. Virtues = 2 per dot. Willpower = 1 per dot.
+    willpower: 1
+};
+
+export const XP_COSTS = {
+    newAbility: 3,
+    newPath: 7, // Necromancy/Thaumaturgy path
+    attribute: 4, // x current rating
+    ability: 2,   // x current rating
+    clanDiscipline: 5, // x current rating
+    otherDiscipline: 7, // x current rating
+    virtue: 2,    // x current rating
+    humanity: 2,  // x current rating
+    willpower: 1  // x current rating
+};
+
 // --- Blank Character Template (Default Export) ---
 const blankTemplate = {
     name: "",
