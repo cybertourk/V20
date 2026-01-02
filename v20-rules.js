@@ -1,4 +1,4 @@
-import { ATTRIBUTES, ABILITIES, DISCIPLINES, BACKGROUNDS, VIRTUES, V20_MERITS_LIST, V20_FLAWS_LIST } from "./data.js";
+import { ATTRIBUTES, ABILITIES, DISCIPLINES, BACKGROUNDS, VIRTUES, V20_MERITS_LIST, V20_FLAWS_LIST, GEN_LIMITS } from "./data.js";
 
 // --- CONSTANTS ---
 
@@ -142,7 +142,11 @@ export function checkCreationComplete(state) {
 export function checkStepComplete(step, state) {
     if (step === 1) {
         const f = state.textFields || {};
-        return f['c-name'] && f['c-nature'] && f['c-demeanor'] && f['c-clan'] && f['c-gen'];
+        // Ensure values exist and are strings (specifically for c-gen which might be number 13 or string "13")
+        const hasName = f['c-name'] && f['c-name'].trim() !== "";
+        const hasClan = f['c-clan'] && f['c-clan'].trim() !== "";
+        const hasGen = (f['c-gen'] !== undefined && f['c-gen'] !== null && f['c-gen'] !== "");
+        return hasName && hasClan && hasGen;
     }
     if (step === 2) {
         if (!state.prios?.attr) return false;
@@ -267,4 +271,27 @@ export function getXpCost(currentRating, type, isClan = false, isCaitiff = false
 
         default: return 0;
     }
+}
+
+/**
+ * Calculates generation and blood limits based on dots in Generation background.
+ * @param {number} dots - Dots in "Generation" background (0-5).
+ * @returns {Object} { generation: number, maxBlood: number, bpPerTurn: number }
+ */
+export function getGenerationDerivedStats(dots = 0) {
+    const baseGen = 13;
+    const currentGen = baseGen - dots; // 13 - 0 = 13th, 13 - 5 = 8th
+    
+    // Safety clamp (though inputs should handle this)
+    const effectiveGen = Math.max(8, Math.min(13, currentGen));
+    
+    // Look up in GEN_LIMITS from data.js
+    // Keys in GEN_LIMITS are numbers like 13, 12, etc.
+    const limits = GEN_LIMITS[effectiveGen] || { m: 10, pt: 1 };
+
+    return {
+        generation: effectiveGen,
+        maxBlood: limits.m,
+        bpPerTurn: limits.pt
+    };
 }
