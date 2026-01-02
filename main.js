@@ -1,16 +1,12 @@
 import UIRenderer from './ui-renderer.js';
-// We assume these files default export their data/classes based on typical module patterns
-// If they use named exports, we might need { rules } syntax, but default is safest for now.
-import rules from './v20-rules.js'; 
-// If data.js exports a generic character template
-import { defaultCharacter } from './data.js'; 
-// Importing Firebase logic if needed, or assuming it handles itself via side-effects/window if it was legacy
-// But since you had import errors, we assume they are modules.
+import rules from './v20-rules.js';
+import blankTemplate from './data.js'; 
 import * as FirebaseManager from './firebase-manager.js'; 
 
 class MainApp {
     constructor() {
-        this.characterData = JSON.parse(JSON.stringify(defaultCharacter || {}));
+        // Use the blankTemplate imported from data.js
+        this.characterData = JSON.parse(JSON.stringify(blankTemplate || {}));
         this.rules = rules;
         
         // Initialize Renderer with reference to this App and the Rules
@@ -35,8 +31,6 @@ class MainApp {
 
     updateCalculatedStats() {
         // Update Freebie points, pool costs, etc.
-        // This logic would mirror your original calculateCosts() 
-        // For now, we update the visual counters based on data
         this.updatePoolCounters();
     }
 
@@ -48,8 +42,7 @@ class MainApp {
         };
         update('p-disc', this.characterData.disciplines);
         update('p-back', this.characterData.backgrounds);
-        // Virtues is an object, so we count keys or sum values? Usually fixed 3.
-        // If you need specific logic for freebie calculation, it goes here.
+        // Virtues default to 3 dots usually, handled by renderer
     }
 
     // --- Data Management Methods called by UI Renderer ---
@@ -153,11 +146,10 @@ class MainApp {
                 const isPlay = !playSheet.classList.contains('hidden');
                 if (isPlay) {
                     playSheet.classList.add('hidden');
-                    // Show Create phases (logic to show active phase needed)
-                    // For now, simple toggle
+                    sheetContent.classList.remove('hidden'); // Ensure create mode is visible
                 } else {
                     playSheet.classList.remove('hidden');
-                    // Hide Create phases
+                    sheetContent.classList.add('hidden'); // Hide create mode
                 }
                 this.render(); // Re-render to populate play mode fields
             }
