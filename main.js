@@ -1,388 +1,198 @@
-import { auth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "./firebase-config.js";
+// cybertourk/v20/V20-5147783a6c880fca5723408a9242fe67e1fd0b0f/main.js
 import { 
-    APP_VERSION, CLANS, ARCHETYPES, PATHS, ATTRIBUTES, ABILITIES, 
-    DISCIPLINES, BACKGROUNDS, VIRTUES, V20_MERITS_LIST, V20_FLAWS_LIST, VIT, CLAN_WEAKNESSES 
+    APP_VERSION, CLANS, ARCHETYPES, CLAN_WEAKNESSES, CLAN_DISCIPLINES,
+    ATTRIBUTES, ABILITIES, BACKGROUNDS, DISCIPLINES, VIRTUES,
+    STEPS_CONFIG, GEN_LIMITS, HEALTH_STATES, SPECIALTY_EXAMPLES
 } from "./data.js";
-import * as FBManager from "./firebase-manager.js";
-import { 
-    renderDots, 
-    renderSocialProfile, 
-    setupInventoryListeners,
-    renderRow, 
-    refreshTraitRow,
-    hydrateInputs,
-    renderDynamicAdvantageRow,
-    renderDynamicTraitRow,
-    renderDerangementsList,
-    renderBloodBondRow,
-    renderDynamicHavenRow,
-    renderInventoryList,
-    updateWalkthrough 
-} from "./ui-renderer.js"; 
 
-// --- ERROR HANDLER ---
-window.onerror = function(msg, url, line) {
-    const notif = document.getElementById('notification');
-    if(notif) {
-        notif.innerText = "ERROR: " + msg;
-        notif.style.display = 'block';
-        notif.style.backgroundColor = 'red';
-    }
-    console.error("Global Error:", msg, "Line:", line);
-};
+import { 
+    checkStepComplete, calculateTotalFreebiesSpent, getPool, checkCreationComplete 
+} from "./v20-rules.js";
+
+import { 
+    renderSheet, updateLedger, initializeUI, toggleSidebarLedger, 
+    clearPool, rollPool, togglePlayMode, nextStep 
+} from "./ui-renderer.js";
 
 // --- STATE MANAGEMENT ---
-window.state = {
-    isPlayMode: false, freebieMode: false, activePool: [], currentPhase: 1, furthestPhase: 1,
-    dots: { attr: {}, abil: {}, disc: {}, back: {}, virt: {}, other: {} },
-    prios: { attr: {}, abil: {} },
-    status: { humanity: 7, willpower: 5, tempWillpower: 5, health_states: [0,0,0,0,0,0,0], blood: 0 },
-    specialties: {}, 
-    socialExtras: {}, textFields: {}, havens: [], bloodBonds: [], vehicles: [], customAbilityCategories: {},
-    derangements: [], merits: [], flaws: [], inventory: [],
-    meta: { filename: "", folder: "" } 
+export const currentUser = {
+    meta: {
+        version: APP_VERSION,
+        created: new Date().toISOString(),
+        step: 1
+    },
+    textFields: {
+        "c-name": "", "c-player": "", "c-chronicle": "",
+        "c-nature": "", "c-demeanor": "", "c-concept": "",
+        "c-clan": "", "c-gen": "13", "c-sire": "",
+        "c-clan-weakness": ""
+    },
+    dots: {
+        attr: {
+            "Strength": 1, "Dexterity": 1, "Stamina": 1,
+            "Charisma": 1, "Manipulation": 1, "Appearance": 1,
+            "Perception": 1, "Intelligence": 1, "Wits": 1
+        },
+        abil: {},
+        disc: {},
+        back: {},
+        virt: {
+            "Conscience": 1, "Self-Control": 1, "Courage": 1
+        }
+    },
+    prios: {
+        attr: { Physical: 0, Social: 0, Mental: 0 },
+        abil: { Talents: 0, Skills: 0, Knowledges: 0 }
+    },
+    status: {
+        humanity: null,
+        willpower: null,
+        blood: 10,
+        health: 0
+    },
+    merits: [],
+    flaws: [],
+    inventory: [],
+    customAbilityCategories: {} // To track which custom ability belongs to which cat
 };
 
-let user = null;
-
-// --- BINDING EXPORTS TO WINDOW ---
-window.handleNew = FBManager.handleNew;
-window.handleSaveClick = FBManager.handleSaveClick;
-window.handleLoadClick = FBManager.handleLoadClick;
-window.performSave = FBManager.performSave;
-window.deleteCharacter = FBManager.deleteCharacter;
-
-// --- CRITICAL FIX: FULL UI REFRESH FUNCTION ---
-window.fullRefresh = function() {
-    try {
-        console.log("Starting Full UI Refresh...");
-        
-        // 1. Text Fields
-        hydrateInputs();
-        
-        // 2. Dynamic Rows
-        renderDynamicAdvantageRow('list-disc', 'disc', DISCIPLINES);
-        renderDynamicAdvantageRow('list-back', 'back', BACKGROUNDS);
-        renderDynamicAdvantageRow('custom-talents', 'abil', [], true);
-        renderDynamicAdvantageRow('custom-skills', 'abil', [], true);
-        renderDynamicAdvantageRow('custom-knowledges', 'abil', [], true);
-        renderDerangementsList();
-        renderBloodBondRow();
-        renderDynamicHavenRow();
-        renderInventoryList();
-        renderDynamicTraitRow('merits-list-create', 'Merit', V20_MERITS_LIST);
-        renderDynamicTraitRow('flaws-list-create', 'Flaw', V20_FLAWS_LIST);
-        
-        // 3. Priority Buttons
-        if (window.state.prios) {
-            document.querySelectorAll('.prio-btn').forEach(btn => {
-                const { cat, group, v } = btn.dataset;
-                const savedVal = window.state.prios[cat]?.[group];
-                if (savedVal == v) {
-                    btn.classList.add('active');
-                } else {
-                    btn.classList.remove('active');
-                }
-            });
-        }
-        
-        // 4. Standard Rows
-        Object.keys(ATTRIBUTES).forEach(c => ATTRIBUTES[c].forEach(a => { refreshTraitRow(a, 'attr'); }));
-        Object.keys(ABILITIES).forEach(c => ABILITIES[c].forEach(a => { refreshTraitRow(a, 'abil'); }));
-
-        // 5. Other Traits
-        for(let i=0; i<8; i++) {
-            const nameInput = document.getElementById(`ot-n-${i}`);
-            if(nameInput) {
-                const name = nameInput.value || `Other_${i}`;
-                const val = window.state.dots.other[name] || 0;
-                const dr = document.getElementById(`ot-dr-${i}`);
-                if(dr) dr.innerHTML = renderDots(val, 5);
-            }
-        }
-        
-        // 6. Virtues
-        VIRTUES.forEach(v => {
-            const row = document.querySelector(`#list-virt .dot-row[data-n="${v}"]`);
-            if(row) row.innerHTML = renderDots(window.state.dots.virt[v] || 1, 5);
-        });
-
-        // 7. Update Weakness if Clan is Selected
-        const currentClan = window.state.textFields['c-clan'];
-        if (currentClan && CLAN_WEAKNESSES[currentClan]) {
-            const weaknessArea = document.getElementById('c-clan-weakness');
-            if (weaknessArea) weaknessArea.value = CLAN_WEAKNESSES[currentClan];
-        }
-
-        renderSocialProfile();
-        updateWalkthrough();
-        window.updatePools();
-        
-        console.log("UI Refresh Complete.");
-        
-        // Restore Phase
-        if(window.state.furthestPhase) window.changeStep(window.state.furthestPhase);
-
-    } catch(e) {
-        console.error("Refresh Error:", e);
-        window.showNotification("Error Refreshing UI");
-    }
-};
-
-// --- INITIALIZATION LOGIC ---
-
-function initUI() {
-    try {
-        if (!document.getElementById('sheet-nav')) throw new Error("Navigation container 'sheet-nav' is missing from HTML.");
-
-        const vSpan = document.getElementById('app-version');
-        if(vSpan) vSpan.innerText = APP_VERSION;
-
-        const s1 = document.getElementById('list-attr-physical');
-        if (s1) {
-            Object.keys(ATTRIBUTES).forEach(c => ATTRIBUTES[c].forEach(a => { 
-                window.state.dots.attr[a] = 1; 
-                renderRow('list-attr-'+c.toLowerCase(), a, 'attr', 1); 
-            }));
-            Object.keys(ABILITIES).forEach(c => ABILITIES[c].forEach(a => { 
-                window.state.dots.abil[a] = 0; 
-                renderRow('list-abil-'+c.toLowerCase(), a, 'abil', 0); 
-            }));
-        }
-        
-        renderDynamicAdvantageRow('list-disc', 'disc', DISCIPLINES);
-        renderDynamicAdvantageRow('list-back', 'back', BACKGROUNDS);
-        renderDynamicAdvantageRow('custom-talents', 'abil', [], true);
-        renderDynamicAdvantageRow('custom-skills', 'abil', [], true);
-        renderDynamicAdvantageRow('custom-knowledges', 'abil', [], true);
-        renderDerangementsList(); 
-        VIRTUES.forEach(v => { window.state.dots.virt[v] = 1; renderRow('list-virt', v, 'virt', 1); });
-        
-        const vitalCont = document.getElementById('vitals-create-inputs');
-        if(vitalCont) {
-            vitalCont.innerHTML = ''; 
-            VIT.forEach(v => { 
-                const d = document.createElement('div'); 
-                d.innerHTML = `<label class="label-text">${v}</label><input type="text" id="bio-${v}">`; 
-                vitalCont.appendChild(d); 
-            });
-        }
-        
-        renderDynamicTraitRow('merits-list-create', 'Merit', V20_MERITS_LIST);
-        renderDynamicTraitRow('flaws-list-create', 'Flaw', V20_FLAWS_LIST);
-        renderInventoryList();
-        renderSocialProfile();
-        setupInventoryListeners();
-        
-        const otherT = document.getElementById('other-traits-rows-create');
-        if(otherT) for(let i=0; i<8; i++) {
-            const d2 = document.createElement('div'); d2.className = 'flex items-center gap-2 mb-2';
-            d2.innerHTML = `<input type="text" id="ot-n-${i}" placeholder="Other..." class="w-40 text-[11px] font-bold"><div class="dot-row" id="ot-dr-${i}"></div>`;
-            otherT.appendChild(d2);
-            const dr = d2.querySelector('.dot-row'); dr.innerHTML = renderDots(0, 5); 
-            dr.onclick = (e) => { 
-                const n = document.getElementById(`ot-n-${i}`).value || `Other_${i}`; 
-                if(e.target.classList.contains('dot')) { 
-                    let v = parseInt(e.target.dataset.v); 
-                    const currentVal = window.state.dots.other[n] || 0; 
-                    if (v === currentVal) v = v - 1; 
-                    window.state.dots.other[n] = v; 
-                    dr.innerHTML = renderDots(window.state.dots.other[n], 5);
-                } 
-            };
-        }
-        
-        document.querySelectorAll('.prio-btn').forEach(b => b.onclick = (e) => {
-            const {cat, group, v} = e.target.dataset;
-            const catGroups = cat === 'attr' ? ['Physical', 'Social', 'Mental'] : ['Talents', 'Skills', 'Knowledges'];
-            catGroups.forEach(g => {
-                if (window.state.prios[cat][g] === parseInt(v)) {
-                    window.state.prios[cat][g] = null;
-                    if (cat === 'attr') { 
-                        ATTRIBUTES[g].forEach(a => { window.state.dots.attr[a] = 1; const row = document.querySelector(`.dot-row[data-n="${a}"][data-t="attr"]`); if(row) window.setDots(a, 'attr', 1, 1); }); 
-                    } else { 
-                        ABILITIES[g].forEach(a => { window.state.dots.abil[a] = 0; window.setDots(a, 'abil', 0, 0); }); 
-                        if (window.state.customAbilityCategories) { Object.entries(window.state.customAbilityCategories).forEach(([name, c]) => { if (c === g) window.state.dots.abil[name] = 0; }); } 
-                    }
-                }
-            });
-            window.state.prios[cat][group] = parseInt(v);
-            document.querySelectorAll(`.prio-btn[data-cat="${cat}"]`).forEach(el => { const isActive = window.state.prios[cat][el.dataset.group] == el.dataset.v; el.classList.toggle('active', isActive); });
-            window.updatePools();
-        });
-
-        renderBloodBondRow();
-        renderDynamicHavenRow();
-        
-        const criticalFields = ['c-name', 'c-nature', 'c-demeanor', 'c-clan', 'c-player', 'c-concept', 'c-sire'];
-        criticalFields.forEach(id => {
-            const el = document.getElementById(id);
-            if(el) {
-                const updateState = (e) => { window.state.textFields[id] = e.target.value; updateWalkthrough(); };
-                el.addEventListener('keyup', updateState);
-                el.addEventListener('change', updateState);
-            }
-        });
-
-        document.body.addEventListener('change', (e) => {
-            if(e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') {
-                if(e.target.id && !e.target.id.startsWith('search')) { window.state.textFields[e.target.id] = e.target.value; }
-            }
-        });
-
-        const cmdNew = document.getElementById('cmd-new');
-        if(cmdNew) cmdNew.onclick = window.handleNew;
-        const cmdSave = document.getElementById('cmd-save');
-        if(cmdSave) cmdSave.onclick = window.handleSaveClick;
-        const cmdLoad = document.getElementById('cmd-load');
-        if(cmdLoad) cmdLoad.onclick = window.handleLoadClick;
-        const confirmSave = document.getElementById('confirm-save-btn');
-        if(confirmSave) confirmSave.onclick = window.performSave;
-        const topPlayBtn = document.getElementById('play-mode-btn');
-        if(topPlayBtn) topPlayBtn.onclick = window.togglePlayMode;
-        const topFreebieBtn = document.getElementById('toggle-freebie-btn');
-        if(topFreebieBtn) topFreebieBtn.onclick = window.toggleFreebieMode;
-
-        document.addEventListener('click', function(e) {
-            if (!window.state.isPlayMode) return;
-            if (!e.target.classList.contains('box')) return;
-            
-            const type = e.target.dataset.type;
-            const val = parseInt(e.target.dataset.v);
-            if (!type || isNaN(val)) return;
-
-            if (type === 'wp') {
-                if (window.state.status.tempWillpower === val) window.state.status.tempWillpower = val - 1;
-                else window.state.status.tempWillpower = val;
-            } else if (type === 'blood') {
-                if (window.state.status.blood === val) window.state.status.blood = val - 1;
-                else window.state.status.blood = val;
-            } else if (type === 'health') {
-                const idx = val - 1; 
-                if (window.state.status.health_states === undefined) window.state.status.health_states = [0,0,0,0,0,0,0];
-                const current = window.state.status.health_states[idx] || 0;
-                window.state.status.health_states[idx] = (current + 1) % 4;
-            }
-            window.updatePools();
-        });
-
-        window.changeStep(1); 
-
-    } catch(e) {
-        console.error("UI Init Error:", e);
-        const notif = document.getElementById('notification');
-        if(notif) { notif.innerText = "CRITICAL INIT ERROR: " + e.message; notif.style.display = 'block'; }
-    }
-}
-
-// --- AUTHENTICATION & STARTUP ---
-
-onAuthStateChanged(auth, async (u) => {
-    const loader = document.getElementById('loading-overlay');
+// --- INITIALIZATION ---
+document.addEventListener("DOMContentLoaded", () => {
+    initializeUI(currentUser);
+    setupEventListeners();
     
-    if(u) {
-        user = u;
-        console.log("User signed in:", user.uid);
-
-        try {
-            // 1. POPULATE DROPDOWNS FIRST
-            // This fixes the race condition where data is loaded before options exist.
-            
-            // Nature / Demeanor
-            const ns = document.getElementById('c-nature');
-            const ds = document.getElementById('c-demeanor');
-            if(ns && ds && typeof ARCHETYPES !== 'undefined') {
-                ns.innerHTML = '<option value="" disabled selected>Choose Nature...</option>'; 
-                ds.innerHTML = '<option value="" disabled selected>Choose Demeanor...</option>'; 
-                
-                const sortedArch = [...ARCHETYPES].sort(); 
-                sortedArch.forEach(a => { 
-                    ns.add(new Option(a,a)); 
-                    ds.add(new Option(a,a)); 
-                });
-            }
-
-            // Clans
-            const cs = document.getElementById('c-clan');
-            if(cs && typeof CLANS !== 'undefined') {
-                cs.innerHTML = '<option value="" disabled selected>Choose Clan...</option>';
-                const sortedClans = [...CLANS].sort();
-                sortedClans.forEach(c => cs.add(new Option(c,c)));
-                
-                // Add listener to auto-populate weakness
-                cs.addEventListener('change', (e) => {
-                    const clan = e.target.value;
-                    const weaknessArea = document.getElementById('c-clan-weakness');
-                    
-                    if (weaknessArea && CLAN_WEAKNESSES[clan]) {
-                        weaknessArea.value = CLAN_WEAKNESSES[clan];
-                        // Also update state for persistence
-                        if (!window.state.textFields) window.state.textFields = {};
-                        window.state.textFields['c-clan-weakness'] = CLAN_WEAKNESSES[clan];
-                    }
-                });
-            }
-
-            // Paths
-            const ps1 = document.getElementById('c-path-name');
-            const ps2 = document.getElementById('c-path-name-create');
-            if (typeof PATHS !== 'undefined') {
-                if(ps1) { ps1.innerHTML = ''; PATHS.forEach(p => ps1.add(new Option(p,p))); }
-                if(ps2) { ps2.innerHTML = ''; PATHS.forEach(p => ps2.add(new Option(p,p))); }
-            }
-
-            if(ps1) ps1.addEventListener('change', (e) => { 
-                if(ps2) ps2.value = e.target.value; 
-                if(window.state.textFields) window.state.textFields['c-path-name'] = e.target.value; 
-            });
-            if(ps2) ps2.addEventListener('change', (e) => { 
-                if(ps1) ps1.value = e.target.value; 
-                if(window.state.textFields) window.state.textFields['c-path-name'] = e.target.value; 
-            });
-
-            // 2. HYDRATE INPUTS AFTER POPULATION
-            // This ensures that if we have state loaded, the dropdowns select the correct value
-            hydrateInputs();
-            
-            // Re-check Clan Weakness based on hydrated value
-            const currentClan = document.getElementById('c-clan')?.value;
-            if (currentClan && CLAN_WEAKNESSES[currentClan]) {
-                const weaknessArea = document.getElementById('c-clan-weakness');
-                if (weaknessArea) weaknessArea.value = CLAN_WEAKNESSES[currentClan];
-            }
-
-            const freebieInp = document.getElementById('c-freebie-total');
-            if(freebieInp) freebieInp.oninput = window.updatePools;
-
-            // Remove Loader
-            if(loader) loader.style.display = 'none';
-
-        } catch (dbErr) {
-            console.error("DB Init Error:", dbErr);
-            window.showNotification("DB Conn Error");
+    // Expose window functions for HTML onclick attributes
+    window.toggleSidebarLedger = () => toggleSidebarLedger();
+    window.clearPool = () => clearPool();
+    window.rollPool = () => rollPool(currentUser);
+    window.togglePlayMode = () => togglePlayMode(currentUser);
+    window.nextStep = () => {
+        if (currentUser.meta.step < 8) {
+            currentUser.meta.step++;
+            renderSheet(currentUser);
         }
-    } else {
-        // --- SAFE AUTHENTICATION ---
-        // Wraps auth in try/catch to prevent infinite loading screen
-        try {
-            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                await signInWithCustomToken(auth, __initial_auth_token);
-            } else {
-                await signInAnonymously(auth);
-            }
-        } catch (e) {
-            console.error("Authentication Error:", e);
-            if(loader) {
-                loader.innerHTML = `
-                    <div class="text-center">
-                        <h2 class="text-[#af0000] font-bold text-xl">CONNECTION FAILED</h2>
-                        <p class="text-gray-400 text-xs mt-2">Could not access the archives.</p>
-                        <button onclick="window.location.reload()" class="mt-4 border border-[#444] px-4 py-2 text-white hover:bg-[#222]">RETRY</button>
-                    </div>
-                `;
-            }
-        }
-    }
+    };
+
+    // Initial Render
+    renderSheet(currentUser);
 });
 
-initUI();
+// --- EVENT LISTENERS ---
+function setupEventListeners() {
+    
+    // 1. Text Fields
+    const textInputs = document.querySelectorAll('input[type="text"], input[type="number"], textarea, select');
+    textInputs.forEach(input => {
+        // Skip specific UI controls
+        if (input.id === 'roll-diff' || input.id === 'c-freebie-total') return;
+
+        input.addEventListener('change', (e) => {
+            const id = e.target.id;
+            
+            // Handle Clan Logic Specially
+            if (id === "c-clan") {
+                const clan = e.target.value;
+                currentUser.textFields[id] = clan;
+                
+                // Auto-fill Weakness
+                const weakText = CLAN_WEAKNESSES[clan] || "";
+                currentUser.textFields['c-clan-weakness'] = weakText;
+                const weakInput = document.getElementById('c-clan-weakness');
+                if (weakInput) weakInput.value = weakText;
+
+                // Auto-fill Disciplines (The Fix)
+                if (CLAN_DISCIPLINES[clan]) {
+                    // Reset Disciplines logic
+                    currentUser.dots.disc = {};
+                    CLAN_DISCIPLINES[clan].forEach(d => {
+                        currentUser.dots.disc[d] = 0; // Add key with 0 dots to populate list
+                    });
+                }
+                
+                renderSheet(currentUser);
+                return;
+            }
+
+            // Handle Standard Text Fields
+            if (currentUser.textFields.hasOwnProperty(id)) {
+                currentUser.textFields[id] = e.target.value;
+            }
+            
+            renderSheet(currentUser);
+        });
+    });
+
+    // 2. Priority Buttons
+    const prioBtns = document.querySelectorAll('.prio-btn');
+    prioBtns.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const cat = e.target.dataset.cat; // 'attr' or 'abil'
+            const group = e.target.dataset.group; // 'Physical', 'Talents', etc.
+            const val = parseInt(e.target.dataset.v);
+
+            // Logic to ensure unique priorities (7/5/3 or 13/9/5)
+            // Reset others that have this value
+            Object.keys(currentUser.prios[cat]).forEach(g => {
+                if (currentUser.prios[cat][g] === val) currentUser.prios[cat][g] = 0;
+            });
+            currentUser.prios[cat][group] = val;
+            
+            renderSheet(currentUser);
+        });
+    });
+
+    // 3. Save / Load / New
+    document.getElementById('cmd-save').addEventListener('click', () => {
+        document.getElementById('save-modal').classList.add('active');
+    });
+    
+    document.getElementById('confirm-save-btn').addEventListener('click', () => {
+        const name = document.getElementById('save-name-input').value;
+        if(name) {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(currentUser));
+            const downloadAnchorNode = document.createElement('a');
+            downloadAnchorNode.setAttribute("href", dataStr);
+            downloadAnchorNode.setAttribute("download", name + ".json");
+            document.body.appendChild(downloadAnchorNode);
+            downloadAnchorNode.click();
+            downloadAnchorNode.remove();
+            document.getElementById('save-modal').classList.remove('active');
+        }
+    });
+
+    document.getElementById('cmd-load').addEventListener('click', () => {
+        document.getElementById('import-input').click();
+    });
+
+    document.getElementById('import-input').addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const data = JSON.parse(e.target.result);
+                // Merge data into currentUser
+                Object.assign(currentUser, data);
+                renderSheet(currentUser);
+            } catch (err) {
+                alert("Invalid JSON file");
+            }
+        };
+        reader.readAsText(file);
+    });
+
+    document.getElementById('cmd-new').addEventListener('click', () => {
+        if(confirm("Clear current character?")) {
+            location.reload();
+        }
+    });
+
+    // 4. Freebie Toggle
+    const freebieBtn = document.getElementById('toggle-freebie-btn');
+    if (freebieBtn) {
+        freebieBtn.addEventListener('click', () => {
+            document.body.classList.toggle('freebie-mode');
+            renderSheet(currentUser);
+        });
+    }
+}
