@@ -17,6 +17,23 @@ export const CLANS = [
     'Malkavian', 'Nosferatu', 'Ravnos', 'Toreador', 'Tremere', 'Tzimisce', 'Ventrue'
 ];
 
+export const CLAN_WEAKNESSES = {
+    'Assamite': 'Blood addiction: Must roll Self-Control when tasting vampire blood or fall into a hunger frenzy.',
+    'Brujah': 'Prone to Frenzy: The difficulty of checks to resist frenzy is 2 higher than normal.',
+    'Caitiff': 'Clanless: No inherent clan advantages; buying Disciplines costs 6x rating.',
+    'Follower of Set': 'Light Sensitivity: Take double damage from sunlight. -1 die to all pools in bright light.',
+    'Gangrel': 'Bestial Mark: Every frenzy leaves a permanent animal feature. For every 5 features, -1 Social attribute.',
+    'Giovanni': 'The Kiss of Death: Their bite causes excruciating pain instead of pleasure; kills mortals easily.',
+    'Lasombra': 'Cast No Reflection: They do not appear in mirrors or cameras. Take +1 damage from sunlight.',
+    'Malkavian': 'Insanity: You have at least one permanent, incurable Derangement.',
+    'Nosferatu': 'Hideous: Appearance is zero and cannot be raised. Automatic failure on Appearance rolls.',
+    'Ravnos': 'Vice: addicted to a specific vice (gambling, theft, lying). Roll Self-Control to resist.',
+    'Toreador': 'Fascination: Entranced by beauty. Roll Self-Control to break focus on beautiful things.',
+    'Tremere': 'Blood Bond: Starts with 1 step bound to the Council of Seven. +1 difficulty to resist blood bonds.',
+    'Tzimisce': 'Territorial: Must sleep in two handfuls of native soil or halve all dice pools.',
+    'Ventrue': 'Rarefied Tastes: Can only feed from a specific type of mortal (e.g., blondes, soldiers).'
+};
+
 export const ARCHETYPES = [
     'Architect', 'Autocrat', 'Bon Vivant', 'Bravo', 'Caregiver', 'Celebrity', 'Child', 
     'Competitor', 'Conformist', 'Conniver', 'Creep Show', 'Curmudgeon', 'Dabbler', 'Deviant', 
@@ -35,6 +52,39 @@ export const DISCIPLINES = [
 export const BACKGROUNDS = [
     'Allies', 'Alternate Identity', 'Black Hand Membership', 'Contacts', 'Domain', 'Fame', 
     'Generation', 'Herd', 'Influence', 'Mentor', 'Resources', 'Retainers', 'Rituals', 'Status'
+];
+
+export const PATHS = [
+    'Humanity', 'Path of Blood', 'Path of Caine', 'Path of Cathari', 'Path of Death and the Soul',
+    'Path of Ecstasy', 'Path of Entelechy', 'Path of Feral Heart', 'Path of Harmony', 
+    'Path of Honorable Accord', 'Path of Lilith', 'Path of Metamorphosis', 'Path of Night', 
+    'Path of Paradox', 'Path of Power and the Inner Voice', 'Path of the Bones', 'Path of Typhon'
+];
+
+export const V20_MERITS_LIST = [
+    // Physical
+    'Acute Sense', 'Ambidextrous', 'Bruiser', 'Catlike Balance', 'Early Riser', 'Eat Food', 
+    'Friendly Face', 'Huge Size', 'Daredevil',
+    // Mental
+    'Common Sense', 'Concentration', 'Eidetic Memory', 'Iron Will', 'Light Sleeper', 
+    'Natural Linguist', 'Time Sense', 'Unbondable',
+    // Social
+    'Prestigious Sire', 'Natural Leader', 'Boon', 'Holdings', 'Rising Star',
+    // Supernatural
+    'Medium', 'Magic Resistance', 'Oracular Ability', 'Spirit Mentor', 'True Love'
+];
+
+export const V20_FLAWS_LIST = [
+    // Physical
+    'Bad Sight', 'Deaf', 'Hard of Hearing', 'One Eye', 'Disfigured', 'Lame', 'Monstrous', 
+    'Permanent Wound', 'Short', 'Slow Healing',
+    // Mental
+    'Amnesia', 'Confused', 'Deep Sleeper', 'Nightmares', 'Phobia', 'Shy', 'Soft-Hearted', 
+    'Speech Impediment', 'Short Fuse', 'Vengeful', 'Weak-Willed',
+    // Social
+    'Dark Secret', 'Enemy', 'Hunted', 'Infamous Sire', 'Mistaken Identity', 'Probationary Sect Member',
+    // Supernatural
+    'Cast No Reflection', 'Cursed', 'Haunted', 'Repulsed by Garlic', 'Touch of Frost', 'Eerie Presence'
 ];
 
 // V20 Core Page 270 (Generation Charts)
@@ -57,21 +107,20 @@ export const FREEBIE_COSTS = {
     disciplines: 7,
     backgrounds: 1,
     virtues: 2,
-    humanity: 1, // Often 2 in some editions, V20 usually 2, checking V20 Core p.83... it says "Humanity 1 per dot" ? No, usually 2. Wait.
-    // V20 Core p. 83: Humanity/Path = 1 per dot. Virtues = 2 per dot. Willpower = 1 per dot.
+    humanity: 1, 
     willpower: 1
 };
 
 export const XP_COSTS = {
     newAbility: 3,
-    newPath: 7, // Necromancy/Thaumaturgy path
-    attribute: 4, // x current rating
-    ability: 2,   // x current rating
-    clanDiscipline: 5, // x current rating
-    otherDiscipline: 7, // x current rating
-    virtue: 2,    // x current rating
-    humanity: 2,  // x current rating
-    willpower: 1  // x current rating
+    newPath: 7,
+    attribute: 4, 
+    ability: 2,   
+    clanDiscipline: 5, 
+    otherDiscipline: 7, 
+    virtue: 2,    
+    humanity: 2,  
+    willpower: 1  
 };
 
 // --- Blank Character Template (Default Export) ---
