@@ -1,5 +1,4 @@
-// cybertourk/v20/V20-5147783a6c880fca5723408a9242fe67e1fd0b0f/data.js
-// DATA CONSTANTS (Converted to ES6 Exports)
+// DATA CONSTANTS
 
 export const APP_VERSION = "v1.1.0";
 
@@ -62,7 +61,7 @@ export const CLAN_DISCIPLINES = {
     "Tremere": ["Auspex", "Dominate", "Thaumaturgy"],
     "Tzimisce": ["Animalism", "Auspex", "Vicissitude"],
     "Ventrue": ["Dominate", "Fortitude", "Presence"],
-    "Caitiff": [] // Caitiff have no in-clan disciplines
+    "Caitiff": [] 
 };
 
 export const BACKGROUNDS = [
@@ -220,31 +219,51 @@ export const V20_FLAWS_LIST = [
 ];
 
 export const V20_WEAPONS_LIST = [
-    { name: "Sap/Club", diff: 4, dmg: "Str+1(B)", range: "-", rate: "-", clip: "-" },
-    { name: "Knife", diff: 4, dmg: "Str+1(L)", range: "-", rate: "-", clip: "-" },
-    { name: "Sword", diff: 6, dmg: "Str+2(L)", range: "-", rate: "-", clip: "-" },
-    { name: "Axe", diff: 7, dmg: "Str+3(L)", range: "-", rate: "-", clip: "-" },
-    { name: "Stake", diff: 6, dmg: "Str(L)", range: "-", rate: "-", clip: "-" },
-    { name: "Pistol, Lt.", diff: 6, dmg: "4(L)", range: "20", rate: "3", clip: "17+1" },
-    { name: "Pistol, Hvy.", diff: 6, dmg: "5(L)", range: "35", rate: "2", clip: "7+1" },
-    { name: "Rifle", diff: 8, dmg: "8(L)", range: "200", rate: "1", clip: "5+1" },
-    { name: "SMG, Small", diff: 6, dmg: "4(L)", range: "25", rate: "3", clip: "30+1" },
-    { name: "SMG, Large", diff: 6, dmg: "4(L)", range: "50", rate: "3", clip: "32+1" },
-    { name: "Shotgun", diff: 6, dmg: "8(L)", range: "20", rate: "1", clip: "5+1" }
+    { name: "Sap", diff: 4, dmg: "Str+1(B)", range: "-", rate: "-", clip: "-", conc: "P" },
+    { name: "Club", diff: 4, dmg: "Str+2(B)", range: "-", rate: "-", clip: "-", conc: "T" },
+    { name: "Knife", diff: 4, dmg: "Str+1(L)", range: "-", rate: "-", clip: "-", conc: "J" },
+    { name: "Sword", diff: 6, dmg: "Str+2(L)", range: "-", rate: "-", clip: "-", conc: "T" },
+    { name: "Axe", diff: 7, dmg: "Str+3(L)", range: "-", rate: "-", clip: "-", conc: "N" },
+    { name: "Stake", diff: 6, dmg: "Str(L)", range: "-", rate: "-", clip: "-", conc: "T" },
+    { name: "Revolver, Lt.", diff: 6, dmg: "4(L)", range: "12", rate: "3", clip: "6", conc: "P" },
+    { name: "Revolver, Hvy.", diff: 6, dmg: "6(L)", range: "35", rate: "2", clip: "6", conc: "J" },
+    { name: "Pistol, Lt.", diff: 6, dmg: "4(L)", range: "20", rate: "4", clip: "15+1", conc: "P" },
+    { name: "Pistol, Hvy.", diff: 6, dmg: "5(L)", range: "25", rate: "3", clip: "13+1", conc: "J" },
+    { name: "Rifle", diff: 8, dmg: "8(L)", range: "200", rate: "1", clip: "3+1", conc: "N" },
+    { name: "SMG, Small", diff: 6, dmg: "4(L)", range: "20", rate: "3", clip: "17+1", conc: "J" },
+    { name: "SMG, Large", diff: 6, dmg: "4(L)", range: "50", rate: "3", clip: "30+1", conc: "T" },
+    { name: "Assault Rifle", diff: 7, dmg: "7(L)", range: "150", rate: "3", clip: "30+1", conc: "N" },
+    { name: "Shotgun", diff: 6, dmg: "8(L)", range: "20", rate: "1", clip: "5+1", conc: "T" },
+    { name: "Shotgun, Semi-auto", diff: 8, dmg: "8(L)", range: "20", rate: "3", clip: "6+1", conc: "T" },
+    { name: "Crossbow", diff: 6, dmg: "5(L)", range: "20", rate: "1", clip: "1", conc: "T" }
 ];
 
 export const V20_ARMOR_LIST = [
-    { name: "Heavy Clothing", rating: 1, penalty: 0 },
-    { name: "Kevlar Vest", rating: 2, penalty: 0 },
-    { name: "Flak Jacket", rating: 3, penalty: 1 },
-    { name: "Full Riot Gear", rating: 5, penalty: 2 }
+    { name: "Class One (Reinforced Clothing)", rating: 1, penalty: 0 },
+    { name: "Class Two (Armor T-Shirt)", rating: 2, penalty: 1 },
+    { name: "Class Three (Kevlar Vest)", rating: 3, penalty: 1 },
+    { name: "Class Four (Flak Jacket)", rating: 4, penalty: 2 },
+    { name: "Class Five (Full Riot Gear)", rating: 5, penalty: 3 }
 ];
 
 export const V20_VEHICLE_LIST = [
-    { name: "Motorcycle", safe: "100", max: "180", man: "8" },
-    { name: "Sedan", safe: "70", max: "120", man: "6" },
-    { name: "Sports Car", safe: "110", max: "190", man: "8" },
-    { name: "SUV/Truck", safe: "70", max: "110", man: "5" }
+    { name: "6-Wheel Truck", safe: "60/95", max: "90/145", man: "3" },
+    { name: "Tank (modern)", safe: "60/95", max: "100/160", man: "4" },
+    { name: "Tank (WWII)", safe: "30/50", max: "40/65", man: "3" },
+    { name: "Bus", safe: "60/95", max: "100/160", man: "3" },
+    { name: "18-Wheeler", safe: "70/110", max: "110/175", man: "4" },
+    { name: "Sedan", safe: "70/110", max: "120/195", man: "5" },
+    { name: "Minivan", safe: "70/110", max: "120/195", man: "6" },
+    { name: "Compact", safe: "70/110", max: "130/210", man: "6" },
+    { name: "Sporty Compact", safe: "100/160", max: "140/225", man: "7" },
+    { name: "Sport Coupe", safe: "110/175", max: "150/240", man: "8" },
+    { name: "Sports Car", safe: "110/175", max: "160/255", man: "8" },
+    { name: "Exotic Car", safe: "130/210", max: "190+/305+", man: "9" },
+    { name: "Luxury Sedan", safe: "85/135", max: "155/250", man: "7" },
+    { name: "Sport Sedan", safe: "85/135", max: "165/265", man: "8" },
+    { name: "Midsize", safe: "75/120", max: "125/200", man: "6" },
+    { name: "SUV/ Crossover", safe: "70/110", max: "115/185", man: "6" },
+    { name: "Formula One Racer", safe: "140/225", max: "240/385", man: "10" }
 ];
 
 export const CLAN_WEAKNESSES = {
