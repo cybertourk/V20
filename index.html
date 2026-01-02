@@ -3,133 +3,509 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vampire: The Masquerade 20th Anniversary</title>
+    <title>V20 Official Neonate Sheet</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
     <link rel="stylesheet" href="styles.css">
-    <!-- Firebase Dependencies -->
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
 </head>
-<body>
+<body class="p-2 md:p-8 bg-black text-white font-serif">
 
-    <div class="character-sheet">
-        <!-- HEADER / PROFILE SECTION -->
-        <header class="sheet-header">
-            <div class="logo-area">
-                <h1>Vampire</h1>
-                <h2>The Masquerade</h2>
-            </div>
-            
-            <div class="profile-grid">
-                <div class="input-group">
-                    <label>Name:</label>
-                    <input type="text" id="char-name">
-                </div>
-                <div class="input-group">
-                    <label>Player:</label>
-                    <input type="text" id="char-player">
-                </div>
-                <div class="input-group">
-                    <label>Chronicle:</label>
-                    <input type="text" id="char-chronicle">
-                </div>
-                
-                <div class="input-group">
-                    <label>Nature:</label>
-                    <input type="text" id="char-nature">
-                </div>
-                <div class="input-group">
-                    <label>Demeanor:</label>
-                    <input type="text" id="char-demeanor">
-                </div>
-                <div class="input-group">
-                    <label>Concept:</label>
-                    <input type="text" id="char-concept">
-                </div>
-                
-                <div class="input-group">
-                    <label>Clan:</label>
-                    <input type="text" id="char-clan">
-                </div>
-                <div class="input-group">
-                    <label>Generation:</label>
-                    <input type="text" id="char-generation">
-                </div>
-                <div class="input-group">
-                    <label>Sire:</label>
-                    <input type="text" id="char-sire">
-                </div>
-            </div>
-        </header>
-
-        <hr>
-
-        <!-- ATTRIBUTES -->
-        <section id="attributes-section" class="three-column-section">
-            <!-- Populated by ui-attributes.js -->
-        </section>
-
-        <hr>
-
-        <!-- ABILITIES -->
-        <section id="abilities-section" class="three-column-section">
-            <!-- Populated by ui-abilities.js -->
-        </section>
-
-        <hr>
-
-        <!-- ADVANTAGES (Disciplines, Backgrounds, Virtues) -->
-        <section class="advantages-grid">
-            <div id="disciplines-section" class="column">
-                <!-- Populated by ui-advantages.js -->
-            </div>
-            <div id="backgrounds-section" class="column">
-                <!-- Populated by ui-advantages.js -->
-            </div>
-            <div id="virtues-section" class="column">
-                <!-- Populated by ui-advantages.js -->
-            </div>
-        </section>
-
-        <hr>
-
-        <!-- MECHANICS (Merits, Health, Willpower, Blood, XP) -->
-        <section class="mechanics-grid">
-            <div id="merits-section" class="column wide-col">
-                <!-- Populated by ui-merits.js -->
-            </div>
-            
-            <div class="column mechanics-stats">
-                <div id="health-section">
-                    <!-- Populated by ui-mechanics.js -->
-                </div>
-                <div id="willpower-section">
-                    <!-- Populated by ui-mechanics.js -->
-                </div>
-                <div id="blood-section">
-                    <!-- Populated by ui-mechanics.js -->
-                </div>
-                <div id="experience-section">
-                    <!-- Populated by ui-mechanics.js -->
-                </div>
-            </div>
-        </section>
+    <div id="loading-overlay" class="fixed inset-0 bg-black flex flex-col items-center justify-center z-[9999]">
+        <h1 class="text-[#8b0000] text-7xl font-bold animate-pulse tracking-[0.5em] heading">V20</h1>
+        <p class="text-[11px] text-gray-400 tracking-[0.4em] mt-6 uppercase font-bold">Initializing Official Log...</p>
     </div>
 
-    <!-- SCRIPTS -->
-    <script src="firebase-config.js"></script>
-    <script src="firebase-manager.js"></script>
-    <script src="v20-rules.js"></script>
-    <script src="data.js"></script>
+    <div id="notification"></div>
+    
+    <nav id="main-menubar" class="fixed top-0 left-0 w-full h-16 bg-[#050505] border-b-2 border-[#500] z-50 flex items-center justify-between px-6 shadow-2xl">
+        
+        <div class="flex flex-col justify-center leading-none select-none cursor-default group">
+            <h1 class="text-2xl text-[#af0000] font-bold tracking-[0.2em] font-cinzel group-hover:text-[#ff0000] transition-colors shadow-black drop-shadow-md">VAMPIRE</h1>
+            <span class="text-[0.6rem] text-[#d4af37] tracking-[0.3em] font-serif italic uppercase opacity-80 group-hover:opacity-100 transition-opacity">The Masquerade</span>
+        </div>
 
-    <!-- UI Sub-Renderers -->
-    <script src="ui-attributes.js"></script>
-    <script src="ui-abilities.js"></script>
-    <script src="ui-advantages.js"></script>
-    <script src="ui-mechanics.js"></script>
-    <script src="ui-merits.js"></script>
+        <div class="flex items-center gap-2 bg-black/40 px-4 py-1.5 rounded-full border border-[#222]">
+            <button id="cmd-new" class="text-xs text-gray-400 font-bold uppercase hover:text-white hover:bg-[#222] px-3 py-1 rounded transition border border-transparent hover:border-[#444]">
+                <i class="fas fa-file-circle-plus mr-1"></i> New
+            </button>
+            <div class="h-4 w-px bg-[#333]"></div>
+            <button id="cmd-save" class="text-xs text-gray-400 font-bold uppercase hover:text-white hover:bg-[#222] px-3 py-1 rounded transition border border-transparent hover:border-[#444]">
+                <i class="fas fa-save mr-1"></i> Save
+            </button>
+            <div class="h-4 w-px bg-[#333]"></div>
+            <button id="cmd-load" class="text-xs text-gray-400 font-bold uppercase hover:text-white hover:bg-[#222] px-3 py-1 rounded transition border border-transparent hover:border-[#444]">
+                <i class="fas fa-folder-open mr-1"></i> Load
+            </button>
+        </div>
 
-    <script src="ui-renderer.js"></script>
-    <script src="main.js"></script>
+        <div class="flex items-center gap-4">
+            
+            <button id="toggle-freebie-btn" class="flex items-center gap-2 px-3 py-1 rounded border border-[#333] hover:border-blue-500/50 hover:bg-blue-900/20 transition text-xs font-bold text-gray-400 disabled:opacity-30 disabled:cursor-not-allowed">
+                <i class="fas fa-balance-scale"></i>
+                <span id="freebie-btn-text">Freebies</span>
+            </button>
+            
+            <div id="top-freebie-counter">
+                <span id="f-total-top">0</span>/<input type="number" id="c-freebie-total" value="15" class="w-8 bg-transparent text-gold border-b border-[#333] text-center font-bold">
+            </div>
+
+            <button id="play-mode-btn" class="flex items-center gap-2 px-3 py-1 rounded border border-[#d4af37] text-[#d4af37] hover:bg-[#d4af37] hover:text-black transition text-xs font-bold uppercase tracking-wider shadow-[0_0_10px_rgba(212,175,55,0.2)]">
+                <i class="fas fa-gamepad"></i>
+                <span id="play-btn-text">Play</span>
+            </button>
+
+            <div class="h-8 w-px bg-[#333]"></div>
+
+            <div class="flex gap-2 text-gray-500">
+                <button id="export-btn" class="hover:text-white w-8 h-8 rounded hover:bg-[#222] transition" title="Export JSON"><i class="fas fa-file-export"></i></button>
+                <button id="import-trigger" class="hover:text-white w-8 h-8 rounded hover:bg-[#222] transition" title="Import JSON"><i class="fas fa-file-import"></i></button>
+                <button id="print-btn" class="hover:text-white w-8 h-8 rounded hover:bg-[#222] transition" title="Print Sheet"><i class="fas fa-print"></i></button>
+                <input type="file" id="import-input" class="hidden" accept=".json">
+            </div>
+        </div>
+    </nav>
+
+    <div id="walkthrough-guide" class="fixed bottom-24 right-20 z-40 flex items-center gap-4 translate-y-20 opacity-0 pointer-events-none md:pointer-events-auto">
+        <div id="guide-message" class="bg-black/90 border border-[#d4af37] text-[#f0e6d2] px-4 py-2 rounded text-xs font-bold shadow-lg w-48 text-right">
+            Initialize Character...
+        </div>
+        <div id="guide-icon" class="w-12 h-12 rounded-full bg-[#af0000] border-2 border-[#d4af37] flex items-center justify-center shadow-[0_0_15px_rgba(175,0,0,0.6)] cursor-pointer transition-transform" onclick="window.nextStep()">
+            <i class="fas fa-ankh text-white text-xl"></i>
+        </div>
+    </div>
+
+    <div id="freebie-sidebar">
+        <div id="sb-toggle-btn" onclick="window.toggleSidebarLedger()">Ledger</div>
+        <h3 class="heading text-gold text-sm border-b border-gold pb-2 mb-4 text-center">Freebie Ledger</h3>
+        <div class="space-y-2 text-xs">
+            <div class="cost-row"><span>Attributes (5/dot)</span><span id="sb-attr" class="cost-val">0</span></div>
+            <div class="cost-row"><span>Abilities (2/dot)</span><span id="sb-abil" class="cost-val">0</span></div>
+            <div class="cost-row"><span>Disciplines (7/dot)</span><span id="sb-disc" class="cost-val">0</span></div>
+            <div class="cost-row"><span>Backgrounds (1/dot)</span><span id="sb-back" class="cost-val">0</span></div>
+            <div class="cost-row"><span>Virtues (2/dot)</span><span id="sb-virt" class="cost-val">0</span></div>
+            <div class="cost-row"><span>Humanity (2/dot)</span><span id="sb-human" class="cost-val">0</span></div>
+            <div class="cost-row"><span>Willpower (1/dot)</span><span id="sb-will" class="cost-val">0</span></div>
+            <div class="cost-row"><span>Merits (Cost)</span><span id="sb-merit" class="cost-val">0</span></div>
+            <div class="cost-row"><span>Flaws (Bonus)</span><span id="sb-flaw" class="text-green-400 font-bold">0</span></div>
+            <div class="mt-4 pt-2 border-t border-[#444] flex justify-between font-bold text-sm">
+                <span>Remaining:</span>
+                <span id="sb-total" class="text-green-400">15</span>
+            </div>
+        </div>
+    </div>
+
+    <div id="dice-tray" class="p-5">
+        <div class="flex justify-between items-center mb-4 border-b border-[#444] pb-2">
+            <h3 class="heading text-xs text-[#d4af37] uppercase tracking-widest font-bold">Dice Engine</h3>
+            <button id="clear-pool-btn" class="text-[10px] text-gray-400 hover:text-white uppercase font-bold tracking-tighter" onclick="window.clearPool()">[ Clear Pool ]</button>
+        </div>
+        <div id="pool-display" class="text-[11px] text-gray-200 mb-3 italic font-medium">Select traits to build pool...</div>
+        <div id="specialty-container" class="items-center gap-2 mb-4 px-3 py-2 bg-white/10 border border-white/20 rounded">
+            <input type="checkbox" id="use-specialty" class="w-4 h-4 cursor-pointer">
+            <label for="use-specialty" class="text-[10px] uppercase font-black text-white cursor-pointer tracking-tight">Specialty Applied (10s = 2 Successes)</label>
+        </div>
+        <div class="flex items-center gap-3 mb-5">
+            <span class="text-[10px] uppercase font-black text-gray-300">Diff:</span>
+            <input type="number" id="roll-diff" value="6" class="w-14 text-center !border !border-[#555] !bg-black !text-white !font-bold">
+            <button id="roll-btn" class="flex-1 bg-[#8b0000] text-white text-[11px] py-3 uppercase font-black tracking-widest hover:bg-red-600 transition shadow-lg" onclick="window.rollPool()">Roll Pool</button>
+        </div>
+        <div id="roll-results" class="max-h-52 overflow-y-auto space-y-3"></div>
+    </div>
+
+    <div id="sheet-content" class="max-w-5xl mx-auto shadow-2xl bg-black/30 pb-20 border-x border-b border-[#222]">
+
+        <nav id="sheet-nav" class="flex justify-center bg-black sticky top-0 z-40 border-b border-[#333]"></nav>
+        
+        <div class="mt-8 md:mt-12"></div>
+
+        <div class="p-6 md:p-12">
+            <!-- Edit Mode Phases -->
+            <div id="phase-1" class="step-container active">
+                <div class="sheet-section !mt-0">
+                    <div class="section-title">Character Concept</div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                        <div class="space-y-5">
+                            <div><label class="label-text">Name</label><input type="text" id="c-name"></div>
+                            <div><label class="label-text">Player</label><input type="text" id="c-player"></div>
+                            <div><label class="label-text">Chronicle</label><input type="text" id="c-chronicle"></div>
+                        </div>
+                        <div class="space-y-5">
+                            <div><label class="label-text">Nature</label><select id="c-nature"></select></div>
+                            <div><label class="label-text">Demeanor</label><select id="c-demeanor"></select></div>
+                            <div><label class="label-text">Concept</label><input type="text" id="c-concept"></div>
+                        </div>
+                        <div class="space-y-5">
+                            <div><label class="label-text">Clan</label><select id="c-clan"></select></div>
+                            <div><label class="label-text">Generation</label><input type="number" id="c-gen" value="13"></div>
+                            <div><label class="label-text">Sire</label><input type="text" id="c-sire"></div>
+                        </div>
+                    </div>
+                    <div class="mt-4">
+                        <label class="label-text">Clan Weakness Info (Auto)</label>
+                        <textarea id="c-clan-weakness" class="w-full h-20 bg-black/20 text-gray-400 text-xs p-2 border border-[#333]" readonly></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <div id="phase-2" class="step-container">
+                <div class="sheet-section !mt-0">
+                    <div class="section-title">Step Two: Attributes</div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-10">
+                        <div id="list-attr-physical"><h3 class="column-title">Physical <span id="p-phys" class="pool-counter"></span></h3><div class="flex justify-center gap-2 mb-4 creation-only"><button data-cat="attr" data-group="Physical" data-v="7" class="prio-btn">7</button><button data-cat="attr" data-group="Physical" data-v="5" class="prio-btn">5</button><button data-cat="attr" data-group="Physical" data-v="3" class="prio-btn">3</button></div></div>
+                        <div id="list-attr-social"><h3 class="column-title">Social <span id="p-social" class="pool-counter"></span></h3><div class="flex justify-center gap-2 mb-4 creation-only"><button data-cat="attr" data-group="Social" data-v="7" class="prio-btn">7</button><button data-cat="attr" data-group="Social" data-v="5" class="prio-btn">5</button><button data-cat="attr" data-group="Social" data-v="3" class="prio-btn">3</button></div></div>
+                        <div id="list-attr-mental"><h3 class="column-title">Mental <span id="p-mental" class="pool-counter"></span></h3><div class="flex justify-center gap-2 mb-4 creation-only"><button data-cat="attr" data-group="Mental" data-v="7" class="prio-btn">7</button><button data-cat="attr" data-group="Mental" data-v="5" class="prio-btn">5</button><button data-cat="attr" data-group="Mental" data-v="3" class="prio-btn">3</button></div></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="phase-3" class="step-container">
+                <div class="sheet-section !mt-0">
+                    <div class="section-title">Step Three: Abilities</div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-10">
+                        <div class="flex flex-col h-full"><div id="list-abil-talents"><h3 class="column-title">Talents <span id="p-tal" class="pool-counter"></span></h3><div class="flex justify-center gap-2 mb-4 creation-only"><button data-cat="abil" data-group="Talents" data-v="13" class="prio-btn">13</button><button data-cat="abil" data-group="Talents" data-v="9" class="prio-btn">9</button><button data-cat="abil" data-group="Talents" data-v="5" class="prio-btn">5</button></div></div><div id="custom-talents" class="mt-auto pt-4 border-t border-[#333]"></div></div>
+                        <div class="flex flex-col h-full"><div id="list-abil-skills"><h3 class="column-title">Skills <span id="p-ski" class="pool-counter"></span></h3><div class="flex justify-center gap-2 mb-4 creation-only"><button data-cat="abil" data-group="Skills" data-v="13" class="prio-btn">13</button><button data-cat="abil" data-group="Skills" data-v="9" class="prio-btn">9</button><button data-cat="abil" data-group="Skills" data-v="5" class="prio-btn">5</button></div></div><div id="custom-skills" class="mt-auto pt-4 border-t border-[#333]"></div></div>
+                        <div class="flex flex-col h-full"><div id="list-abil-knowledges"><h3 class="column-title">Knowledges <span id="p-kno" class="pool-counter"></span></h3><div class="flex justify-center gap-2 mb-4 creation-only"><button data-cat="abil" data-group="Knowledges" data-v="13" class="prio-btn">13</button><button data-cat="abil" data-group="Knowledges" data-v="9" class="prio-btn">9</button><button data-cat="abil" data-group="Knowledges" data-v="5" class="prio-btn">5</button></div></div><div id="custom-knowledges" class="mt-auto pt-4 border-t border-[#333]"></div></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="phase-4" class="step-container">
+                <div class="sheet-section !mt-0">
+                    <div class="section-title">Step Four: Advantages</div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-10">
+                        <div><h3 class="column-title">Disciplines <span id="p-disc" class="pool-counter">[3]</span></h3><div id="list-disc" class="space-y-3 mt-2"></div></div>
+                        <div><h3 class="column-title">Backgrounds <span id="p-back" class="pool-counter">[5]</span></h3><div id="list-back" class="space-y-3 mt-2"></div></div>
+                        <div><h3 class="column-title">Virtues <span id="p-virt" class="pool-counter">[7]</span></h3><div id="list-virt" class="space-y-5 mt-2"></div></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="phase-5" class="step-container space-y-10">
+                <div class="flex flex-col gap-8">
+                    <div class="sheet-section !mt-0">
+                        <div class="section-title">Background Descriptions</div>
+                        <div id="social-profile-list" class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6"></div>
+                    </div>
+                    
+                    <div class="sheet-section">
+                        <div class="section-title">Blood Bonds / Vinculi</div>
+                        <div id="blood-bond-list" class="space-y-3 mt-4"></div>
+                    </div>
+
+                    <div class="sheet-section">
+                        <div class="section-title">Possessions & Gear</div>
+                        <div id="inventory-manager" class="p-2 space-y-4 border-b border-[#333] pb-4 mb-4">
+                            <div class="flex flex-col gap-2 mb-2">
+                                <label class="label-text">1. Select Item Type</label>
+                                <select id="inv-type" class="w-full text-[11px] bg-[#111] border border-[#444] text-white p-2">
+                                    <option value="Gear">General Gear</option>
+                                    <option value="Weapon">Weapon</option>
+                                    <option value="Armor">Armor</option>
+                                    <option value="Vehicle">Vehicle</option>
+                                </select>
+                                
+                                <div id="inv-base-wrapper" class="hidden">
+                                    <label class="label-text">2. Choose Base Template (Auto-fills Stats)</label>
+                                    <select id="inv-base-select" class="w-full text-[11px] bg-[#111] border border-[#444] text-white p-2"></select>
+                                </div>
+
+                                <div>
+                                    <label class="label-text">3. Specific Description / Name (Optional)</label>
+                                    <input type="text" id="inv-name" placeholder="e.g. 'Ceremonial Dagger' or 'Grandpa's Revolver'" class="w-full text-[11px] bg-transparent border-b border-[#444] text-white p-2">
+                                </div>
+                            </div>
+                            
+                            <div id="inv-stats-row" class="hidden grid grid-cols-5 gap-2">
+                                <input type="text" id="inv-diff" placeholder="Diff" class="text-center text-[9px] bg-transparent border-b border-[#444] text-white">
+                                <input type="text" id="inv-dmg" placeholder="Dmg" class="text-center text-[9px] bg-transparent border-b border-[#444] text-white">
+                                <input type="text" id="inv-range" placeholder="Rng" class="text-center text-[9px] bg-transparent border-b border-[#444] text-white">
+                                <input type="text" id="inv-rate" placeholder="Rate" class="text-center text-[9px] bg-transparent border-b border-[#444] text-white">
+                                <input type="text" id="inv-clip" placeholder="Clip" class="text-center text-[9px] bg-transparent border-b border-[#444] text-white">
+                            </div>
+
+                            <div id="inv-armor-row" class="hidden grid grid-cols-2 gap-2">
+                                <input type="text" id="inv-rating" placeholder="Rating" class="text-center text-[9px] bg-transparent border-b border-[#444] text-white">
+                                <input type="text" id="inv-penalty" placeholder="Penalty" class="text-center text-[9px] bg-transparent border-b border-[#444] text-white">
+                            </div>
+
+                            <div id="inv-vehicle-row" class="hidden grid grid-cols-3 gap-2">
+                                <input type="text" id="inv-safe" placeholder="Safe Spd" class="text-center text-[9px] bg-transparent border-b border-[#444] text-white">
+                                <input type="text" id="inv-max" placeholder="Max Spd" class="text-center text-[9px] bg-transparent border-b border-[#444] text-white">
+                                <input type="text" id="inv-man" placeholder="Maneuver" class="text-center text-[9px] bg-transparent border-b border-[#444] text-white">
+                            </div>
+
+                            <div class="flex justify-between items-center">
+                                <div class="flex gap-2 items-center">
+                                    <input type="checkbox" id="inv-carried" checked class="w-3 h-3">
+                                    <label for="inv-carried" class="text-[9px] text-gray-400 uppercase">Carried</label>
+                                </div>
+                                <button id="add-inv-btn" class="bg-[#8b0000] px-4 py-2 text-[10px] font-bold text-white uppercase hover:bg-red-700 shadow-md">Add Item</button>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            <div>
+                                <h3 class="column-title">Gear (Carried)</h3>
+                                <div id="inv-list-carried" class="space-y-2 min-h-[50px]"></div>
+                            </div>
+                            <div>
+                                <h3 class="column-title">Equipment (Owned)</h3>
+                                <div id="inv-list-owned" class="space-y-2 min-h-[50px]"></div>
+                            </div>
+                        </div>
+
+                        <div class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-8">
+                             <div>
+                                <h3 class="column-title">Feeding Grounds</h3>
+                                <textarea id="inv-feeding-grounds" class="h-24 w-full text-xs" placeholder="Describe your hunting grounds..."></textarea>
+                            </div>
+                             <div>
+                                <h3 class="column-title">Vehicles</h3>
+                                <div id="vehicle-list" class="space-y-2"></div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="sheet-section"><div class="section-title">Havens</div><div id="multi-haven-list" class="space-y-6"></div></div>
+                </div>
+            </div>
+
+            <div id="phase-6" class="step-container space-y-10">
+                <div class="flex flex-col gap-10">
+                    <div class="sheet-section !mt-0">
+                        <div class="section-title">Merits & Flaws</div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
+                            <div>
+                                <h3 class="column-title">Merits</h3>
+                                <div class="text-xs text-center text-gray-500 mb-2 italic" id="merit-locked-msg">Enable Freebie Mode to edit Merits</div>
+                                <div id="merits-list-create" class="space-y-3 mt-4"></div>
+                            </div>
+                            <div>
+                                <h3 class="column-title">Flaws</h3>
+                                <div class="text-xs text-center text-gray-500 mb-2 italic" id="flaw-locked-msg">Enable Freebie Mode to edit Flaws</div>
+                                <div id="flaws-list-create" class="space-y-3 mt-4"></div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="sheet-section">
+                        <div class="section-title">Other Traits & Rituals</div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
+                            <div>
+                                <h3 class="column-title">Traits</h3>
+                                <div id="other-traits-rows-create" class="space-y-1 mt-4"></div>
+                            </div>
+                            <div>
+                                <h3 class="column-title">Rituals</h3>
+                                <div id="rituals-list-create" class="space-y-4"><textarea id="rituals-list-create-ta" class="w-full h-40" placeholder="List Rituals here..."></textarea></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="sheet-section">
+                        <div class="section-title">Combat Maneuvers & Weapons</div>
+                        <div class="flex flex-col">
+                            <div class="grid grid-cols-6 gap-2 text-[10px] uppercase text-gray-400 font-bold border-b border-[#555] pb-1 mb-2 text-center">
+                                <div class="col-span-2 text-left pl-2">Attack</div>
+                                <div>Diff</div>
+                                <div>Dmg</div>
+                                <div>Range</div>
+                                <div>Clip</div>
+                            </div>
+                            <div class="grid grid-cols-6 gap-2 text-[10px] border-b border-[#222] py-1 text-center text-gray-500">
+                                <div class="col-span-2 text-left pl-2 font-bold text-white">Bite</div>
+                                <div>5</div><div>Str+1(A)</div><div>-</div><div>-</div>
+                            </div>
+                            <div class="grid grid-cols-6 gap-2 text-[10px] border-b border-[#222] py-1 text-center text-gray-500">
+                                <div class="col-span-2 text-left pl-2 font-bold text-white">Clinch</div>
+                                <div>6</div><div>Str(B)</div><div>-</div><div>-</div>
+                            </div>
+                             <div class="grid grid-cols-6 gap-2 text-[10px] border-b border-[#222] py-1 text-center text-gray-500">
+                                <div class="col-span-2 text-left pl-2 font-bold text-white">Grapple</div>
+                                <div>6</div><div>Str(B)</div><div>-</div><div>-</div>
+                            </div>
+                            <div class="grid grid-cols-6 gap-2 text-[10px] border-b border-[#222] py-1 text-center text-gray-500">
+                                <div class="col-span-2 text-left pl-2 font-bold text-white">Kick</div>
+                                <div>7</div><div>Str+1(B)</div><div>-</div><div>-</div>
+                            </div>
+                            <div class="grid grid-cols-6 gap-2 text-[10px] border-b border-[#222] py-1 text-center text-gray-500">
+                                <div class="col-span-2 text-left pl-2 font-bold text-white">Punch</div>
+                                <div>6</div><div>Str(B)</div><div>-</div><div>-</div>
+                            </div>
+                             <div class="grid grid-cols-6 gap-2 text-[10px] border-b border-[#222] py-1 text-center text-gray-500">
+                                <div class="col-span-2 text-left pl-2 font-bold text-white">Tackle</div>
+                                <div>7</div><div>Str+1(B)</div><div>-</div><div>-</div>
+                            </div>
+                            
+                            <div id="combat-list-create" class="space-y-1 mt-2"></div>
+                        </div>
+                        <div class="grid grid-cols-3 gap-6 mt-6 pt-4 border-t border-[#333] text-center">
+                            <div><label class="label-text">Total Armor Rating</label><div id="total-armor-rating" class="text-lg font-bold text-white">0</div></div>
+                            <div><label class="label-text">Total Penalty</label><div id="total-armor-penalty" class="text-lg font-bold text-red-400">0</div></div>
+                            <div><label class="label-text">Active Armor</label><div id="active-armor-names" class="text-[9px] text-gray-400">None</div></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="phase-7" class="step-container space-y-10">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
+                    <div class="sheet-section !mt-0"><div class="section-title">Physical Appearance</div><div id="vitals-create-inputs" class="grid grid-cols-2 gap-4"></div><div class="mt-6"><label class="label-text">Description / Sketch Notes</label><textarea id="bio-desc" class="h-32"></textarea></div></div>
+                    <div class="space-y-6"><div class="sheet-section !mt-0"><div class="section-title">Mental Traits & Goals</div><div class="space-y-4"><div><label class="label-text text-gold">Derangements</label><div id="derangements-list" class="space-y-2 mt-2"></div></div><div><label class="label-text text-gold">Languages</label><textarea id="bio-languages" class="h-20"></textarea></div><div><label class="label-text text-gold">Short-Term Goals</label><textarea id="bio-goals-st" class="h-20"></textarea></div><div><label class="label-text text-gold">Long-Term Goals</label><textarea id="bio-goals-lt" class="h-20"></textarea></div></div></div></div>
+                </div>
+            </div>
+
+            <div id="phase-8" class="step-container space-y-10">
+                <div class="sheet-section !mt-0">
+                    <div class="section-title">Final Touches</div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
+                        <div class="space-y-8">
+                            <div class="bg-black/30 p-6 border border-[#333]">
+                                <label class="label-text block text-center mb-4 text-gold font-bold">Check Base Totals</label>
+                                <div class="flex flex-col gap-6">
+                                    <div class="flex justify-between items-center text-[11px] py-1">
+                                        <div class="flex flex-col flex-1 mr-4">
+                                            <label class="label-text text-gold">Humanity / Path</label>
+                                            <select id="c-path-name-create" class="w-full text-xs bg-transparent border-b border-[#333] text-white p-1 appearance-none cursor-pointer">
+                                                </select>
+                                        </div>
+                                        <div class="dot-row" id="phase8-humanity-dots"></div>
+                                    </div>
+                                    <div class="flex justify-between items-center text-[11px] py-1">
+                                        <span class="trait-label uppercase">Willpower</span>
+                                        <div class="dot-row" id="phase8-willpower-dots"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="space-y-6"><div class="sheet-section !m-0"><div class="section-title">Final Character History</div><textarea id="char-history" class="w-full h-64" placeholder="Full Background History..."></textarea></div><button id="finalize-btn" class="w-full bg-[#af0000] text-white py-4 heading text-sm tracking-widest hover:bg-red-600 transition shadow-2xl font-black uppercase" onclick="window.togglePlayMode()">Finalize Character Log</button></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Play Mode Sheet (NEW LAYOUT) -->
+            <div id="play-mode-sheet" class="hidden">
+                <div id="play-mode-1" class="step-container space-y-10 active">
+                    <div id="play-concept-row" class="grid grid-cols-3 gap-6 text-[11px] uppercase border-b border-[#333] pb-6 font-bold text-gold"></div>
+                    <div id="play-rows-container" class="space-y-10"><div id="play-row-attr" class="grid grid-cols-1 md:grid-cols-3 gap-10"></div><div id="play-row-abil" class="grid grid-cols-1 md:grid-cols-3 gap-10"></div><div id="play-row-adv" class="grid grid-cols-1 md:grid-cols-3 gap-10"></div></div>
+                    
+                    <!-- NEW BOTTOM SECTION LAYOUT -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-10 border-t border-[#333] pt-10">
+                        <!-- Left Column: Status Stats -->
+                        <div class="flex flex-col gap-8">
+                            <!-- Humanity -->
+                            <div class="sheet-section">
+                                <div class="section-title">Humanity / Path</div>
+                                <div class="flex flex-col items-center gap-4 py-2">
+                                    <select id="c-path-name" class="text-center text-gold font-bold uppercase tracking-widest !bg-transparent !border-b !border-[#333] mb-1 appearance-none cursor-pointer w-full text-sm"></select>
+                                    <div id="humanity-dots-play" class="flex justify-center"></div>
+                                    <div class="flex items-center gap-2 mt-2">
+                                        <span class="label-text text-gray-500">Bearing:</span>
+                                        <input type="text" id="c-bearing-name" class="w-24 text-xs !border-b !border-[#333]">
+                                        <input type="number" id="c-bearing-value" class="w-10 text-center text-xs !border-b !border-[#333]" placeholder="( )">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Willpower -->
+                            <div class="sheet-section">
+                                <div class="section-title">Willpower</div>
+                                <div id="willpower-dots-play" class="flex justify-center mb-4"></div>
+                                <div id="willpower-boxes-play" class="flex justify-center gap-1"></div>
+                            </div>
+
+                            <!-- Blood Pool -->
+                            <div class="sheet-section">
+                                <div class="section-title">Blood Pool</div>
+                                <div id="blood-boxes-play" class="grid grid-cols-10 gap-2 justify-center mt-4 px-4"></div>
+                                <div class="flex justify-center items-center mt-4 gap-2">
+                                    <span class="text-xs text-gray-500 font-bold uppercase tracking-wider">Blood Per Turn:</span>
+                                    <input type="number" id="blood-per-turn-input" value="1" min="1" max="10" class="w-12 text-center bg-[#111] border border-[#444] text-white text-xs font-bold">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Right Column: Health & Weakness -->
+                        <div class="flex flex-col gap-8">
+                            <!-- Health -->
+                            <div class="sheet-section">
+                                <div class="section-title">Health</div>
+                                <div id="health-chart-play" class="space-y-2 mt-2"></div>
+                            </div>
+
+                            <!-- Weakness -->
+                            <div class="sheet-section" id="weakness-play-container">
+                                <!-- Populated by JS -->
+                            </div>
+
+                            <!-- Experience -->
+                            <div class="sheet-section" id="experience-play-container">
+                                <!-- Populated by JS -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="play-mode-2" class="step-container space-y-10">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-10"><div class="sheet-section !mt-0"><div class="section-title">Merits & Flaws</div><div id="merit-flaw-rows-play" class="space-y-2 text-white font-bold"></div></div><div class="sheet-section !mt-0"><div class="section-title">Other Traits</div><div id="other-traits-rows-play" class="space-y-1"></div><div class="mt-8 border-t border-[#333] pt-4"><div class="section-title">Rituals</div><div id="rituals-list-play" class="text-xs text-white whitespace-pre-wrap mt-2 p-2 bg-black/40 border border-[#333] min-h-[100px]"></div></div></div></div>
+                    <div class="sheet-section">
+                        <div class="section-title">Combat Maneuvers</div>
+                        <table class="w-full text-[11px] uppercase text-left mt-4 border-collapse">
+                            <thead><tr class="border-b border-[#555] text-gray-400 font-bold"><th class="p-2">Weapon</th><th class="p-2">Diff</th><th class="p-2">Dmg</th><th class="p-2">Rng</th><th class="p-2">Rate</th><th class="p-2">Clip</th></tr></thead>
+                            <tbody id="combat-rows-play"></tbody>
+                        </table>
+                        <div class="grid grid-cols-3 gap-6 mt-6 pt-4 border-t border-[#333] font-bold"><div><label class="label-text">Armor Rating</label><div id="armor-rating-play" class="text-white"></div></div><div><label class="label-text">Armor Penalty</label><div id="armor-penalty-play" class="text-white"></div></div><div><label class="label-text">Armor Desc</label><div id="armor-desc-play" class="text-xs text-gray-400 whitespace-pre-wrap"></div></div></div>
+                    </div>
+                </div>
+
+                <div id="play-mode-3" class="step-container space-y-10">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-8"><div class="md:col-span-2 space-y-6"><div class="sheet-section !mt-0"><div class="section-title">Background Descriptions</div><div id="play-social-grid" class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4"></div></div><div class="sheet-section"><div class="section-title">Blood Bonds / Vinculi</div><div id="play-blood-bonds" class="space-y-2 mt-4 text-xs font-bold"></div></div></div><div class="space-y-6"><div class="sheet-section !mt-0"><div class="section-title">Possessions</div><div class="space-y-4 mt-2">
+                        <div><label class="label-text text-gold">Gear (Carried)</label><div id="play-gear-carried" class="text-xs text-white whitespace-pre-wrap"></div></div>
+                        <div><label class="label-text text-gold">Equipment (Owned)</label><div id="play-gear-owned" class="text-xs text-white whitespace-pre-wrap"></div></div>
+                        <div><label class="label-text text-gold">Vehicles</label><div id="play-vehicles" class="space-y-2 font-bold text-white"></div></div>
+                        <div><label class="label-text text-gold">Feeding Grounds</label><div id="play-feeding-grounds" class="text-xs text-white whitespace-pre-wrap"></div></div></div></div><div class="sheet-section"><div class="section-title">Havens</div><div id="play-havens-list" class="space-y-4 mt-2"></div></div></div></div>
+                </div>
+
+                <div id="play-mode-4" class="step-container space-y-10"><div class="grid grid-cols-1 md:grid-cols-3 gap-8"><div class="sheet-section !mt-0"><div class="section-title">Vitals</div><div id="play-vitals-list" class="space-y-3 py-2 text-[11px] uppercase font-bold text-white"></div><div class="mt-6 border-t border-[#333] pt-4"><label class="label-text text-gold">Physical Description</label><div id="play-bio-desc" class="text-xs text-gray-300 whitespace-pre-wrap"></div></div></div><div class="md:col-span-2 space-y-6"><div class="grid grid-cols-2 gap-6"><div class="sheet-section !mt-0"><div class="section-title">Derangements</div><div id="play-derangements" class="text-xs text-white p-2"></div></div><div class="sheet-section !mt-0"><div class="section-title">Languages</div><div id="play-languages" class="text-xs text-white p-2"></div></div></div><div class="sheet-section"><div class="section-title">Goals</div><div class="grid grid-cols-2 gap-6 mt-2"><div class="border-l-2 border-gold pl-4"><label class="label-text text-gold">Short-Term</label><div id="play-goals-st" class="text-xs text-gray-200 mt-1"></div></div><div class="border-l-2 border-gold pl-4"><label class="label-text text-gold">Long-Term</label><div id="play-goals-lt" class="text-xs text-gray-200 mt-1"></div></div></div></div><div class="sheet-section"><div class="section-title">Full History</div><div id="play-history" class="text-sm text-gray-300 whitespace-pre-wrap p-4"></div></div></div></div></div>
+            </div>
+
+        </div>
+    </div>
+    
+    <div id="save-modal" class="modal-overlay">
+        <div class="modal-box">
+            <h2 class="heading text-xl text-gold mb-4 border-b border-[#333] pb-2">Inscribe Character</h2>
+            <div class="space-y-4">
+                <div>
+                    <label class="label-text">Character Name (Filename)</label>
+                    <input type="text" id="save-name-input" class="w-full text-sm font-bold bg-[#111] p-2 border border-[#333] focus:border-gold">
+                </div>
+                <div>
+                    <label class="label-text">Folder / Group</label>
+                    <input type="text" id="save-folder-input" list="folder-datalist" placeholder="e.g. Chronicle 1" class="w-full text-sm font-bold bg-[#111] p-2 border border-[#333] focus:border-gold">
+                    <datalist id="folder-datalist"></datalist>
+                </div>
+            </div>
+            <div class="flex justify-end gap-2 mt-6">
+                <button class="standard-button px-4 py-2 text-xs uppercase font-bold" onclick="document.getElementById('save-modal').classList.remove('active')">Cancel</button>
+                <button id="confirm-save-btn" class="bg-[#8b0000] text-white px-6 py-2 text-xs uppercase font-bold hover:bg-red-700 shadow-md">Inscribe</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="load-modal" class="modal-overlay">
+        <div class="modal-box w-[500px]">
+            <h2 class="heading text-xl text-gold mb-4 border-b border-[#333] pb-2">Recall Character</h2>
+            <div id="file-browser" class="h-64 overflow-y-auto bg-[#050505] border border-[#333] p-2">
+                <div class="text-center text-gray-500 italic mt-10">Connecting to Archives...</div>
+            </div>
+            <div class="flex justify-end gap-2 mt-6">
+                <button class="standard-button px-4 py-2 text-xs uppercase font-bold" onclick="document.getElementById('load-modal').classList.remove('active')">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="main.js"></script>
+
 </body>
 </html>
