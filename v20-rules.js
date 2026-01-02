@@ -142,9 +142,9 @@ export function checkCreationComplete(state) {
 export function checkStepComplete(step, state) {
     if (step === 1) {
         const f = state.textFields || {};
-        // Ensure values exist and are strings (specifically for c-gen which might be number 13 or string "13")
         const hasName = f['c-name'] && f['c-name'].trim() !== "";
         const hasClan = f['c-clan'] && f['c-clan'].trim() !== "";
+        // FIXED: c-gen is often auto-filled but ensure it exists
         const hasGen = (f['c-gen'] !== undefined && f['c-gen'] !== null && f['c-gen'] !== "");
         return hasName && hasClan && hasGen;
     }
@@ -209,66 +209,24 @@ export function getPool(state, attrName, abilName) {
  * @returns {number} The cost to buy the NEXT dot.
  */
 export function getXpCost(currentRating, type, isClan = false, isCaitiff = false) {
-    // Note: currentRating is what you HAVE. We are buying currentRating + 1.
-    // The multiplier applies to the NEW rating (currentRating + 1) for most things,
-    // OR "Current Rating" for Willpower.
-    
-    // Check Chart logic carefully: "current rating x N" usually implies the rating you are GOING TO?
-    // V20 p.124 Chart says: "Current Rating x 4" for Attributes.
-    // Example: Strength 2 to 3. Is cost 2x4=8 or 3x4=12?
-    // Standard V20 interpretation is NEW RATING.
-    // However, the text you provided says "current rating x 4". 
-    // Usually "current rating" in WW books refers to the dot you are buying (the level you are achieving).
-    // Let's stick to the standard V20 convention: Cost to go from 2 to 3 is 3 x Multiplier.
-    // UNLESS it is Willpower which is typically "current rating" meaning the one you have?
-    // Wait, the chart provided says "Willpower... current rating". 
-    // If I have 5 and want 6, cost is 5? That seems low. Standard is often "current rating" (5).
-    
     const nextDot = currentRating + 1;
 
     switch(type) {
-        case 'attr': 
-            // "Attribute... current rating x 4" -> Standard V20 is New Rating x 4.
-            return nextDot * 4; 
-            
+        case 'attr': return nextDot * 4; 
         case 'abil': 
-            // "New Ability... 3"
             if (currentRating === 0) return 3;
-            // "Ability... current rating x 2" -> Standard V20 is New Rating x 2.
             return nextDot * 2;
-            
         case 'disc': 
-            // "New Discipline... 10"
             if (currentRating === 0) return 10;
-            
-            // "Caitiff... current rating x 6"
             if (isCaitiff) return nextDot * 6;
-
-            // "Clan Discipline... current rating x 5" -> Standard V20 is New Rating x 5
             if (isClan) return nextDot * 5;
-            
-            // "Other Discipline... current rating x 7"
             return nextDot * 7;
-            
-        case 'virt': 
-            // "Virtue... current rating x 2" -> Standard V20 is New Rating x 2
-            return nextDot * 2;
-            
-        case 'humanity': 
-            // "Humanity... current rating x 2" -> Standard V20 is New Rating x 2
-            return nextDot * 2;
-            
-        case 'willpower': 
-            // "Willpower... current rating" -> Usually implies the cost is the number you HAVE.
-            // Example: 4 to 5 costs 4 XP.
-            return currentRating;
-            
+        case 'virt': return nextDot * 2;
+        case 'humanity': return nextDot * 2;
+        case 'willpower': return currentRating;
         case 'path':
-            // "New Path... 7"
             if (currentRating === 0) return 7;
-            // "Secondary Path... current rating x 4" -> Standard V20 is New Rating x 4
             return nextDot * 4;
-
         default: return 0;
     }
 }
@@ -280,18 +238,85 @@ export function getXpCost(currentRating, type, isClan = false, isCaitiff = false
  */
 export function getGenerationDerivedStats(dots = 0) {
     const baseGen = 13;
-    const currentGen = baseGen - dots; // 13 - 0 = 13th, 13 - 5 = 8th
+    const currentGen = baseGen - dots; 
     
-    // Safety clamp (though inputs should handle this)
+    // Safety clamp 
     const effectiveGen = Math.max(8, Math.min(13, currentGen));
     
-    // Look up in GEN_LIMITS from data.js
-    // Keys in GEN_LIMITS are numbers like 13, 12, etc.
     const limits = GEN_LIMITS[effectiveGen] || { m: 10, pt: 1 };
 
     return {
         generation: effectiveGen,
         maxBlood: limits.m,
         bpPerTurn: limits.pt
+    };
+}
+
+/**
+ * Calculates dice pools for a specific weapon.
+ * @param {Object} weapon - Weapon object from V20_WEAPONS_LIST (with stats).
+ * @param {Object} state - Character state.
+ * @returns {Object} { attackPool: number, damagePool: number, damageType: string }
+ */
+export function getCombatPools(weapon, state) {
+    // Attack Pool: Dex + Skill
+    // Default Skill mapping:
+    // Firearms/Ranged -> Firearms
+    // Melee -> Melee
+    // Brawl (if weapon name implies like "Fist" or "Clinch", though standard list is "Melee")
+    
+    // Simplification: Check "Type" or "Name" or "Stats"
+    // Since our data structure puts them all in one list with 'stats', we infer.
+    // Guns have 'clip' usually defined as number or formula. Melee has clip '-'
+    
+    let skill = 'Melee';
+    const clip = weapon.clip;
+    if (clip && clip !== '-') skill = 'Firearms';
+    
+    // Special case: Brawl weapons (Sap, Club sometimes? V20 usually puts Sap/Club in Melee, but "Clinch" is Brawl)
+    // The provided chart lists "Sap" and "Club" under Melee Weapons Chart.
+    // So we default to Melee unless it's a gun.
+    
+    const dex = state.dots.attr.Dexterity || 1;
+    const skillVal = state.dots.abil[skill] || 0;
+    const attackPool = dex + skillVal;
+
+    // Damage Pool
+    // Melee: Str + Bonus
+    // Firearms: Fixed (usually)
+    let damagePool = 0;
+    let damageType = 'L'; // Lethal default
+    
+    // Parse damage string "Str+1(B)" or "4(L)"
+    // stats.dmg looks like "Str+1(B)" or "4(L)"
+    const dmgStr = weapon.stats?.dmg || weapon.dmg || "";
+    
+    if (dmgStr) {
+        // Extract type (B, L, A)
+        const typeMatch = dmgStr.match(/\((.)\)/);
+        if (typeMatch) damageType = typeMatch[1];
+        
+        // Check for Strength
+        const strVal = state.dots.attr.Strength || 1;
+        
+        if (dmgStr.toLowerCase().includes('str')) {
+            // Melee
+            // Parse bonus: "Str+2" -> 2
+            const bonusMatch = dmgStr.match(/[\+\-](\d+)/);
+            const bonus = bonusMatch ? parseInt(bonusMatch[1]) : 0;
+            damagePool = strVal + bonus;
+        } else {
+            // Ranged / Fixed
+            // "4(L)" -> 4
+            const fixedMatch = dmgStr.match(/^(\d+)/);
+            damagePool = fixedMatch ? parseInt(fixedMatch[1]) : 0;
+        }
+    }
+
+    return {
+        attackPool,
+        damagePool,
+        damageType,
+        skillUsed: skill
     };
 }
