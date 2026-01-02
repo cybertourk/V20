@@ -1,57 +1,56 @@
-class AbilityRenderer {
+export default class AbilityRenderer {
     constructor(uiManager) {
         this.uiManager = uiManager;
     }
 
     render(characterData) {
-        const container = document.getElementById('abilities-section');
+        this.renderCategory('talents', 'list-abil-talents', characterData);
+        this.renderCategory('skills', 'list-abil-skills', characterData);
+        this.renderCategory('knowledges', 'list-abil-knowledges', characterData);
+    }
+
+    renderCategory(category, containerId, characterData) {
+        const container = document.getElementById(containerId);
         if (!container) return;
-        container.innerHTML = '';
 
-        const categories = ['talents', 'skills', 'knowledges'];
+        // Clean up ONLY the rows we generated previously, preserving headers/buttons
+        const oldRows = container.querySelectorAll('.generated-stat-row');
+        oldRows.forEach(row => row.remove());
 
-        categories.forEach(category => {
-            const colDiv = document.createElement('div');
-            colDiv.className = 'ability-column';
+        const abilities = this.uiManager.rules.abilities[category];
 
-            const header = document.createElement('h3');
-            header.textContent = category.charAt(0).toUpperCase() + category.slice(1);
-            colDiv.appendChild(header);
+        abilities.forEach(abil => {
+            const row = document.createElement('div');
+            // Using your Tailwind styles for rows
+            row.className = 'generated-stat-row flex justify-between items-center mb-1 hover:bg-white/5 px-2 rounded transition-colors';
 
-            const abilities = this.uiManager.rules.abilities[category];
-            abilities.forEach(ability => {
-                const abilityRow = document.createElement('div');
-                abilityRow.className = 'stat-row';
+            // Label (Click to Roll)
+            const label = document.createElement('span');
+            label.className = 'text-sm text-gray-300 font-serif cursor-pointer hover:text-gold transition-colors select-none';
+            label.textContent = abil;
+            label.onclick = () => this.uiManager.rollDice(abil, characterData.abilities[abil]);
 
-                const label = document.createElement('span');
-                label.className = 'stat-label';
-                label.textContent = ability;
+            // Dots Container
+            const dotsContainer = document.createElement('div');
+            dotsContainer.className = 'flex gap-1';
+
+            const currentVal = characterData.abilities[abil] || 0;
+            const maxVal = 5;
+
+            for (let i = 1; i <= maxVal; i++) {
+                const dot = document.createElement('div');
+                const isFilled = i <= currentVal;
+                // Using your Deep Red (#af0000) dot style
+                dot.className = `w-3 h-3 rounded-full border border-[#444] cursor-pointer hover:border-white transition-colors ${isFilled ? 'bg-[#af0000] shadow-[0_0_5px_rgba(175,0,0,0.5)]' : 'bg-transparent'}`;
                 
-                // Clickable label for rolling
-                label.style.cursor = 'pointer';
-                label.onclick = () => this.uiManager.rollDice(ability, characterData.abilities[ability]);
+                dot.onclick = () => this.uiManager.updateStat('abilities', abil, i);
+                
+                dotsContainer.appendChild(dot);
+            }
 
-                const dotsContainer = document.createElement('div');
-                dotsContainer.className = 'dots-container';
-
-                const currentVal = characterData.abilities[ability] || 0;
-                const maxVal = 5;
-
-                for (let i = 1; i <= maxVal; i++) {
-                    const dot = document.createElement('span');
-                    dot.className = i <= currentVal ? 'dot filled' : 'dot empty';
-                    dot.dataset.value = i;
-                    dot.dataset.ability = ability;
-                    dot.onclick = () => this.uiManager.updateStat('abilities', ability, i);
-                    dotsContainer.appendChild(dot);
-                }
-
-                abilityRow.appendChild(label);
-                abilityRow.appendChild(dotsContainer);
-                colDiv.appendChild(abilityRow);
-            });
-
-            container.appendChild(colDiv);
+            row.appendChild(label);
+            row.appendChild(dotsContainer);
+            container.appendChild(row);
         });
     }
 }
