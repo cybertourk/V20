@@ -54,6 +54,10 @@ export const BACKGROUNDS = [
     'Generation', 'Herd', 'Influence', 'Mentor', 'Resources', 'Retainers', 'Rituals', 'Status'
 ];
 
+export const VIRTUES = [
+    'Conscience', 'Self-Control', 'Courage'
+];
+
 export const PATHS = [
     'Humanity', 'Path of Blood', 'Path of Caine', 'Path of Cathari', 'Path of Death and the Soul',
     'Path of Ecstasy', 'Path of Entelechy', 'Path of Feral Heart', 'Path of Harmony', 
@@ -87,7 +91,6 @@ export const V20_FLAWS_LIST = [
     'Cast No Reflection', 'Cursed', 'Haunted', 'Repulsed by Garlic', 'Touch of Frost', 'Eerie Presence'
 ];
 
-// V20 Core Page 270 (Generation Charts)
 export const GEN_LIMITS = {
     13: { traitMax: 5, bloodPool: 10, bloodPerTurn: 1 },
     12: { traitMax: 5, bloodPool: 11, bloodPerTurn: 1 },
@@ -100,6 +103,16 @@ export const GEN_LIMITS = {
     5:  { traitMax: 8, bloodPool: 40, bloodPerTurn: 8 },
     4:  { traitMax: 9, bloodPool: 50, bloodPerTurn: 10 }
 };
+
+export const HEALTH_LEVELS = [
+    { name: 'Bruised', penalty: 0 },
+    { name: 'Hurt', penalty: -1 },
+    { name: 'Injured', penalty: -1 },
+    { name: 'Wounded', penalty: -2 },
+    { name: 'Mauled', penalty: -2 },
+    { name: 'Crippled', penalty: -5 },
+    { name: 'Incapacitated', penalty: 0 }
+];
 
 export const FREEBIE_COSTS = {
     attributes: 5,
