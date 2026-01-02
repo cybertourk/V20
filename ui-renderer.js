@@ -515,6 +515,7 @@ window.updatePools = function() {
                 let display = w.displayName || w.name; 
                 const r = document.createElement('tr'); 
                 r.className='border-b border-[#222] text-[10px]'; 
+                // ADDED ROLL BUTTONS HERE
                 r.innerHTML = `
                     <td class="p-2 font-bold text-gold">${display}</td>
                     <td class="p-2 text-white">${w.stats.diff}</td>
