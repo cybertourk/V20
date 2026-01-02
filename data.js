@@ -1,4 +1,44 @@
-export const defaultCharacter = {
+// --- V20 Core Rules Constants ---
+
+export const ATTRIBUTES = {
+    physical: ['Strength', 'Dexterity', 'Stamina'],
+    social: ['Charisma', 'Manipulation', 'Appearance'],
+    mental: ['Perception', 'Intelligence', 'Wits']
+};
+
+export const ABILITIES = {
+    talents: ['Alertness', 'Athletics', 'Brawl', 'Dodge', 'Empathy', 'Expression', 'Intimidation', 'Leadership', 'Streetwise', 'Subterfuge'],
+    skills: ['Animal Ken', 'Crafts', 'Drive', 'Etiquette', 'Firearms', 'Larceny', 'Melee', 'Performance', 'Stealth', 'Survival'],
+    knowledges: ['Academics', 'Computer', 'Finance', 'Investigation', 'Law', 'Medicine', 'Occult', 'Politics', 'Science', 'Technology']
+};
+
+export const CLANS = [
+    'Assamite', 'Brujah', 'Caitiff', 'Follower of Set', 'Gangrel', 'Giovanni', 'Lasombra', 
+    'Malkavian', 'Nosferatu', 'Ravnos', 'Toreador', 'Tremere', 'Tzimisce', 'Ventrue'
+];
+
+export const ARCHETYPES = [
+    'Architect', 'Autocrat', 'Bon Vivant', 'Bravo', 'Caregiver', 'Celebrity', 'Child', 
+    'Competitor', 'Conformist', 'Conniver', 'Creep Show', 'Curmudgeon', 'Dabbler', 'Deviant', 
+    'Director', 'Enigma', 'Eye of the Storm', 'Fanatic', 'Gallant', 'Guru', 'Idealist', 
+    'Judge', 'Loner', 'Martyr', 'Masochist', 'Monster', 'Pedagogue', 'Penitent', 
+    'Perfectionist', 'Rebel', 'Rogue', 'Soldier', 'Survivor', 'Thrill-Seeker', 'Traditionalist', 
+    'Trickster', 'Visionary'
+];
+
+export const DISCIPLINES = [
+    'Animalism', 'Auspex', 'Celerity', 'Chimerstry', 'Dementation', 'Dominate', 'Fortitude', 
+    'Necromancy', 'Obfuscate', 'Obtenebration', 'Potence', 'Presence', 'Protean', 'Quietus', 
+    'Serpentis', 'Thaumaturgy', 'Vicissitude'
+];
+
+export const BACKGROUNDS = [
+    'Allies', 'Alternate Identity', 'Black Hand Membership', 'Contacts', 'Domain', 'Fame', 
+    'Generation', 'Herd', 'Influence', 'Mentor', 'Resources', 'Retainers', 'Rituals', 'Status'
+];
+
+// --- Blank Character Template (Default Export) ---
+const blankTemplate = {
     name: "",
     player: "",
     chronicle: "",
@@ -9,7 +49,7 @@ export const defaultCharacter = {
     generation: 13,
     sire: "",
     
-    // Attributes (Flat structure for easier access by key)
+    // Attributes
     attributes: {
         Strength: 1, Dexterity: 1, Stamina: 1,
         Charisma: 1, Manipulation: 1, Appearance: 1,
@@ -53,3 +93,5 @@ export const defaultCharacter = {
     languages: "",
     derangements: []
 };
+
+export default blankTemplate;
