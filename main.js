@@ -262,13 +262,34 @@ function initUI() {
                             // V20: 0 dots = 13th Gen, 1 dot = 12th, ..., 5 dots = 8th
                             const newGen = 13 - genDots;
                             
-                            // Update Text Field
+                            // 1. Update Text Field Input
                             window.state.textFields['c-gen'] = newGen.toString();
                             const genInput = document.getElementById('c-gen');
                             if (genInput) genInput.value = newGen;
 
-                            // Update Validation
+                            // 2. Update Blood Pool & Per Turn Limits
+                            // GEN_LIMITS keys are numbers: 13, 12, etc.
+                            if (GEN_LIMITS && GEN_LIMITS[newGen]) {
+                                const limits = GEN_LIMITS[newGen];
+                                
+                                // Update State for Blood
+                                window.state.status.blood_max = limits.m;
+                                window.state.status.blood_per_turn = limits.pt;
+                                
+                                // Update UI display for Blood Pool (assuming standard ID #blood-max or similiar if it exists)
+                                // If the UI renderer uses a loop based on max, we need to re-render that section.
+                                // For now, we update the display text if it exists.
+                                const bpTurnDisp = document.getElementById('blood-per-turn-display');
+                                if (bpTurnDisp) bpTurnDisp.innerText = limits.pt;
+                                
+                                const bpMaxDisp = document.getElementById('blood-max-display');
+                                if (bpMaxDisp) bpMaxDisp.innerText = limits.m;
+                            }
+
+                            // 3. Trigger UI Updates
                             updateWalkthrough();
+                            if (window.updatePools) window.updatePools(); // Should refresh blood dots
+                            
                         }, 50);
                     }
                 }
