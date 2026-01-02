@@ -39,7 +39,10 @@ window.state = {
     prios: { attr: {}, abil: {} },
     status: { humanity: 7, willpower: 5, tempWillpower: 5, health_states: [0,0,0,0,0,0,0], blood: 0 },
     specialties: {}, 
-    socialExtras: {}, textFields: {}, havens: [], bloodBonds: [], vehicles: [], customAbilityCategories: {},
+    socialExtras: {}, 
+    // FIXED: Initialize c-gen to 13 so Step 1 validation passes by default without interaction
+    textFields: { "c-gen": "13" }, 
+    havens: [], bloodBonds: [], vehicles: [], customAbilityCategories: {},
     derangements: [], merits: [], flaws: [], inventory: [],
     meta: { filename: "", folder: "" } 
 };
@@ -215,7 +218,8 @@ function initUI() {
         renderBloodBondRow();
         renderDynamicHavenRow();
         
-        const criticalFields = ['c-name', 'c-nature', 'c-demeanor', 'c-clan', 'c-player', 'c-concept', 'c-sire'];
+        // FIXED: c-gen is included here for critical validation updates
+        const criticalFields = ['c-name', 'c-nature', 'c-demeanor', 'c-clan', 'c-gen', 'c-player', 'c-concept', 'c-sire'];
         criticalFields.forEach(id => {
             const el = document.getElementById(id);
             if(el) {
@@ -361,6 +365,9 @@ onAuthStateChanged(auth, async (u) => {
                         // Update UI immediately
                         renderDynamicAdvantageRow('list-disc', 'disc', DISCIPLINES);
                     }
+                    
+                    // Force update validation when Clan changes
+                    updateWalkthrough();
                 });
             }
 
@@ -384,6 +391,9 @@ onAuthStateChanged(auth, async (u) => {
             // 2. HYDRATE INPUTS AFTER POPULATION
             // This ensures that if we have state loaded, the dropdowns select the correct value
             hydrateInputs();
+            
+            // FIXED: Force validation check immediately after loading
+            updateWalkthrough();
             
             // Re-check Clan Weakness based on hydrated value
             const currentClan = document.getElementById('c-clan')?.value;
