@@ -1,3 +1,4 @@
+// cybertourk/v20/V20-5147783a6c880fca5723408a9242fe67e1fd0b0f/data.js
 // DATA CONSTANTS (Converted to ES6 Exports)
 
 export const APP_VERSION = "v1.1.0";
@@ -15,7 +16,7 @@ export const ARCHETYPES = [
     "Deviant", "Director", "Enigma", "Eye of the Storm", "Fanatic", 
     "Gallant", "Guru", "Idealist", "Judge", "Loner", "Martyr", 
     "Masochist", "Monster", "Pedagogue", "Penitent", "Perfectionist", 
-    "Rebel", "Rogue", "Survivor", "Thrill-Seeker", "Traditionalist", 
+    "Rebel", "Rogue", "Soldier", "Survivor", "Thrill-Seeker", "Traditionalist", 
     "Trickster", "Visionary"
 ];
 
@@ -47,6 +48,23 @@ export const DISCIPLINES = [
     "Thaumaturgy", "Vicissitude"
 ];
 
+export const CLAN_DISCIPLINES = {
+    "Assamite": ["Celerity", "Obfuscate", "Quietus"],
+    "Brujah": ["Celerity", "Potence", "Presence"],
+    "Followers of Set": ["Obfuscate", "Presence", "Serpentis"],
+    "Gangrel": ["Animalism", "Fortitude", "Protean"],
+    "Giovanni": ["Dominate", "Necromancy", "Potence"],
+    "Lasombra": ["Dominate", "Obtenebration", "Potence"],
+    "Malkavian": ["Auspex", "Dementation", "Obfuscate"],
+    "Nosferatu": ["Animalism", "Obfuscate", "Potence"],
+    "Ravnos": ["Animalism", "Chimerstry", "Fortitude"],
+    "Toreador": ["Auspex", "Celerity", "Presence"],
+    "Tremere": ["Auspex", "Dominate", "Thaumaturgy"],
+    "Tzimisce": ["Animalism", "Auspex", "Vicissitude"],
+    "Ventrue": ["Dominate", "Fortitude", "Presence"],
+    "Caitiff": [] // Caitiff have no in-clan disciplines
+};
+
 export const BACKGROUNDS = [
     "Allies", "Alternate Identity", "Black Hand Membership", "Contacts", 
     "Domain", "Fame", "Generation", "Herd", "Influence", "Mentor", 
@@ -58,8 +76,8 @@ export const VIRTUES = ["Conscience", "Self-Control", "Courage"];
 export const VIT = ["Age", "Hair", "Eyes", "Height", "Weight", "Sex"];
 
 export const DERANGEMENTS = [
-    "Megalomaniac", "Sanguinary Animism", "Multiple Personalities", 
-    "Schizophrenia", "Paranoia", "Bulimia", "Hysteria", "Manic-Depressive", 
+    "Megalomania", "Sanguinary Animism", "Multiple Personalities", 
+    "Schizophrenia", "Paranoia", "Bulimia", "Hysteria", "Manic-Depression", 
     "Fugue", "Obsessive-Compulsive"
 ];
 
