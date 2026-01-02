@@ -2,7 +2,7 @@ import { auth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } fr
 import { 
     APP_VERSION, CLANS, ARCHETYPES, PATHS, ATTRIBUTES, ABILITIES, 
     DISCIPLINES, BACKGROUNDS, VIRTUES, V20_MERITS_LIST, V20_FLAWS_LIST, VIT, 
-    CLAN_WEAKNESSES, CLAN_DISCIPLINES 
+    CLAN_WEAKNESSES, CLAN_DISCIPLINES, GEN_LIMITS 
 } from "./data.js";
 import * as FBManager from "./firebase-manager.js";
 import { 
@@ -243,6 +243,33 @@ function initUI() {
         if(topPlayBtn) topPlayBtn.onclick = window.togglePlayMode;
         const topFreebieBtn = document.getElementById('toggle-freebie-btn');
         if(topFreebieBtn) topFreebieBtn.onclick = window.toggleFreebieMode;
+
+        // --- GLOBAL LISTENER FOR GENERATION SYNC ---
+        document.body.addEventListener('click', function(e) {
+            if (e.target.classList.contains('dot')) {
+                const row = e.target.closest('.dot-row');
+                if (row) {
+                    const traitName = row.dataset.n;
+                    const traitType = row.dataset.t;
+
+                    if (traitType === 'back' && traitName === 'Generation') {
+                        setTimeout(() => {
+                            const genDots = window.state.dots.back['Generation'] || 0;
+                            // V20: 0 dots = 13th Gen, 1 dot = 12th, ..., 5 dots = 8th
+                            const newGen = 13 - genDots;
+                            
+                            // Update Text Field
+                            window.state.textFields['c-gen'] = newGen.toString();
+                            const genInput = document.getElementById('c-gen');
+                            if (genInput) genInput.value = newGen;
+
+                            // Update Validation
+                            updateWalkthrough();
+                        }, 50);
+                    }
+                }
+            }
+        });
 
         document.addEventListener('click', function(e) {
             if (!window.state.isPlayMode) return;
