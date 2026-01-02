@@ -280,13 +280,10 @@ window.updatePools = function() {
     if (window.state.status.health_states === undefined || !Array.isArray(window.state.status.health_states)) window.state.status.health_states = [0,0,0,0,0,0,0];
 
     // FIX FOR FRESH CHARACTERS:
-    // This logic detects the specific uninitialized default state (Hum=7, Will=5) where Virtues are still at base (1).
-    // If detected, it forces a sync to the correct base values (Hum=2, Will=1).
     const bH = (window.state.dots.virt?.Conscience || 1) + (window.state.dots.virt?.["Self-Control"] || 1);
     const bW = (window.state.dots.virt?.Courage || 1);
 
     if (!window.state.freebieMode && !window.state.isPlayMode) {
-         // Check if we are at the dangerous "Default" state
          if (window.state.status.humanity === 7 && bH === 2) {
              window.state.status.humanity = 2;
          }
@@ -332,7 +329,6 @@ window.updatePools = function() {
          setSafeText('sb-back', Math.max(0, backSpent - 5) * 1);
          setSafeText('sb-virt', Math.max(0, (virtTotalDots-3) - 7) * 2);
          
-         // Calculate Freebie Costs based on Diff from Virtues
          const bH = (window.state.dots.virt?.Conscience || 1) + (window.state.dots.virt?.["Self-Control"] || 1);
          const bW = (window.state.dots.virt?.Courage || 1);
          const cH = window.state.status.humanity !== undefined ? window.state.status.humanity : bH;
@@ -625,6 +621,8 @@ export function setDots(name, type, val, min, max = 5) {
         }
     }
 
+    // --- APPLY STATE UPDATE ---
+    if (!window.state.dots[type]) window.state.dots[type] = {};
     window.state.dots[type][name] = newVal;
     
     // UPDATED VIRTUE LOGIC:
@@ -646,6 +644,32 @@ export function setDots(name, type, val, min, max = 5) {
              }
          }
     }
+
+    // --- GENERATION SPECIAL LOGIC (Global setDots Hook) ---
+    // This catches updates from standard row clicks (via renderRow) AND dynamic row clicks
+    if (type === 'back' && name === 'Generation') {
+        const newGen = 13 - newVal;
+        
+        // 1. Update Text Field
+        window.state.textFields['c-gen'] = newGen.toString();
+        const genInput = document.getElementById('c-gen');
+        if (genInput) genInput.value = newGen;
+
+        // 2. Update Blood Limits
+        if (GEN_LIMITS && GEN_LIMITS[newGen]) {
+            const limits = GEN_LIMITS[newGen];
+            window.state.status.blood_max = limits.m;
+            window.state.status.blood_per_turn = limits.pt;
+            
+            // Update Displays
+            const bpMaxDisp = document.getElementById('blood-max-display');
+            if (bpMaxDisp) bpMaxDisp.innerText = limits.m;
+            
+            const bpTurnDisp = document.getElementById('blood-per-turn-display');
+            if (bpTurnDisp) bpTurnDisp.innerText = limits.pt;
+        }
+    }
+    // ----------------------------------------------------
 
     if (type === 'attr' || type === 'abil') {
         refreshTraitRow(name, type);
@@ -739,6 +763,22 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                 dotCont.innerHTML = renderDots(window.state.dots[type][newVal], 5);
                 dotCont.dataset.n = newVal; dotCont.dataset.t = type;
                 if (category) { if (!window.state.customAbilityCategories) window.state.customAbilityCategories = {}; window.state.customAbilityCategories[newVal] = category; }
+                
+                // --- GENERATION SPECIAL LOGIC (On Add) ---
+                if (type === 'back' && newVal === 'Generation') {
+                    // Default to 1 dot (12th Gen) when adding
+                    window.state.dots[type][newVal] = 1;
+                    dotCont.innerHTML = renderDots(1, 5);
+                    window.state.textFields['c-gen'] = "12";
+                    const genInput = document.getElementById('c-gen');
+                    if (genInput) genInput.value = "12";
+                    window.state.status.blood_max = 11;
+                    window.state.status.blood_per_turn = 1;
+                    const bpMaxDisp = document.getElementById('blood-max-display');
+                    if (bpMaxDisp) bpMaxDisp.innerText = 11;
+                }
+                // -----------------------------------------
+
                 if (row === container.lastElementChild) { removeBtn.style.visibility = 'visible'; buildRow(); }
             }
             window.updatePools();
@@ -746,7 +786,26 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
         };
         
         if (isAbil) inputField.onblur = (e) => onUpdate(e.target.value); else inputField.onchange = (e) => onUpdate(e.target.value);
-        removeBtn.onclick = () => { if (curName) { delete window.state.dots[type][curName]; if (window.state.customAbilityCategories && window.state.customAbilityCategories[curName]) delete window.state.customAbilityCategories[curName]; } row.remove(); window.updatePools(); if(type==='back') renderSocialProfile(); };
+        removeBtn.onclick = () => { 
+            if (curName) { 
+                delete window.state.dots[type][curName]; 
+                if (window.state.customAbilityCategories && window.state.customAbilityCategories[curName]) delete window.state.customAbilityCategories[curName];
+                
+                // SPECIAL: Reset Generation if removed
+                if (type === 'back' && curName === 'Generation') {
+                     window.state.textFields['c-gen'] = "13";
+                     const genInput = document.getElementById('c-gen');
+                     if (genInput) genInput.value = "13";
+                     window.state.status.blood_max = 10;
+                     window.state.status.blood_per_turn = 1;
+                     const bpMaxDisp = document.getElementById('blood-max-display');
+                     if (bpMaxDisp) bpMaxDisp.innerText = 10;
+                }
+            } 
+            row.remove(); 
+            window.updatePools(); 
+            if(type==='back') renderSocialProfile(); 
+        };
         
         dotCont.onclick = (e) => { 
             if (!curName || !e.target.dataset.v) return; 
@@ -1174,6 +1233,46 @@ window.togglePlayMode = function() {
     }
 };
 
+export function initializeUI(state) {
+    renderNavigation();
+    renderDynamicAdvantageRow('list-disc', 'disc', DISCIPLINES);
+    renderDynamicAdvantageRow('list-back', 'back', BACKGROUNDS);
+    renderDynamicAdvantageRow('custom-talents', 'abil', [], true);
+    renderDynamicAdvantageRow('custom-skills', 'abil', [], true);
+    renderDynamicAdvantageRow('custom-knowledges', 'abil', [], true);
+    renderDerangementsList();
+    renderInventoryList();
+    renderDynamicTraitRow('merits-list-create', 'Merit', V20_MERITS_LIST);
+    renderDynamicTraitRow('flaws-list-create', 'Flaw', V20_FLAWS_LIST);
+    Object.keys(ATTRIBUTES).forEach(c => {
+        ATTRIBUTES[c].forEach(a => renderRow('list-attr-'+c.toLowerCase(), a, 'attr', state.dots.attr[a] || 1));
+    });
+    Object.keys(ABILITIES).forEach(c => {
+        ABILITIES[c].forEach(a => renderRow('list-abil-'+c.toLowerCase(), a, 'abil', state.dots.abil[a] || 0));
+    });
+    VIRTUES.forEach(v => renderRow('list-virt', v, 'virt', state.dots.virt[v] || 1));
+    setupInventoryListeners();
+    renderSocialProfile();
+    updateWalkthrough();
+}
+
+function renderNavigation() {
+    const nav = document.getElementById('sheet-nav');
+    if (!nav) return;
+    let html = '';
+    STEPS_CONFIG.forEach(step => {
+        html += `<button class="nav-btn px-3 py-2 text-xs font-bold uppercase tracking-wider text-gray-500 hover:text-white transition-colors" data-step="${step.id}" id="nav-step-${step.id}"><i class="fas ${step.icon} mr-1"></i> ${step.label}</button>`;
+    });
+    nav.innerHTML = html;
+    document.querySelectorAll('.nav-btn').forEach(btn => {
+        btn.onclick = (e) => {
+            const step = parseInt(e.currentTarget.dataset.step);
+            window.changeStep(step);
+        };
+    });
+}
+
+// --- GLOBAL EXPORTS FOR MAIN.JS ---
 window.hydrateInputs = hydrateInputs;
 window.renderSocialProfile = renderSocialProfile;
 window.setupInventoryListeners = setupInventoryListeners;
