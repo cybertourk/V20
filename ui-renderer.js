@@ -9,8 +9,7 @@ import {
     calculateTotalFreebiesSpent, 
     checkCreationComplete, 
     checkStepComplete, 
-    BROAD_ABILITIES,
-    getCombatPools 
+    BROAD_ABILITIES 
 } from "./v20-rules.js";
 
 // --- HELPERS ---
@@ -245,8 +244,11 @@ window.handleTraitClick = function(name, type) {
     } else window.clearPool();
 };
 
-window.rollDiceLogic = function(poolSize, diff, isSpec = false) {
-    if (poolSize <= 0) return { outcome: "Pool Empty", type: 'fail', rolls: [] };
+window.rollPool = function() {
+    const poolSize = window.state.activePool.reduce((a,b) => a + b.val, 0);
+    if (poolSize <= 0) { window.showNotification("Pool Empty"); return; }
+    const diff = parseInt(document.getElementById('roll-diff').value) || 6;
+    const isSpec = document.getElementById('use-specialty').checked;
     let results = [], ones = 0, rawSuccesses = 0;
     for(let i=0; i<poolSize; i++) {
         const die = Math.floor(Math.random() * 10) + 1;
@@ -259,58 +261,230 @@ window.rollDiceLogic = function(poolSize, diff, isSpec = false) {
     if (rawSuccesses === 0 && ones > 0) { outcome = "BOTCH"; outcomeClass = "dice-botch"; } 
     else if (net <= 0) { outcome = "FAILURE"; outcomeClass = "text-gray-400"; } 
     else { outcome = `${net} SUCCESS${net > 1 ? 'ES' : ''}`; outcomeClass = "dice-success"; }
-    return { outcome, type: outcomeClass, rolls: results };
-};
-
-window.renderRollResult = function(resultObj, diff, isSpec, label = '') {
     const tray = document.getElementById('roll-results');
     const row = document.createElement('div');
     row.className = 'bg-black/60 p-2 border border-[#333] text-[10px] mb-2 animate-in fade-in slide-in-from-right-4 duration-300';
-    const diceRender = resultObj.rolls.map(d => {
+    const diceRender = results.map(d => {
         let c = 'text-gray-500';
         if (d === 1) c = 'text-[#ff0000] font-bold';
         else if (d >= diff) { c = 'text-[#d4af37] font-bold'; if (d === 10 && isSpec) c = 'text-[#4ade80] font-black'; }
         return `<span class="${c} text-3xl mx-1">${d}</span>`;
     }).join(' ');
-    
-    let header = label ? `<span class="text-gold font-bold mr-2">${label}</span>` : '';
-    header += `<span class="text-gray-400">Diff ${diff}${isSpec ? '*' : ''}</span>`;
-    
-    row.innerHTML = `<div class="flex justify-between border-b border-[#444] pb-1 mb-1"><div>${header}</div><span class="${resultObj.type} font-black text-sm">${resultObj.outcome}</span></div><div class="tracking-widest flex flex-wrap justify-center py-2">${diceRender}</div>`;
+    row.innerHTML = `<div class="flex justify-between border-b border-[#444] pb-1 mb-1"><span class="text-gray-400">Diff ${diff}${isSpec ? '*' : ''}</span><span class="${outcomeClass} font-black text-sm">${outcome}</span></div><div class="tracking-widest flex flex-wrap justify-center py-2">${diceRender}</div>`;
     tray.insertBefore(row, tray.firstChild);
 };
 
-window.rollPool = function() {
-    const poolSize = window.state.activePool.reduce((a,b) => a + b.val, 0);
-    if (poolSize <= 0) { window.showNotification("Pool Empty"); return; }
-    const diff = parseInt(document.getElementById('roll-diff').value) || 6;
-    const isSpec = document.getElementById('use-specialty').checked;
-    const res = window.rollDiceLogic(poolSize, diff, isSpec);
-    window.renderRollResult(res, diff, isSpec);
-};
+window.updatePools = function() {
+    if (!window.state.status) window.state.status = { humanity: 7, willpower: 5, tempWillpower: 5, health_states: [0,0,0,0,0,0,0], blood: 0 };
+    if (window.state.status.tempWillpower === undefined) window.state.status.tempWillpower = window.state.status.willpower || 5;
+    if (window.state.status.health_states === undefined || !Array.isArray(window.state.status.health_states)) window.state.status.health_states = [0,0,0,0,0,0,0];
 
-window.rollCombat = function(weaponIdx, type) {
-    const weapon = window.state.inventory.filter(i => i.type === 'Weapon' && i.status === 'carried')[weaponIdx];
-    if (!weapon) return;
+    // FIX FOR FRESH CHARACTERS:
+    const bH = (window.state.dots.virt?.Conscience || 1) + (window.state.dots.virt?.["Self-Control"] || 1);
+    const bW = (window.state.dots.virt?.Courage || 1);
 
-    const combatData = getCombatPools(weapon, window.state);
-    
-    let pool = 0;
-    let diff = 6;
-    let label = "";
-    
-    if (type === 'attack') {
-        pool = combatData.attackPool;
-        diff = parseInt(weapon.stats.diff) || 6;
-        label = `Attack (${weapon.displayName || weapon.name})`;
-    } else {
-        pool = combatData.damagePool;
-        diff = 6; 
-        label = `Damage (${weapon.displayName || weapon.name})`;
+    if (!window.state.freebieMode && !window.state.isPlayMode) {
+         if (window.state.status.humanity === 7 && bH === 2) {
+             window.state.status.humanity = 2;
+         }
+         if (window.state.status.willpower === 5 && bW === 1) {
+             window.state.status.willpower = 1;
+             window.state.status.tempWillpower = 1;
+         }
     }
 
-    const res = window.rollDiceLogic(pool, diff, false);
-    window.renderRollResult(res, diff, false, label);
+    const curH = window.state.status.humanity;
+    const curW = window.state.status.willpower;
+    const tempW = window.state.status.tempWillpower;
+    const gen = parseInt(document.getElementById('c-gen')?.value) || 13;
+    const lim = GEN_LIMITS[gen] || GEN_LIMITS[13];
+
+    Object.keys(ATTRIBUTES).forEach(cat => {
+        let cs = 0; ATTRIBUTES[cat].forEach(a => cs += ((window.state.dots.attr[a] || 1) - 1));
+        const targetId = (cat === 'Social') ? 'p-social' : (cat === 'Mental') ? 'p-mental' : 'p-phys';
+        setSafeText(targetId, `[${Math.max(0, (window.state.prios.attr[cat] || 0) - cs)}]`);
+    });
+    
+    Object.keys(ABILITIES).forEach(cat => {
+        let cs = 0; ABILITIES[cat].forEach(a => cs += (window.state.dots.abil[a] || 0));
+        if (window.state.customAbilityCategories) { Object.entries(window.state.customAbilityCategories).forEach(([name, c]) => { if (c === cat && window.state.dots.abil[name]) cs += window.state.dots.abil[name]; }); }
+        setSafeText('p-' + cat.toLowerCase().slice(0,3), `[${Math.max(0, (window.state.prios.abil[cat] || 0) - cs)}]`);
+    });
+    
+    const discSpent = Object.values(window.state.dots.disc || {}).reduce((a, b) => a + b, 0);
+    setSafeText('p-disc', `[${Math.max(0, 3 - discSpent)}]`);
+    const backSpent = Object.values(window.state.dots.back || {}).reduce((a, b) => a + b, 0);
+    setSafeText('p-back', `[${Math.max(0, 5 - backSpent)}]`);
+    const virtTotalDots = VIRTUES.reduce((a, v) => a + (window.state.dots.virt[v] || 1), 0);
+    setSafeText('p-virt', `[${Math.max(0, 7 - (virtTotalDots - 3))}]`);
+
+    if (window.state.freebieMode) {
+         const totalSpent = calculateTotalFreebiesSpent(window.state);
+         setSafeText('f-total-top', totalSpent); 
+         let attrDots = 0; Object.keys(ATTRIBUTES).forEach(cat => ATTRIBUTES[cat].forEach(a => attrDots += (window.state.dots.attr[a] || 1)));
+         setSafeText('sb-attr', Math.max(0, attrDots - 24) * 5);
+         let abilDots = 0; Object.keys(ABILITIES).forEach(cat => { ABILITIES[cat].forEach(a => abilDots += (window.state.dots.abil[a] || 0)); if (window.state.customAbilityCategories) { Object.entries(window.state.customAbilityCategories).forEach(([name, c]) => { if (c === cat && window.state.dots.abil[name]) abilDots += window.state.dots.abil[name]; }); } });
+         setSafeText('sb-abil', Math.max(0, abilDots - 27) * 2);
+         setSafeText('sb-disc', Math.max(0, discSpent - 3) * 7);
+         setSafeText('sb-back', Math.max(0, backSpent - 5) * 1);
+         setSafeText('sb-virt', Math.max(0, (virtTotalDots-3) - 7) * 2);
+         
+         const bH = (window.state.dots.virt?.Conscience || 1) + (window.state.dots.virt?.["Self-Control"] || 1);
+         const bW = (window.state.dots.virt?.Courage || 1);
+         const cH = window.state.status.humanity !== undefined ? window.state.status.humanity : bH;
+         const cW = window.state.status.willpower !== undefined ? window.state.status.willpower : bW;
+         
+         setSafeText('sb-human', Math.max(0, cH - bH) * 2);
+         setSafeText('sb-will', Math.max(0, cW - bW) * 1);
+         
+         let mfCost = 0, mfBonus = 0;
+         if (window.state.merits) window.state.merits.forEach(m => mfCost += (parseInt(m.val) || 0));
+         if (window.state.flaws) window.state.flaws.forEach(f => mfBonus += (parseInt(f.val) || 0));
+         const cappedBonus = Math.min(mfBonus, 7);
+         setSafeText('sb-merit', mfCost);
+         setSafeText('sb-flaw', `+${cappedBonus}`);
+         const limit = parseInt(document.getElementById('c-freebie-total')?.value) || 15;
+         setSafeText('sb-total', limit - totalSpent);
+         document.getElementById('freebie-sidebar').classList.add('active'); 
+    } else {
+         document.getElementById('freebie-sidebar').classList.remove('active');
+    }
+
+    const fbBtn = document.getElementById('toggle-freebie-btn');
+    if (fbBtn) {
+        const complete = checkCreationComplete(window.state);
+        if (!window.state.freebieMode) fbBtn.disabled = !complete.complete; else fbBtn.disabled = false; 
+    }
+
+    document.querySelectorAll('.dot-row').forEach(el => {
+        const name = el.dataset.n;
+        const type = el.dataset.t;
+        if (name && type && window.state.dots[type]) {
+            const val = window.state.dots[type][name] || 0; 
+            el.innerHTML = renderDots(val, 5);
+        }
+    });
+
+    const p8h = document.getElementById('phase8-humanity-dots');
+    if(p8h) {
+        p8h.innerHTML = renderDots(curH, 10);
+        p8h.onclick = (e) => { if (window.state.freebieMode && e.target.dataset.v) setDots('Humanity', 'status', parseInt(e.target.dataset.v), 1, 10); };
+    }
+    const p8w = document.getElementById('phase8-willpower-dots');
+    if(p8w) {
+        p8w.innerHTML = renderDots(curW, 10);
+        p8w.onclick = (e) => { if (window.state.freebieMode && e.target.dataset.v) setDots('Willpower', 'status', parseInt(e.target.dataset.v), 1, 10); };
+    }
+
+    document.querySelectorAll('#humanity-dots-play').forEach(el => el.innerHTML = renderDots(curH, 10));
+    document.querySelectorAll('#willpower-dots-play').forEach(el => el.innerHTML = renderDots(curW, 10));
+    document.querySelectorAll('#willpower-boxes-play').forEach(el => el.innerHTML = renderBoxes(curW, tempW, 'wp'));
+    
+    const bpContainer = document.querySelectorAll('#blood-boxes-play');
+    bpContainer.forEach(el => {
+        let h = '';
+        const currentBlood = window.state.status.blood || 0;
+        const maxBloodForGen = lim.m;
+        for (let i = 1; i <= 20; i++) {
+            let classes = "box";
+            if (i <= currentBlood) classes += " checked";
+            if (i > maxBloodForGen) classes += " cursor-not-allowed opacity-50 bg-[#1a1a1a]"; else classes += " cursor-pointer";
+            if (i > maxBloodForGen) classes += " pointer-events-none";
+            h += `<span class="${classes}" data-v="${i}" data-type="blood"></span>`;
+        }
+        el.innerHTML = h;
+    });
+
+    const healthCont = document.getElementById('health-chart-play');
+    if(healthCont && healthCont.children.length === 0) {
+         HEALTH_STATES.forEach((h, i) => {
+            const d = document.createElement('div'); 
+            d.className = 'flex justify-between items-center text-[10px] uppercase border-b border-[#333] py-2 font-bold';
+            const penaltyText = h.p !== 0 ? h.p : '';
+            d.innerHTML = `<span>${h.l}</span><div class="flex gap-3"><span class="text-red-500">${penaltyText}</span><div class="box" data-v="${i+1}" data-type="health"></div></div>`;
+            healthCont.appendChild(d);
+        });
+    }
+
+    const healthStates = window.state.status.health_states || [0,0,0,0,0,0,0];
+    document.querySelectorAll('#health-chart-play .box').forEach((box, i) => {
+        box.classList.remove('checked'); 
+        box.dataset.state = healthStates[i] || 0;
+    });
+    
+    const weaknessCont = document.getElementById('weakness-play-container');
+    if (weaknessCont) {
+        weaknessCont.innerHTML = '';
+        const clan = window.state.textFields['c-clan'] || document.getElementById('c-clan')?.value || "None";
+        const weaknessText = CLAN_WEAKNESSES[clan] || "Select a Clan to see weakness.";
+        const customNote = window.state.textFields['custom-weakness'] || "";
+        weaknessCont.innerHTML = `
+            <div class="section-title">Weakness</div>
+            <div class="bg-[#111] p-3 border border-[#333] h-full flex flex-col mt-2">
+                <div class="text-[11px] text-gray-300 italic mb-3 leading-snug flex-1">${weaknessText}</div>
+                <div class="text-[9px] font-bold text-gray-500 mb-1 uppercase">Specifics / Notes</div>
+                <textarea id="custom-weakness-input" class="w-full h-16 bg-black border border-[#444] text-[10px] text-white p-2 focus:border-gold outline-none resize-none" placeholder="e.g. 'Only Brunettes'">${customNote}</textarea>
+            </div>
+        `;
+        const ta = document.getElementById('custom-weakness-input');
+        if(ta) {
+            ta.addEventListener('blur', (e) => {
+                if(!window.state.textFields) window.state.textFields = {};
+                window.state.textFields['custom-weakness'] = e.target.value;
+            });
+        }
+    }
+
+    const xpCont = document.getElementById('experience-play-container');
+    if (xpCont) {
+        xpCont.innerHTML = '';
+        const xpVal = window.state.textFields['xp-points'] || "";
+        xpCont.innerHTML = `
+            <div class="section-title mt-6">Experience</div>
+            <textarea id="xp-points-input" class="w-full h-24 mt-2 bg-[#111] border border-[#333] text-[11px] text-white p-2 focus:border-gold outline-none resize-none" placeholder="Log experience points here...">${xpVal}</textarea>
+        `;
+        const xpTa = document.getElementById('xp-points-input');
+        if(xpTa) {
+            xpTa.addEventListener('blur', (e) => {
+                if(!window.state.textFields) window.state.textFields = {};
+                window.state.textFields['xp-points'] = e.target.value;
+            });
+        }
+    }
+
+    const bptInput = document.getElementById('blood-per-turn-input');
+    if (bptInput) {
+        const savedBPT = window.state.status.blood_per_turn || 1;
+        bptInput.value = savedBPT;
+        bptInput.onchange = (e) => {
+            window.state.status.blood_per_turn = parseInt(e.target.value) || 1;
+        };
+    }
+
+    const cList = document.getElementById('combat-list-create');
+    if(cList && window.state.inventory) {
+        cList.innerHTML = '';
+        window.state.inventory.filter(i => i.type === 'Weapon' && i.status === 'carried').forEach(w => {
+             let display = w.displayName || w.name;
+             const r = document.createElement('div');
+             r.className = "grid grid-cols-6 gap-2 text-[10px] border-b border-[#222] py-1 text-center text-white items-center";
+             r.innerHTML = `<div class="col-span-2 text-left pl-2 font-bold text-gold truncate">${display}</div><div>${w.stats.diff}</div><div class="text-gold font-bold">${w.stats.dmg}</div><div>${w.stats.range}</div><div>${w.stats.clip}</div>`;
+             cList.appendChild(r);
+        });
+        
+        let totalArmor = 0; let totalPenalty = 0; let activeArmor = [];
+        window.state.inventory.filter(i => i.type === 'Armor' && i.status === 'carried').forEach(a => {
+            totalArmor += parseInt(a.stats?.rating) || 0;
+            totalPenalty += parseInt(a.stats?.penalty) || 0;
+            activeArmor.push(a.displayName || a.name);
+        });
+        setSafeText('total-armor-rating', totalArmor);
+        setSafeText('total-armor-penalty', totalPenalty);
+        setSafeText('active-armor-names', activeArmor.length > 0 ? activeArmor.join(', ') : "None");
+    }
+    
+    renderSocialProfile();
+    updateWalkthrough();
 };
 
 export function refreshTraitRow(label, type, targetEl) {
@@ -385,13 +559,14 @@ export function setDots(name, type, val, min, max = 5) {
     if (type === 'status') {
         if (!window.state.freebieMode) return;
         if (name === 'Humanity') {
+             // Ensure we don't drop below the base derived from Virtues
              const baseH = (window.state.dots.virt?.Conscience || 1) + (window.state.dots.virt?.["Self-Control"] || 1);
-             if (val < baseH) val = baseH; 
+             if (val < baseH) val = baseH; // Floor it
              window.state.status.humanity = val;
         }
         else if (name === 'Willpower') {
             const baseW = window.state.dots.virt?.Courage || 1;
-            if (val < baseW) val = baseW; 
+            if (val < baseW) val = baseW; // Floor it
             window.state.status.willpower = val;
             window.state.status.tempWillpower = val;
         }
@@ -451,24 +626,27 @@ export function setDots(name, type, val, min, max = 5) {
     window.state.dots[type][name] = newVal;
     
     // UPDATED VIRTUE LOGIC:
+    // Apply DELTA to derived stats instead of resetting them.
     if (type === 'virt' && !window.state.isPlayMode && !window.state.freebieMode) {
          const delta = newVal - currentVal;
          if (delta !== 0) {
              if (name === 'Conscience' || name === 'Self-Control') {
-                 if (window.state.status.humanity === undefined) window.state.status.humanity = 2; 
+                 if (window.state.status.humanity === undefined) window.state.status.humanity = 2; // Initial Min
                  window.state.status.humanity += delta;
+                 // Validation: Cannot drop below 0 (unlikely with creation rules)
                  if (window.state.status.humanity < 0) window.state.status.humanity = 0;
              }
              if (name === 'Courage') {
                  if (window.state.status.willpower === undefined) window.state.status.willpower = 1;
                  window.state.status.willpower += delta;
-                 window.state.status.tempWillpower = window.state.status.willpower; 
+                 window.state.status.tempWillpower = window.state.status.willpower; // Sync temp in creation
                  if (window.state.status.willpower < 0) window.state.status.willpower = 0;
              }
          }
     }
 
     // --- GENERATION SPECIAL LOGIC (Global setDots Hook) ---
+    // This catches updates from standard row clicks (via renderRow) AND dynamic row clicks
     if (type === 'back' && name === 'Generation') {
         const newGen = 13 - newVal;
         
@@ -503,8 +681,6 @@ export function setDots(name, type, val, min, max = 5) {
 }
 window.setDots = setDots;
 
-// --- DYNAMIC ROWS ---
-
 export function renderDynamicAdvantageRow(containerId, type, list, isAbil = false) {
     const container = document.getElementById(containerId);
     if (!container) return;
@@ -516,14 +692,8 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
         if (containerId === 'custom-talents') category = 'Talents';
         else if (containerId === 'custom-skills') category = 'Skills';
         else if (containerId === 'custom-knowledges') category = 'Knowledges';
-        if (window.state.customAbilityCategories) { 
-            existingItems = Object.keys(window.state.dots.abil).filter(k => window.state.customAbilityCategories[k] === category); 
-        }
-    } else { 
-        if (window.state.dots[type]) {
-            existingItems = Object.keys(window.state.dots[type]); 
-        }
-    }
+        if (window.state.customAbilityCategories) { existingItems = Object.keys(window.state.dots.abil).filter(k => window.state.customAbilityCategories[k] === category); }
+    } else { if (window.state.dots[type]) existingItems = Object.keys(window.state.dots[type]); }
 
     const buildRow = (name = "") => {
         const row = document.createElement('div'); 
@@ -545,7 +715,7 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
         let showSpecialty = false;
         if (name && (isAbil || type === 'attr')) { 
              const currentVal = window.state.dots[type][name] || 0;
-             if (currentVal >= 4) showSpecialty = true; // Fixed: Rule is 4 dots for Spec
+             if (currentVal >= 1) showSpecialty = true;
         }
 
         const specWrapper = document.createElement('div');
@@ -578,9 +748,7 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
 
         let curName = name;
         let category = null;
-        if (containerId === 'custom-talents') category = 'Talents'; 
-        else if (containerId === 'custom-skills') category = 'Skills'; 
-        else if (containerId === 'custom-knowledges') category = 'Knowledges';
+        if (containerId === 'custom-talents') category = 'Talents'; else if (containerId === 'custom-skills') category = 'Skills'; else if (containerId === 'custom-knowledges') category = 'Knowledges';
         
         const onUpdate = (newVal) => {
             if (curName && curName !== newVal) { 
@@ -604,13 +772,10 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                     window.state.textFields['c-gen'] = "12";
                     const genInput = document.getElementById('c-gen');
                     if (genInput) genInput.value = "12";
-                    
-                    if (GEN_LIMITS && GEN_LIMITS[12]) {
-                        window.state.status.blood_max = 11;
-                        window.state.status.blood_per_turn = 1;
-                        const bpMaxDisp = document.getElementById('blood-max-display');
-                        if (bpMaxDisp) bpMaxDisp.innerText = 11;
-                    }
+                    window.state.status.blood_max = 11;
+                    window.state.status.blood_per_turn = 1;
+                    const bpMaxDisp = document.getElementById('blood-max-display');
+                    if (bpMaxDisp) bpMaxDisp.innerText = 11;
                 }
                 // -----------------------------------------
 
@@ -621,7 +786,6 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
         };
         
         if (isAbil) inputField.onblur = (e) => onUpdate(e.target.value); else inputField.onchange = (e) => onUpdate(e.target.value);
-        
         removeBtn.onclick = () => { 
             if (curName) { 
                 delete window.state.dots[type][curName]; 
@@ -647,11 +811,9 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
             if (!curName || !e.target.dataset.v) return; 
             setDots(curName, type, parseInt(e.target.dataset.v), 0, 5);
             const newV = window.state.dots[type][curName];
-            
-            // Specialty UI Update
-            if ((newV >= 4 && val < 4) || (newV < 4 && val >= 4)) {
+            if ((newV >= 1 && val === 0) || (newV === 0 && val >= 1)) {
                  specWrapper.innerHTML = '';
-                 if (newV >= 4 && (isAbil || type === 'attr')) {
+                 if (newV >= 1 && (isAbil || type === 'attr')) {
                      const specVal = window.state.specialties[curName] || "";
                      const listId = `list-${curName.replace(/[^a-zA-Z0-9]/g, '')}`;
                      specWrapper.innerHTML = `<input type="text" list="${listId}" class="specialty-input w-full text-[10px] italic bg-transparent border-b border-gray-700 text-[#d4af37] text-center" placeholder="Specialty..." value="${specVal}">`;
@@ -673,242 +835,151 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
 }
 window.renderDynamicAdvantageRow = renderDynamicAdvantageRow;
 
-// Continue to next block...
-// --- DYNAMIC ROWS ---
-
-export function renderDynamicAdvantageRow(containerId, type, list, isAbil = false) {
+export function renderDynamicTraitRow(containerId, type, list) {
     const container = document.getElementById(containerId);
     if (!container) return;
+    const stateArray = type === 'Merit' ? (window.state.merits || []) : (window.state.flaws || []);
     container.innerHTML = '';
     
-    let existingItems = [];
-    if (type === 'abil') {
-        let category = '';
-        if (containerId === 'custom-talents') category = 'Talents';
-        else if (containerId === 'custom-skills') category = 'Skills';
-        else if (containerId === 'custom-knowledges') category = 'Knowledges';
-        
-        if (window.state.customAbilityCategories) { 
-            existingItems = Object.keys(window.state.dots.abil).filter(k => window.state.customAbilityCategories[k] === category); 
-        }
-    } else { 
-        if (window.state.dots[type]) {
-            existingItems = Object.keys(window.state.dots[type]); 
-        }
-    }
-
-    const buildRow = (name = "") => {
-        const row = document.createElement('div'); 
-        row.className = 'flex items-center justify-between gap-1 mb-2 advantage-row w-full';
-        
-        let inputField;
-        if (isAbil) { 
-            inputField = document.createElement('input'); 
-            inputField.type = 'text'; 
-            inputField.placeholder = "Write-in..."; 
-            inputField.className = 'font-bold uppercase !bg-black/20 !border-b !border-[#333] text-[11px] w-24 flex-shrink-0'; 
-            inputField.value = name; 
-        } else { 
-            inputField = document.createElement('select'); 
-            inputField.className = 'font-bold uppercase text-[11px] w-24 flex-shrink-0'; 
-            inputField.innerHTML = `<option value="">-- Choose ${type} --</option>` + list.map(item => `<option value="${item}" ${item === name ? 'selected' : ''}>${item}</option>`).join(''); 
-        }
-
-        let showSpecialty = false;
-        if (name && (isAbil || type === 'attr')) { 
-             const currentVal = window.state.dots[type][name] || 0;
-             if (currentVal >= 4) showSpecialty = true; 
-        }
-
-        const specWrapper = document.createElement('div');
-        specWrapper.className = 'flex-1 mx-2 relative'; 
-        
-        if (showSpecialty) {
-             const specVal = window.state.specialties[name] || "";
-             if (window.state.isPlayMode && !specVal) {
-                 specWrapper.innerHTML = ''; 
-             } else {
-                 const listId = `list-${name.replace(/[^a-zA-Z0-9]/g, '')}`;
-                 let optionsHTML = '';
-                 if (SPECIALTY_EXAMPLES[name]) optionsHTML = SPECIALTY_EXAMPLES[name].map(s => `<option value="${s}">`).join('');
-                 specWrapper.innerHTML = `<input type="text" list="${listId}" class="specialty-input w-full text-[10px] italic bg-transparent border-b border-gray-700 text-[#d4af37] text-center" placeholder="Specialty..." value="${specVal}"><datalist id="${listId}">${optionsHTML}</datalist>`;
-                 const inp = specWrapper.querySelector('input');
-                 inp.onblur = (e) => { window.state.specialties[name] = e.target.value; };
-                 inp.disabled = window.state.isPlayMode;
-             }
-        }
-
-        const dotCont = document.createElement('div'); 
-        dotCont.className = 'dot-row flex-shrink-0';
-        const val = name ? (window.state.dots[type][name] || 0) : 0;
-        dotCont.innerHTML = renderDots(val, 5);
-        if (name) { 
-            dotCont.dataset.n = name; 
-            dotCont.dataset.t = type; 
-        }
-
-        const removeBtn = document.createElement('div'); 
-        removeBtn.className = 'remove-btn flex-shrink-0 ml-1'; 
-        removeBtn.innerHTML = '&times;';
-        if (!name) removeBtn.style.visibility = 'hidden';
-
-        let curName = name;
-        let category = null;
-        if (containerId === 'custom-talents') category = 'Talents'; 
-        else if (containerId === 'custom-skills') category = 'Skills'; 
-        else if (containerId === 'custom-knowledges') category = 'Knowledges';
-        
-        const onUpdate = (newVal) => {
-            if (curName && curName !== newVal) { 
-                const dots = window.state.dots[type][curName]; 
-                delete window.state.dots[type][curName]; 
-                
-                if (window.state.customAbilityCategories && window.state.customAbilityCategories[curName]) {
-                    delete window.state.customAbilityCategories[curName];
-                }
-                
-                if (newVal) window.state.dots[type][newVal] = dots || 0; 
-                
-                if(window.state.specialties[curName]) { 
-                    window.state.specialties[newVal] = window.state.specialties[curName]; 
-                    delete window.state.specialties[curName]; 
-                }
-            }
-            curName = newVal;
-            
-            if (newVal) { 
-                window.state.dots[type][newVal] = window.state.dots[type][newVal] || 0; 
-                dotCont.innerHTML = renderDots(window.state.dots[type][newVal], 5);
-                dotCont.dataset.n = newVal; 
-                dotCont.dataset.t = type;
-                
-                if (category) { 
-                    if (!window.state.customAbilityCategories) window.state.customAbilityCategories = {}; 
-                    window.state.customAbilityCategories[newVal] = category; 
-                }
-                
-                // --- GENERATION SPECIAL LOGIC (On Add) ---
-                if (type === 'back' && newVal === 'Generation') {
-                    window.state.dots[type][newVal] = 1;
-                    dotCont.innerHTML = renderDots(1, 5);
-                    window.state.textFields['c-gen'] = "12";
-                    const genInput = document.getElementById('c-gen');
-                    if (genInput) genInput.value = "12";
-                    
-                    if (GEN_LIMITS && GEN_LIMITS[12]) {
-                        window.state.status.blood_max = 11;
-                        window.state.status.blood_per_turn = 1;
-                        const bpMaxDisp = document.getElementById('blood-max-display');
-                        if (bpMaxDisp) bpMaxDisp.innerText = 11;
-                    }
-                }
-                // -----------------------------------------
-
-                if (row === container.lastElementChild) { 
-                    removeBtn.style.visibility = 'visible'; 
-                    buildRow(); 
-                }
-            }
-            window.updatePools();
-            if(type === 'back') renderSocialProfile();
-        };
-        
-        if (isAbil) {
-            inputField.onblur = (e) => onUpdate(e.target.value); 
-        } else {
-            inputField.onchange = (e) => onUpdate(e.target.value);
-        }
-        
-        removeBtn.onclick = () => { 
-            if (curName) { 
-                delete window.state.dots[type][curName]; 
-                if (window.state.customAbilityCategories && window.state.customAbilityCategories[curName]) {
-                    delete window.state.customAbilityCategories[curName];
-                }
-                
-                // SPECIAL: Reset Generation if removed
-                if (type === 'back' && curName === 'Generation') {
-                     window.state.textFields['c-gen'] = "13";
-                     const genInput = document.getElementById('c-gen');
-                     if (genInput) genInput.value = "13";
-                     window.state.status.blood_max = 10;
-                     window.state.status.blood_per_turn = 1;
-                     const bpMaxDisp = document.getElementById('blood-max-display');
-                     if (bpMaxDisp) bpMaxDisp.innerText = 10;
-                }
-            } 
-            row.remove(); 
-            window.updatePools(); 
-            if(type==='back') renderSocialProfile(); 
-        };
-        
-        dotCont.onclick = (e) => { 
-            if (!curName || !e.target.dataset.v) return; 
-            setDots(curName, type, parseInt(e.target.dataset.v), 0, 5);
-            const newV = window.state.dots[type][curName];
-            
-            // Specialty UI Update
-            if ((newV >= 4 && val < 4) || (newV < 4 && val >= 4)) {
-                 specWrapper.innerHTML = '';
-                 if (newV >= 4 && (isAbil || type === 'attr')) {
-                     const specVal = window.state.specialties[curName] || "";
-                     const listId = `list-${curName.replace(/[^a-zA-Z0-9]/g, '')}`;
-                     specWrapper.innerHTML = `<input type="text" list="${listId}" class="specialty-input w-full text-[10px] italic bg-transparent border-b border-gray-700 text-[#d4af37] text-center" placeholder="Specialty..." value="${specVal}">`;
-                     const inp = specWrapper.querySelector('input');
-                     inp.onblur = (e) => { window.state.specialties[curName] = e.target.value; };
-                 }
-            }
-            dotCont.innerHTML = renderDots(window.state.dots[type][curName], 5);
-        };
-
-        row.appendChild(inputField);
-        row.appendChild(specWrapper);
-        row.appendChild(dotCont);
-        row.appendChild(removeBtn);
+    const appendRow = (data = null) => {
+        const row = document.createElement('div'); row.className = 'flex gap-2 items-center mb-2 trait-row';
+        let options = `<option value="">-- Select ${type} --</option>`;
+        list.forEach(item => { options += `<option value="${item.n}" data-val="${item.v}" data-var="${item.variable||false}">${item.n} (${item.range ? item.range + 'pt' : item.v + 'pt'})</option>`; });
+        options += '<option value="Custom">-- Custom / Write-in --</option>';
+        row.innerHTML = `<div class="flex-1 relative"><select class="w-full text-[11px] font-bold uppercase bg-[#111] text-white border-b border-[#444]">${options}</select><input type="text" placeholder="Custom Name..." class="hidden w-full text-[11px] font-bold uppercase border-b border-[#444] bg-transparent text-white"></div><input type="number" class="w-10 text-center text-[11px] !border !border-[#444] font-bold" min="1"><div class="remove-btn">&times;</div>`;
         container.appendChild(row);
+        
+        const selectEl = row.querySelector('select');
+        const textEl = row.querySelector('input[type="text"]');
+        const numEl = row.querySelector('input[type="number"]');
+        const removeBtn = row.querySelector('.remove-btn');
+        const isLocked = !window.state.freebieMode;
+        
+        selectEl.disabled = isLocked; textEl.disabled = isLocked; numEl.disabled = isLocked;
+        if(isLocked) { selectEl.classList.add('opacity-50'); textEl.classList.add('opacity-50'); numEl.classList.add('opacity-50'); }
+        
+        if (data) {
+            const exists = list.some(l => l.n === data.name);
+            if (exists) {
+                selectEl.value = data.name; numEl.value = data.val;
+                const itemData = list.find(l => l.n === data.name);
+                if (itemData && !itemData.variable) { numEl.disabled = true; numEl.classList.add('opacity-50'); }
+            } else { selectEl.value = "Custom"; selectEl.classList.add('hidden'); textEl.classList.remove('hidden'); textEl.value = data.name; numEl.value = data.val; }
+        } else { numEl.value = ""; removeBtn.style.visibility = 'hidden'; }
+        
+        const syncState = () => {
+            const allRows = container.querySelectorAll('.trait-row');
+            const newState = [];
+            allRows.forEach(r => {
+                const s = r.querySelector('select');
+                const t = r.querySelector('input[type="text"]');
+                const n = r.querySelector('input[type="number"]');
+                let name = s.value === 'Custom' ? t.value : s.value;
+                let val = parseInt(n.value) || 0;
+                if (name && name !== 'Custom') newState.push({ name, val });
+            });
+            if (type === 'Merit') window.state.merits = newState; else window.state.flaws = newState;
+            window.updatePools();
+        };
+        
+        selectEl.addEventListener('change', () => {
+            if (selectEl.value === 'Custom') { selectEl.classList.add('hidden'); textEl.classList.remove('hidden'); textEl.focus(); numEl.value = 1; numEl.disabled = false; numEl.classList.remove('opacity-50'); } 
+            else if (selectEl.value) {
+                const opt = selectEl.options[selectEl.selectedIndex];
+                numEl.value = opt.dataset.val;
+                if (opt.dataset.var !== "true") { numEl.disabled = true; numEl.classList.add('opacity-50'); } else { numEl.disabled = false; numEl.classList.remove('opacity-50'); }
+                if (row === container.lastElementChild) { removeBtn.style.visibility = 'visible'; appendRow(); }
+            }
+            syncState();
+        });
+        textEl.addEventListener('blur', () => { if (textEl.value === "") { textEl.classList.add('hidden'); selectEl.classList.remove('hidden'); selectEl.value = ""; } else { if (row === container.lastElementChild) { removeBtn.style.visibility = 'visible'; appendRow(); } } syncState(); });
+        numEl.addEventListener('change', syncState);
+        removeBtn.addEventListener('click', () => { row.remove(); syncState(); });
     };
-    
-    existingItems.forEach(item => buildRow(item));
-    buildRow();
+    if (stateArray.length > 0) stateArray.forEach(d => appendRow(d));
+    appendRow();
 }
-window.renderDynamicAdvantageRow = renderDynamicAdvantageRow;
+window.renderDynamicTraitRow = renderDynamicTraitRow;
 
-// Continue to next block...
+export function renderBloodBondRow() {
+    const cont = document.getElementById('blood-bond-list'); if (!cont) return;
+    const row = document.createElement('div'); row.className = 'flex gap-2 items-center border-b border-[#222] pb-2 advantage-row';
+    row.innerHTML = `<select class="w-24 text-[10px] uppercase font-bold mr-2 border-b border-[#333] bg-transparent"><option value="Bond">Bond</option><option value="Vinculum">Vinculum</option></select><input type="text" placeholder="Bound to..." class="flex-1 text-xs"><input type="number" placeholder="Lvl" class="w-10 text-center text-xs" min="1" max="3"><div class="remove-btn">&times;</div>`;
+    const typeSel = row.querySelector('select'); const nI = row.querySelector('input[type="text"]'); const rI = row.querySelector('input[type="number"]'); const del = row.querySelector('.remove-btn');
+    if (cont.children.length === 0) del.style.visibility = 'hidden';
+    const onUpd = () => {
+        if (typeSel.value === 'Bond') { rI.max = 3; if(parseInt(rI.value) > 3) rI.value = 3; }
+        if (typeSel.value === 'Vinculum') { rI.max = 10; if(parseInt(rI.value) > 10) rI.value = 10; }
+        window.state.bloodBonds = Array.from(cont.querySelectorAll('.advantage-row')).map(r => ({ type: r.querySelector('select').value, name: r.querySelector('input[type="text"]').value, rating: r.querySelector('input[type="number"]').value })).filter(b => b.name);
+        if (cont.lastElementChild === row && nI.value !== "") renderBloodBondRow();
+        window.updatePools(); 
+    };
+    typeSel.onchange = onUpd; nI.onblur = onUpd; rI.onblur = onUpd; del.onclick = () => { row.remove(); onUpd(); };
+    cont.appendChild(row);
+}
+window.renderBloodBondRow = renderBloodBondRow;
+
+export function renderDerangementsList() {
+    const cont = document.getElementById('derangements-list'); if (!cont) return;
+    cont.innerHTML = '';
+    window.state.derangements.forEach((d, idx) => {
+        const row = document.createElement('div'); row.className = "flex justify-between items-center text-xs text-white border-b border-[#333] py-1";
+        row.innerHTML = `<span>${d}</span><span class="remove-btn text-red-500" onclick="window.state.derangements.splice(${idx}, 1); renderDerangementsList(); window.updatePools();">&times;</span>`;
+        cont.appendChild(row);
+    });
+    const addRow = document.createElement('div'); addRow.className = "flex gap-2 mt-2";
+    let options = `<option value="">+ Add Derangement</option>` + DERANGEMENTS.map(d => `<option value="${d}">${d}</option>`).join('');
+    addRow.innerHTML = `<select id="derangement-select" class="flex-1 text-[10px] uppercase font-bold bg-black/40 border border-[#444] text-white p-1">${options}<option value="Custom">Custom...</option></select><input type="text" id="derangement-custom" class="hidden flex-1 text-[10px] bg-black/40 border border-[#444] text-white p-1" placeholder="Type name..."><button id="add-derangement-btn" class="bg-[#8b0000] text-white px-2 py-1 text-[10px] font-bold hover:bg-red-700">ADD</button>`;
+    cont.appendChild(addRow);
+    const sel = document.getElementById('derangement-select'); const inp = document.getElementById('derangement-custom'); const btn = document.getElementById('add-derangement-btn');
+    sel.onchange = () => { if (sel.value === 'Custom') { sel.classList.add('hidden'); inp.classList.remove('hidden'); inp.focus(); } };
+    btn.onclick = () => {
+        let val = sel.value === 'Custom' ? inp.value : sel.value;
+        if (val && val !== 'Custom') { window.state.derangements.push(val); renderDerangementsList(); window.updatePools(); }
+    };
+}
+window.renderDerangementsList = renderDerangementsList;
+
+export function renderDynamicHavenRow() {
+    const cont = document.getElementById('multi-haven-list'); if (!cont) return;
+    const row = document.createElement('div'); row.className = 'border-b border-[#222] pb-4 advantage-row';
+    row.innerHTML = `<div class="flex justify-between items-center mb-2"><input type="text" placeholder="Haven Title..." class="flex-1 text-[10px] font-bold text-gold uppercase !border-b !border-[#333]"><div class="remove-btn">&times;</div></div><input type="text" placeholder="Location..." class="text-xs mb-2 !border-b !border-[#333]"><textarea class="h-16 text-xs" placeholder="Details..."></textarea>`;
+    const nameIn = row.querySelectorAll('input')[0]; const locIn = row.querySelectorAll('input')[1]; const descIn = row.querySelector('textarea'); const del = row.querySelector('.remove-btn');
+    if (cont.children.length === 0) del.style.visibility = 'hidden';
+    const onUpd = () => {
+        window.state.havens = Array.from(cont.querySelectorAll('.advantage-row')).map(r => ({ name: r.querySelectorAll('input')[0].value, loc: r.querySelectorAll('input')[1].value, desc: r.querySelector('textarea').value })).filter(h => h.name || h.loc);
+        if (cont.lastElementChild === row && nameIn.value !== "") renderDynamicHavenRow();
+        window.updatePools(); 
+    };
+    [nameIn, locIn, descIn].forEach(el => el.onblur = onUpd); del.onclick = () => { row.remove(); onUpd(); };
+    cont.appendChild(row);
+}
+window.renderDynamicHavenRow = renderDynamicHavenRow;
+
 // --- NAVIGATION & MODES ---
 
 export function updateWalkthrough() {
-    if (window.state.isPlayMode) { 
-        const guide = document.getElementById('walkthrough-guide');
-        if(guide) guide.classList.add('opacity-0', 'pointer-events-none'); 
-        return; 
-    } 
-    else { 
-        const guide = document.getElementById('walkthrough-guide');
-        if(guide) guide.classList.remove('opacity-0', 'pointer-events-none'); 
-    }
-    
+    if (window.state.isPlayMode) { document.getElementById('walkthrough-guide').classList.add('opacity-0', 'pointer-events-none'); return; } 
+    else { document.getElementById('walkthrough-guide').classList.remove('opacity-0', 'pointer-events-none'); }
     const current = window.state.currentPhase;
     const furthest = window.state.furthestPhase || 1;
     const isComplete = checkStepComplete(current, window.state);
     const msgEl = document.getElementById('guide-message');
     const iconEl = document.getElementById('guide-icon');
     const stepData = STEPS_CONFIG.find(s => s.id === current);
-    
-    if (msgEl && iconEl) {
-        if (current < furthest) {
-            msgEl.innerText = `Return to Step ${furthest}`;
-            msgEl.className = "bg-gray-900/90 border border-gray-500 text-gray-300 px-4 py-2 rounded text-xs font-bold shadow-lg w-48 text-right";
-            iconEl.classList.add('ready'); 
+    if (current < furthest) {
+        msgEl.innerText = `Return to Step ${furthest}`;
+        msgEl.className = "bg-gray-900/90 border border-gray-500 text-gray-300 px-4 py-2 rounded text-xs font-bold shadow-lg w-48 text-right";
+        iconEl.classList.add('ready'); 
+    } else {
+        if (isComplete) {
+            msgEl.innerText = "Step Complete! Next >>";
+            msgEl.className = "bg-green-900/90 border border-green-500 text-green-100 px-4 py-2 rounded text-xs font-bold shadow-lg w-48 text-right";
+            iconEl.classList.add('ready');
         } else {
-            if (isComplete) {
-                msgEl.innerText = "Step Complete! Next >>";
-                msgEl.className = "bg-green-900/90 border border-green-500 text-green-100 px-4 py-2 rounded text-xs font-bold shadow-lg w-48 text-right";
-                iconEl.classList.add('ready');
-            } else {
-                msgEl.innerText = stepData ? stepData.msg : "Continue...";
-                msgEl.className = "bg-black/90 border border-[#d4af37] text-[#f0e6d2] px-4 py-2 rounded text-xs font-bold shadow-lg w-48 text-right";
-                iconEl.classList.remove('ready');
-            }
+            msgEl.innerText = stepData ? stepData.msg : "Continue...";
+            msgEl.className = "bg-black/90 border border-[#d4af37] text-[#f0e6d2] px-4 py-2 rounded text-xs font-bold shadow-lg w-48 text-right";
+            iconEl.classList.remove('ready');
         }
     }
 }
@@ -918,24 +989,16 @@ window.nextStep = function() {
     const current = window.state.currentPhase;
     const furthest = window.state.furthestPhase || 1;
     if (current < furthest) window.changeStep(furthest);
-    else if (checkStepComplete(current, window.state)) { 
-        if (current < 8) window.changeStep(current + 1); 
-        else window.showNotification("Character Ready!"); 
-    } 
+    else if (checkStepComplete(current, window.state)) { if (current < 8) window.changeStep(current + 1); else window.showNotification("Character Ready!"); } 
     else window.showNotification("Complete current step first!");
 };
 
 window.changeStep = function(s) {
-    if (!window.state.furthestPhase || s > window.state.furthestPhase) { 
-        if (s > (window.state.furthestPhase || 0)) window.state.furthestPhase = s; 
-    }
+    if (!window.state.furthestPhase || s > window.state.furthestPhase) { if (s > (window.state.furthestPhase || 0)) window.state.furthestPhase = s; }
     document.querySelectorAll('.step-container').forEach(c => c.classList.remove('active'));
     const prefix = window.state.isPlayMode ? 'play-mode-' : 'phase-';
     const target = document.getElementById(prefix + s);
-    if (target) { 
-        target.classList.add('active'); 
-        window.state.currentPhase = s; 
-    }
+    if (target) { target.classList.add('active'); window.state.currentPhase = s; }
     
     // Update Nav
     const nav = document.getElementById('sheet-nav');
@@ -944,22 +1007,15 @@ window.changeStep = function(s) {
         if (window.state.isPlayMode) {
              const steps = ["Sheet", "Traits", "Social", "Biography"];
              steps.forEach((text, i) => {
-                 const it = document.createElement('div'); 
-                 it.className = `nav-item ${window.state.currentPhase === (i+1) ? 'active' : ''}`;
+                 const it = document.createElement('div'); it.className = `nav-item ${window.state.currentPhase === (i+1) ? 'active' : ''}`;
                  it.innerHTML = `<i class="fas fa-scroll"></i><span style="display:block; font-size:9px; margin-top:2px;">${text}</span>`;
-                 it.onclick = () => window.changeStep(i+1); 
-                 nav.appendChild(it);
+                 it.onclick = () => window.changeStep(i+1); nav.appendChild(it);
              });
         } else {
             const furthest = window.state.furthestPhase || 1;
             STEPS_CONFIG.forEach(step => {
-                const it = document.createElement('div'); 
-                let statusClass = '';
-                if (step.id === s) statusClass = 'active'; 
-                else if (step.id < s) statusClass = 'completed'; 
-                else if (step.id <= furthest) statusClass = 'unlocked'; 
-                else statusClass = 'locked';
-                
+                const it = document.createElement('div'); let statusClass = '';
+                if (step.id === s) statusClass = 'active'; else if (step.id < s) statusClass = 'completed'; else if (step.id <= furthest) statusClass = 'unlocked'; else statusClass = 'locked';
                 it.className = `nav-item ${statusClass}`;
                 it.innerHTML = `<div class="flex flex-col items-center justify-center w-full h-full"><i class="fas ${step.icon}"></i><span style="display:block !important; font-size:7px; text-transform:uppercase; margin-top:2px; opacity:1;">${step.label}</span></div>`;
                 it.onclick = () => { if (step.id <= furthest) window.changeStep(step.id); };
@@ -976,38 +1032,26 @@ window.toggleFreebieMode = function() {
      const fbBtn = document.getElementById('toggle-freebie-btn');
      const fbBtnText = document.getElementById('freebie-btn-text');
      if (fbBtnText) fbBtnText.innerText = window.state.freebieMode ? "Exit Freebies" : "Freebies";
-     if (fbBtn) { 
-         fbBtn.classList.toggle('bg-blue-900/40', window.state.freebieMode); 
-         fbBtn.classList.toggle('border-blue-500', window.state.freebieMode); 
-         fbBtn.classList.toggle('text-blue-200', window.state.freebieMode); 
-     }
-     
-     const mMsg = document.getElementById('merit-locked-msg'); 
-     const fMsg = document.getElementById('flaw-locked-msg');
+     if (fbBtn) { fbBtn.classList.toggle('bg-blue-900/40', window.state.freebieMode); fbBtn.classList.toggle('border-blue-500', window.state.freebieMode); fbBtn.classList.toggle('text-blue-200', window.state.freebieMode); }
+     const mMsg = document.getElementById('merit-locked-msg'); const fMsg = document.getElementById('flaw-locked-msg');
      if(mMsg) mMsg.style.display = window.state.freebieMode ? 'none' : 'block';
      if(fMsg) fMsg.style.display = window.state.freebieMode ? 'none' : 'block';
-     
      renderDynamicTraitRow('merits-list-create', 'Merit', V20_MERITS_LIST);
      renderDynamicTraitRow('flaws-list-create', 'Flaw', V20_FLAWS_LIST);
      window.updatePools(); 
 };
 
-window.toggleSidebarLedger = function() { 
-    const el = document.getElementById('freebie-sidebar');
-    if(el) el.classList.toggle('open'); 
-};
+window.toggleSidebarLedger = function() { document.getElementById('freebie-sidebar').classList.toggle('open'); };
 
 window.togglePlayMode = function() {
     window.state.isPlayMode = !window.state.isPlayMode;
     document.body.classList.toggle('play-mode', window.state.isPlayMode);
-    const pBtn = document.getElementById('play-mode-btn'); 
-    const pBtnText = document.getElementById('play-btn-text');
+    const pBtn = document.getElementById('play-mode-btn'); const pBtnText = document.getElementById('play-btn-text');
     if(pBtnText) pBtnText.innerText = window.state.isPlayMode ? "Edit" : "Play";
     
     // Disable inputs not needed in Play Mode
     document.querySelectorAll('input, select, textarea').forEach(el => {
-        const keepEnabled = ['save-filename', 'char-select', 'roll-diff', 'use-specialty', 'c-path-name', 'c-path-name-create', 'c-bearing-name', 'c-bearing-value', 'custom-weakness-input', 'xp-points-input', 'blood-per-turn-input'];
-        if (keepEnabled.includes(el.id)) return;
+        if (['save-filename', 'char-select', 'roll-diff', 'use-specialty', 'c-path-name', 'c-path-name-create', 'c-bearing-name', 'c-bearing-value', 'custom-weakness-input', 'xp-points-input', 'blood-per-turn-input'].includes(el.id)) return;
         el.disabled = window.state.isPlayMode;
     });
 
@@ -1106,14 +1150,8 @@ window.togglePlayMode = function() {
 
         const cp = document.getElementById('combat-rows-play'); if(cp) {
             cp.innerHTML = ''; const standards = [{n:'Bite',diff:5,dmg:'Str+1(A)'}, {n:'Clinch',diff:6,dmg:'Str(B)'}, {n:'Grapple',diff:6,dmg:'Str(B)'}, {n:'Kick',diff:7,dmg:'Str+1(B)'}, {n:'Punch',diff:6,dmg:'Str(B)'}, {n:'Tackle',diff:7,dmg:'Str+1(B)'}];
-            standards.forEach(s => { const r = document.createElement('tr'); r.className='border-b border-[#222] text-[10px] text-gray-500'; r.innerHTML = `<td class="p-2 font-bold text-white">${s.n}</td><td class="p-2">${s.diff}</td><td class="p-2">${s.dmg}</td><td class="p-2">-</td><td class="p-2">-</td><td class="p-2">-</td><td></td>`; cp.appendChild(r); });
-            if(window.state.inventory) { window.state.inventory.filter(i => i.type === 'Weapon' && i.status === 'carried').forEach((w, idx) => { 
-                let display = w.displayName || w.name; 
-                const r = document.createElement('tr'); 
-                r.className='border-b border-[#222] text-[10px]'; 
-                r.innerHTML = `<td class="p-2 font-bold text-gold">${display}</td><td class="p-2 text-white">${w.stats.diff}</td><td class="p-2 text-white">${w.stats.dmg}</td><td class="p-2">${w.stats.range}</td><td class="p-2">${w.stats.rate}</td><td class="p-2">${w.stats.clip}</td><td class="p-2 flex gap-1"><button class="bg-red-900 text-white px-1 rounded text-[9px] hover:bg-red-700" onclick="window.rollCombat(${idx}, 'attack')">ATK</button><button class="bg-[#333] text-white px-1 rounded text-[9px] hover:bg-[#555]" onclick="window.rollCombat(${idx}, 'damage')">DMG</button></td>`; 
-                cp.appendChild(r); 
-            }); }
+            standards.forEach(s => { const r = document.createElement('tr'); r.className='border-b border-[#222] text-[10px] text-gray-500'; r.innerHTML = `<td class="p-2 font-bold text-white">${s.n}</td><td class="p-2">${s.diff}</td><td class="p-2">${s.dmg}</td><td class="p-2">-</td><td class="p-2">-</td><td class="p-2">-</td>`; cp.appendChild(r); });
+            if(window.state.inventory) { window.state.inventory.filter(i => i.type === 'Weapon' && i.status === 'carried').forEach(w => { let display = w.displayName || w.name; const r = document.createElement('tr'); r.className='border-b border-[#222] text-[10px]'; r.innerHTML = `<td class="p-2 font-bold text-gold">${display}</td><td class="p-2 text-white">${w.stats.diff}</td><td class="p-2 text-white">${w.stats.dmg}</td><td class="p-2">${w.stats.range}</td><td class="p-2">${w.stats.rate}</td><td class="p-2">${w.stats.clip}</td>`; cp.appendChild(r); }); }
         }
 
         if(document.getElementById('rituals-list-play')) document.getElementById('rituals-list-play').innerText = document.getElementById('rituals-list-create-ta').value;
@@ -1195,6 +1233,46 @@ window.togglePlayMode = function() {
     }
 };
 
+export function initializeUI(state) {
+    renderNavigation();
+    renderDynamicAdvantageRow('list-disc', 'disc', DISCIPLINES);
+    renderDynamicAdvantageRow('list-back', 'back', BACKGROUNDS);
+    renderDynamicAdvantageRow('custom-talents', 'abil', [], true);
+    renderDynamicAdvantageRow('custom-skills', 'abil', [], true);
+    renderDynamicAdvantageRow('custom-knowledges', 'abil', [], true);
+    renderDerangementsList();
+    renderInventoryList();
+    renderDynamicTraitRow('merits-list-create', 'Merit', V20_MERITS_LIST);
+    renderDynamicTraitRow('flaws-list-create', 'Flaw', V20_FLAWS_LIST);
+    Object.keys(ATTRIBUTES).forEach(c => {
+        ATTRIBUTES[c].forEach(a => renderRow('list-attr-'+c.toLowerCase(), a, 'attr', state.dots.attr[a] || 1));
+    });
+    Object.keys(ABILITIES).forEach(c => {
+        ABILITIES[c].forEach(a => renderRow('list-abil-'+c.toLowerCase(), a, 'abil', state.dots.abil[a] || 0));
+    });
+    VIRTUES.forEach(v => renderRow('list-virt', v, 'virt', state.dots.virt[v] || 1));
+    setupInventoryListeners();
+    renderSocialProfile();
+    updateWalkthrough();
+}
+
+function renderNavigation() {
+    const nav = document.getElementById('sheet-nav');
+    if (!nav) return;
+    let html = '';
+    STEPS_CONFIG.forEach(step => {
+        html += `<button class="nav-btn px-3 py-2 text-xs font-bold uppercase tracking-wider text-gray-500 hover:text-white transition-colors" data-step="${step.id}" id="nav-step-${step.id}"><i class="fas ${step.icon} mr-1"></i> ${step.label}</button>`;
+    });
+    nav.innerHTML = html;
+    document.querySelectorAll('.nav-btn').forEach(btn => {
+        btn.onclick = (e) => {
+            const step = parseInt(e.currentTarget.dataset.step);
+            window.changeStep(step);
+        };
+    });
+}
+
+// --- GLOBAL EXPORTS FOR MAIN.JS ---
 window.hydrateInputs = hydrateInputs;
 window.renderSocialProfile = renderSocialProfile;
 window.setupInventoryListeners = setupInventoryListeners;
