@@ -22,6 +22,17 @@ class MainApp {
     init() {
         console.log("Initializing V20 App...");
         this.render();
+
+        // --- FIX: Hide Loading Overlay ---
+        const overlay = document.getElementById('loading-overlay');
+        if (overlay) {
+            // Fade out effect
+            overlay.style.transition = 'opacity 0.5s ease';
+            overlay.style.opacity = '0';
+            setTimeout(() => {
+                overlay.style.display = 'none';
+            }, 500);
+        }
     }
 
     render() {
