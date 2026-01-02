@@ -1,4 +1,4 @@
-export default class AttributeRenderer {
+class AttributeRenderer {
     constructor(uiManager) {
         this.uiManager = uiManager;
     }
@@ -52,3 +52,5 @@ export default class AttributeRenderer {
         });
     }
 }
+
+export default AttributeRenderer;
