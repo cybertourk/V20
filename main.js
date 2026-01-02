@@ -9,6 +9,14 @@ class MainApp {
         this.characterData = JSON.parse(JSON.stringify(blankTemplate || {}));
         this.rules = rules;
         
+        // Navigation State
+        this.currentStep = 1;
+        this.totalSteps = 8;
+        this.stepNames = [
+            "Concept", "Attributes", "Abilities", "Advantages", 
+            "Backgrounds", "Merits", "Vitals", "Finalize"
+        ];
+
         // Initialize Renderer with reference to this App and the Rules
         this.uiRenderer = new UIRenderer(this, this.rules);
 
@@ -21,12 +29,13 @@ class MainApp {
 
     init() {
         console.log("Initializing V20 App...");
+        this.renderNavigation(); // Restore the missing navigation buttons
+        this.goToStep(1); // Ensure we start on step 1
         this.render();
 
         // --- FIX: Hide Loading Overlay ---
         const overlay = document.getElementById('loading-overlay');
         if (overlay) {
-            // Fade out effect
             overlay.style.transition = 'opacity 0.5s ease';
             overlay.style.opacity = '0';
             setTimeout(() => {
@@ -35,32 +44,67 @@ class MainApp {
         }
     }
 
+    renderNavigation() {
+        const navContainer = document.getElementById('sheet-nav');
+        if (!navContainer) return;
+        navContainer.innerHTML = '';
+
+        this.stepNames.forEach((name, index) => {
+            const stepNum = index + 1;
+            const btn = document.createElement('button');
+            btn.textContent = `${stepNum}. ${name}`;
+            btn.className = `px-4 py-3 text-[10px] uppercase font-bold tracking-widest border-b-2 transition-colors hover:bg-[#111] ${this.currentStep === stepNum ? 'text-[#af0000] border-[#af0000]' : 'text-gray-500 border-transparent hover:text-gray-300'}`;
+            
+            btn.onclick = () => this.goToStep(stepNum);
+            navContainer.appendChild(btn);
+        });
+    }
+
+    goToStep(stepNum) {
+        this.currentStep = stepNum;
+        
+        // Hide all phases
+        for (let i = 1; i <= this.totalSteps; i++) {
+            const phase = document.getElementById(`phase-${i}`);
+            if (phase) {
+                phase.style.display = 'none';
+                phase.classList.remove('active');
+            }
+        }
+
+        // Show current phase
+        const activePhase = document.getElementById(`phase-${stepNum}`);
+        if (activePhase) {
+            activePhase.style.display = 'block';
+            setTimeout(() => activePhase.classList.add('active'), 10);
+        }
+
+        // Re-render nav to update active state styling
+        this.renderNavigation();
+    }
+
     render() {
         this.uiRenderer.render(this.characterData);
         this.updateCalculatedStats();
     }
 
     updateCalculatedStats() {
-        // Update Freebie points, pool costs, etc.
         this.updatePoolCounters();
     }
 
     updatePoolCounters() {
-        // Example: Update the little counters [3] next to headers
         const update = (id, arr) => {
             const el = document.getElementById(id);
             if (el) el.textContent = `[${(arr || []).length}]`;
         };
         update('p-disc', this.characterData.disciplines);
         update('p-back', this.characterData.backgrounds);
-        // Virtues default to 3 dots usually, handled by renderer
     }
 
     // --- Data Management Methods called by UI Renderer ---
 
     updateCharacterData(field, value) {
         this.characterData[field] = value;
-        // Auto-save or trigger specific updates
         if (field === 'clan') {
             this.uiRenderer.renderClanWeakness(this.characterData);
         }
@@ -74,21 +118,15 @@ class MainApp {
             if (!this.characterData.virtues) this.characterData.virtues = {};
             this.characterData.virtues[statName] = value;
         } else if (category === 'health' || category === 'willpower' || category === 'willpower_pool' || category === 'blood_pool' || category === 'experience') {
-            // Mechanics
             if (statName === null) {
-                // Direct property update like characterData.health = 3
                 this.characterData[category] = value;
-            } else {
-                // Should not happen based on current mechanics renderer logic for these types
             }
         }
-        
-        this.render(); // Re-render to update dots/visuals
+        this.render();
     }
 
     updateArrayData(arrayName, index, key, value) {
         if (!this.characterData[arrayName]) this.characterData[arrayName] = [];
-        
         if (this.characterData[arrayName][index]) {
             this.characterData[arrayName][index][key] = value;
         }
@@ -110,11 +148,9 @@ class MainApp {
     // --- Dice Rolling Stub ---
     handleRoll(statName, statValue) {
         console.log(`Rolling ${statName} with ${statValue} dice.`);
-        
         const resultsContainer = document.getElementById('roll-results');
         if (!resultsContainer) return;
 
-        // Simple mock roll
         const diff = parseInt(document.getElementById('roll-diff')?.value || 6);
         let successes = 0;
         let rolls = [];
@@ -125,8 +161,7 @@ class MainApp {
             if (roll >= diff) successes++;
             if (roll === 1) successes--;
         }
-
-        if (successes < 0) successes = 0; // Botch logic is more complex in V20, simplistic here
+        if (successes < 0) successes = 0; 
 
         const msg = document.createElement('div');
         msg.className = 'text-xs text-gray-300 border-b border-[#333] py-1';
@@ -136,14 +171,8 @@ class MainApp {
 
     // --- Global Bindings for HTML Buttons ---
     bindWindowExposes() {
-        window.rollPool = () => {
-            // Implementation for the "Roll Pool" button in your HTML
-            console.log("Roll Pool Triggered");
-        };
-        
-        window.clearPool = () => {
-            console.log("Clear Pool Triggered");
-        };
+        window.rollPool = () => console.log("Roll Pool Triggered");
+        window.clearPool = () => console.log("Clear Pool Triggered");
 
         window.toggleSidebarLedger = () => {
             const sb = document.getElementById('freebie-sidebar');
@@ -152,25 +181,27 @@ class MainApp {
 
         window.togglePlayMode = () => {
             const playSheet = document.getElementById('play-mode-sheet');
-            const sheetContent = document.getElementById('sheet-content'); // Contains Create Mode phases
+            const sheetContent = document.getElementById('sheet-content'); 
             if (playSheet && sheetContent) {
                 const isPlay = !playSheet.classList.contains('hidden');
                 if (isPlay) {
                     playSheet.classList.add('hidden');
-                    sheetContent.classList.remove('hidden'); // Ensure create mode is visible
+                    sheetContent.classList.remove('hidden'); 
                 } else {
                     playSheet.classList.remove('hidden');
-                    sheetContent.classList.add('hidden'); // Hide create mode
+                    sheetContent.classList.add('hidden'); 
                 }
-                this.render(); // Re-render to populate play mode fields
+                this.render(); 
             }
         };
         
-        // Link specific global functions your HTML calls (onclick="window.nextStep()")
-        window.nextStep = () => console.log("Next step clicked");
+        window.nextStep = () => {
+            if (this.currentStep < this.totalSteps) {
+                this.goToStep(this.currentStep + 1);
+            }
+        };
     }
 }
 
-// Start the App
 const app = new MainApp();
 export default app;
