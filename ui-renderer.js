@@ -210,6 +210,11 @@ window.clearPool = function() {
     setSafeText('pool-display', "Select traits to build pool...");
     const hint = document.getElementById('specialty-hint'); if(hint) hint.innerHTML = '';
     const cb = document.getElementById('use-specialty'); if(cb) cb.checked = false;
+    
+    // Clear Custom Dice Input
+    const customInput = document.getElementById('custom-dice-input');
+    if(customInput) customInput.value = "";
+    
     document.getElementById('dice-tray').classList.remove('open');
 };
 
@@ -245,8 +250,11 @@ window.handleTraitClick = function(name, type) {
 };
 
 window.rollPool = function() {
-    const poolSize = window.state.activePool.reduce((a,b) => a + b.val, 0);
+    const custom = parseInt(document.getElementById('custom-dice-input')?.value) || 0;
+    const poolSize = window.state.activePool.reduce((a,b) => a + b.val, 0) + custom;
+    
     if (poolSize <= 0) { window.showNotification("Pool Empty"); return; }
+    
     const diff = parseInt(document.getElementById('roll-diff').value) || 6;
     const isSpec = document.getElementById('use-specialty').checked;
     let results = [], ones = 0, rawSuccesses = 0;
@@ -522,12 +530,10 @@ window.updatePools = function() {
     updateWalkthrough();
 
     // --- Ensure Dice Button Exists & Update State ---
-    // Changed logic: Append to body, position Fixed Bottom Right
     let diceBtn = document.getElementById('dice-toggle-btn');
     if (!diceBtn) {
         diceBtn = document.createElement('button');
         diceBtn.id = 'dice-toggle-btn';
-        // Fixed position bottom right, high z-index, FAB style
         diceBtn.className = 'fixed bottom-6 right-6 z-[100] bg-[#8b0000] text-white w-12 h-12 rounded-full shadow-[0_0_15px_rgba(212,175,55,0.4)] border border-[#d4af37] hover:bg-[#a00000] flex items-center justify-center transition-all hidden transform hover:scale-110 active:scale-95'; 
         diceBtn.innerHTML = '<i class="fas fa-dice text-xl"></i>';
         diceBtn.title = "Open Dice Roller";
@@ -537,6 +543,15 @@ window.updatePools = function() {
     
     if (window.state.isPlayMode) diceBtn.classList.remove('hidden');
     else diceBtn.classList.add('hidden');
+
+    // --- Inject Custom Dice Input if missing ---
+    const diffEl = document.getElementById('roll-diff');
+    if (diffEl && !document.getElementById('custom-dice-input')) {
+        const div = document.createElement('div');
+        div.className = "flex flex-col justify-center items-center mr-2";
+        div.innerHTML = `<span class="text-[8px] text-gray-400 uppercase font-bold">Bonus Dice</span><input type="number" id="custom-dice-input" class="w-10 text-center bg-[#1a1a1a] border border-[#333] text-white text-xs p-1 focus:border-[#d4af37] outline-none" min="0" max="20" placeholder="+">`;
+        diffEl.parentNode.insertBefore(div, diffEl);
+    }
 };
 
 export function refreshTraitRow(label, type, targetEl) {
