@@ -100,6 +100,18 @@
             <button id="clear-pool-btn" class="text-[10px] text-gray-400 hover:text-white uppercase font-bold tracking-tighter" onclick="window.clearPool()">[ Clear Pool ]</button>
         </div>
         <div id="pool-display" class="text-[11px] text-gray-200 mb-3 italic font-medium">Select traits to build pool...</div>
+        
+        <!-- CUSTOM DICE SLIDER (Permanently Added) -->
+        <div id="custom-dice-wrapper" class="w-full px-1 mb-4 flex flex-col pointer-events-auto relative z-50">
+            <div class="flex justify-between text-[10px] uppercase font-bold text-gray-400 mb-1 pointer-events-none">
+                <span>Bonus / Custom Dice</span>
+                <span id="bonus-dice-val" class="text-white font-bold">0</span>
+            </div>
+            <input type="range" id="custom-dice-input" min="0" max="20" value="0" step="1" 
+                   class="w-full h-4 accent-[#8b0000] cursor-pointer pointer-events-auto relative z-50 appearance-none !bg-white/10 rounded-full !border-none focus:!outline-none"
+                   oninput="document.getElementById('bonus-dice-val').innerText = this.value">
+        </div>
+
         <div id="specialty-container" class="items-center gap-2 mb-4 px-3 py-2 bg-white/10 border border-white/20 rounded">
             <input type="checkbox" id="use-specialty" class="w-4 h-4 cursor-pointer">
             <label for="use-specialty" class="text-[10px] uppercase font-black text-white cursor-pointer tracking-tight">Specialty Applied (10s = 2 Successes)</label>
