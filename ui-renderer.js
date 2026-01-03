@@ -211,9 +211,13 @@ window.clearPool = function() {
     const hint = document.getElementById('specialty-hint'); if(hint) hint.innerHTML = '';
     const cb = document.getElementById('use-specialty'); if(cb) cb.checked = false;
     
-    // Clear Custom Dice Input
-    const customInput = document.getElementById('custom-dice-input');
-    if(customInput) customInput.value = "";
+    // Clear Custom Dice Slider
+    const slider = document.getElementById('custom-dice-input');
+    if(slider) {
+        slider.value = 0;
+        const valDisplay = document.getElementById('bonus-dice-val');
+        if(valDisplay) valDisplay.innerText = "0";
+    }
     
     document.getElementById('dice-tray').classList.remove('open');
 };
@@ -544,13 +548,32 @@ window.updatePools = function() {
     if (window.state.isPlayMode) diceBtn.classList.remove('hidden');
     else diceBtn.classList.add('hidden');
 
-    // --- Inject Custom Dice Input if missing ---
+    // --- Inject Custom Dice Input (Slider) if missing ---
     const diffEl = document.getElementById('roll-diff');
-    if (diffEl && !document.getElementById('custom-dice-input')) {
-        const div = document.createElement('div');
-        div.className = "flex flex-col justify-center items-center mr-2";
-        div.innerHTML = `<span class="text-[8px] text-gray-400 uppercase font-bold">Bonus Dice</span><input type="number" id="custom-dice-input" class="w-10 text-center bg-[#1a1a1a] border border-[#333] text-white text-xs p-1 focus:border-[#d4af37] outline-none" min="0" max="20" placeholder="+">`;
-        diffEl.parentNode.insertBefore(div, diffEl);
+    if (diffEl && !document.getElementById('custom-dice-wrapper')) {
+        const wrapper = document.createElement('div');
+        wrapper.id = 'custom-dice-wrapper';
+        wrapper.className = "w-full px-4 mb-2 flex flex-col"; // Full width container
+        wrapper.innerHTML = `
+            <div class="flex justify-between text-[10px] uppercase font-bold text-gray-400 mb-1">
+                <span>Bonus Dice</span>
+                <span id="bonus-dice-val" class="text-white font-bold">0</span>
+            </div>
+            <input type="range" id="custom-dice-input" min="0" max="20" value="0" class="w-full accent-[#8b0000] cursor-pointer">
+        `;
+        
+        // Find the container holding the diff input and insert BEFORE it
+        const controlsContainer = diffEl.parentNode;
+        if (controlsContainer && controlsContainer.parentNode) {
+             controlsContainer.parentNode.insertBefore(wrapper, controlsContainer);
+        }
+    }
+    
+    // Ensure listener is active for the label update
+    const slider = document.getElementById('custom-dice-input');
+    const valDisplay = document.getElementById('bonus-dice-val');
+    if(slider && valDisplay) {
+        slider.oninput = function() { valDisplay.innerText = this.value; };
     }
 };
 
