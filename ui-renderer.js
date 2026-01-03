@@ -553,23 +553,23 @@ window.updatePools = function() {
     if (diffEl && !document.getElementById('custom-dice-wrapper')) {
         const wrapper = document.createElement('div');
         wrapper.id = 'custom-dice-wrapper';
+        // Add pointer-events-auto and z-50 to wrapper too
         wrapper.className = "w-full px-4 mb-2 flex flex-col pointer-events-auto relative z-50"; 
         wrapper.innerHTML = `
             <div class="flex justify-between text-[10px] uppercase font-bold text-gray-400 mb-1 pointer-events-none">
                 <span>Bonus Dice</span>
                 <span id="bonus-dice-val" class="text-white font-bold">0</span>
             </div>
-            <input type="range" id="custom-dice-input" min="0" max="20" value="0" step="1" class="w-full accent-[#8b0000] cursor-pointer h-4 pointer-events-auto relative z-50">
+            <input type="range" id="custom-dice-input" min="0" max="20" value="0" step="1" 
+                   class="w-full h-4 accent-[#8b0000] cursor-pointer pointer-events-auto relative z-50 appearance-none !bg-transparent !border-none focus:!outline-none">
         `;
         
-        // Find the container holding the diff input and insert BEFORE it
         const controlsContainer = diffEl.parentNode;
         if (controlsContainer && controlsContainer.parentNode) {
              controlsContainer.parentNode.insertBefore(wrapper, controlsContainer);
         }
     }
     
-    // Ensure listener is active for the label update
     const slider = document.getElementById('custom-dice-input');
     const valDisplay = document.getElementById('bonus-dice-val');
     if(slider && valDisplay) {
