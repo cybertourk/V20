@@ -522,21 +522,21 @@ window.updatePools = function() {
     updateWalkthrough();
 
     // --- Ensure Dice Button Exists & Update State ---
-    const topBar = document.querySelector('.top-bar-right');
-    if (topBar && !document.getElementById('dice-toggle-btn')) {
-        const diceBtn = document.createElement('button');
+    // Changed logic: Append to body, position Fixed Bottom Right
+    let diceBtn = document.getElementById('dice-toggle-btn');
+    if (!diceBtn) {
+        diceBtn = document.createElement('button');
         diceBtn.id = 'dice-toggle-btn';
-        diceBtn.className = 'top-btn hidden'; 
-        diceBtn.innerHTML = '<i class="fas fa-dice"></i> Roller';
+        // Fixed position bottom right, high z-index, FAB style
+        diceBtn.className = 'fixed bottom-6 right-6 z-[100] bg-[#8b0000] text-white w-12 h-12 rounded-full shadow-[0_0_15px_rgba(212,175,55,0.4)] border border-[#d4af37] hover:bg-[#a00000] flex items-center justify-center transition-all hidden transform hover:scale-110 active:scale-95'; 
+        diceBtn.innerHTML = '<i class="fas fa-dice text-xl"></i>';
+        diceBtn.title = "Open Dice Roller";
         diceBtn.onclick = window.toggleDiceTray;
-        topBar.insertBefore(diceBtn, topBar.firstChild);
+        document.body.appendChild(diceBtn);
     }
     
-    const dBtn = document.getElementById('dice-toggle-btn');
-    if (dBtn) {
-        if (window.state.isPlayMode) dBtn.classList.remove('hidden');
-        else dBtn.classList.add('hidden');
-    }
+    if (window.state.isPlayMode) diceBtn.classList.remove('hidden');
+    else diceBtn.classList.add('hidden');
 };
 
 export function refreshTraitRow(label, type, targetEl) {
@@ -1038,24 +1038,21 @@ window.togglePlayMode = function() {
     document.body.classList.toggle('play-mode', window.state.isPlayMode);
     
     // --- Persistent Dice Roller Toggle ---
-    const topBar = document.querySelector('.top-bar-right');
-    // Create the button if it doesn't exist
-    if (topBar && !document.getElementById('dice-toggle-btn')) {
-        const diceBtn = document.createElement('button');
+    // Changed logic: Append to body, position Fixed Bottom Right
+    let diceBtn = document.getElementById('dice-toggle-btn');
+    if (!diceBtn) {
+        diceBtn = document.createElement('button');
         diceBtn.id = 'dice-toggle-btn';
-        diceBtn.className = 'top-btn hidden'; // Hidden by default
-        diceBtn.innerHTML = '<i class="fas fa-dice"></i> Roller';
+        // Fixed position bottom right, high z-index, FAB style
+        diceBtn.className = 'fixed bottom-6 right-6 z-[100] bg-[#8b0000] text-white w-12 h-12 rounded-full shadow-[0_0_15px_rgba(212,175,55,0.4)] border border-[#d4af37] hover:bg-[#a00000] flex items-center justify-center transition-all hidden transform hover:scale-110 active:scale-95'; 
+        diceBtn.innerHTML = '<i class="fas fa-dice text-xl"></i>';
+        diceBtn.title = "Open Dice Roller";
         diceBtn.onclick = window.toggleDiceTray;
-        // Insert as the first item in the top-right bar
-        topBar.insertBefore(diceBtn, topBar.firstChild);
+        document.body.appendChild(diceBtn);
     }
     
-    // Toggle visibility based on mode
-    const diceBtn = document.getElementById('dice-toggle-btn');
-    if (diceBtn) {
-        if (window.state.isPlayMode) diceBtn.classList.remove('hidden');
-        else diceBtn.classList.add('hidden');
-    }
+    if (window.state.isPlayMode) diceBtn.classList.remove('hidden');
+    else diceBtn.classList.add('hidden');
 
     const pBtn = document.getElementById('play-mode-btn'); const pBtnText = document.getElementById('play-btn-text');
     if(pBtnText) pBtnText.innerText = window.state.isPlayMode ? "Edit" : "Play";
