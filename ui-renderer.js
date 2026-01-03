@@ -399,6 +399,12 @@ window.updatePools = function() {
         el.innerHTML = h;
     });
 
+    // --- FIX: Update Blood Per Turn Display ---
+    const bptContainer = document.querySelector('#blood-boxes-play + .text-center');
+    if (bptContainer) {
+        bptContainer.innerHTML = `Blood Per Turn: <span class="text-white">${lim.pt}</span>`;
+    }
+
     const healthCont = document.getElementById('health-chart-play');
     if(healthCont && healthCont.children.length === 0) {
          HEALTH_STATES.forEach((h, i) => {
