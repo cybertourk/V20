@@ -27,7 +27,14 @@ export function handleNew() {
 export function handleSaveClick() {
     const user = auth.currentUser;
     if(!user) return notify("Login Required");
+    
+    // Safety: Initialize state if missing
+    if (!window.state) window.state = { meta: { filename: "", folder: "" }, textFields: {} };
+
     syncInputs();
+    
+    // Safety: Initialize meta if missing to prevent "undefined reading filename" error
+    if (!window.state.meta) window.state.meta = { filename: "", folder: "" };
     
     // Pre-fill inputs if existing
     const nameIn = document.getElementById('save-name-input');
@@ -63,6 +70,9 @@ export async function performSave() {
     // Sanitize ID
     const safeId = rawName.replace(/[^a-zA-Z0-9 _-]/g, "");
     
+    // Safety: Ensure meta exists before assignment
+    if (!window.state.meta) window.state.meta = { filename: "", folder: "" };
+
     window.state.meta.filename = safeId;
     window.state.meta.folder = folder;
     
@@ -119,6 +129,7 @@ export async function renderFileBrowser(user) {
         
         snap.forEach(d => {
             const data = d.data();
+            // Safety: Handle missing meta/folder gracefully
             const f = data.meta?.folder || "Unsorted";
             if(!structure[f]) structure[f] = [];
             structure[f].push({ id: d.id, ...data });
@@ -144,10 +155,15 @@ export async function renderFileBrowser(user) {
                 const row = document.createElement('div');
                 row.className = 'file-row';
                 const date = new Date(char.lastSaved || Date.now()).toLocaleDateString();
+                // Safety: Handle missing meta/textFields
+                const charName = char.meta?.filename || char.id;
+                const clanName = char.textFields?.['c-clan'] || 'Unknown Clan';
+                const natureName = char.textFields?.['c-nature'] || 'Unknown Nature';
+
                 row.innerHTML = `
                     <div class="flex-1">
-                        <div class="file-info text-white">${char.meta?.filename || char.id}</div>
-                        <div class="file-meta">${char.textFields['c-clan'] || 'Unknown Clan'} • ${char.textFields['c-nature'] || 'Unknown Nature'}</div>
+                        <div class="file-info text-white">${charName}</div>
+                        <div class="file-meta">${clanName} • ${natureName}</div>
                     </div>
                     <div class="flex items-center gap-3">
                         <div class="file-meta">${date}</div>
@@ -159,7 +175,7 @@ export async function renderFileBrowser(user) {
                 
                 // Attach Event Listeners manually to avoid HTML string issues
                 const deleteBtn = row.querySelector('.file-delete-btn');
-                deleteBtn.onclick = (e) => deleteCharacter(char.id, char.meta?.filename || char.id, e);
+                deleteBtn.onclick = (e) => deleteCharacter(char.id, charName, e);
                 
                 row.onclick = async (e) => {
                     if(e.target.closest('.file-delete-btn')) return;
@@ -182,11 +198,12 @@ export async function loadSelectedChar(data) {
     // Safety check: if no data is passed (e.g. initial auto-load attempt), exit gracefully
     if (!data) return;
 
-    if(!confirm(`Recall ${data.meta?.filename}? Unsaved progress will be lost.`)) return;
+    if(!confirm(`Recall ${data.meta?.filename || "Character"}? Unsaved progress will be lost.`)) return;
     
     window.state = data;
     
-    // Legacy Data Patches
+    // Legacy Data Patches / Safety Checks
+    if(!window.state.meta) window.state.meta = { filename: data.id || "Loaded Character", folder: "" };
     if(!window.state.specialties) window.state.specialties = {}; 
     if (!window.state.furthestPhase) window.state.furthestPhase = 1;
     if (window.state.status && window.state.status.tempWillpower === undefined) {
