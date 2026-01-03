@@ -274,8 +274,8 @@ window.rollPool = function() {
     tray.insertBefore(row, tray.firstChild);
 };
 
-// --- UPDATED COMBAT ROLL FUNCTION ---
-// Now supports variable attributes (Strength/Dexterity)
+// --- NEW: Manual Combat Roll Function ---
+// Populates the dice pool and opens the tray, but does NOT roll automatically.
 window.rollCombat = function(name, diff, attr, ability) {
     window.clearPool();
     
@@ -287,28 +287,30 @@ window.rollCombat = function(name, diff, attr, ability) {
     const abilVal = window.state.dots.abil[ability] || 0;
     window.state.activePool.push({name: ability, val: abilVal});
 
-    // 3. Highlight Traits UI
+    // 3. Highlight Traits in the UI
     document.querySelectorAll('.trait-label').forEach(el => {
         if (el.innerText === attr || el.innerText === ability) el.classList.add('selected');
         else el.classList.remove('selected');
     });
 
-    // 4. Set Difficulty
+    // 4. Set Difficulty Input
     const diffInput = document.getElementById('roll-diff');
     if (diffInput) diffInput.value = diff;
 
-    // 5. Update Pool Display
+    // 5. Update Pool Display Text
     const display = document.getElementById('pool-display');
     if (display) setSafeText('pool-display', `${attr} (${attrVal}) + ${ability} (${abilVal})`);
 
-    // 6. Ensure Tray is Open!
+    // 6. Ensure Tray is Open (add 'open' class)
     const tray = document.getElementById('dice-tray');
     if (tray) tray.classList.add('open');
+};
 
-    // 7. Roll Immediately
-    setTimeout(() => {
-        window.rollPool();
-    }, 100);
+// --- NEW: Toggle Dice Tray Function ---
+// Used by the persistent button to open/close the roller manually.
+window.toggleDiceTray = function() {
+    const tray = document.getElementById('dice-tray');
+    if (tray) tray.classList.toggle('open');
 };
 
 window.updatePools = function() {
@@ -518,6 +520,12 @@ window.updatePools = function() {
     
     renderSocialProfile();
     updateWalkthrough();
+
+    // --- Initial Toggle State Check ---
+    if (window.state.isPlayMode) {
+        const btn = document.getElementById('dice-toggle-btn');
+        if (btn) btn.classList.remove('hidden');
+    }
 };
 
 export function refreshTraitRow(label, type, targetEl) {
@@ -1017,6 +1025,27 @@ window.toggleSidebarLedger = function() { document.getElementById('freebie-sideb
 window.togglePlayMode = function() {
     window.state.isPlayMode = !window.state.isPlayMode;
     document.body.classList.toggle('play-mode', window.state.isPlayMode);
+    
+    // --- Persistent Dice Roller Toggle ---
+    const topBar = document.querySelector('.top-bar-right');
+    // Create the button if it doesn't exist
+    if (topBar && !document.getElementById('dice-toggle-btn')) {
+        const diceBtn = document.createElement('button');
+        diceBtn.id = 'dice-toggle-btn';
+        diceBtn.className = 'top-btn hidden'; // Hidden by default
+        diceBtn.innerHTML = '<i class="fas fa-dice"></i> Roller';
+        diceBtn.onclick = window.toggleDiceTray;
+        // Insert as the first item in the top-right bar
+        topBar.insertBefore(diceBtn, topBar.firstChild);
+    }
+    
+    // Toggle visibility based on mode
+    const diceBtn = document.getElementById('dice-toggle-btn');
+    if (diceBtn) {
+        if (window.state.isPlayMode) diceBtn.classList.remove('hidden');
+        else diceBtn.classList.add('hidden');
+    }
+
     const pBtn = document.getElementById('play-mode-btn'); const pBtnText = document.getElementById('play-btn-text');
     if(pBtnText) pBtnText.innerText = window.state.isPlayMode ? "Edit" : "Play";
     
@@ -1160,6 +1189,7 @@ window.togglePlayMode = function() {
                 cp.appendChild(r); 
             });
 
+            // Update Inventory Weapons to use rollCombat
             if(window.state.inventory) { 
                 window.state.inventory.filter(i => i.type === 'Weapon' && i.status === 'carried').forEach(w => { 
                     let display = w.displayName || w.name;
