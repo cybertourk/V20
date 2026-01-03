@@ -1068,7 +1068,10 @@ window.togglePlayMode = function() {
     if(pBtnText) pBtnText.innerText = window.state.isPlayMode ? "Edit" : "Play";
     
     document.querySelectorAll('input, select, textarea').forEach(el => {
-        if (['save-filename', 'char-select', 'roll-diff', 'use-specialty', 'c-path-name', 'c-path-name-create', 'c-bearing-name', 'c-bearing-value', 'custom-weakness-input', 'xp-points-input', 'blood-per-turn-input', 'custom-dice-input'].includes(el.id)) return;
+        if (['save-filename', 'char-select', 'roll-diff', 'use-specialty', 'c-path-name', 'c-path-name-create', 'c-bearing-name', 'c-bearing-value', 'custom-weakness-input', 'xp-points-input', 'blood-per-turn-input', 'custom-dice-input'].includes(el.id)) {
+            el.disabled = false;
+            return;
+        }
         el.disabled = window.state.isPlayMode;
     });
 
