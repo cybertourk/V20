@@ -210,7 +210,8 @@ window.clearPool = function() {
     setSafeText('pool-display', "Select traits to build pool...");
     const hint = document.getElementById('specialty-hint'); if(hint) hint.innerHTML = '';
     const cb = document.getElementById('use-specialty'); if(cb) cb.checked = false;
-    document.getElementById('dice-tray').classList.remove('open');
+    // Don't close tray automatically on clear, allow manual control
+    // document.getElementById('dice-tray').classList.remove('open');
 };
 
 window.handleTraitClick = function(name, type) {
@@ -241,7 +242,9 @@ window.handleTraitClick = function(name, type) {
             } else hintEl.innerHTML = '';
         }
         document.getElementById('dice-tray').classList.add('open');
-    } else window.clearPool();
+    } else {
+        window.clearPool();
+    }
 };
 
 window.rollPool = function() {
@@ -274,44 +277,41 @@ window.rollPool = function() {
     tray.insertBefore(row, tray.firstChild);
 };
 
-// --- NEW: Manual Combat Roll Function ---
-// Populates the dice pool and opens the tray, but does NOT roll automatically.
+// --- UPDATED COMBAT ROLL FUNCTION ---
 window.rollCombat = function(name, diff, attr, ability) {
     window.clearPool();
     
-    // 1. Add Attribute (Dexterity or Strength)
+    // 1. Add Attribute
     const attrVal = window.state.dots.attr[attr] || 1;
     window.state.activePool.push({name: attr, val: attrVal});
     
-    // 2. Add Ability (Brawl, Melee, or Firearms)
+    // 2. Add Ability
     const abilVal = window.state.dots.abil[ability] || 0;
     window.state.activePool.push({name: ability, val: abilVal});
 
-    // 3. Highlight Traits in the UI
+    // 3. Highlight Traits UI
     document.querySelectorAll('.trait-label').forEach(el => {
         if (el.innerText === attr || el.innerText === ability) el.classList.add('selected');
         else el.classList.remove('selected');
     });
 
-    // 4. Set Difficulty Input
+    // 4. Set Difficulty
     const diffInput = document.getElementById('roll-diff');
     if (diffInput) diffInput.value = diff;
 
-    // 5. Update Pool Display Text
+    // 5. Update Pool Display
     const display = document.getElementById('pool-display');
     if (display) setSafeText('pool-display', `${attr} (${attrVal}) + ${ability} (${abilVal})`);
 
-    // 6. Ensure Tray is Open (add 'open' class)
+    // 6. Ensure Tray is Open
     const tray = document.getElementById('dice-tray');
     if (tray) tray.classList.add('open');
 };
 
-// --- NEW: Toggle Dice Tray Function ---
-// Used by the persistent button to open/close the roller manually.
 window.toggleDiceTray = function() {
     const tray = document.getElementById('dice-tray');
     if (tray) tray.classList.toggle('open');
-};
+}
 
 window.updatePools = function() {
     if (!window.state.status) window.state.status = { humanity: 7, willpower: 5, tempWillpower: 5, health_states: [0,0,0,0,0,0,0], blood: 0 };
@@ -496,559 +496,90 @@ window.updatePools = function() {
         };
     }
 
-    const cList = document.getElementById('combat-list-create');
-    if(cList && window.state.inventory) {
-        cList.innerHTML = '';
-        window.state.inventory.filter(i => i.type === 'Weapon' && i.status === 'carried').forEach(w => {
-             let display = w.displayName || w.name;
-             const r = document.createElement('div');
-             r.className = "grid grid-cols-6 gap-2 text-[10px] border-b border-[#222] py-1 text-center text-white items-center";
-             r.innerHTML = `<div class="col-span-2 text-left pl-2 font-bold text-gold truncate">${display}</div><div>${w.stats.diff}</div><div class="text-gold font-bold">${w.stats.dmg}</div><div>${w.stats.range}</div><div>${w.stats.clip}</div>`;
-             cList.appendChild(r);
-        });
-        
-        let totalArmor = 0; let totalPenalty = 0; let activeArmor = [];
-        window.state.inventory.filter(i => i.type === 'Armor' && i.status === 'carried').forEach(a => {
-            totalArmor += parseInt(a.stats?.rating) || 0;
-            totalPenalty += parseInt(a.stats?.penalty) || 0;
-            activeArmor.push(a.displayName || a.name);
-        });
-        setSafeText('total-armor-rating', totalArmor);
-        setSafeText('total-armor-penalty', totalPenalty);
-        setSafeText('active-armor-names', activeArmor.length > 0 ? activeArmor.join(', ') : "None");
+    // --- PERMANENT DICE ROLLER TOGGLE ---
+    const topBar = document.querySelector('.top-bar-right');
+    if (topBar && !document.getElementById('dice-toggle-btn')) {
+        const diceBtn = document.createElement('button');
+        diceBtn.id = 'dice-toggle-btn';
+        diceBtn.className = 'top-btn hidden'; // Hidden by default, shown in Play Mode
+        diceBtn.innerHTML = '<i class="fas fa-dice"></i> Roller';
+        diceBtn.onclick = window.toggleDiceTray;
+        topBar.insertBefore(diceBtn, topBar.firstChild);
     }
-    
-    renderSocialProfile();
-    updateWalkthrough();
 
-    // --- Initial Toggle State Check ---
+    window.changeStep(1); 
+    
+    // Initial Toggle State Check
     if (window.state.isPlayMode) {
         const btn = document.getElementById('dice-toggle-btn');
         if (btn) btn.classList.remove('hidden');
     }
 };
 
-export function refreshTraitRow(label, type, targetEl) {
-    let rowDiv = targetEl;
-    if (!rowDiv) {
-        const safeId = 'trait-row-' + type + '-' + label.replace(/[^a-zA-Z0-9]/g, '');
-        rowDiv = document.getElementById(safeId);
-    }
-    
-    if(!rowDiv) return;
-
-    const min = (type === 'attr') ? 1 : 0;
-    const val = window.state.dots[type][label] || min;
-    const max = 5;
-
-    let showSpecialty = false;
-    let warningMsg = "";
-
-    if (type !== 'virt') {
-        if (type === 'attr') {
-            if (val >= 4) showSpecialty = true;
-        } else if (type === 'abil') {
-            if (val >= 1) {
-                showSpecialty = true;
-                if (!BROAD_ABILITIES.includes(label) && val < 4) warningMsg = "Rule Note: Standard V20 requires 4 dots for specialties, but you may override.";
-                else if (BROAD_ABILITIES.includes(label)) warningMsg = "Rule Note: This ability is too broad to be used without a specialty.";
-            }
-        }
-    }
-
-    let specInputHTML = '';
-    if (showSpecialty) {
-        const specVal = window.state.specialties[label] || "";
-        if (window.state.isPlayMode && !specVal) specInputHTML = '<div class="flex-1"></div>'; 
-        else {
-            const listId = `list-${label.replace(/[^a-zA-Z0-9]/g, '')}`;
-            let optionsHTML = '';
-            if (SPECIALTY_EXAMPLES[label]) optionsHTML = SPECIALTY_EXAMPLES[label].map(s => `<option value="${s}">`).join('');
-            specInputHTML = `<div class="flex-1 mx-2 relative"><input type="text" list="${listId}" class="specialty-input w-full text-[10px] italic bg-transparent border-b border-gray-700 text-[#d4af37] text-center" placeholder="Specialty..." value="${specVal}"><datalist id="${listId}">${optionsHTML}</datalist></div>`;
-        }
-    } else { specInputHTML = '<div class="flex-1"></div>'; }
-
-    rowDiv.innerHTML = `<span class="trait-label font-bold uppercase text-[11px] whitespace-nowrap cursor-pointer hover:text-gold">${label}</span>${specInputHTML}<div class="dot-row flex-shrink-0" data-n="${label}" data-t="${type}">${renderDots(val, max)}</div>`;
-
-    rowDiv.querySelector('.trait-label').onclick = () => { if(window.state.isPlayMode) window.handleTraitClick(label, type); };
-    rowDiv.querySelector('.dot-row').onclick = (e) => { if (e.target.dataset.v) setDots(label, type, parseInt(e.target.dataset.v), min, max); };
-    
-    if(showSpecialty && (!window.state.isPlayMode || (window.state.isPlayMode && window.state.specialties[label]))) {
-        const input = rowDiv.querySelector('input');
-        if(input) {
-            input.onblur = (e) => { window.state.specialties[label] = e.target.value; };
-            if (warningMsg) { input.onfocus = () => window.showNotification(warningMsg); }
-            input.disabled = window.state.isPlayMode;
-        }
-    }
-}
-
-export function renderRow(contId, label, type, min, max = 5) {
-    const cont = typeof contId === 'string' ? document.getElementById(contId) : contId;
-    if (!cont) return;
-    const div = document.createElement('div'); 
-    div.id = 'trait-row-' + type + '-' + label.replace(/[^a-zA-Z0-9]/g, '');
-    div.className = 'flex items-center justify-between w-full py-1';
-    cont.appendChild(div);
-    refreshTraitRow(label, type, div); 
-}
-
-export function setDots(name, type, val, min, max = 5) {
-    if (window.state.isPlayMode) return;
-    
-    if (type === 'status') {
-        if (!window.state.freebieMode) return;
-        if (name === 'Humanity') {
-             const baseH = (window.state.dots.virt?.Conscience || 1) + (window.state.dots.virt?.["Self-Control"] || 1);
-             if (val < baseH) val = baseH;
-             window.state.status.humanity = val;
-        }
-        else if (name === 'Willpower') {
-            const baseW = window.state.dots.virt?.Courage || 1;
-            if (val < baseW) val = baseW;
-            window.state.status.willpower = val;
-            window.state.status.tempWillpower = val;
-        }
-        if (calculateTotalFreebiesSpent(window.state) > (parseInt(document.getElementById('c-freebie-total')?.value) || 15)) { window.showNotification("Freebie Limit Exceeded!"); return; }
-        window.updatePools(); return;
-    }
-
-    const currentVal = window.state.dots[type][name] || min;
-    let newVal = val;
-    if (val === currentVal) newVal = val - 1;
-    if (newVal < min) newVal = min;
-
-    if (window.state.freebieMode) {
-        const tempState = JSON.parse(JSON.stringify(window.state));
-        if (!tempState.dots[type]) tempState.dots[type] = {};
-        tempState.dots[type][name] = newVal;
-        const projectedCost = calculateTotalFreebiesSpent(tempState);
-        const limit = parseInt(document.getElementById('c-freebie-total')?.value) || 15;
-        if (projectedCost > limit) { window.showNotification("Freebie Limit Exceeded!"); return; }
-    } else {
-        if (type === 'attr') {
-            let group = null; Object.keys(ATTRIBUTES).forEach(k => { if(ATTRIBUTES[k].includes(name)) group = k; });
-            if (group) {
-                 const limit = window.state.prios.attr[group];
-                 if (limit === undefined) { window.showNotification(`Select priority for ${group}!`); return; }
-                 let currentSpent = 0;
-                 ATTRIBUTES[group].forEach(a => { if (a !== name) { const v = window.state.dots.attr[a] || 1; currentSpent += (v - 1); } });
-                 if (currentSpent + (newVal - 1) > limit) { window.showNotification("Limit Exceeded!"); return; }
-            }
-        } else if (type === 'abil') {
-            if (newVal > 3) { window.showNotification("Max 3 dots in Abilities during creation!"); return; }
-            let group = null; Object.keys(ABILITIES).forEach(k => { if(ABILITIES[k].includes(name)) group = k; });
-            if (!group && window.state.customAbilityCategories && window.state.customAbilityCategories[name]) group = window.state.customAbilityCategories[name];
-            if (group) {
-                const limit = window.state.prios.abil[group];
-                if (limit === undefined) { window.showNotification(`Select priority for ${group}!`); return; }
-                let currentSpent = 0; ABILITIES[group].forEach(a => { if (a !== name) currentSpent += (window.state.dots.abil[a] || 0); });
-                if (window.state.customAbilityCategories) { Object.keys(window.state.dots.abil).forEach(k => { if (k !== name && window.state.customAbilityCategories[k] === group) currentSpent += (window.state.dots.abil[k] || 0); }); }
-                if (currentSpent + newVal > limit) { window.showNotification("Limit Exceeded!"); return; }
-            }
-        } else if (type === 'disc') {
-            let currentSpent = 0; Object.keys(window.state.dots.disc).forEach(d => { if (d !== name) currentSpent += (window.state.dots.disc[d] || 0); });
-            if (currentSpent + newVal > 3) { window.showNotification("Max 3 Creation Dots!"); return; }
-        } else if (type === 'back') {
-            let currentSpent = 0; Object.keys(window.state.dots.back).forEach(b => { if (b !== name) currentSpent += (window.state.dots.back[b] || 0); });
-            if (currentSpent + newVal > 5) { window.showNotification("Max 5 Creation Dots!"); return; }
-        } else if (type === 'virt') {
-            let currentSpent = 0; VIRTUES.forEach(v => { if (v !== name) currentSpent += (window.state.dots.virt[v] || 1); });
-            if ((currentSpent + newVal) > 10) { window.showNotification("Max 7 Creation Dots!"); return; }
-        }
-    }
-
-    window.state.dots[type][name] = newVal;
-    
-    if (type === 'back' && name === 'Generation') {
-        const newGen = 13 - newVal;
-        if (!window.state.textFields) window.state.textFields = {};
-        window.state.textFields['c-gen'] = newGen.toString();
-        const genInput = document.getElementById('c-gen');
-        if (genInput) genInput.value = newGen;
-    }
-
-    if (type === 'virt' && !window.state.isPlayMode && !window.state.freebieMode) {
-         const delta = newVal - currentVal;
-         if (delta !== 0) {
-             if (name === 'Conscience' || name === 'Self-Control') {
-                 if (window.state.status.humanity === undefined) window.state.status.humanity = 2; // Initial Min
-                 window.state.status.humanity += delta;
-                 if (window.state.status.humanity < 0) window.state.status.humanity = 0;
-             }
-             if (name === 'Courage') {
-                 if (window.state.status.willpower === undefined) window.state.status.willpower = 1;
-                 window.state.status.willpower += delta;
-                 window.state.status.tempWillpower = window.state.status.willpower; // Sync temp in creation
-                 if (window.state.status.willpower < 0) window.state.status.willpower = 0;
-             }
-         }
-    }
-
-    if (type === 'attr' || type === 'abil') {
-        refreshTraitRow(name, type);
-    } else {
-        document.querySelectorAll(`.dot-row[data-n="${name}"][data-t="${type}"]`).forEach(el => el.innerHTML = renderDots(newVal, max));
-    }
-    window.updatePools();
-    if(type === 'back') renderSocialProfile();
-}
+window.hydrateInputs = hydrateInputs;
+window.renderSocialProfile = renderSocialProfile;
+window.setupInventoryListeners = setupInventoryListeners;
+window.renderInventoryList = renderInventoryList;
+window.refreshTraitRow = refreshTraitRow;
+window.renderRow = renderRow;
 window.setDots = setDots;
-
-export function renderDynamicAdvantageRow(containerId, type, list, isAbil = false) {
-    const container = document.getElementById(containerId);
-    if (!container) return;
-    container.innerHTML = '';
-    
-    let existingItems = [];
-    if (type === 'abil') {
-        let category = '';
-        if (containerId === 'custom-talents') category = 'Talents';
-        else if (containerId === 'custom-skills') category = 'Skills';
-        else if (containerId === 'custom-knowledges') category = 'Knowledges';
-        if (window.state.customAbilityCategories) { existingItems = Object.keys(window.state.dots.abil).filter(k => window.state.customAbilityCategories[k] === category); }
-    } else { if (window.state.dots[type]) existingItems = Object.keys(window.state.dots[type]); }
-
-    const buildRow = (name = "") => {
-        const row = document.createElement('div'); 
-        row.className = 'flex items-center justify-between gap-1 mb-2 advantage-row w-full';
-        
-        let inputField;
-        if (isAbil) { 
-            inputField = document.createElement('input'); 
-            inputField.type = 'text'; 
-            inputField.placeholder = "Write-in..."; 
-            inputField.className = 'font-bold uppercase !bg-black/20 !border-b !border-[#333] text-[11px] w-24 flex-shrink-0'; 
-            inputField.value = name; 
-        } else { 
-            inputField = document.createElement('select'); 
-            inputField.className = 'font-bold uppercase text-[11px] w-24 flex-shrink-0'; 
-            inputField.innerHTML = `<option value="">-- Choose ${type} --</option>` + list.map(item => `<option value="${item}" ${item === name ? 'selected' : ''}>${item}</option>`).join(''); 
-        }
-
-        let showSpecialty = false;
-        if (name && (isAbil || type === 'attr')) { 
-             const currentVal = window.state.dots[type][name] || 0;
-             if (currentVal >= 1) showSpecialty = true;
-        }
-
-        const specWrapper = document.createElement('div');
-        specWrapper.className = 'flex-1 mx-2 relative'; 
-        
-        if (showSpecialty) {
-             const specVal = window.state.specialties[name] || "";
-             if (window.state.isPlayMode && !specVal) specWrapper.innerHTML = ''; 
-             else {
-                 const listId = `list-${name.replace(/[^a-zA-Z0-9]/g, '')}`;
-                 let optionsHTML = '';
-                 if (SPECIALTY_EXAMPLES[name]) optionsHTML = SPECIALTY_EXAMPLES[name].map(s => `<option value="${s}">`).join('');
-                 specWrapper.innerHTML = `<input type="text" list="${listId}" class="specialty-input w-full text-[10px] italic bg-transparent border-b border-gray-700 text-[#d4af37] text-center" placeholder="Specialty..." value="${specVal}"><datalist id="${listId}">${optionsHTML}</datalist>`;
-                 const inp = specWrapper.querySelector('input');
-                 inp.onblur = (e) => { window.state.specialties[name] = e.target.value; };
-                 inp.disabled = window.state.isPlayMode;
-             }
-        }
-
-        const dotCont = document.createElement('div'); 
-        dotCont.className = 'dot-row flex-shrink-0';
-        const val = name ? (window.state.dots[type][name] || 0) : 0;
-        dotCont.innerHTML = renderDots(val, 5);
-        if (name) { dotCont.dataset.n = name; dotCont.dataset.t = type; }
-
-        const removeBtn = document.createElement('div'); 
-        removeBtn.className = 'remove-btn flex-shrink-0 ml-1'; 
-        removeBtn.innerHTML = '&times;';
-        if (!name) removeBtn.style.visibility = 'hidden';
-
-        let curName = name;
-        let category = null;
-        if (containerId === 'custom-talents') category = 'Talents'; else if (containerId === 'custom-skills') category = 'Skills'; else if (containerId === 'custom-knowledges') category = 'Knowledges';
-        
-        const onUpdate = (newVal) => {
-            if (curName && curName !== newVal) { 
-                const dots = window.state.dots[type][curName]; delete window.state.dots[type][curName]; 
-                if (window.state.customAbilityCategories && window.state.customAbilityCategories[curName]) delete window.state.customAbilityCategories[curName];
-                if (newVal) window.state.dots[type][newVal] = dots || 0; 
-                if(window.state.specialties[curName]) { window.state.specialties[newVal] = window.state.specialties[curName]; delete window.state.specialties[curName]; }
-            }
-            curName = newVal;
-            if (newVal) { 
-                window.state.dots[type][newVal] = window.state.dots[type][newVal] || 0; 
-                dotCont.innerHTML = renderDots(window.state.dots[type][newVal], 5);
-                dotCont.dataset.n = newVal; dotCont.dataset.t = type;
-                if (category) { if (!window.state.customAbilityCategories) window.state.customAbilityCategories = {}; window.state.customAbilityCategories[newVal] = category; }
-                if (row === container.lastElementChild) { removeBtn.style.visibility = 'visible'; buildRow(); }
-            }
-            window.updatePools();
-            if(type === 'back') renderSocialProfile();
-        };
-        
-        if (isAbil) inputField.onblur = (e) => onUpdate(e.target.value); else inputField.onchange = (e) => onUpdate(e.target.value);
-        removeBtn.onclick = () => { if (curName) { delete window.state.dots[type][curName]; if (window.state.customAbilityCategories && window.state.customAbilityCategories[curName]) delete window.state.customAbilityCategories[curName]; } row.remove(); window.updatePools(); if(type==='back') renderSocialProfile(); };
-        
-        dotCont.onclick = (e) => { 
-            if (!curName || !e.target.dataset.v) return; 
-            setDots(curName, type, parseInt(e.target.dataset.v), 0, 5);
-            const newV = window.state.dots[type][curName];
-            if ((newV >= 1 && val === 0) || (newV === 0 && val >= 1)) {
-                 specWrapper.innerHTML = '';
-                 if (newV >= 1 && (isAbil || type === 'attr')) {
-                     const specVal = window.state.specialties[curName] || "";
-                     const listId = `list-${curName.replace(/[^a-zA-Z0-9]/g, '')}`;
-                     specWrapper.innerHTML = `<input type="text" list="${listId}" class="specialty-input w-full text-[10px] italic bg-transparent border-b border-gray-700 text-[#d4af37] text-center" placeholder="Specialty..." value="${specVal}">`;
-                     const inp = specWrapper.querySelector('input');
-                     inp.onblur = (e) => { window.state.specialties[curName] = e.target.value; };
-                 }
-            }
-            dotCont.innerHTML = renderDots(window.state.dots[type][curName], 5);
-        };
-
-        row.appendChild(inputField);
-        row.appendChild(specWrapper);
-        row.appendChild(dotCont);
-        row.appendChild(removeBtn);
-        container.appendChild(row);
-    };
-    existingItems.forEach(item => buildRow(item));
-    buildRow();
-}
 window.renderDynamicAdvantageRow = renderDynamicAdvantageRow;
-
-export function renderDynamicTraitRow(containerId, type, list) {
-    const container = document.getElementById(containerId);
-    if (!container) return;
-    const stateArray = type === 'Merit' ? (window.state.merits || []) : (window.state.flaws || []);
-    container.innerHTML = '';
-    
-    const appendRow = (data = null) => {
-        const row = document.createElement('div'); row.className = 'flex gap-2 items-center mb-2 trait-row';
-        let options = `<option value="">-- Select ${type} --</option>`;
-        list.forEach(item => { options += `<option value="${item.n}" data-val="${item.v}" data-var="${item.variable||false}">${item.n} (${item.range ? item.range + 'pt' : item.v + 'pt'})</option>`; });
-        options += '<option value="Custom">-- Custom / Write-in --</option>';
-        row.innerHTML = `<div class="flex-1 relative"><select class="w-full text-[11px] font-bold uppercase bg-[#111] text-white border-b border-[#444]">${options}</select><input type="text" placeholder="Custom Name..." class="hidden w-full text-[11px] font-bold uppercase border-b border-[#444] bg-transparent text-white"></div><input type="number" class="w-10 text-center text-[11px] !border !border-[#444] font-bold" min="1"><div class="remove-btn">&times;</div>`;
-        container.appendChild(row);
-        
-        const selectEl = row.querySelector('select');
-        const textEl = row.querySelector('input[type="text"]');
-        const numEl = row.querySelector('input[type="number"]');
-        const removeBtn = row.querySelector('.remove-btn');
-        const isLocked = !window.state.freebieMode;
-        
-        selectEl.disabled = isLocked; textEl.disabled = isLocked; numEl.disabled = isLocked;
-        if(isLocked) { selectEl.classList.add('opacity-50'); textEl.classList.add('opacity-50'); numEl.classList.add('opacity-50'); }
-        
-        if (data) {
-            const exists = list.some(l => l.n === data.name);
-            if (exists) {
-                selectEl.value = data.name; numEl.value = data.val;
-                const itemData = list.find(l => l.n === data.name);
-                if (itemData && !itemData.variable) { numEl.disabled = true; numEl.classList.add('opacity-50'); }
-            } else { selectEl.value = "Custom"; selectEl.classList.add('hidden'); textEl.classList.remove('hidden'); textEl.value = data.name; numEl.value = data.val; }
-        } else { numEl.value = ""; removeBtn.style.visibility = 'hidden'; }
-        
-        const syncState = () => {
-            const allRows = container.querySelectorAll('.trait-row');
-            const newState = [];
-            allRows.forEach(r => {
-                const s = r.querySelector('select');
-                const t = r.querySelector('input[type="text"]');
-                const n = r.querySelector('input[type="number"]');
-                let name = s.value === 'Custom' ? t.value : s.value;
-                let val = parseInt(n.value) || 0;
-                if (name && name !== 'Custom') newState.push({ name, val });
-            });
-            if (type === 'Merit') window.state.merits = newState; else window.state.flaws = newState;
-            window.updatePools();
-        };
-        
-        selectEl.addEventListener('change', () => {
-            if (selectEl.value === 'Custom') { selectEl.classList.add('hidden'); textEl.classList.remove('hidden'); textEl.focus(); numEl.value = 1; numEl.disabled = false; numEl.classList.remove('opacity-50'); } 
-            else if (selectEl.value) {
-                const opt = selectEl.options[selectEl.selectedIndex];
-                numEl.value = opt.dataset.val;
-                if (opt.dataset.var !== "true") { numEl.disabled = true; numEl.classList.add('opacity-50'); } else { numEl.disabled = false; numEl.classList.remove('opacity-50'); }
-                if (row === container.lastElementChild) { removeBtn.style.visibility = 'visible'; appendRow(); }
-            }
-            syncState();
-        });
-        textEl.addEventListener('blur', () => { if (textEl.value === "") { textEl.classList.add('hidden'); selectEl.classList.remove('hidden'); selectEl.value = ""; } else { if (row === container.lastElementChild) { removeBtn.style.visibility = 'visible'; appendRow(); } } syncState(); });
-        numEl.addEventListener('change', syncState);
-        removeBtn.addEventListener('click', () => { row.remove(); syncState(); });
-    };
-    if (stateArray.length > 0) stateArray.forEach(d => appendRow(d));
-    appendRow();
-}
 window.renderDynamicTraitRow = renderDynamicTraitRow;
-
-export function renderBloodBondRow() {
-    const cont = document.getElementById('blood-bond-list'); if (!cont) return;
-    const row = document.createElement('div'); row.className = 'flex gap-2 items-center border-b border-[#222] pb-2 advantage-row';
-    row.innerHTML = `<select class="w-24 text-[10px] uppercase font-bold mr-2 border-b border-[#333] bg-transparent"><option value="Bond">Bond</option><option value="Vinculum">Vinculum</option></select><input type="text" placeholder="Bound to..." class="flex-1 text-xs"><input type="number" placeholder="Lvl" class="w-10 text-center text-xs" min="1" max="3"><div class="remove-btn">&times;</div>`;
-    const typeSel = row.querySelector('select'); const nI = row.querySelector('input[type="text"]'); const rI = row.querySelector('input[type="number"]'); const del = row.querySelector('.remove-btn');
-    if (cont.children.length === 0) del.style.visibility = 'hidden';
-    const onUpd = () => {
-        if (typeSel.value === 'Bond') { rI.max = 3; if(parseInt(rI.value) > 3) rI.value = 3; }
-        if (typeSel.value === 'Vinculum') { rI.max = 10; if(parseInt(rI.value) > 10) rI.value = 10; }
-        window.state.bloodBonds = Array.from(cont.querySelectorAll('.advantage-row')).map(r => ({ type: r.querySelector('select').value, name: r.querySelector('input[type="text"]').value, rating: r.querySelector('input[type="number"]').value })).filter(b => b.name);
-        if (cont.lastElementChild === row && nI.value !== "") renderBloodBondRow();
-        window.updatePools(); 
-    };
-    typeSel.onchange = onUpd; nI.onblur = onUpd; rI.onblur = onUpd; del.onclick = () => { row.remove(); onUpd(); };
-    cont.appendChild(row);
-}
 window.renderBloodBondRow = renderBloodBondRow;
-
-export function renderDerangementsList() {
-    const cont = document.getElementById('derangements-list'); if (!cont) return;
-    cont.innerHTML = '';
-    window.state.derangements.forEach((d, idx) => {
-        const row = document.createElement('div'); row.className = "flex justify-between items-center text-xs text-white border-b border-[#333] py-1";
-        row.innerHTML = `<span>${d}</span><span class="remove-btn text-red-500" onclick="window.state.derangements.splice(${idx}, 1); renderDerangementsList(); window.updatePools();">&times;</span>`;
-        cont.appendChild(row);
-    });
-    const addRow = document.createElement('div'); addRow.className = "flex gap-2 mt-2";
-    let options = `<option value="">+ Add Derangement</option>` + DERANGEMENTS.map(d => `<option value="${d}">${d}</option>`).join('');
-    addRow.innerHTML = `<select id="derangement-select" class="flex-1 text-[10px] uppercase font-bold bg-black/40 border border-[#444] text-white p-1">${options}<option value="Custom">Custom...</option></select><input type="text" id="derangement-custom" class="hidden flex-1 text-[10px] bg-black/40 border border-[#444] text-white p-1" placeholder="Type name..."><button id="add-derangement-btn" class="bg-[#8b0000] text-white px-2 py-1 text-[10px] font-bold hover:bg-red-700">ADD</button>`;
-    cont.appendChild(addRow);
-    const sel = document.getElementById('derangement-select'); const inp = document.getElementById('derangement-custom'); const btn = document.getElementById('add-derangement-btn');
-    sel.onchange = () => { if (sel.value === 'Custom') { sel.classList.add('hidden'); inp.classList.remove('hidden'); inp.focus(); } };
-    btn.onclick = () => {
-        let val = sel.value === 'Custom' ? inp.value : sel.value;
-        if (val && val !== 'Custom') { window.state.derangements.push(val); renderDerangementsList(); window.updatePools(); }
-    };
-}
 window.renderDerangementsList = renderDerangementsList;
-
-export function renderDynamicHavenRow() {
-    const cont = document.getElementById('multi-haven-list'); if (!cont) return;
-    const row = document.createElement('div'); row.className = 'border-b border-[#222] pb-4 advantage-row';
-    row.innerHTML = `<div class="flex justify-between items-center mb-2"><input type="text" placeholder="Haven Title..." class="flex-1 text-[10px] font-bold text-gold uppercase !border-b !border-[#333]"><div class="remove-btn">&times;</div></div><input type="text" placeholder="Location..." class="text-xs mb-2 !border-b !border-[#333]"><textarea class="h-16 text-xs" placeholder="Details..."></textarea>`;
-    const nameIn = row.querySelectorAll('input')[0]; const locIn = row.querySelectorAll('input')[1]; const descIn = row.querySelector('textarea'); const del = row.querySelector('.remove-btn');
-    if (cont.children.length === 0) del.style.visibility = 'hidden';
-    const onUpd = () => {
-        window.state.havens = Array.from(cont.querySelectorAll('.advantage-row')).map(r => ({ name: r.querySelectorAll('input')[0].value, loc: r.querySelectorAll('input')[1].value, desc: r.querySelector('textarea').value })).filter(h => h.name || h.loc);
-        if (cont.lastElementChild === row && nameIn.value !== "") renderDynamicHavenRow();
-        window.updatePools(); 
-    };
-    [nameIn, locIn, descIn].forEach(el => el.onblur = onUpd); del.onclick = () => { row.remove(); onUpd(); };
-    cont.appendChild(row);
-}
 window.renderDynamicHavenRow = renderDynamicHavenRow;
-
-// --- NAVIGATION & MODES ---
-
-export function updateWalkthrough() {
-    if (window.state.isPlayMode) { document.getElementById('walkthrough-guide').classList.add('opacity-0', 'pointer-events-none'); return; } 
-    else { document.getElementById('walkthrough-guide').classList.remove('opacity-0', 'pointer-events-none'); }
-    const current = window.state.currentPhase;
-    const furthest = window.state.furthestPhase || 1;
-    const isComplete = checkStepComplete(current, window.state);
-    const msgEl = document.getElementById('guide-message');
-    const iconEl = document.getElementById('guide-icon');
-    const stepData = STEPS_CONFIG.find(s => s.id === current);
-    if (current < furthest) {
-        msgEl.innerText = `Return to Step ${furthest}`;
-        msgEl.className = "bg-gray-900/90 border border-gray-500 text-gray-300 px-4 py-2 rounded text-xs font-bold shadow-lg w-48 text-right";
-        iconEl.classList.add('ready'); 
-    } else {
-        if (isComplete) {
-            msgEl.innerText = "Step Complete! Next >>";
-            msgEl.className = "bg-green-900/90 border border-green-500 text-green-100 px-4 py-2 rounded text-xs font-bold shadow-lg w-48 text-right";
-            iconEl.classList.add('ready');
-        } else {
-            msgEl.innerText = stepData ? stepData.msg : "Continue...";
-            msgEl.className = "bg-black/90 border border-[#d4af37] text-[#f0e6d2] px-4 py-2 rounded text-xs font-bold shadow-lg w-48 text-right";
-            iconEl.classList.remove('ready');
-        }
-    }
-}
 window.updateWalkthrough = updateWalkthrough;
 
-window.nextStep = function() {
-    const current = window.state.currentPhase;
-    const furthest = window.state.furthestPhase || 1;
-    if (current < furthest) window.changeStep(furthest);
-    else if (checkStepComplete(current, window.state)) { if (current < 8) window.changeStep(current + 1); else window.showNotification("Character Ready!"); } 
-    else window.showNotification("Complete current step first!");
-};
-
-window.changeStep = function(s) {
-    if (!window.state.furthestPhase || s > window.state.furthestPhase) { if (s > (window.state.furthestPhase || 0)) window.state.furthestPhase = s; }
-    document.querySelectorAll('.step-container').forEach(c => c.classList.remove('active'));
-    const prefix = window.state.isPlayMode ? 'play-mode-' : 'phase-';
-    const target = document.getElementById(prefix + s);
-    if (target) { target.classList.add('active'); window.state.currentPhase = s; }
+// --- EXPORT ROLL COMBAT ---
+window.rollCombat = function(name, diff, attr, ability) {
+    window.clearPool();
     
-    // Update Nav
-    const nav = document.getElementById('sheet-nav');
-    if (nav) {
-        nav.innerHTML = '';
-        if (window.state.isPlayMode) {
-             const steps = ["Sheet", "Traits", "Social", "Biography"];
-             steps.forEach((text, i) => {
-                 const it = document.createElement('div'); it.className = `nav-item ${window.state.currentPhase === (i+1) ? 'active' : ''}`;
-                 it.innerHTML = `<i class="fas fa-scroll"></i><span style="display:block; font-size:9px; margin-top:2px;">${text}</span>`;
-                 it.onclick = () => window.changeStep(i+1); nav.appendChild(it);
-             });
-        } else {
-            const furthest = window.state.furthestPhase || 1;
-            STEPS_CONFIG.forEach(step => {
-                const it = document.createElement('div'); let statusClass = '';
-                if (step.id === s) statusClass = 'active'; else if (step.id < s) statusClass = 'completed'; else if (step.id <= furthest) statusClass = 'unlocked'; else statusClass = 'locked';
-                it.className = `nav-item ${statusClass}`;
-                it.innerHTML = `<div class="flex flex-col items-center justify-center w-full h-full"><i class="fas ${step.icon}"></i><span style="display:block !important; font-size:7px; text-transform:uppercase; margin-top:2px; opacity:1;">${step.label}</span></div>`;
-                it.onclick = () => { if (step.id <= furthest) window.changeStep(step.id); };
-                nav.appendChild(it);
-            });
-        }
-    }
-    window.updatePools();
+    // 1. Add Attribute
+    const attrVal = window.state.dots.attr[attr] || 1;
+    window.state.activePool.push({name: attr, val: attrVal});
+    
+    // 2. Add Ability
+    const abilVal = window.state.dots.abil[ability] || 0;
+    window.state.activePool.push({name: ability, val: abilVal});
+
+    // 3. Highlight Traits UI
+    document.querySelectorAll('.trait-label').forEach(el => {
+        if (el.innerText === attr || el.innerText === ability) el.classList.add('selected');
+        else el.classList.remove('selected');
+    });
+
+    // 4. Set Difficulty
+    const diffInput = document.getElementById('roll-diff');
+    if (diffInput) diffInput.value = diff;
+
+    // 5. Update Pool Display
+    const display = document.getElementById('pool-display');
+    if (display) setSafeText('pool-display', `${attr} (${attrVal}) + ${ability} (${abilVal})`);
+
+    // 6. Ensure Tray is Open
+    const tray = document.getElementById('dice-tray');
+    if (tray) tray.classList.add('open');
 };
 
-window.toggleFreebieMode = function() {
-     window.state.freebieMode = !window.state.freebieMode;
-     document.body.classList.toggle('freebie-mode', window.state.freebieMode);
-     const fbBtn = document.getElementById('toggle-freebie-btn');
-     const fbBtnText = document.getElementById('freebie-btn-text');
-     if (fbBtnText) fbBtnText.innerText = window.state.freebieMode ? "Exit Freebies" : "Freebies";
-     if (fbBtn) { fbBtn.classList.toggle('bg-blue-900/40', window.state.freebieMode); fbBtn.classList.toggle('border-blue-500', window.state.freebieMode); fbBtn.classList.toggle('text-blue-200', window.state.freebieMode); }
-     const mMsg = document.getElementById('merit-locked-msg'); const fMsg = document.getElementById('flaw-locked-msg');
-     if(mMsg) mMsg.style.display = window.state.freebieMode ? 'none' : 'block';
-     if(fMsg) fMsg.style.display = window.state.freebieMode ? 'none' : 'block';
-     renderDynamicTraitRow('merits-list-create', 'Merit', V20_MERITS_LIST);
-     renderDynamicTraitRow('flaws-list-create', 'Flaw', V20_FLAWS_LIST);
-     window.updatePools(); 
+// --- EXPORT TOGGLE DICE TRAY ---
+window.toggleDiceTray = function() {
+    const tray = document.getElementById('dice-tray');
+    if (tray) tray.classList.toggle('open');
 };
-
-window.toggleSidebarLedger = function() { document.getElementById('freebie-sidebar').classList.toggle('open'); };
 
 window.togglePlayMode = function() {
     window.state.isPlayMode = !window.state.isPlayMode;
     document.body.classList.toggle('play-mode', window.state.isPlayMode);
+    const pBtn = document.getElementById('play-mode-btn'); const pBtnText = document.getElementById('play-btn-text');
+    if(pBtnText) pBtnText.innerText = window.state.isPlayMode ? "Edit" : "Play";
     
-    // --- Persistent Dice Roller Toggle ---
-    const topBar = document.querySelector('.top-bar-right');
-    // Create the button if it doesn't exist
-    if (topBar && !document.getElementById('dice-toggle-btn')) {
-        const diceBtn = document.createElement('button');
-        diceBtn.id = 'dice-toggle-btn';
-        diceBtn.className = 'top-btn hidden'; // Hidden by default
-        diceBtn.innerHTML = '<i class="fas fa-dice"></i> Roller';
-        diceBtn.onclick = window.toggleDiceTray;
-        // Insert as the first item in the top-right bar
-        topBar.insertBefore(diceBtn, topBar.firstChild);
-    }
-    
-    // Toggle visibility based on mode
+    // Toggle Dice Button Visibility
     const diceBtn = document.getElementById('dice-toggle-btn');
     if (diceBtn) {
         if (window.state.isPlayMode) diceBtn.classList.remove('hidden');
         else diceBtn.classList.add('hidden');
     }
 
-    const pBtn = document.getElementById('play-mode-btn'); const pBtnText = document.getElementById('play-btn-text');
-    if(pBtnText) pBtnText.innerText = window.state.isPlayMode ? "Edit" : "Play";
-    
     document.querySelectorAll('input, select, textarea').forEach(el => {
         if (['save-filename', 'char-select', 'roll-diff', 'use-specialty', 'c-path-name', 'c-path-name-create', 'c-bearing-name', 'c-bearing-value', 'custom-weakness-input', 'xp-points-input', 'blood-per-turn-input'].includes(el.id)) return;
         el.disabled = window.state.isPlayMode;
@@ -1189,7 +720,6 @@ window.togglePlayMode = function() {
                 cp.appendChild(r); 
             });
 
-            // Update Inventory Weapons to use rollCombat
             if(window.state.inventory) { 
                 window.state.inventory.filter(i => i.type === 'Weapon' && i.status === 'carried').forEach(w => { 
                     let display = w.displayName || w.name;
