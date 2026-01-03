@@ -274,26 +274,47 @@ window.rollPool = function() {
     tray.insertBefore(row, tray.firstChild);
 };
 
+// --- NEW COMBAT ROLL FUNCTION ---
+window.rollCombat = function(name, diff, ability) {
+    window.clearPool();
+    
+    // 1. Add Dexterity
+    const dexVal = window.state.dots.attr['Dexterity'] || 1;
+    window.state.activePool.push({name: 'Dexterity', val: dexVal});
+    
+    // 2. Add Ability (Brawl, Melee, or Firearms)
+    const abilVal = window.state.dots.abil[ability] || 0;
+    window.state.activePool.push({name: ability, val: abilVal});
+
+    // 3. Highlight Traits UI
+    document.querySelectorAll('.trait-label').forEach(el => {
+        if (el.innerText === 'Dexterity' || el.innerText === ability) el.classList.add('selected');
+        else el.classList.remove('selected');
+    });
+
+    // 4. Set Difficulty
+    const diffInput = document.getElementById('roll-diff');
+    if (diffInput) diffInput.value = diff;
+
+    // 5. Update Pool Display
+    const display = document.getElementById('pool-display');
+    if (display) setSafeText('pool-display', `Dexterity (${dexVal}) + ${ability} (${abilVal})`);
+
+    // 6. Roll Immediately
+    window.rollPool();
+};
+
 window.updatePools = function() {
     if (!window.state.status) window.state.status = { humanity: 7, willpower: 5, tempWillpower: 5, health_states: [0,0,0,0,0,0,0], blood: 0 };
     if (window.state.status.tempWillpower === undefined) window.state.status.tempWillpower = window.state.status.willpower || 5;
     if (window.state.status.health_states === undefined || !Array.isArray(window.state.status.health_states)) window.state.status.health_states = [0,0,0,0,0,0,0];
 
-    // FIX FOR FRESH CHARACTERS:
-    // This logic detects the specific uninitialized default state (Hum=7, Will=5) where Virtues are still at base (1).
-    // If detected, it forces a sync to the correct base values (Hum=2, Will=1).
     const bH = (window.state.dots.virt?.Conscience || 1) + (window.state.dots.virt?.["Self-Control"] || 1);
     const bW = (window.state.dots.virt?.Courage || 1);
 
     if (!window.state.freebieMode && !window.state.isPlayMode) {
-         // Check if we are at the dangerous "Default" state
-         if (window.state.status.humanity === 7 && bH === 2) {
-             window.state.status.humanity = 2;
-         }
-         if (window.state.status.willpower === 5 && bW === 1) {
-             window.state.status.willpower = 1;
-             window.state.status.tempWillpower = 1;
-         }
+         if (window.state.status.humanity === 7 && bH === 2) window.state.status.humanity = 2;
+         if (window.state.status.willpower === 5 && bW === 1) { window.state.status.willpower = 1; window.state.status.tempWillpower = 1; }
     }
 
     const curH = window.state.status.humanity;
@@ -331,16 +352,12 @@ window.updatePools = function() {
          setSafeText('sb-disc', Math.max(0, discSpent - 3) * 7);
          setSafeText('sb-back', Math.max(0, backSpent - 5) * 1);
          setSafeText('sb-virt', Math.max(0, (virtTotalDots-3) - 7) * 2);
-         
-         // Calculate Freebie Costs based on Diff from Virtues
          const bH = (window.state.dots.virt?.Conscience || 1) + (window.state.dots.virt?.["Self-Control"] || 1);
          const bW = (window.state.dots.virt?.Courage || 1);
          const cH = window.state.status.humanity !== undefined ? window.state.status.humanity : bH;
          const cW = window.state.status.willpower !== undefined ? window.state.status.willpower : bW;
-         
          setSafeText('sb-human', Math.max(0, cH - bH) * 2);
          setSafeText('sb-will', Math.max(0, cW - bW) * 1);
-         
          let mfCost = 0, mfBonus = 0;
          if (window.state.merits) window.state.merits.forEach(m => mfCost += (parseInt(m.val) || 0));
          if (window.state.flaws) window.state.flaws.forEach(f => mfBonus += (parseInt(f.val) || 0));
@@ -399,7 +416,6 @@ window.updatePools = function() {
         el.innerHTML = h;
     });
 
-    // --- FIX: Update Blood Per Turn Display ---
     const bptContainer = document.querySelector('#blood-boxes-play + .text-center');
     if (bptContainer) {
         bptContainer.innerHTML = `Blood Per Turn: <span class="text-white">${lim.pt}</span>`;
@@ -565,18 +581,16 @@ export function renderRow(contId, label, type, min, max = 5) {
 export function setDots(name, type, val, min, max = 5) {
     if (window.state.isPlayMode) return;
     
-    // Status Logic (Direct Freebie/Play modification)
     if (type === 'status') {
         if (!window.state.freebieMode) return;
         if (name === 'Humanity') {
-             // Ensure we don't drop below the base derived from Virtues
              const baseH = (window.state.dots.virt?.Conscience || 1) + (window.state.dots.virt?.["Self-Control"] || 1);
-             if (val < baseH) val = baseH; // Floor it
+             if (val < baseH) val = baseH;
              window.state.status.humanity = val;
         }
         else if (name === 'Willpower') {
             const baseW = window.state.dots.virt?.Courage || 1;
-            if (val < baseW) val = baseW; // Floor it
+            if (val < baseW) val = baseW;
             window.state.status.willpower = val;
             window.state.status.tempWillpower = val;
         }
@@ -589,7 +603,6 @@ export function setDots(name, type, val, min, max = 5) {
     if (val === currentVal) newVal = val - 1;
     if (newVal < min) newVal = min;
 
-    // Freebie Checks
     if (window.state.freebieMode) {
         const tempState = JSON.parse(JSON.stringify(window.state));
         if (!tempState.dots[type]) tempState.dots[type] = {};
@@ -598,7 +611,6 @@ export function setDots(name, type, val, min, max = 5) {
         const limit = parseInt(document.getElementById('c-freebie-total')?.value) || 15;
         if (projectedCost > limit) { window.showNotification("Freebie Limit Exceeded!"); return; }
     } else {
-        // Creation Mode Checks
         if (type === 'attr') {
             let group = null; Object.keys(ATTRIBUTES).forEach(k => { if(ATTRIBUTES[k].includes(name)) group = k; });
             if (group) {
@@ -633,8 +645,6 @@ export function setDots(name, type, val, min, max = 5) {
 
     window.state.dots[type][name] = newVal;
     
-    // --- V20 GENERATION SYNC LOGIC ---
-    // Automatically lowers generation when dots are added to the 'Generation' background
     if (type === 'back' && name === 'Generation') {
         const newGen = 13 - newVal;
         if (!window.state.textFields) window.state.textFields = {};
@@ -642,17 +652,13 @@ export function setDots(name, type, val, min, max = 5) {
         const genInput = document.getElementById('c-gen');
         if (genInput) genInput.value = newGen;
     }
-    // ---------------------------------
 
-    // UPDATED VIRTUE LOGIC:
-    // Apply DELTA to derived stats instead of resetting them.
     if (type === 'virt' && !window.state.isPlayMode && !window.state.freebieMode) {
          const delta = newVal - currentVal;
          if (delta !== 0) {
              if (name === 'Conscience' || name === 'Self-Control') {
                  if (window.state.status.humanity === undefined) window.state.status.humanity = 2; // Initial Min
                  window.state.status.humanity += delta;
-                 // Validation: Cannot drop below 0 (unlikely with creation rules)
                  if (window.state.status.humanity < 0) window.state.status.humanity = 0;
              }
              if (name === 'Courage') {
@@ -1007,7 +1013,6 @@ window.togglePlayMode = function() {
     const pBtn = document.getElementById('play-mode-btn'); const pBtnText = document.getElementById('play-btn-text');
     if(pBtnText) pBtnText.innerText = window.state.isPlayMode ? "Edit" : "Play";
     
-    // Disable inputs not needed in Play Mode
     document.querySelectorAll('input, select, textarea').forEach(el => {
         if (['save-filename', 'char-select', 'roll-diff', 'use-specialty', 'c-path-name', 'c-path-name-create', 'c-bearing-name', 'c-bearing-value', 'custom-weakness-input', 'xp-points-input', 'blood-per-turn-input'].includes(el.id)) return;
         el.disabled = window.state.isPlayMode;
@@ -1017,17 +1022,14 @@ window.togglePlayMode = function() {
     const phases = document.querySelectorAll('.step-container');
 
     if (window.state.isPlayMode) {
-        // HIDE ALL PHASES
         phases.forEach(el => el.classList.add('hidden'));
         phases.forEach(el => el.classList.remove('active')); 
 
-        // SHOW PLAY SHEET
         if (playSheet) {
             playSheet.classList.remove('hidden');
             playSheet.style.display = 'block'; 
         }
 
-        // --- POPULATE HEADER ---
         const row = document.getElementById('play-concept-row');
         if (row) {
             const getVal = (id) => document.getElementById(id)?.value || '';
@@ -1044,7 +1046,6 @@ window.togglePlayMode = function() {
             `;
         }
         
-        // --- POPULATE ATTRIBUTES & ABILITIES ---
         const ra = document.getElementById('play-row-attr'); 
         if (ra) {
             ra.innerHTML = '';
@@ -1085,7 +1086,6 @@ window.togglePlayMode = function() {
             VIRTUES.forEach(v => renderRow(vs, v, 'virt', 1)); 
         }
         
-        // --- SOCIAL PROFILE RENDER ---
         const pg = document.getElementById('play-social-grid'); if(pg) {
             pg.innerHTML = ''; BACKGROUNDS.forEach(s => { const dots = window.state.dots.back[s] || 0; const safeId = 'desc-' + s.toLowerCase().replace(/[^a-z0-9]/g, '-'); const el = document.getElementById(safeId); const txt = el ? el.value : ""; if(dots || txt) pg.innerHTML += `<div class="border-l-2 border-[#333] pl-4 mb-4"><div class="flex justify-between items-center"><label class="label-text text-gold">${s}</label><div class="text-[8px] font-bold text-white">${renderDots(dots,5)}</div></div><div class="text-xs text-gray-200 mt-1">${txt || "No description."}</div></div>`; });
         }
@@ -1106,10 +1106,64 @@ window.togglePlayMode = function() {
             plv.innerHTML = ''; VIT.forEach(v => { const val = document.getElementById('bio-' + v)?.value; if(val) plv.innerHTML += `<div class="flex justify-between border-b border-[#222] py-1 font-bold"><span class="text-gray-400">${v.replace('-',' ')}:</span> <span>${val}</span></div>`; });
         }
 
-        const cp = document.getElementById('combat-rows-play'); if(cp) {
-            cp.innerHTML = ''; const standards = [{n:'Bite',diff:5,dmg:'Str+1(A)'}, {n:'Clinch',diff:6,dmg:'Str(B)'}, {n:'Grapple',diff:6,dmg:'Str(B)'}, {n:'Kick',diff:7,dmg:'Str+1(B)'}, {n:'Punch',diff:6,dmg:'Str(B)'}, {n:'Tackle',diff:7,dmg:'Str+1(B)'}];
-            standards.forEach(s => { const r = document.createElement('tr'); r.className='border-b border-[#222] text-[10px] text-gray-500'; r.innerHTML = `<td class="p-2 font-bold text-white">${s.n}</td><td class="p-2">${s.diff}</td><td class="p-2">${s.dmg}</td><td class="p-2">-</td><td class="p-2">-</td><td class="p-2">-</td>`; cp.appendChild(r); });
-            if(window.state.inventory) { window.state.inventory.filter(i => i.type === 'Weapon' && i.status === 'carried').forEach(w => { let display = w.displayName || w.name; const r = document.createElement('tr'); r.className='border-b border-[#222] text-[10px]'; r.innerHTML = `<td class="p-2 font-bold text-gold">${display}</td><td class="p-2 text-white">${w.stats.diff}</td><td class="p-2 text-white">${w.stats.dmg}</td><td class="p-2">${w.stats.range}</td><td class="p-2">${w.stats.rate}</td><td class="p-2">${w.stats.clip}</td>`; cp.appendChild(r); }); }
+        const cp = document.getElementById('combat-rows-play'); 
+        if(cp) {
+            cp.innerHTML = ''; 
+            const standards = [
+                {n:'Bite',diff:5,dmg:'Str+1(A)'}, 
+                {n:'Clinch',diff:6,dmg:'Str(B)'}, 
+                {n:'Grapple',diff:6,dmg:'Str(B)'}, 
+                {n:'Kick',diff:7,dmg:'Str+1(B)'}, 
+                {n:'Punch',diff:6,dmg:'Str(B)'}, 
+                {n:'Tackle',diff:7,dmg:'Str+1(B)'}
+            ];
+
+            const firearms = ['Pistol', 'Revolver', 'Rifle', 'SMG', 'Shotgun', 'Crossbow'];
+
+            standards.forEach(s => { 
+                const r = document.createElement('tr'); 
+                r.className='border-b border-[#222] text-[10px] text-gray-500 hover:bg-[#1a1a1a]'; 
+                r.innerHTML = `
+                    <td class="p-2 font-bold text-white flex items-center gap-2">
+                        <button class="bg-[#8b0000] hover:bg-red-600 text-white rounded px-1.5 py-0.5 text-[9px] font-bold" onclick="window.rollCombat('${s.n}', ${s.diff}, 'Brawl')" title="Roll ${s.n}">
+                            <i class="fas fa-dice-d10"></i>
+                        </button>
+                        ${s.n}
+                    </td>
+                    <td class="p-2">${s.diff}</td>
+                    <td class="p-2">${s.dmg}</td>
+                    <td class="p-2 text-center">-</td>
+                    <td class="p-2 text-center">-</td>
+                    <td class="p-2 text-center">-</td>
+                `; 
+                cp.appendChild(r); 
+            });
+
+            if(window.state.inventory) { 
+                window.state.inventory.filter(i => i.type === 'Weapon' && i.status === 'carried').forEach(w => { 
+                    let display = w.displayName || w.name;
+                    // Determine Ability: Default Melee, check name/baseType for Firearms
+                    const isFirearm = firearms.some(f => (w.name && w.name.includes(f)) || (w.baseType && w.baseType.includes(f)));
+                    const ability = isFirearm ? 'Firearms' : 'Melee';
+
+                    const r = document.createElement('tr'); 
+                    r.className='border-b border-[#222] text-[10px] hover:bg-[#1a1a1a]'; 
+                    r.innerHTML = `
+                        <td class="p-2 font-bold text-gold flex items-center gap-2">
+                             <button class="bg-[#8b0000] hover:bg-red-600 text-white rounded px-1.5 py-0.5 text-[9px] font-bold" onclick="window.rollCombat('${display}', ${w.stats.diff}, '${ability}')" title="Roll ${display}">
+                                <i class="fas fa-dice-d10"></i>
+                            </button>
+                            ${display}
+                        </td>
+                        <td class="p-2 text-white">${w.stats.diff}</td>
+                        <td class="p-2 text-white">${w.stats.dmg}</td>
+                        <td class="p-2 text-center">${w.stats.range}</td>
+                        <td class="p-2 text-center">${w.stats.rate}</td>
+                        <td class="p-2 text-center">${w.stats.clip}</td>
+                    `; 
+                    cp.appendChild(r); 
+                }); 
+            }
         }
 
         if(document.getElementById('rituals-list-play')) document.getElementById('rituals-list-play').innerText = document.getElementById('rituals-list-create-ta').value;
