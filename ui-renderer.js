@@ -300,8 +300,15 @@ window.rollCombat = function(name, diff, ability) {
     const display = document.getElementById('pool-display');
     if (display) setSafeText('pool-display', `Dexterity (${dexVal}) + ${ability} (${abilVal})`);
 
-    // 6. Roll Immediately
-    window.rollPool();
+    // 6. Ensure Tray is Open!
+    const tray = document.getElementById('dice-tray');
+    if (tray) tray.classList.add('open');
+
+    // 7. Roll Immediately
+    // Use a small timeout to allow UI update to propagate (drawer open animation)
+    setTimeout(() => {
+        window.rollPool();
+    }, 100);
 };
 
 window.updatePools = function() {
