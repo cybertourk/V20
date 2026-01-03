@@ -633,6 +633,17 @@ export function setDots(name, type, val, min, max = 5) {
 
     window.state.dots[type][name] = newVal;
     
+    // --- V20 GENERATION SYNC LOGIC ---
+    // Automatically lowers generation when dots are added to the 'Generation' background
+    if (type === 'back' && name === 'Generation') {
+        const newGen = 13 - newVal;
+        if (!window.state.textFields) window.state.textFields = {};
+        window.state.textFields['c-gen'] = newGen.toString();
+        const genInput = document.getElementById('c-gen');
+        if (genInput) genInput.value = newGen;
+    }
+    // ---------------------------------
+
     // UPDATED VIRTUE LOGIC:
     // Apply DELTA to derived stats instead of resetting them.
     if (type === 'virt' && !window.state.isPlayMode && !window.state.freebieMode) {
