@@ -274,13 +274,14 @@ window.rollPool = function() {
     tray.insertBefore(row, tray.firstChild);
 };
 
-// --- NEW COMBAT ROLL FUNCTION ---
-window.rollCombat = function(name, diff, ability) {
+// --- UPDATED COMBAT ROLL FUNCTION ---
+// Now supports variable attributes (Strength/Dexterity)
+window.rollCombat = function(name, diff, attr, ability) {
     window.clearPool();
     
-    // 1. Add Dexterity
-    const dexVal = window.state.dots.attr['Dexterity'] || 1;
-    window.state.activePool.push({name: 'Dexterity', val: dexVal});
+    // 1. Add Attribute (Dexterity or Strength)
+    const attrVal = window.state.dots.attr[attr] || 1;
+    window.state.activePool.push({name: attr, val: attrVal});
     
     // 2. Add Ability (Brawl, Melee, or Firearms)
     const abilVal = window.state.dots.abil[ability] || 0;
@@ -288,7 +289,7 @@ window.rollCombat = function(name, diff, ability) {
 
     // 3. Highlight Traits UI
     document.querySelectorAll('.trait-label').forEach(el => {
-        if (el.innerText === 'Dexterity' || el.innerText === ability) el.classList.add('selected');
+        if (el.innerText === attr || el.innerText === ability) el.classList.add('selected');
         else el.classList.remove('selected');
     });
 
@@ -298,14 +299,13 @@ window.rollCombat = function(name, diff, ability) {
 
     // 5. Update Pool Display
     const display = document.getElementById('pool-display');
-    if (display) setSafeText('pool-display', `Dexterity (${dexVal}) + ${ability} (${abilVal})`);
+    if (display) setSafeText('pool-display', `${attr} (${attrVal}) + ${ability} (${abilVal})`);
 
     // 6. Ensure Tray is Open!
     const tray = document.getElementById('dice-tray');
     if (tray) tray.classList.add('open');
 
     // 7. Roll Immediately
-    // Use a small timeout to allow UI update to propagate (drawer open animation)
     setTimeout(() => {
         window.rollPool();
     }, 100);
@@ -1116,13 +1116,27 @@ window.togglePlayMode = function() {
         const cp = document.getElementById('combat-rows-play'); 
         if(cp) {
             cp.innerHTML = ''; 
+            // V20 Official Combat Maneuvers
             const standards = [
-                {n:'Bite',diff:5,dmg:'Str+1(A)'}, 
-                {n:'Clinch',diff:6,dmg:'Str(B)'}, 
-                {n:'Grapple',diff:6,dmg:'Str(B)'}, 
-                {n:'Kick',diff:7,dmg:'Str+1(B)'}, 
-                {n:'Punch',diff:6,dmg:'Str(B)'}, 
-                {n:'Tackle',diff:7,dmg:'Str+1(B)'}
+                {n:'Bite', diff:6, dmg:'Str+1(A)', attr:'Dexterity', abil:'Brawl'},
+                {n:'Block', diff:6, dmg:'None (R)', attr:'Dexterity', abil:'Brawl'},
+                {n:'Claw', diff:6, dmg:'Str+1(A)', attr:'Dexterity', abil:'Brawl'},
+                {n:'Clinch', diff:6, dmg:'Str(C)', attr:'Strength', abil:'Brawl'},
+                {n:'Disarm', diff:7, dmg:'Special', attr:'Dexterity', abil:'Melee'},
+                {n:'Dodge', diff:6, dmg:'None (R)', attr:'Dexterity', abil:'Athletics'},
+                {n:'Hold', diff:6, dmg:'None (C)', attr:'Strength', abil:'Brawl'},
+                {n:'Kick', diff:7, dmg:'Str+1', attr:'Dexterity', abil:'Brawl'},
+                {n:'Parry', diff:6, dmg:'None (R)', attr:'Dexterity', abil:'Melee'},
+                {n:'Strike', diff:6, dmg:'Str', attr:'Dexterity', abil:'Brawl'},
+                {n:'Sweep', diff:7, dmg:'Str(K)', attr:'Dexterity', abil:'Brawl'},
+                {n:'Tackle', diff:7, dmg:'Str+1(K)', attr:'Strength', abil:'Brawl'},
+                {n:'Weapon Strike', diff:6, dmg:'Weapon', attr:'Dexterity', abil:'Melee'},
+                // Ranged Combat Maneuvers
+                {n:'Auto Fire', diff:8, dmg:'Special', attr:'Dexterity', abil:'Firearms'},
+                {n:'Multi Shot', diff:6, dmg:'Weapon', attr:'Dexterity', abil:'Firearms'},
+                {n:'Strafing', diff:8, dmg:'Special', attr:'Dexterity', abil:'Firearms'},
+                {n:'3-Rnd Burst', diff:7, dmg:'Weapon', attr:'Dexterity', abil:'Firearms'},
+                {n:'Two Weapons', diff:7, dmg:'Weapon', attr:'Dexterity', abil:'Firearms'}
             ];
 
             const firearms = ['Pistol', 'Revolver', 'Rifle', 'SMG', 'Shotgun', 'Crossbow'];
@@ -1132,7 +1146,7 @@ window.togglePlayMode = function() {
                 r.className='border-b border-[#222] text-[10px] text-gray-500 hover:bg-[#1a1a1a]'; 
                 r.innerHTML = `
                     <td class="p-2 font-bold text-white flex items-center gap-2">
-                        <button class="bg-[#8b0000] hover:bg-red-600 text-white rounded px-1.5 py-0.5 text-[9px] font-bold" onclick="window.rollCombat('${s.n}', ${s.diff}, 'Brawl')" title="Roll ${s.n}">
+                        <button class="bg-[#8b0000] hover:bg-red-600 text-white rounded px-1.5 py-0.5 text-[9px] font-bold" onclick="window.rollCombat('${s.n}', ${s.diff}, '${s.attr}', '${s.abil}')" title="Roll ${s.n}">
                             <i class="fas fa-dice-d10"></i>
                         </button>
                         ${s.n}
@@ -1157,7 +1171,7 @@ window.togglePlayMode = function() {
                     r.className='border-b border-[#222] text-[10px] hover:bg-[#1a1a1a]'; 
                     r.innerHTML = `
                         <td class="p-2 font-bold text-gold flex items-center gap-2">
-                             <button class="bg-[#8b0000] hover:bg-red-600 text-white rounded px-1.5 py-0.5 text-[9px] font-bold" onclick="window.rollCombat('${display}', ${w.stats.diff}, '${ability}')" title="Roll ${display}">
+                             <button class="bg-[#8b0000] hover:bg-red-600 text-white rounded px-1.5 py-0.5 text-[9px] font-bold" onclick="window.rollCombat('${display}', ${w.stats.diff}, 'Dexterity', '${ability}')" title="Roll ${display}">
                                 <i class="fas fa-dice-d10"></i>
                             </button>
                             ${display}
