@@ -9,7 +9,6 @@ import {
     calculateTotalFreebiesSpent, 
     checkCreationComplete, 
     checkStepComplete, 
-    getXpCost,
     BROAD_ABILITIES 
 } from "./v20-rules.js";
 
@@ -211,6 +210,7 @@ window.handleBoxClick = function(type, val, element) {
 
     if (type === 'wp') {
         let cur = window.state.status.tempWillpower || 0;
+        // If clicking current level, reduce by 1 (toggle off). Else set to click value.
         window.state.status.tempWillpower = (val === cur) ? val - 1 : val;
     } 
     else if (type === 'blood') {
@@ -218,12 +218,16 @@ window.handleBoxClick = function(type, val, element) {
         window.state.status.blood = (val === cur) ? val - 1 : val;
     } 
     else if (type === 'health') {
+        // Health boxes use index 0-6 (val 1-7)
         const idx = val - 1;
         const healthStates = window.state.status.health_states || [0,0,0,0,0,0,0];
         let s = healthStates[idx] || 0;
+        // Cycle: 0(Clear) -> 1(/) -> 2(X) -> 3(*) -> 0
         s = (s + 1) % 4; 
         healthStates[idx] = s;
         window.state.status.health_states = healthStates;
+        
+        // Visual feedback immediately
         if(element) element.dataset.state = s; 
     }
     window.updatePools();
@@ -317,10 +321,16 @@ window.rollPool = function() {
         if (die >= diff) { if (isSpec && die === 10) rawSuccesses += 2; else rawSuccesses += 1; }
     }
     
+    // Net Calculation:
+    // 1. Raw Successes - Ones (min 0)
     let net = Math.max(0, rawSuccesses - ones);
+    
+    // 2. Add Auto Successes (cannot be cancelled)
     net += autoSuccesses;
 
     let outcome = "", outcomeClass = "";
+    
+    // Botch: No successes (raw or auto), and ones rolled.
     if (rawSuccesses === 0 && autoSuccesses === 0 && ones > 0) { 
         outcome = "BOTCH"; outcomeClass = "dice-botch"; 
     } 
@@ -381,7 +391,7 @@ window.updatePools = function() {
     const bH = (window.state.dots.virt?.Conscience || 1) + (window.state.dots.virt?.["Self-Control"] || 1);
     const bW = (window.state.dots.virt?.Courage || 1);
 
-    if (!window.state.freebieMode && !window.state.isPlayMode && !window.state.xpMode) {
+    if (!window.state.freebieMode && !window.state.isPlayMode) {
          if (window.state.status.humanity === 7 && bH === 2) window.state.status.humanity = 2;
          if (window.state.status.willpower === 5 && bW === 1) { window.state.status.willpower = 1; window.state.status.tempWillpower = 1; }
     }
@@ -411,25 +421,18 @@ window.updatePools = function() {
     const virtTotalDots = VIRTUES.reduce((a, v) => a + (window.state.dots.virt[v] || 1), 0);
     setSafeText('p-virt', `[${Math.max(0, 7 - (virtTotalDots - 3))}]`);
 
-    // --- MODE HANDLING FOR SIDEBAR ---
-    const sb = document.getElementById('freebie-sidebar');
-    const sbTitle = document.getElementById('ledger-title');
-    
     if (window.state.freebieMode) {
-         sb.classList.add('active');
-         if(sbTitle) sbTitle.innerText = "Freebie Ledger";
          const totalSpent = calculateTotalFreebiesSpent(window.state);
          setSafeText('f-total-top', totalSpent); 
-         // Update Freebie Lines...
          let attrDots = 0; Object.keys(ATTRIBUTES).forEach(cat => ATTRIBUTES[cat].forEach(a => attrDots += (window.state.dots.attr[a] || 1)));
          setSafeText('sb-attr', Math.max(0, attrDots - 24) * 5);
-         setSafeText('lbl-attr', 'Attributes (5/dot)');
-         // ... (rest of freebie rendering same as before, simplified for brevity in this diff, see full file)
          let abilDots = 0; Object.keys(ABILITIES).forEach(cat => { ABILITIES[cat].forEach(a => abilDots += (window.state.dots.abil[a] || 0)); if (window.state.customAbilityCategories) { Object.entries(window.state.customAbilityCategories).forEach(([name, c]) => { if (c === cat && window.state.dots.abil[name]) abilDots += window.state.dots.abil[name]; }); } });
          setSafeText('sb-abil', Math.max(0, abilDots - 27) * 2);
          setSafeText('sb-disc', Math.max(0, discSpent - 3) * 7);
          setSafeText('sb-back', Math.max(0, backSpent - 5) * 1);
          setSafeText('sb-virt', Math.max(0, (virtTotalDots-3) - 7) * 2);
+         const bH = (window.state.dots.virt?.Conscience || 1) + (window.state.dots.virt?.["Self-Control"] || 1);
+         const bW = (window.state.dots.virt?.Courage || 1);
          const cH = window.state.status.humanity !== undefined ? window.state.status.humanity : bH;
          const cW = window.state.status.willpower !== undefined ? window.state.status.willpower : bW;
          setSafeText('sb-human', Math.max(0, cH - bH) * 2);
@@ -442,74 +445,21 @@ window.updatePools = function() {
          setSafeText('sb-flaw', `+${cappedBonus}`);
          const limit = parseInt(document.getElementById('c-freebie-total')?.value) || 15;
          setSafeText('sb-total', limit - totalSpent);
-    } 
-    else if (window.state.xpMode) {
-        sb.classList.add('active');
-        if(sbTitle) sbTitle.innerText = "Experience Ledger";
-        
-        // Calculate Spent XP from Log
-        let totalXpSpent = 0;
-        if(window.state.xpLog) {
-            window.state.xpLog.forEach(log => totalXpSpent += log.cost);
-        }
-        setSafeText('x-total-top', totalXpSpent);
-        
-        // Populate Sidebar with Recent History
-        // Reuse slots for history lines instead of categories
-        const container = sb.querySelector('.space-y-2');
-        if(container) {
-            container.innerHTML = ''; // Clear categories
-            if(window.state.xpLog && window.state.xpLog.length > 0) {
-                // Show last 10 entries reversed
-                const recent = [...window.state.xpLog].reverse().slice(0, 15);
-                recent.forEach(log => {
-                    const r = document.createElement('div');
-                    r.className = 'cost-row text-[10px] border-b border-[#333] pb-1 mb-1';
-                    r.innerHTML = `<span>${log.trait} (${log.from}->${log.to})</span><span class="text-purple-400 font-bold">-${log.cost}xp</span>`;
-                    container.appendChild(r);
-                });
-            } else {
-                container.innerHTML = '<div class="text-center italic text-gray-500">No XP spent yet.</div>';
-            }
-            
-            // Add totals at bottom
-            const xpTotalInput = document.getElementById('c-xp-total');
-            const totalEarned = parseInt(xpTotalInput?.value) || 0;
-            const remaining = totalEarned - totalXpSpent;
-            
-            const summary = document.createElement('div');
-            summary.className = 'mt-4 pt-2 border-t border-[#444] flex justify-between font-bold text-sm';
-            summary.innerHTML = `<span>Remaining:</span><span class="${remaining < 0 ? 'text-red-500' : 'text-purple-400'}">${remaining}</span>`;
-            container.appendChild(summary);
-        }
-    }
-    else {
-         sb.classList.remove('active');
-         // Restore Default Sidebar Structure if switching back later (handled by Freebie block above)
-         if(!window.state.freebieMode && !window.state.xpMode) {
-             const container = sb.querySelector('.space-y-2');
-             // We don't need to rebuild it here because it gets rebuilt when Freebie Mode activates.
-         }
+         document.getElementById('freebie-sidebar').classList.add('active'); 
+    } else {
+         document.getElementById('freebie-sidebar').classList.remove('active');
     }
 
     const fbBtn = document.getElementById('toggle-freebie-btn');
-    const xpBtn = document.getElementById('toggle-xp-btn');
-    
-    if (fbBtn && xpBtn) {
+    if (fbBtn) {
         if (window.state.isPlayMode) {
             fbBtn.disabled = true;
-            xpBtn.disabled = true;
         } else {
             const complete = checkCreationComplete(window.state);
             if (window.state.freebieMode) {
                 fbBtn.disabled = false;
-                xpBtn.disabled = true; // Mutually exclusive
-            } else if (window.state.xpMode) {
-                fbBtn.disabled = true; // Mutually exclusive
-                xpBtn.disabled = false;
             } else {
                 fbBtn.disabled = !complete.complete;
-                xpBtn.disabled = !complete.complete;
             }
         }
     }
@@ -526,22 +476,12 @@ window.updatePools = function() {
     const p8h = document.getElementById('phase8-humanity-dots');
     if(p8h) {
         p8h.innerHTML = renderDots(curH, 10);
-        p8h.onclick = (e) => { 
-            if (e.target.dataset.v) {
-                const v = parseInt(e.target.dataset.v);
-                setDots('Humanity', 'status', v, 1, 10);
-            }
-        };
+        p8h.onclick = (e) => { if (window.state.freebieMode && e.target.dataset.v) setDots('Humanity', 'status', parseInt(e.target.dataset.v), 1, 10); };
     }
     const p8w = document.getElementById('phase8-willpower-dots');
     if(p8w) {
         p8w.innerHTML = renderDots(curW, 10);
-        p8w.onclick = (e) => { 
-            if (e.target.dataset.v) {
-                const v = parseInt(e.target.dataset.v);
-                setDots('Willpower', 'status', v, 1, 10);
-            }
-        };
+        p8w.onclick = (e) => { if (window.state.freebieMode && e.target.dataset.v) setDots('Willpower', 'status', parseInt(e.target.dataset.v), 1, 10); };
     }
 
     document.querySelectorAll('#humanity-dots-play').forEach(el => el.innerHTML = renderDots(curH, 10));
@@ -675,9 +615,10 @@ window.updatePools = function() {
     else diceBtn.classList.add('hidden');
 
     // --- ATTACH CLICK LISTENERS FOR PLAY MODE BOXES ---
+    // Willpower, Blood, Health
     document.querySelectorAll('.box').forEach(b => {
         b.onclick = (e) => {
-            e.stopPropagation(); 
+            e.stopPropagation(); // Prevent bubbling issues
             const t = b.dataset.type;
             const v = parseInt(b.dataset.v);
             window.handleBoxClick(t, v, b);
@@ -753,107 +694,6 @@ export function renderRow(contId, label, type, min, max = 5) {
 export function setDots(name, type, val, min, max = 5) {
     if (window.state.isPlayMode) return;
     
-    const currentVal = (type === 'status') 
-        ? (name === 'Humanity' ? window.state.status.humanity : window.state.status.willpower)
-        : (window.state.dots[type][name] || min);
-
-    let newVal = val;
-    if (val === currentVal) newVal = val - 1;
-    if (newVal < min) newVal = min;
-
-    // --- EXPERIENCE MODE LOGIC ---
-    if (window.state.xpMode) {
-        // Ensure Log exists
-        if(!window.state.xpLog) window.state.xpLog = [];
-        
-        const totalEarned = parseInt(document.getElementById('c-xp-total')?.value) || 0;
-        let totalSpent = 0;
-        window.state.xpLog.forEach(l => totalSpent += l.cost);
-        const available = totalEarned - totalSpent;
-
-        // Buying a Dot (Increase)
-        if (newVal > currentVal) {
-            // Can only buy one dot at a time in XP logic to track costs correctly
-            if (newVal !== currentVal + 1) {
-                window.showNotification("XP Mode: Buy one dot at a time.");
-                return;
-            }
-            
-            // Determine Clan/Caitiff status for costs
-            const clan = document.getElementById('c-clan')?.value || "Caitiff";
-            const isCaitiff = (clan === "Caitiff");
-            // Check if discipline is in-clan (simple check against array if defined, else assume out)
-            // Note: We'd need the CLAN_DISCIPLINES data to be perfect, assuming false for now if complex
-            // Or pass 'false' and let user override/refund if needed.
-            // Improved:
-            const isClan = false; // TODO: Lookup against CLAN_DISCIPLINES[clan]
-
-            const cost = getXpCost(currentVal, type === 'status' ? name.toLowerCase() : type, isClan, isCaitiff);
-            
-            if (available >= cost) {
-                // APPLY
-                if(type === 'status') {
-                    if(name === 'Humanity') window.state.status.humanity = newVal;
-                    if(name === 'Willpower') { window.state.status.willpower = newVal; window.state.status.tempWillpower = newVal; }
-                } else {
-                    window.state.dots[type][name] = newVal;
-                }
-                
-                // LOG
-                window.state.xpLog.push({
-                    trait: name,
-                    type: type,
-                    from: currentVal,
-                    to: newVal,
-                    cost: cost,
-                    timestamp: Date.now()
-                });
-                
-                window.showNotification(`Purchased ${name} ${newVal} for ${cost} XP`);
-                window.updatePools();
-                return;
-            } else {
-                window.showNotification(`Not enough XP! Need ${cost}, have ${available}.`);
-                return;
-            }
-        } 
-        // Selling a Dot (Decrease / Refund)
-        else if (newVal < currentVal) {
-            // Can only refund the MOST RECENT change for this trait to prevent logic breaking
-            // Find last log entry for this trait
-            const lastIdx = window.state.xpLog.map(l => l.trait).lastIndexOf(name);
-            
-            if (lastIdx === -1) {
-                window.showNotification("Cannot lower creation dots in XP Mode.");
-                return;
-            }
-            
-            const logEntry = window.state.xpLog[lastIdx];
-            
-            // Validate we are undoing the exact last step (e.g. going 4->3, log says 3->4)
-            if (logEntry.to === currentVal && logEntry.from === newVal) {
-                // REFUND
-                window.state.xpLog.splice(lastIdx, 1);
-                
-                if(type === 'status') {
-                    if(name === 'Humanity') window.state.status.humanity = newVal;
-                    if(name === 'Willpower') { window.state.status.willpower = newVal; window.state.status.tempWillpower = newVal; }
-                } else {
-                    window.state.dots[type][name] = newVal;
-                }
-                
-                window.showNotification(`Refunded ${name} for ${logEntry.cost} XP`);
-                window.updatePools();
-                return;
-            } else {
-                window.showNotification("Must refund most recent XP purchase first.");
-                return;
-            }
-        }
-        return; // No change
-    }
-
-    // --- FREEBIE MODE LOGIC ---
     if (type === 'status') {
         if (!window.state.freebieMode) return;
         if (name === 'Humanity') {
@@ -871,7 +711,11 @@ export function setDots(name, type, val, min, max = 5) {
         window.updatePools(); return;
     }
 
-    // --- CREATION MODE LOGIC ---
+    const currentVal = window.state.dots[type][name] || min;
+    let newVal = val;
+    if (val === currentVal) newVal = val - 1;
+    if (newVal < min) newVal = min;
+
     if (window.state.freebieMode) {
         const tempState = JSON.parse(JSON.stringify(window.state));
         if (!tempState.dots[type]) tempState.dots[type] = {};
@@ -922,7 +766,7 @@ export function setDots(name, type, val, min, max = 5) {
         if (genInput) genInput.value = newGen;
     }
 
-    if (type === 'virt' && !window.state.isPlayMode && !window.state.freebieMode && !window.state.xpMode) {
+    if (type === 'virt' && !window.state.isPlayMode && !window.state.freebieMode) {
          const delta = newVal - currentVal;
          if (delta !== 0) {
              if (name === 'Conscience' || name === 'Self-Control') {
@@ -948,27 +792,6 @@ export function setDots(name, type, val, min, max = 5) {
     if(type === 'back') renderSocialProfile();
 }
 window.setDots = setDots;
-
-// --- NEW TOGGLE XP MODE ---
-window.toggleXpMode = function() {
-    window.state.xpMode = !window.state.xpMode;
-    // XP Mode implies NOT freebie mode and vice-versa
-    if(window.state.xpMode) window.state.freebieMode = false;
-    
-    const xpBtn = document.getElementById('toggle-xp-btn');
-    const xpBtnText = document.getElementById('xp-btn-text');
-    if (xpBtnText) xpBtnText.innerText = window.state.xpMode ? "Exit XP" : "Experience";
-    
-    if (xpBtn) { 
-        xpBtn.classList.toggle('bg-purple-900/40', window.state.xpMode); 
-        xpBtn.classList.toggle('border-purple-500', window.state.xpMode); 
-        xpBtn.classList.toggle('text-purple-200', window.state.xpMode); 
-    }
-    
-    // Ensure styles updated by calling updatePools/UI refresh
-    document.body.classList.toggle('xp-mode', window.state.xpMode);
-    window.updatePools();
-};
 
 export function renderDynamicAdvantageRow(containerId, type, list, isAbil = false) {
     const container = document.getElementById(containerId);
@@ -1282,14 +1105,11 @@ window.changeStep = function(s) {
 
 window.toggleFreebieMode = function() {
      window.state.freebieMode = !window.state.freebieMode;
-     if(window.state.freebieMode) window.state.xpMode = false;
      document.body.classList.toggle('freebie-mode', window.state.freebieMode);
-     
      const fbBtn = document.getElementById('toggle-freebie-btn');
      const fbBtnText = document.getElementById('freebie-btn-text');
      if (fbBtnText) fbBtnText.innerText = window.state.freebieMode ? "Exit Freebies" : "Freebies";
      if (fbBtn) { fbBtn.classList.toggle('bg-blue-900/40', window.state.freebieMode); fbBtn.classList.toggle('border-blue-500', window.state.freebieMode); fbBtn.classList.toggle('text-blue-200', window.state.freebieMode); }
-     
      const mMsg = document.getElementById('merit-locked-msg'); const fMsg = document.getElementById('flaw-locked-msg');
      if(mMsg) mMsg.style.display = window.state.freebieMode ? 'none' : 'block';
      if(fMsg) fMsg.style.display = window.state.freebieMode ? 'none' : 'block';
@@ -1305,10 +1125,12 @@ window.togglePlayMode = function() {
     document.body.classList.toggle('play-mode', window.state.isPlayMode);
     
     // --- Persistent Dice Roller Toggle ---
+    // Changed logic: Append to body, position Fixed Bottom Right
     let diceBtn = document.getElementById('dice-toggle-btn');
     if (!diceBtn) {
         diceBtn = document.createElement('button');
         diceBtn.id = 'dice-toggle-btn';
+        // Fixed position bottom right, high z-index, FAB style
         diceBtn.className = 'fixed bottom-6 right-6 z-[100] bg-[#8b0000] text-white w-12 h-12 rounded-full shadow-[0_0_15px_rgba(212,175,55,0.4)] border border-[#d4af37] hover:bg-[#a00000] flex items-center justify-center transition-all hidden transform hover:scale-110 active:scale-95'; 
         diceBtn.innerHTML = '<i class="fas fa-dice text-xl"></i>';
         diceBtn.title = "Open Dice Roller";
@@ -1323,7 +1145,7 @@ window.togglePlayMode = function() {
     if(pBtnText) pBtnText.innerText = window.state.isPlayMode ? "Edit" : "Play";
     
     document.querySelectorAll('input, select, textarea').forEach(el => {
-        if (['save-filename', 'char-select', 'roll-diff', 'use-specialty', 'c-path-name', 'c-path-name-create', 'c-bearing-name', 'c-bearing-value', 'custom-weakness-input', 'xp-points-input', 'blood-per-turn-input', 'custom-dice-input', 'spend-willpower', 'c-xp-total'].includes(el.id)) {
+        if (['save-filename', 'char-select', 'roll-diff', 'use-specialty', 'c-path-name', 'c-path-name-create', 'c-bearing-name', 'c-bearing-value', 'custom-weakness-input', 'xp-points-input', 'blood-per-turn-input', 'custom-dice-input', 'spend-willpower'].includes(el.id)) {
             el.disabled = false;
             return;
         }
