@@ -1,5 +1,13 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+import { 
+    getAuth, 
+    signInAnonymously, 
+    onAuthStateChanged, 
+    signInWithCustomToken,
+    GoogleAuthProvider,
+    signInWithPopup,
+    signOut
+} from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { getFirestore, doc, setDoc, getDoc, collection, getDocs, query, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 // FIREBASE CONFIGURATION
@@ -19,6 +27,7 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 const appId = 'v20-neonate-sheet';
+const googleProvider = new GoogleAuthProvider();
 
 // EXPORT SERVICES AND FUNCTIONS
 export { 
@@ -29,6 +38,9 @@ export {
     signInAnonymously, 
     onAuthStateChanged, 
     signInWithCustomToken, 
+    signInWithPopup,
+    signOut,
+    googleProvider,
     doc, 
     setDoc, 
     getDoc, 
