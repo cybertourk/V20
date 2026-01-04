@@ -554,52 +554,74 @@ onAuthStateChanged(auth, async (u) => {
                     await signInAnonymously(auth);
                 }
             }
+            // If success (or already signed in), proceed to populate
+            populateGuestUI();
             
-            // Populate dropdowns even for anonymous users so they can use the app
-            const ns = document.getElementById('c-nature');
-            const ds = document.getElementById('c-demeanor');
-            if(ns && ds && ns.options.length <= 1 && typeof ARCHETYPES !== 'undefined') {
-                ns.innerHTML = '<option value="" disabled selected>Choose Nature...</option>'; 
-                ds.innerHTML = '<option value="" disabled selected>Choose Demeanor...</option>'; 
-                ARCHETYPES.sort().forEach(a => { ns.add(new Option(a,a)); ds.add(new Option(a,a)); });
-            }
-            
-            const cs = document.getElementById('c-clan');
-            if(cs && cs.options.length <= 1 && typeof CLANS !== 'undefined') {
-                cs.innerHTML = '<option value="" disabled selected>Choose Clan...</option>';
-                CLANS.sort().forEach(c => cs.add(new Option(c,c)));
-                cs.addEventListener('change', (e) => {
-                    const clan = e.target.value;
-                    const weaknessArea = document.getElementById('c-clan-weakness');
-                    if (weaknessArea && CLAN_WEAKNESSES[clan]) {
-                        weaknessArea.value = CLAN_WEAKNESSES[clan];
-                        if (!window.state.textFields) window.state.textFields = {};
-                        window.state.textFields['c-clan-weakness'] = CLAN_WEAKNESSES[clan];
-                    }
-                    if (CLAN_DISCIPLINES && CLAN_DISCIPLINES[clan]) {
-                        window.state.dots.disc = {};
-                        CLAN_DISCIPLINES[clan].forEach(d => { window.state.dots.disc[d] = 0; });
-                        renderDynamicAdvantageRow('list-disc', 'disc', DISCIPLINES);
-                    }
-                    updateWalkthrough();
-                });
-            }
-            
-            if(loader) loader.style.display = 'none';
-
         } catch (e) {
             console.error("Authentication Error:", e);
-            if(loader) {
-                loader.innerHTML = `
-                    <div class="text-center">
-                        <h2 class="text-[#af0000] font-bold text-xl">CONNECTION FAILED</h2>
-                        <p class="text-gray-400 text-xs mt-2">Could not access the archives.</p>
-                        <button onclick="window.location.reload()" class="mt-4 border border-[#444] px-4 py-2 text-white hover:bg-[#222]">RETRY</button>
-                    </div>
-                `;
+            
+            // --- GRACEFUL FAILURE FOR DISABLED ANONYMOUS AUTH ---
+            if (e.code === 'auth/admin-restricted-operation') {
+                console.warn("Anonymous Auth disabled. Proceeding as Guest (No Cloud Save).");
+                populateGuestUI();
+                window.showNotification("Guest Mode: Log in to save.");
+            } else {
+                // Actual fatal error
+                if(loader) {
+                    loader.innerHTML = `
+                        <div class="text-center">
+                            <h2 class="text-[#af0000] font-bold text-xl">CONNECTION FAILED</h2>
+                            <p class="text-gray-400 text-xs mt-2">Could not access the archives.</p>
+                            <button onclick="window.location.reload()" class="mt-4 border border-[#444] px-4 py-2 text-white hover:bg-[#222]">RETRY</button>
+                        </div>
+                    `;
+                }
             }
         }
     }
 });
+
+function populateGuestUI() {
+    // Populate dropdowns even for anonymous/guest users so they can use the app
+    const ns = document.getElementById('c-nature');
+    const ds = document.getElementById('c-demeanor');
+    if(ns && ds && ns.options.length <= 1 && typeof ARCHETYPES !== 'undefined') {
+        ns.innerHTML = '<option value="" disabled selected>Choose Nature...</option>'; 
+        ds.innerHTML = '<option value="" disabled selected>Choose Demeanor...</option>'; 
+        ARCHETYPES.sort().forEach(a => { ns.add(new Option(a,a)); ds.add(new Option(a,a)); });
+    }
+    
+    const cs = document.getElementById('c-clan');
+    if(cs && cs.options.length <= 1 && typeof CLANS !== 'undefined') {
+        cs.innerHTML = '<option value="" disabled selected>Choose Clan...</option>';
+        CLANS.sort().forEach(c => cs.add(new Option(c,c)));
+        cs.addEventListener('change', (e) => {
+            const clan = e.target.value;
+            const weaknessArea = document.getElementById('c-clan-weakness');
+            if (weaknessArea && CLAN_WEAKNESSES[clan]) {
+                weaknessArea.value = CLAN_WEAKNESSES[clan];
+                if (!window.state.textFields) window.state.textFields = {};
+                window.state.textFields['c-clan-weakness'] = CLAN_WEAKNESSES[clan];
+            }
+            if (CLAN_DISCIPLINES && CLAN_DISCIPLINES[clan]) {
+                window.state.dots.disc = {};
+                CLAN_DISCIPLINES[clan].forEach(d => { window.state.dots.disc[d] = 0; });
+                renderDynamicAdvantageRow('list-disc', 'disc', DISCIPLINES);
+            }
+            updateWalkthrough();
+        });
+    }
+
+    // Load Paths for Guests too
+    const ps1 = document.getElementById('c-path-name');
+    const ps2 = document.getElementById('c-path-name-create');
+    if (typeof PATHS !== 'undefined') {
+        if(ps1) { ps1.innerHTML = ''; PATHS.forEach(p => ps1.add(new Option(p,p))); }
+        if(ps2) { ps2.innerHTML = ''; PATHS.forEach(p => ps2.add(new Option(p,p))); }
+    }
+    
+    const loader = document.getElementById('loading-overlay');
+    if(loader) loader.style.display = 'none';
+}
 
 initUI();
