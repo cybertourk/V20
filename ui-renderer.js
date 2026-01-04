@@ -452,7 +452,16 @@ window.updatePools = function() {
 
     const fbBtn = document.getElementById('toggle-freebie-btn');
     if (fbBtn) {
-        fbBtn.disabled = window.state.isPlayMode;
+        if (window.state.isPlayMode) {
+            fbBtn.disabled = true;
+        } else {
+            const complete = checkCreationComplete(window.state);
+            if (window.state.freebieMode) {
+                fbBtn.disabled = false;
+            } else {
+                fbBtn.disabled = !complete.complete;
+            }
+        }
     }
 
     document.querySelectorAll('.dot-row').forEach(el => {
