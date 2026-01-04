@@ -101,7 +101,7 @@
         </div>
         <div id="pool-display" class="text-[11px] text-gray-200 mb-3 italic font-medium">Select traits to build pool...</div>
         
-        <!-- CUSTOM DICE SLIDER (Permanently Added) -->
+        <!-- CUSTOM DICE SLIDER -->
         <div id="custom-dice-wrapper" class="w-full px-1 mb-4 flex flex-col pointer-events-auto relative z-50">
             <div class="flex justify-between text-[10px] uppercase font-bold text-gray-400 mb-1 pointer-events-none">
                 <span>Bonus / Custom Dice</span>
@@ -112,10 +112,18 @@
                    oninput="document.getElementById('bonus-dice-val').innerText = this.value">
         </div>
 
-        <div id="specialty-container" class="items-center gap-2 mb-4 px-3 py-2 bg-white/10 border border-white/20 rounded">
+        <!-- SPECIALTY -->
+        <div id="specialty-container" class="items-center gap-2 mb-2 px-3 py-2 bg-white/10 border border-white/20 rounded">
             <input type="checkbox" id="use-specialty" class="w-4 h-4 cursor-pointer">
             <label for="use-specialty" class="text-[10px] uppercase font-black text-white cursor-pointer tracking-tight">Specialty Applied (10s = 2 Successes)</label>
         </div>
+
+        <!-- WILLPOWER EXPENDITURE -->
+        <div id="willpower-spend-container" class="items-center gap-2 mb-4 px-3 py-2 bg-blue-900/20 border border-blue-500/30 rounded flex hover:bg-blue-900/30 transition-colors">
+            <input type="checkbox" id="spend-willpower" class="w-4 h-4 cursor-pointer accent-blue-500">
+            <label for="spend-willpower" class="text-[10px] uppercase font-black text-blue-200 cursor-pointer tracking-tight">Spend Willpower (Auto Success)</label>
+        </div>
+
         <div class="flex items-center gap-3 mb-5">
             <span class="text-[10px] uppercase font-black text-gray-300">Diff:</span>
             <input type="number" id="roll-diff" value="6" class="w-14 text-center !border !border-[#555] !bg-black !text-white !font-bold">
