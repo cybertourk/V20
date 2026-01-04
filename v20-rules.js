@@ -25,6 +25,8 @@ export function calculateTotalFreebiesSpent(state) {
             totalAttr += (state.dots.attr[a] || 1);
         });
     });
+    // Base is 3 (Physical) + 3 (Social) + 3 (Mental) = 9 (Everyone starts with 1)
+    // Plus Priorities 7+5+3 = 15. Total free Attributes = 24.
     if (totalAttr > 24) spent += (totalAttr - 24) * 5;
 
     // 2. Abilities (2 pts per dot)
@@ -40,21 +42,26 @@ export function calculateTotalFreebiesSpent(state) {
         });
     }
     
+    // Base is 13+9+5 = 27 dots. All abilities start at 0.
     if (totalAbil > 27) spent += (totalAbil - 27) * 2;
 
     // 3. Disciplines (7 pts per dot)
     let totalDisc = 0;
     Object.values(state.dots.disc || {}).forEach(v => totalDisc += v);
+    // Base: 3 dots.
     if (totalDisc > 3) spent += (totalDisc - 3) * 7;
 
     // 4. Backgrounds (1 pt per dot)
     let totalBack = 0;
     Object.values(state.dots.back || {}).forEach(v => totalBack += v);
+    // Base: 5 dots.
     if (totalBack > 5) spent += (totalBack - 5) * 1;
 
     // 5. Virtues (2 pts per dot)
     let totalVirt = 0;
     VIRTUES.forEach(v => totalVirt += (state.dots.virt[v] || 1));
+    // Base: 7 dots distributed. Everyone starts with 1 in each (3 total).
+    // So total dots = 3 (base) + 7 (assign) = 10.
     if (totalVirt > 10) spent += (totalVirt - 10) * 2;
 
     // 6. Humanity / Path (2 pts per dot)
@@ -212,17 +219,6 @@ export function getXpCost(currentRating, type, isClan = false, isCaitiff = false
     // Note: currentRating is what you HAVE. We are buying currentRating + 1.
     // The multiplier applies to the NEW rating (currentRating + 1) for most things,
     // OR "Current Rating" for Willpower.
-    
-    // Check Chart logic carefully: "current rating x N" usually implies the rating you are GOING TO?
-    // V20 p.124 Chart says: "Current Rating x 4" for Attributes.
-    // Example: Strength 2 to 3. Is cost 2x4=8 or 3x4=12?
-    // Standard V20 interpretation is NEW RATING.
-    // However, the text you provided says "current rating x 4". 
-    // Usually "current rating" in WW books refers to the dot you are buying (the level you are achieving).
-    // Let's stick to the standard V20 convention: Cost to go from 2 to 3 is 3 x Multiplier.
-    // UNLESS it is Willpower which is typically "current rating" meaning the one you have?
-    // Wait, the chart provided says "Willpower... current rating". 
-    // If I have 5 and want 6, cost is 5? That seems low. Standard is often "current rating" (5).
     
     const nextDot = currentRating + 1;
 
