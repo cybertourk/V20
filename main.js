@@ -137,15 +137,17 @@ window.fullRefresh = function() {
         updateWalkthrough();
         window.updatePools();
 
-        // 8. AUTOFILL PREVENTER
-        // Forces browser to stop trying to fill 'Sire' or 'Player' with email addresses
+        // 8. AUTOFILL PREVENTER (Reinforced)
         setTimeout(() => {
-            const inputs = document.querySelectorAll('#sheet-content input, #sheet-content textarea');
+            const inputs = document.querySelectorAll('#sheet-content input[type="text"], #sheet-content textarea');
             inputs.forEach(input => {
-                input.setAttribute('autocomplete', 'off');
-                input.setAttribute('data-lpignore', 'true'); // LastPass ignore
+                // Keep the readonly hack active if value is empty to prevent late autofill
+                if (!input.value) {
+                    input.setAttribute('readonly', 'true');
+                    input.setAttribute('autocomplete', 'off');
+                }
             });
-        }, 100);
+        }, 500);
         
         console.log("UI Refresh Complete.");
         
@@ -164,10 +166,37 @@ function initUI() {
     try {
         if (!document.getElementById('sheet-nav')) throw new Error("Navigation container 'sheet-nav' is missing from HTML.");
 
-        // ANTI-AUTOFILL ON LOAD
+        // --- AGGRESSIVE ANTI-AUTOFILL ---
+        // Sets fields to readonly until interaction. 
+        // This tricks browsers into thinking the fields cannot be filled.
+        const sensitiveInputs = ['c-name', 'c-player', 'c-sire', 'c-concept', 'c-chronicle'];
+        sensitiveInputs.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.setAttribute('readonly', 'true');
+                el.setAttribute('autocomplete', 'off');
+                // Ensure visual consistency so it doesn't look disabled
+                el.style.backgroundColor = 'transparent'; 
+                
+                const enableInput = () => {
+                    el.removeAttribute('readonly');
+                };
+                
+                // Remove readonly when user clicks or tabs into field
+                el.addEventListener('focus', enableInput);
+                el.addEventListener('click', enableInput);
+                // Also handle mouseenter as a backup for quick clickers
+                el.addEventListener('mouseenter', () => {
+                    // Optional: only remove if not focused to avoid keyboard jitter
+                    if(document.activeElement !== el) el.removeAttribute('readonly');
+                });
+            }
+        });
+
+        // General fallback for other inputs
         const allInputs = document.querySelectorAll('input, textarea');
         allInputs.forEach(input => {
-            if(!input.id.startsWith('auth-')) { // Don't touch auth modal
+            if(!input.id.startsWith('auth-')) { 
                 input.setAttribute('autocomplete', 'off');
             }
         });
