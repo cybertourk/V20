@@ -7,7 +7,9 @@ import {
     GoogleAuthProvider,
     signInWithRedirect,
     getRedirectResult,
-    signOut
+    signOut,
+    createUserWithEmailAndPassword,
+    signInWithEmailAndPassword
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { getFirestore, doc, setDoc, getDoc, collection, getDocs, query, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
@@ -43,6 +45,8 @@ export {
     getRedirectResult,
     signOut,
     googleProvider,
+    createUserWithEmailAndPassword,
+    signInWithEmailAndPassword,
     doc, 
     setDoc, 
     getDoc, 
