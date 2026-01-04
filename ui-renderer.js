@@ -204,6 +204,35 @@ export function renderInventoryList() {
 window.removeInventory = (idx) => { window.state.inventory.splice(idx, 1); renderInventoryList(); };
 window.toggleInvStatus = (idx) => { const item = window.state.inventory[idx]; item.status = item.status === 'carried' ? 'owned' : 'carried'; renderInventoryList(); };
 
+// --- BOX CLICK HANDLER (Willpower, Blood, Health) ---
+window.handleBoxClick = function(type, val, element) {
+    if (!window.state.isPlayMode) return;
+
+    if (type === 'wp') {
+        let cur = window.state.status.tempWillpower || 0;
+        // If clicking current level, reduce by 1 (toggle off). Else set to click value.
+        window.state.status.tempWillpower = (val === cur) ? val - 1 : val;
+    } 
+    else if (type === 'blood') {
+        let cur = window.state.status.blood || 0;
+        window.state.status.blood = (val === cur) ? val - 1 : val;
+    } 
+    else if (type === 'health') {
+        // Health boxes use index 0-6 (val 1-7)
+        const idx = val - 1;
+        const healthStates = window.state.status.health_states || [0,0,0,0,0,0,0];
+        let s = healthStates[idx] || 0;
+        // Cycle: 0(Clear) -> 1(/) -> 2(X) -> 3(*) -> 0
+        s = (s + 1) % 4; 
+        healthStates[idx] = s;
+        window.state.status.health_states = healthStates;
+        
+        // Visual feedback immediately
+        if(element) element.dataset.state = s; 
+    }
+    window.updatePools();
+};
+
 window.clearPool = function() {
     window.state.activePool = [];
     document.querySelectorAll('.trait-label').forEach(el => el.classList.remove('selected'));
@@ -219,6 +248,10 @@ window.clearPool = function() {
         if(valDisplay) valDisplay.innerText = "0";
     }
     
+    // Clear Willpower Spend Checkbox
+    const wpSpend = document.getElementById('spend-willpower');
+    if(wpSpend) wpSpend.checked = false;
+
     document.getElementById('dice-tray').classList.remove('open');
 };
 
@@ -254,13 +287,32 @@ window.handleTraitClick = function(name, type) {
 };
 
 window.rollPool = function() {
+    const spendWP = document.getElementById('spend-willpower')?.checked;
+    let autoSuccesses = 0;
+    
+    // Willpower Spending Logic
+    if (spendWP) {
+        if ((window.state.status.tempWillpower || 0) > 0) {
+             window.state.status.tempWillpower--;
+             autoSuccesses = 1;
+             window.updatePools(); // Update UI to show spent point
+             window.showNotification("Willpower spent: +1 Auto Success");
+             document.getElementById('spend-willpower').checked = false; // Reset checkbox
+        } else {
+            window.showNotification("Cannot spend Willpower: Pool is empty!");
+            document.getElementById('spend-willpower').checked = false;
+            return; // Abort roll
+        }
+    }
+
     const custom = parseInt(document.getElementById('custom-dice-input')?.value) || 0;
     const poolSize = window.state.activePool.reduce((a,b) => a + b.val, 0) + custom;
     
-    if (poolSize <= 0) { window.showNotification("Pool Empty"); return; }
+    if (poolSize <= 0 && autoSuccesses === 0) { window.showNotification("Pool Empty"); return; }
     
     const diff = parseInt(document.getElementById('roll-diff').value) || 6;
     const isSpec = document.getElementById('use-specialty').checked;
+    
     let results = [], ones = 0, rawSuccesses = 0;
     for(let i=0; i<poolSize; i++) {
         const die = Math.floor(Math.random() * 10) + 1;
@@ -268,58 +320,64 @@ window.rollPool = function() {
         if (die === 1) ones++;
         if (die >= diff) { if (isSpec && die === 10) rawSuccesses += 2; else rawSuccesses += 1; }
     }
-    let net = rawSuccesses - ones;
+    
+    // Net Calculation:
+    // 1. Raw Successes - Ones (min 0)
+    let net = Math.max(0, rawSuccesses - ones);
+    
+    // 2. Add Auto Successes (cannot be cancelled)
+    net += autoSuccesses;
+
     let outcome = "", outcomeClass = "";
-    if (rawSuccesses === 0 && ones > 0) { outcome = "BOTCH"; outcomeClass = "dice-botch"; } 
-    else if (net <= 0) { outcome = "FAILURE"; outcomeClass = "text-gray-400"; } 
-    else { outcome = `${net} SUCCESS${net > 1 ? 'ES' : ''}`; outcomeClass = "dice-success"; }
+    
+    // Botch: No successes (raw or auto), and ones rolled.
+    if (rawSuccesses === 0 && autoSuccesses === 0 && ones > 0) { 
+        outcome = "BOTCH"; outcomeClass = "dice-botch"; 
+    } 
+    else if (net <= 0) { 
+        outcome = "FAILURE"; outcomeClass = "text-gray-400"; 
+    } 
+    else { 
+        outcome = `${net} SUCCESS${net > 1 ? 'ES' : ''}`; outcomeClass = "dice-success"; 
+    }
+    
     const tray = document.getElementById('roll-results');
     const row = document.createElement('div');
     row.className = 'bg-black/60 p-2 border border-[#333] text-[10px] mb-2 animate-in fade-in slide-in-from-right-4 duration-300';
+    
     const diceRender = results.map(d => {
         let c = 'text-gray-500';
         if (d === 1) c = 'text-[#ff0000] font-bold';
         else if (d >= diff) { c = 'text-[#d4af37] font-bold'; if (d === 10 && isSpec) c = 'text-[#4ade80] font-black'; }
         return `<span class="${c} text-3xl mx-1">${d}</span>`;
     }).join(' ');
-    row.innerHTML = `<div class="flex justify-between border-b border-[#444] pb-1 mb-1"><span class="text-gray-400">Diff ${diff}${isSpec ? '*' : ''}</span><span class="${outcomeClass} font-black text-sm">${outcome}</span></div><div class="tracking-widest flex flex-wrap justify-center py-2">${diceRender}</div>`;
+
+    let extras = "";
+    if (autoSuccesses > 0) extras = `<div class="text-[9px] text-blue-300 font-bold mt-1 text-center border-t border-[#333] pt-1 uppercase">Willpower Applied (+1 Success)</div>`;
+
+    row.innerHTML = `<div class="flex justify-between border-b border-[#444] pb-1 mb-1"><span class="text-gray-400">Diff ${diff}${isSpec ? '*' : ''}</span><span class="${outcomeClass} font-black text-sm">${outcome}</span></div><div class="tracking-widest flex flex-wrap justify-center py-2">${diceRender}</div>${extras}`;
     tray.insertBefore(row, tray.firstChild);
 };
 
 // --- NEW: Manual Combat Roll Function ---
-// Populates the dice pool and opens the tray, but does NOT roll automatically.
 window.rollCombat = function(name, diff, attr, ability) {
     window.clearPool();
-    
-    // 1. Add Attribute (Dexterity or Strength)
     const attrVal = window.state.dots.attr[attr] || 1;
     window.state.activePool.push({name: attr, val: attrVal});
-    
-    // 2. Add Ability (Brawl, Melee, or Firearms)
     const abilVal = window.state.dots.abil[ability] || 0;
     window.state.activePool.push({name: ability, val: abilVal});
-
-    // 3. Highlight Traits in the UI
     document.querySelectorAll('.trait-label').forEach(el => {
         if (el.innerText === attr || el.innerText === ability) el.classList.add('selected');
         else el.classList.remove('selected');
     });
-
-    // 4. Set Difficulty Input
     const diffInput = document.getElementById('roll-diff');
     if (diffInput) diffInput.value = diff;
-
-    // 5. Update Pool Display Text
     const display = document.getElementById('pool-display');
     if (display) setSafeText('pool-display', `${attr} (${attrVal}) + ${ability} (${abilVal})`);
-
-    // 6. Ensure Tray is Open (add 'open' class)
     const tray = document.getElementById('dice-tray');
     if (tray) tray.classList.add('open');
 };
 
-// --- NEW: Toggle Dice Tray Function ---
-// Used by the persistent button to open/close the roller manually.
 window.toggleDiceTray = function() {
     const tray = document.getElementById('dice-tray');
     if (tray) tray.classList.toggle('open');
@@ -547,6 +605,17 @@ window.updatePools = function() {
     
     if (window.state.isPlayMode) diceBtn.classList.remove('hidden');
     else diceBtn.classList.add('hidden');
+
+    // --- ATTACH CLICK LISTENERS FOR PLAY MODE BOXES ---
+    // Willpower, Blood, Health
+    document.querySelectorAll('.box').forEach(b => {
+        b.onclick = (e) => {
+            e.stopPropagation(); // Prevent bubbling issues
+            const t = b.dataset.type;
+            const v = parseInt(b.dataset.v);
+            window.handleBoxClick(t, v, b);
+        };
+    });
 };
 
 export function refreshTraitRow(label, type, targetEl) {
@@ -1068,7 +1137,7 @@ window.togglePlayMode = function() {
     if(pBtnText) pBtnText.innerText = window.state.isPlayMode ? "Edit" : "Play";
     
     document.querySelectorAll('input, select, textarea').forEach(el => {
-        if (['save-filename', 'char-select', 'roll-diff', 'use-specialty', 'c-path-name', 'c-path-name-create', 'c-bearing-name', 'c-bearing-value', 'custom-weakness-input', 'xp-points-input', 'blood-per-turn-input', 'custom-dice-input'].includes(el.id)) {
+        if (['save-filename', 'char-select', 'roll-diff', 'use-specialty', 'c-path-name', 'c-path-name-create', 'c-bearing-name', 'c-bearing-value', 'custom-weakness-input', 'xp-points-input', 'blood-per-turn-input', 'custom-dice-input', 'spend-willpower'].includes(el.id)) {
             el.disabled = false;
             return;
         }
