@@ -452,8 +452,7 @@ window.updatePools = function() {
 
     const fbBtn = document.getElementById('toggle-freebie-btn');
     if (fbBtn) {
-        const complete = checkCreationComplete(window.state);
-        if (!window.state.freebieMode) fbBtn.disabled = !complete.complete; else fbBtn.disabled = false; 
+        fbBtn.disabled = window.state.isPlayMode;
     }
 
     document.querySelectorAll('.dot-row').forEach(el => {
