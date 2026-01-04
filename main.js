@@ -18,7 +18,8 @@ import {
     renderBloodBondRow, 
     renderDynamicHavenRow, 
     renderInventoryList, 
-    updateWalkthrough 
+    updateWalkthrough,
+    setDots // Imported to allow manual calls if needed
 } from "./ui-renderer.js"; 
 
 // --- ERROR HANDLER ---
@@ -34,14 +35,20 @@ window.onerror = function(msg, url, line) {
 
 // --- STATE MANAGEMENT ---
 window.state = {
-    isPlayMode: false, freebieMode: false, activePool: [], currentPhase: 1, furthestPhase: 1,
+    isPlayMode: false, 
+    freebieMode: false, 
+    xpMode: false, // New Experience Mode
+    xpLog: [],     // New Experience Log
+    activePool: [], 
+    currentPhase: 1, 
+    furthestPhase: 1,
     dots: { attr: {}, abil: {}, disc: {}, back: {}, virt: {}, other: {} },
     prios: { attr: {}, abil: {} },
     status: { humanity: 7, willpower: 5, tempWillpower: 5, health_states: [0,0,0,0,0,0,0], blood: 0 },
     specialties: {}, 
     socialExtras: {}, 
     // FIXED: Initialize c-gen to 13 so Step 1 validation passes by default without interaction
-    textFields: { "c-gen": "13" }, 
+    textFields: { "c-gen": "13", "c-xp-total": "0" }, 
     havens: [], bloodBonds: [], vehicles: [], customAbilityCategories: {},
     derangements: [], merits: [], flaws: [], inventory: [],
     meta: { filename: "", folder: "" } 
@@ -231,7 +238,11 @@ function initUI() {
 
         document.body.addEventListener('change', (e) => {
             if(e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') {
-                if(e.target.id && !e.target.id.startsWith('search')) { window.state.textFields[e.target.id] = e.target.value; }
+                if(e.target.id && !e.target.id.startsWith('search')) { 
+                    window.state.textFields[e.target.id] = e.target.value; 
+                    // Special case for XP Total input to update sidebar
+                    if (e.target.id === 'c-xp-total') window.updatePools();
+                }
             }
         });
 
@@ -247,6 +258,8 @@ function initUI() {
         if(topPlayBtn) topPlayBtn.onclick = window.togglePlayMode;
         const topFreebieBtn = document.getElementById('toggle-freebie-btn');
         if(topFreebieBtn) topFreebieBtn.onclick = window.toggleFreebieMode;
+        const topXpBtn = document.getElementById('toggle-xp-btn'); // NEW XP Button Listener
+        if(topXpBtn) topXpBtn.onclick = window.toggleXpMode;
 
         // --- GLOBAL LISTENER FOR GENERATION SYNC ---
         document.body.addEventListener('click', function(e) {
