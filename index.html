@@ -29,7 +29,7 @@
             <div id="user-auth-area" class="flex items-center gap-2">
                 <!-- Login Button (Visible by default, hidden when logged in) -->
                 <button id="login-btn" class="text-xs text-[#d4af37] font-bold uppercase hover:text-white transition flex items-center gap-2 border border-[#d4af37] bg-black/50 px-3 py-1.5 rounded hover:bg-[#d4af37] hover:text-black shadow-lg">
-                    <i class="fab fa-google"></i> Login
+                    <i class="fas fa-envelope"></i> Login
                 </button>
                 
                 <!-- User Info (Hidden by default, visible when logged in) -->
@@ -578,6 +578,30 @@
             </div>
             <div class="flex justify-end gap-2 mt-6">
                 <button class="standard-button px-4 py-2 text-xs uppercase font-bold" onclick="document.getElementById('load-modal').classList.remove('active')">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="auth-modal" class="modal-overlay">
+        <div class="modal-box">
+            <h2 class="heading text-xl text-gold mb-4 border-b border-[#333] pb-2">Authenticate</h2>
+            <div class="space-y-4">
+                <div>
+                    <label class="label-text">Email Address</label>
+                    <input type="email" id="auth-email" class="w-full text-sm font-bold bg-[#111] p-2 border border-[#333] focus:border-gold" placeholder="vampire@nod.org">
+                </div>
+                <div>
+                    <label class="label-text">Password</label>
+                    <input type="password" id="auth-password" class="w-full text-sm font-bold bg-[#111] p-2 border border-[#333] focus:border-gold" placeholder="******">
+                </div>
+                <div id="auth-error-msg" class="text-red-500 text-xs font-bold hidden"></div>
+            </div>
+            <div class="flex justify-between gap-2 mt-6">
+                 <button class="standard-button px-4 py-2 text-xs uppercase font-bold" onclick="document.getElementById('auth-modal').classList.remove('active')">Cancel</button>
+                 <div class="flex gap-2">
+                    <button id="confirm-register-btn" class="border border-[#444] text-gray-300 px-4 py-2 text-xs uppercase font-bold hover:bg-[#222]">Create Account</button>
+                    <button id="confirm-login-btn" class="bg-[#8b0000] text-white px-6 py-2 text-xs uppercase font-bold hover:bg-red-700 shadow-md">Login</button>
+                 </div>
             </div>
         </div>
     </div>
