@@ -136,6 +136,16 @@ window.fullRefresh = function() {
         renderSocialProfile();
         updateWalkthrough();
         window.updatePools();
+
+        // 8. AUTOFILL PREVENTER
+        // Forces browser to stop trying to fill 'Sire' or 'Player' with email addresses
+        setTimeout(() => {
+            const inputs = document.querySelectorAll('#sheet-content input, #sheet-content textarea');
+            inputs.forEach(input => {
+                input.setAttribute('autocomplete', 'off');
+                input.setAttribute('data-lpignore', 'true'); // LastPass ignore
+            });
+        }, 100);
         
         console.log("UI Refresh Complete.");
         
@@ -153,6 +163,14 @@ window.fullRefresh = function() {
 function initUI() {
     try {
         if (!document.getElementById('sheet-nav')) throw new Error("Navigation container 'sheet-nav' is missing from HTML.");
+
+        // ANTI-AUTOFILL ON LOAD
+        const allInputs = document.querySelectorAll('input, textarea');
+        allInputs.forEach(input => {
+            if(!input.id.startsWith('auth-')) { // Don't touch auth modal
+                input.setAttribute('autocomplete', 'off');
+            }
+        });
 
         const vSpan = document.getElementById('app-version');
         if(vSpan) vSpan.innerText = APP_VERSION;
