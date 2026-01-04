@@ -280,7 +280,9 @@ function initUI() {
                     
                     let msg = "Login Failed: " + e.message;
                     if (e.code === 'auth/unauthorized-domain') {
-                        msg = "Domain not authorized in Firebase Console. Please add this domain.";
+                        msg = "Domain not authorized. Add to Firebase Console -> Authentication -> Settings.";
+                    } else if (e.code === 'auth/operation-not-allowed') {
+                        msg = "Google Sign-In not enabled. Enable it in Firebase Console -> Authentication -> Sign-in method.";
                     }
                     window.showNotification(msg);
                 }
