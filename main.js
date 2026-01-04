@@ -3,9 +3,8 @@ import {
     signInAnonymously, 
     onAuthStateChanged, 
     signInWithCustomToken,
-    signInWithRedirect,
-    getRedirectResult,
-    googleProvider,
+    createUserWithEmailAndPassword,
+    signInWithEmailAndPassword,
     signOut
 } from "./firebase-config.js";
 import { 
@@ -273,27 +272,11 @@ function initUI() {
         // AUTH HANDLERS
         const loginBtn = document.getElementById('login-btn');
         if(loginBtn) {
-            loginBtn.onclick = async () => {
-                try {
-                    // FORCE ACCOUNT SELECTION
-                    googleProvider.setCustomParameters({
-                        prompt: 'select_account'
-                    });
-                    // Use Redirect instead of Popup to avoid COOP errors
-                    await signInWithRedirect(auth, googleProvider);
-                } catch(e) {
-                    console.error("Login Failed:", e);
-                    
-                    let msg = "Login Failed: " + e.message;
-                    if (e.code === 'auth/unauthorized-domain') {
-                        msg = "Domain not authorized. Add to Firebase Console -> Authentication -> Settings.";
-                    } else if (e.code === 'auth/operation-not-allowed') {
-                        msg = "Google Sign-In not enabled. Enable it in Firebase Console -> Authentication -> Sign-in method.";
-                    } else if (e.code === 'auth/popup-closed-by-user') {
-                        msg = "Login cancelled.";
-                    }
-                    window.showNotification(msg);
-                }
+            loginBtn.onclick = () => {
+                document.getElementById('auth-modal').classList.add('active');
+                document.getElementById('auth-error-msg').classList.add('hidden');
+                document.getElementById('auth-email').value = '';
+                document.getElementById('auth-password').value = '';
             };
         }
 
@@ -307,6 +290,63 @@ function initUI() {
                     } catch(e) {
                         console.error(e);
                     }
+                }
+            };
+        }
+
+        // NEW: Email/Password Modal Logic
+        const authLoginBtn = document.getElementById('confirm-login-btn');
+        const authRegisterBtn = document.getElementById('confirm-register-btn');
+        const authError = document.getElementById('auth-error-msg');
+
+        if(authLoginBtn) {
+            authLoginBtn.onclick = async () => {
+                const email = document.getElementById('auth-email').value;
+                const pass = document.getElementById('auth-password').value;
+                if(!email || !pass) {
+                    authError.innerText = "Email and Password required.";
+                    authError.classList.remove('hidden');
+                    return;
+                }
+                try {
+                    await signInWithEmailAndPassword(auth, email, pass);
+                    document.getElementById('auth-modal').classList.remove('active');
+                } catch(e) {
+                    console.error("Login Error:", e);
+                    let msg = "Login Failed: " + e.message;
+                    if(e.code === 'auth/invalid-credential') msg = "Invalid Email or Password.";
+                    if(e.code === 'auth/invalid-email') msg = "Invalid Email Format.";
+                    authError.innerText = msg;
+                    authError.classList.remove('hidden');
+                }
+            };
+        }
+
+        if(authRegisterBtn) {
+            authRegisterBtn.onclick = async () => {
+                const email = document.getElementById('auth-email').value;
+                const pass = document.getElementById('auth-password').value;
+                if(!email || !pass) {
+                    authError.innerText = "Email and Password required.";
+                    authError.classList.remove('hidden');
+                    return;
+                }
+                if(pass.length < 6) {
+                    authError.innerText = "Password must be at least 6 characters.";
+                    authError.classList.remove('hidden');
+                    return;
+                }
+                try {
+                    await createUserWithEmailAndPassword(auth, email, pass);
+                    document.getElementById('auth-modal').classList.remove('active');
+                    window.showNotification("Account Created!");
+                } catch(e) {
+                    console.error("Registration Error:", e);
+                     let msg = "Registration Failed: " + e.message;
+                    if(e.code === 'auth/email-already-in-use') msg = "Email already registered.";
+                    if(e.code === 'auth/weak-password') msg = "Password too weak.";
+                    authError.innerText = msg;
+                    authError.classList.remove('hidden');
                 }
             };
         }
@@ -393,47 +433,16 @@ function updateAuthUI(u) {
     }
 }
 
-// Store the redirect check to prevent race conditions
-let redirectCheckResolved = false;
-const redirectCheckPromise = getRedirectResult(auth)
-    .then((result) => {
-        redirectCheckResolved = true;
-        if (result) {
-            const user = result.user;
-            console.log("Redirect Login Successful:", user.uid);
-            updateAuthUI(user);
-            return user;
-        } else {
-            console.log("No redirect result found.");
-            return null;
-        }
-    }).catch((error) => {
-        redirectCheckResolved = true;
-        console.error("Redirect Login Error:", error);
-        let msg = "Login Failed: " + error.message;
-        if (error.code === 'auth/unauthorized-domain') msg = "Domain not authorized in Firebase Console.";
-        window.showNotification(msg);
-        return null;
-    });
-
 onAuthStateChanged(auth, async (u) => {
     const loader = document.getElementById('loading-overlay');
-    const loginBtn = document.getElementById('login-btn');
-    const userInfo = document.getElementById('user-info');
-    const userName = document.getElementById('user-name');
+    
+    // Update Auth UI immediately based on state
+    updateAuthUI(u);
     
     // Check if user is logged in AND not anonymous
     if(u && !u.isAnonymous) {
         user = u;
         console.log("User signed in:", user.uid);
-        
-        // UI Update for Authenticated User
-        if(loginBtn) loginBtn.classList.add('hidden');
-        if(userInfo) {
-            userInfo.classList.remove('hidden');
-            userInfo.style.display = 'flex';
-        }
-        if(userName) userName.innerText = user.displayName || user.email || "User";
 
         try {
             // 1. POPULATE DROPDOWNS FIRST
@@ -533,28 +542,12 @@ onAuthStateChanged(auth, async (u) => {
         }
     } else {
         // --- SAFE AUTHENTICATION (ANONYMOUS OR NOT LOGGED IN) ---
-        // UI Update for Auth: Show Login, Hide User Info
-        if(loginBtn) loginBtn.classList.remove('hidden');
-        if(userInfo) {
-            userInfo.classList.add('hidden');
-            userInfo.style.display = 'none';
-        }
+        // UI Update for Auth handled at top of function
         
         try {
-            // Wait for redirect result first!
-            // This prevents the anonymous login from overriding a successful Google login
+            // Only try to sign in anonymously if we aren't already signed in as anon
+            // This handles the initial load and explicit sign-out scenarios
             if (!u) {
-                // If we haven't checked redirect yet, wait for it
-                const redirectUser = await redirectCheckPromise;
-                
-                // If redirect returned a user, onAuthStateChanged will likely fire again
-                // with that user. We should stop here to avoid race conditions.
-                if (redirectUser) return;
-                
-                // Double check auth.currentUser in case it updated while we waited
-                if (auth.currentUser && !auth.currentUser.isAnonymous) return;
-
-                // Proceed with Anonymous Login only if redirect yielded nothing
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                     await signInWithCustomToken(auth, __initial_auth_token);
                 } else {
