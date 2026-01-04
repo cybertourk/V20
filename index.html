@@ -12,7 +12,7 @@
 
     <div id="loading-overlay" class="fixed inset-0 bg-black flex flex-col items-center justify-center z-[9999]">
         <h1 class="text-[#8b0000] text-7xl font-bold animate-pulse tracking-[0.5em] heading">V20</h1>
-        <p class="text-[11px] text-gray-400 tracking-[0.4em] mt-6 uppercase font-bold">Initializing Character Log...</p>
+        <p class="text-[11px] text-gray-400 tracking-[0.4em] mt-6 uppercase font-bold">Initializing Character Sheet...</p>
     </div>
 
     <div id="notification"></div>
@@ -40,14 +40,27 @@
 
         <div class="flex items-center gap-4">
             
+            <!-- FREEBIE -->
             <button id="toggle-freebie-btn" class="flex items-center gap-2 px-3 py-1 rounded border border-[#333] hover:border-blue-500/50 hover:bg-blue-900/20 transition text-xs font-bold text-gray-400 disabled:opacity-30 disabled:cursor-not-allowed">
                 <i class="fas fa-balance-scale"></i>
                 <span id="freebie-btn-text">Freebies</span>
             </button>
-            
             <div id="top-freebie-counter">
                 <span id="f-total-top">0</span>/<input type="number" id="c-freebie-total" value="15" class="w-8 bg-transparent text-gold border-b border-[#333] text-center font-bold">
             </div>
+
+            <div class="h-8 w-px bg-[#333]"></div>
+
+            <!-- EXPERIENCE -->
+            <button id="toggle-xp-btn" class="flex items-center gap-2 px-3 py-1 rounded border border-[#333] hover:border-purple-500/50 hover:bg-purple-900/20 transition text-xs font-bold text-gray-400 disabled:opacity-30 disabled:cursor-not-allowed">
+                <i class="fas fa-hourglass-half"></i>
+                <span id="xp-btn-text">Experience</span>
+            </button>
+            <div id="top-xp-counter">
+                <span id="x-total-top">0</span>/<input type="number" id="c-xp-total" value="0" class="w-10 bg-transparent text-purple-400 border-b border-[#333] text-center font-bold">
+            </div>
+
+            <div class="h-8 w-px bg-[#333]"></div>
 
             <button id="play-mode-btn" class="flex items-center gap-2 px-3 py-1 rounded border border-[#d4af37] text-[#d4af37] hover:bg-[#d4af37] hover:text-black transition text-xs font-bold uppercase tracking-wider shadow-[0_0_10px_rgba(212,175,55,0.2)]">
                 <i class="fas fa-gamepad"></i>
@@ -76,17 +89,17 @@
 
     <div id="freebie-sidebar">
         <div id="sb-toggle-btn" onclick="window.toggleSidebarLedger()">Ledger</div>
-        <h3 class="heading text-gold text-sm border-b border-gold pb-2 mb-4 text-center">Freebie Ledger</h3>
+        <h3 class="heading text-gold text-sm border-b border-gold pb-2 mb-4 text-center" id="ledger-title">Freebie Ledger</h3>
         <div class="space-y-2 text-xs">
-            <div class="cost-row"><span>Attributes (5/dot)</span><span id="sb-attr" class="cost-val">0</span></div>
-            <div class="cost-row"><span>Abilities (2/dot)</span><span id="sb-abil" class="cost-val">0</span></div>
-            <div class="cost-row"><span>Disciplines (7/dot)</span><span id="sb-disc" class="cost-val">0</span></div>
-            <div class="cost-row"><span>Backgrounds (1/dot)</span><span id="sb-back" class="cost-val">0</span></div>
-            <div class="cost-row"><span>Virtues (2/dot)</span><span id="sb-virt" class="cost-val">0</span></div>
-            <div class="cost-row"><span>Humanity (2/dot)</span><span id="sb-human" class="cost-val">0</span></div>
-            <div class="cost-row"><span>Willpower (1/dot)</span><span id="sb-will" class="cost-val">0</span></div>
-            <div class="cost-row"><span>Merits (Cost)</span><span id="sb-merit" class="cost-val">0</span></div>
-            <div class="cost-row"><span>Flaws (Bonus)</span><span id="sb-flaw" class="text-green-400 font-bold">0</span></div>
+            <div class="cost-row"><span id="lbl-attr">Attributes (5/dot)</span><span id="sb-attr" class="cost-val">0</span></div>
+            <div class="cost-row"><span id="lbl-abil">Abilities (2/dot)</span><span id="sb-abil" class="cost-val">0</span></div>
+            <div class="cost-row"><span id="lbl-disc">Disciplines (7/dot)</span><span id="sb-disc" class="cost-val">0</span></div>
+            <div class="cost-row"><span id="lbl-back">Backgrounds (1/dot)</span><span id="sb-back" class="cost-val">0</span></div>
+            <div class="cost-row"><span id="lbl-virt">Virtues (2/dot)</span><span id="sb-virt" class="cost-val">0</span></div>
+            <div class="cost-row"><span id="lbl-human">Humanity (2/dot)</span><span id="sb-human" class="cost-val">0</span></div>
+            <div class="cost-row"><span id="lbl-will">Willpower (1/dot)</span><span id="sb-will" class="cost-val">0</span></div>
+            <div class="cost-row"><span id="lbl-merit">Merits (Cost)</span><span id="sb-merit" class="cost-val">0</span></div>
+            <div class="cost-row"><span id="lbl-flaw">Flaws (Bonus)</span><span id="sb-flaw" class="text-green-400 font-bold">0</span></div>
             <div class="mt-4 pt-2 border-t border-[#444] flex justify-between font-bold text-sm">
                 <span>Remaining:</span>
                 <span id="sb-total" class="text-green-400">15</span>
