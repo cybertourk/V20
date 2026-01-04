@@ -372,22 +372,43 @@ function initUI() {
 
 // --- AUTHENTICATION & STARTUP ---
 
-// Check for redirect result on page load (for sign-in flow)
-// This is critical for signInWithRedirect to complete
+function updateAuthUI(u) {
+    const loginBtn = document.getElementById('login-btn');
+    const userInfo = document.getElementById('user-info');
+    const userName = document.getElementById('user-name');
+
+    if (u && !u.isAnonymous) {
+        if(loginBtn) loginBtn.classList.add('hidden');
+        if(userInfo) {
+            userInfo.classList.remove('hidden');
+            userInfo.style.display = 'flex';
+        }
+        if(userName) userName.innerText = u.displayName || u.email || "User";
+    } else {
+        if(loginBtn) loginBtn.classList.remove('hidden');
+        if(userInfo) {
+            userInfo.classList.add('hidden');
+            userInfo.style.display = 'none';
+        }
+    }
+}
+
+// 1. Check for Redirect Result First (This is the primary way Google Auth finishes)
 getRedirectResult(auth)
     .then((result) => {
         if (result) {
             // User signed in via redirect
             const user = result.user;
-            console.log("Redirect login successful:", user.uid);
-            // No need to manually update UI here, onAuthStateChanged will trigger
+            console.log("Redirect Login Successful:", user.uid);
+            updateAuthUI(user);
+            // No need to init UI here, onAuthStateChanged will trigger next
+        } else {
+            console.log("No redirect result found.");
         }
     }).catch((error) => {
         console.error("Redirect Login Error:", error);
         let msg = "Login Failed: " + error.message;
-        if (error.code === 'auth/unauthorized-domain') {
-            msg = "Domain not authorized. Add to Firebase Console.";
-        }
+        if (error.code === 'auth/unauthorized-domain') msg = "Domain not authorized in Firebase Console.";
         window.showNotification(msg);
     });
 
