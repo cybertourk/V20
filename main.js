@@ -274,6 +274,10 @@ function initUI() {
         if(loginBtn) {
             loginBtn.onclick = async () => {
                 try {
+                    // FORCE ACCOUNT SELECTION
+                    googleProvider.setCustomParameters({
+                        prompt: 'select_account'
+                    });
                     await signInWithPopup(auth, googleProvider);
                 } catch(e) {
                     console.error("Login Failed:", e);
@@ -283,6 +287,8 @@ function initUI() {
                         msg = "Domain not authorized. Add to Firebase Console -> Authentication -> Settings.";
                     } else if (e.code === 'auth/operation-not-allowed') {
                         msg = "Google Sign-In not enabled. Enable it in Firebase Console -> Authentication -> Sign-in method.";
+                    } else if (e.code === 'auth/popup-closed-by-user') {
+                        msg = "Login cancelled.";
                     }
                     window.showNotification(msg);
                 }
@@ -370,6 +376,7 @@ onAuthStateChanged(auth, async (u) => {
     const userInfo = document.getElementById('user-info');
     const userName = document.getElementById('user-name');
     
+    // Check if user is logged in AND not anonymous
     if(u && !u.isAnonymous) {
         user = u;
         console.log("User signed in:", user.uid);
@@ -479,7 +486,7 @@ onAuthStateChanged(auth, async (u) => {
             window.showNotification("DB Conn Error");
         }
     } else {
-        // --- SAFE AUTHENTICATION (ANONYMOUS FALLBACK) ---
+        // --- SAFE AUTHENTICATION (ANONYMOUS OR NOT LOGGED IN) ---
         // UI Update for Auth: Show Login, Hide User Info
         if(loginBtn) loginBtn.classList.remove('hidden');
         if(userInfo) {
