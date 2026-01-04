@@ -385,6 +385,7 @@ window.toggleDiceTray = function() {
     if (tray) tray.classList.toggle('open');
 };
 
+// --- UPDATED POOL LOGIC WITH FREEBIE LOGGING ---
 window.updatePools = function() {
     if (!window.state.status) window.state.status = { humanity: 7, willpower: 5, tempWillpower: 5, health_states: [0,0,0,0,0,0,0], blood: 0 };
     if (window.state.status.tempWillpower === undefined) window.state.status.tempWillpower = window.state.status.willpower || 5;
@@ -404,6 +405,7 @@ window.updatePools = function() {
     const gen = parseInt(document.getElementById('c-gen')?.value) || 13;
     const lim = GEN_LIMITS[gen] || GEN_LIMITS[13];
 
+    // Priority Counts
     Object.keys(ATTRIBUTES).forEach(cat => {
         let cs = 0; ATTRIBUTES[cat].forEach(a => cs += ((window.state.dots.attr[a] || 1) - 1));
         const targetId = (cat === 'Social') ? 'p-social' : (cat === 'Mental') ? 'p-mental' : 'p-phys';
@@ -423,31 +425,126 @@ window.updatePools = function() {
     const virtTotalDots = VIRTUES.reduce((a, v) => a + (window.state.dots.virt[v] || 1), 0);
     setSafeText('p-virt', `[${Math.max(0, 7 - (virtTotalDots - 3))}]`);
 
-    // FREEBIE MODE SIDEBAR
+    // FREEBIE MODE SIDEBAR & LOGGING
     if (window.state.freebieMode) {
-         const totalSpent = calculateTotalFreebiesSpent(window.state);
-         setSafeText('f-total-top', totalSpent); 
-         let attrDots = 0; Object.keys(ATTRIBUTES).forEach(cat => ATTRIBUTES[cat].forEach(a => attrDots += (window.state.dots.attr[a] || 1)));
-         setSafeText('sb-attr', Math.max(0, attrDots - 24) * 5);
-         let abilDots = 0; Object.keys(ABILITIES).forEach(cat => { ABILITIES[cat].forEach(a => abilDots += (window.state.dots.abil[a] || 0)); if (window.state.customAbilityCategories) { Object.entries(window.state.customAbilityCategories).forEach(([name, c]) => { if (c === cat && window.state.dots.abil[name]) abilDots += window.state.dots.abil[name]; }); } });
-         setSafeText('sb-abil', Math.max(0, abilDots - 27) * 2);
-         setSafeText('sb-disc', Math.max(0, discSpent - 3) * 7);
-         setSafeText('sb-back', Math.max(0, backSpent - 5) * 1);
-         setSafeText('sb-virt', Math.max(0, (virtTotalDots-3) - 7) * 2);
-         const bH = (window.state.dots.virt?.Conscience || 1) + (window.state.dots.virt?.["Self-Control"] || 1);
-         const bW = (window.state.dots.virt?.Courage || 1);
-         const cH = window.state.status.humanity !== undefined ? window.state.status.humanity : bH;
-         const cW = window.state.status.willpower !== undefined ? window.state.status.willpower : bW;
-         setSafeText('sb-human', Math.max(0, cH - bH) * 2);
-         setSafeText('sb-will', Math.max(0, cW - bW) * 1);
-         let mfCost = 0, mfBonus = 0;
-         if (window.state.merits) window.state.merits.forEach(m => mfCost += (parseInt(m.val) || 0));
-         if (window.state.flaws) window.state.flaws.forEach(f => mfBonus += (parseInt(f.val) || 0));
-         const cappedBonus = Math.min(mfBonus, 7);
-         setSafeText('sb-merit', mfCost);
+         // --- LOGIC REWRITE START ---
+         const logEntries = [];
+         let totalFreebieCost = 0;
+         let totalFlawBonus = 0;
+
+         // 1. Attributes (5/dot)
+         const attrCats = { Physical: 0, Social: 0, Mental: 0 };
+         let attrCost = 0;
+         Object.keys(ATTRIBUTES).forEach(cat => {
+             ATTRIBUTES[cat].forEach(a => attrCats[cat] += Math.max(0, (window.state.dots.attr[a] || 1) - 1));
+             const limit = window.state.prios.attr[cat] || 0;
+             if (attrCats[cat] > limit) {
+                 const diff = attrCats[cat] - limit;
+                 const c = diff * 5;
+                 attrCost += c;
+                 logEntries.push(`${cat} Attr (+${diff}): ${c} pts`);
+             }
+         });
+         setSafeText('sb-attr', attrCost);
+         totalFreebieCost += attrCost;
+
+         // 2. Abilities (2/dot)
+         const abilCats = { Talents: 0, Skills: 0, Knowledges: 0 };
+         let abilCost = 0;
+         Object.keys(ABILITIES).forEach(cat => {
+             ABILITIES[cat].forEach(a => abilCats[cat] += (window.state.dots.abil[a] || 0));
+             if (window.state.customAbilityCategories) {
+                 Object.entries(window.state.customAbilityCategories).forEach(([name, c]) => {
+                     if (c === cat && window.state.dots.abil[name]) abilCats[cat] += window.state.dots.abil[name];
+                 });
+             }
+             const limit = window.state.prios.abil[cat] || 0;
+             if (abilCats[cat] > limit) {
+                 const diff = abilCats[cat] - limit;
+                 const c = diff * 2;
+                 abilCost += c;
+                 logEntries.push(`${cat} Abil (+${diff}): ${c} pts`);
+             }
+         });
+         setSafeText('sb-abil', abilCost);
+         totalFreebieCost += abilCost;
+
+         // 3. Disciplines (7/dot, Limit 3)
+         const dDiff = Math.max(0, discSpent - 3);
+         const dCost = dDiff * 7;
+         setSafeText('sb-disc', dCost);
+         totalFreebieCost += dCost;
+         if(dCost > 0) logEntries.push(`Disciplines (+${dDiff}): ${dCost} pts`);
+
+         // 4. Backgrounds (1/dot, Limit 5)
+         const bgDiff = Math.max(0, backSpent - 5);
+         const bgCost = bgDiff * 1;
+         setSafeText('sb-back', bgCost);
+         totalFreebieCost += bgCost;
+         if(bgCost > 0) logEntries.push(`Backgrounds (+${bgDiff}): ${bgCost} pts`);
+
+         // 5. Virtues (2/dot, Limit 7)
+         // Note: virtTotalDots includes base 3 (1 per virtue). 
+         // Creation points (7) are added to base 3. So total free creation dots = 10.
+         const vDiff = Math.max(0, virtTotalDots - 10);
+         const vCost = vDiff * 2;
+         setSafeText('sb-virt', vCost);
+         totalFreebieCost += vCost;
+         if(vCost > 0) logEntries.push(`Virtues (+${vDiff}): ${vCost} pts`);
+
+         // 6. Humanity (1/dot)
+         // Base is Sum of Conscience + Self-Control
+         const hDiff = Math.max(0, cH - bH);
+         const hCost = hDiff * 1;
+         setSafeText('sb-human', hCost);
+         totalFreebieCost += hCost;
+         if(hCost > 0) logEntries.push(`Humanity (+${hDiff}): ${hCost} pts`);
+
+         // 7. Willpower (1/dot)
+         // Base is Courage
+         const wDiff = Math.max(0, cW - bW);
+         const wCost = wDiff * 1;
+         setSafeText('sb-will', wCost);
+         totalFreebieCost += wCost;
+         if(wCost > 0) logEntries.push(`Willpower (+${wDiff}): ${wCost} pts`);
+
+         // 8. Merits / Flaws
+         let mCost = 0;
+         if (window.state.merits) window.state.merits.forEach(m => { 
+             const v = parseInt(m.val) || 0; 
+             mCost += v; 
+             logEntries.push(`Merit: ${m.name} (${v})`);
+         });
+         setSafeText('sb-merit', mCost);
+         totalFreebieCost += mCost;
+
+         if (window.state.flaws) window.state.flaws.forEach(f => {
+             const v = parseInt(f.val) || 0;
+             totalFlawBonus += v;
+             logEntries.push(`Flaw: ${f.name} (+${v})`);
+         });
+         const cappedBonus = Math.min(totalFlawBonus, 7);
          setSafeText('sb-flaw', `+${cappedBonus}`);
+
+         // Final Totals
          const limit = parseInt(document.getElementById('c-freebie-total')?.value) || 15;
-         setSafeText('sb-total', limit - totalSpent);
+         const available = limit + cappedBonus;
+         const remaining = available - totalFreebieCost;
+         
+         setSafeText('f-total-top', remaining);
+         setSafeText('sb-total', remaining);
+         const totalEl = document.getElementById('sb-total');
+         if(totalEl) totalEl.className = remaining >= 0 ? "text-green-400 font-bold" : "text-red-500 font-bold animate-pulse";
+         if(remaining < 0) document.getElementById('f-total-top').classList.add('text-red-500'); 
+         else document.getElementById('f-total-top').classList.remove('text-red-500');
+
+         // Populate Log
+         const logContainer = document.getElementById('freebie-log-recent');
+         if(logContainer) {
+             if (logEntries.length === 0) logContainer.innerHTML = '<span class="text-gray-600 italic">No freebies spent...</span>';
+             else logContainer.innerHTML = logEntries.map(e => `<div class="border-b border-[#333] py-1 text-gray-300 text-[9px]">${e}</div>`).join('');
+         }
+
          document.getElementById('freebie-sidebar').classList.add('active'); 
     } else {
          document.getElementById('freebie-sidebar').classList.remove('active');
@@ -468,12 +565,10 @@ window.updatePools = function() {
         if (window.state.isPlayMode) {
             fbBtn.disabled = true;
         } else {
-            const complete = checkCreationComplete(window.state);
-            if (window.state.freebieMode) {
-                fbBtn.disabled = false;
-            } else {
-                fbBtn.disabled = !complete.complete;
-            }
+            // UNLOCK LOGIC: Allow Freebie mode anytime if explicitly requested
+            // But we keep checkCreationComplete to gate Play Mode usually
+            // Here, we just ensure it's clickable
+            fbBtn.disabled = false;
         }
     }
 
@@ -736,7 +831,9 @@ export function setDots(name, type, val, min, max = 5) {
             window.state.status.willpower = val;
             window.state.status.tempWillpower = val;
         }
-        if (calculateTotalFreebiesSpent(window.state) > (parseInt(document.getElementById('c-freebie-total')?.value) || 15)) { window.showNotification("Freebie Limit Exceeded!"); return; }
+        // NOTE: In standard logic, we check cost limit *before* applying.
+        // But since freebies can go negative if ST allows, we apply then check.
+        // Calculating cost happens in updatePools.
         window.updatePools(); return;
     }
 
@@ -746,13 +843,11 @@ export function setDots(name, type, val, min, max = 5) {
     if (newVal < min) newVal = min;
 
     if (window.state.freebieMode) {
-        const tempState = JSON.parse(JSON.stringify(window.state));
-        if (!tempState.dots[type]) tempState.dots[type] = {};
-        tempState.dots[type][name] = newVal;
-        const projectedCost = calculateTotalFreebiesSpent(tempState);
-        const limit = parseInt(document.getElementById('c-freebie-total')?.value) || 15;
-        if (projectedCost > limit) { window.showNotification("Freebie Limit Exceeded!"); return; }
+        // Freebie mode allows unlimited editing, the ledger just tracks the cost.
+        // We do NOT block the action here anymore.
+        // We let the user overdraft if they wish.
     } else {
+        // ... [Standard Priority Checks for Phases 2,3,4] ...
         if (type === 'attr') {
             let group = null; Object.keys(ATTRIBUTES).forEach(k => { if(ATTRIBUTES[k].includes(name)) group = k; });
             if (group) {
@@ -795,6 +890,7 @@ export function setDots(name, type, val, min, max = 5) {
         if (genInput) genInput.value = newGen;
     }
 
+    // Auto-update Status from Virtues in Creation Mode
     if (type === 'virt' && !window.state.isPlayMode && !window.state.freebieMode && !window.state.xpMode) {
          const delta = newVal - currentVal;
          if (delta !== 0) {
