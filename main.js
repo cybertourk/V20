@@ -393,23 +393,27 @@ function updateAuthUI(u) {
     }
 }
 
-// 1. Check for Redirect Result First (This is the primary way Google Auth finishes)
-getRedirectResult(auth)
+// Store the redirect check to prevent race conditions
+let redirectCheckResolved = false;
+const redirectCheckPromise = getRedirectResult(auth)
     .then((result) => {
+        redirectCheckResolved = true;
         if (result) {
-            // User signed in via redirect
             const user = result.user;
             console.log("Redirect Login Successful:", user.uid);
             updateAuthUI(user);
-            // No need to init UI here, onAuthStateChanged will trigger next
+            return user;
         } else {
             console.log("No redirect result found.");
+            return null;
         }
     }).catch((error) => {
+        redirectCheckResolved = true;
         console.error("Redirect Login Error:", error);
         let msg = "Login Failed: " + error.message;
         if (error.code === 'auth/unauthorized-domain') msg = "Domain not authorized in Firebase Console.";
         window.showNotification(msg);
+        return null;
     });
 
 onAuthStateChanged(auth, async (u) => {
@@ -537,9 +541,20 @@ onAuthStateChanged(auth, async (u) => {
         }
         
         try {
-            // Only try to sign in anonymously if we aren't already signed in as anon
-            // This handles the initial load and explicit sign-out scenarios
+            // Wait for redirect result first!
+            // This prevents the anonymous login from overriding a successful Google login
             if (!u) {
+                // If we haven't checked redirect yet, wait for it
+                const redirectUser = await redirectCheckPromise;
+                
+                // If redirect returned a user, onAuthStateChanged will likely fire again
+                // with that user. We should stop here to avoid race conditions.
+                if (redirectUser) return;
+                
+                // Double check auth.currentUser in case it updated while we waited
+                if (auth.currentUser && !auth.currentUser.isAnonymous) return;
+
+                // Proceed with Anonymous Login only if redirect yielded nothing
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                     await signInWithCustomToken(auth, __initial_auth_token);
                 } else {
