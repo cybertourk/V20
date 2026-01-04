@@ -69,6 +69,21 @@
 
             <div class="h-8 w-px bg-[#333]"></div>
 
+            <!-- USER AUTH -->
+            <div id="user-auth-area" class="flex items-center gap-2">
+                <button id="login-btn" class="text-xs text-[#d4af37] font-bold uppercase hover:text-white transition">
+                    <i class="fab fa-google mr-1"></i> Login
+                </button>
+                <div id="user-info" class="hidden flex items-center gap-2">
+                    <span id="user-name" class="text-[10px] text-gray-400 truncate max-w-[100px]">Guest</span>
+                    <button id="logout-btn" class="text-[10px] text-red-400 hover:text-red-200 transition">
+                        <i class="fas fa-sign-out-alt"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="h-8 w-px bg-[#333]"></div>
+
             <div class="flex gap-2 text-gray-500">
                 <button id="export-btn" class="hover:text-white w-8 h-8 rounded hover:bg-[#222] transition" title="Export JSON"><i class="fas fa-file-export"></i></button>
                 <button id="import-trigger" class="hover:text-white w-8 h-8 rounded hover:bg-[#222] transition" title="Import JSON"><i class="fas fa-file-import"></i></button>
