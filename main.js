@@ -1,4 +1,12 @@
-import { auth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "./firebase-config.js";
+import { 
+    auth, 
+    signInAnonymously, 
+    onAuthStateChanged, 
+    signInWithCustomToken,
+    signInWithPopup,
+    googleProvider,
+    signOut
+} from "./firebase-config.js";
 import { 
     APP_VERSION, CLANS, ARCHETYPES, PATHS, ATTRIBUTES, ABILITIES, 
     DISCIPLINES, BACKGROUNDS, VIRTUES, V20_MERITS_LIST, V20_FLAWS_LIST, VIT, 
@@ -19,7 +27,7 @@ import {
     renderDynamicHavenRow, 
     renderInventoryList, 
     updateWalkthrough,
-    setDots // Imported to allow manual calls if needed
+    setDots 
 } from "./ui-renderer.js"; 
 
 // --- ERROR HANDLER ---
@@ -261,6 +269,33 @@ function initUI() {
         const topXpBtn = document.getElementById('toggle-xp-btn'); // NEW XP Button Listener
         if(topXpBtn) topXpBtn.onclick = window.toggleXpMode;
 
+        // AUTH HANDLERS
+        const loginBtn = document.getElementById('login-btn');
+        if(loginBtn) {
+            loginBtn.onclick = async () => {
+                try {
+                    await signInWithPopup(auth, googleProvider);
+                } catch(e) {
+                    console.error(e);
+                    window.showNotification("Login Failed: " + e.message);
+                }
+            };
+        }
+
+        const logoutBtn = document.getElementById('logout-btn');
+        if(logoutBtn) {
+            logoutBtn.onclick = async () => {
+                if(confirm("Logout? Unsaved changes to current character will be lost.")) {
+                    try {
+                        await signOut(auth);
+                        window.location.reload(); // Reset state
+                    } catch(e) {
+                        console.error(e);
+                    }
+                }
+            };
+        }
+
         // --- GLOBAL LISTENER FOR GENERATION SYNC ---
         document.body.addEventListener('click', function(e) {
             if (e.target.classList.contains('dot')) {
@@ -324,10 +359,19 @@ function initUI() {
 
 onAuthStateChanged(auth, async (u) => {
     const loader = document.getElementById('loading-overlay');
+    const loginBtn = document.getElementById('login-btn');
+    const userInfo = document.getElementById('user-info');
+    const userName = document.getElementById('user-name');
     
     if(u) {
         user = u;
         console.log("User signed in:", user.uid);
+        
+        // UI Update for Auth
+        if(loginBtn) loginBtn.classList.add('hidden');
+        if(userInfo) userInfo.classList.remove('hidden');
+        if(userInfo) userInfo.style.display = 'flex';
+        if(userName) userName.innerText = user.displayName || user.email || "User";
 
         try {
             // 1. POPULATE DROPDOWNS FIRST
@@ -426,12 +470,20 @@ onAuthStateChanged(auth, async (u) => {
             window.showNotification("DB Conn Error");
         }
     } else {
-        // --- SAFE AUTHENTICATION ---
-        // Wraps auth in try/catch to prevent infinite loading screen
+        // --- SAFE AUTHENTICATION (ANONYMOUS FALLBACK) ---
+        // UI Update for Auth
+        if(loginBtn) loginBtn.classList.remove('hidden');
+        if(userInfo) userInfo.classList.add('hidden');
+        
         try {
             if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                 await signInWithCustomToken(auth, __initial_auth_token);
             } else {
+                // IMPORTANT: Only auto-signin anonymously if not already trying to auth
+                // This prevents loops if sign-in fails
+                // However, for this app structure, we usually want at least anon access
+                // But if user explicitly signed out, maybe don't immediately sign in anon?
+                // For simplicity, we maintain anon login as baseline
                 await signInAnonymously(auth);
             }
         } catch (e) {
