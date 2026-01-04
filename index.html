@@ -25,6 +25,22 @@
                 <span class="text-[0.6rem] text-[#d4af37] tracking-[0.3em] font-serif italic uppercase opacity-80 group-hover:opacity-100 transition-opacity">The Masquerade</span>
             </div>
 
+            <!-- USER AUTH (Moved to Top Left) -->
+            <div id="user-auth-area" class="flex items-center gap-2">
+                <button id="login-btn" class="text-xs text-[#d4af37] font-bold uppercase hover:text-white transition flex items-center gap-2 border border-[#d4af37] bg-black/50 px-3 py-1.5 rounded hover:bg-[#d4af37] hover:text-black shadow-lg">
+                    <i class="fab fa-google"></i> Login
+                </button>
+                <div id="user-info" class="hidden flex items-center gap-2 border border-[#333] bg-black/80 px-3 py-1.5 rounded shadow-lg">
+                    <i class="fas fa-user-circle text-gray-400 text-sm"></i>
+                    <span id="user-name" class="text-[10px] text-gray-300 font-bold truncate max-w-[100px]">Guest</span>
+                    <button id="logout-btn" class="text-xs text-red-500 hover:text-red-300 transition ml-2 border-l border-[#444] pl-2" title="Logout">
+                        <i class="fas fa-sign-out-alt"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="h-8 w-px bg-[#333] hidden md:block"></div>
+
             <div class="hidden md:flex items-center gap-2 bg-black/40 px-4 py-1.5 rounded-full border border-[#222]">
                 <button id="cmd-new" class="text-xs text-gray-400 font-bold uppercase hover:text-white hover:bg-[#222] px-3 py-1 rounded transition border border-transparent hover:border-[#444]">
                     <i class="fas fa-file-circle-plus mr-1"></i> New
@@ -68,22 +84,6 @@
                 <i class="fas fa-gamepad"></i>
                 <span id="play-btn-text">Play</span>
             </button>
-
-            <div class="h-8 w-px bg-[#333]"></div>
-
-            <!-- USER AUTH (Explicitly Visible) -->
-            <div id="user-auth-area" class="flex items-center gap-2 relative z-50">
-                <button id="login-btn" class="text-xs text-[#d4af37] font-bold uppercase hover:text-white transition flex items-center gap-2 border border-[#d4af37] bg-black/50 px-3 py-1.5 rounded hover:bg-[#d4af37] hover:text-black shadow-lg">
-                    <i class="fab fa-google"></i> Login
-                </button>
-                <div id="user-info" class="hidden flex items-center gap-2 border border-[#333] bg-black/80 px-3 py-1.5 rounded shadow-lg">
-                    <i class="fas fa-user-circle text-gray-400 text-sm"></i>
-                    <span id="user-name" class="text-[10px] text-gray-300 font-bold truncate max-w-[100px]">Guest</span>
-                    <button id="logout-btn" class="text-xs text-red-500 hover:text-red-300 transition ml-2 border-l border-[#444] pl-2" title="Logout">
-                        <i class="fas fa-sign-out-alt"></i>
-                    </button>
-                </div>
-            </div>
 
             <div class="h-8 w-px bg-[#333]"></div>
 
