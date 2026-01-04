@@ -5,7 +5,8 @@ import {
     onAuthStateChanged, 
     signInWithCustomToken,
     GoogleAuthProvider,
-    signInWithPopup,
+    signInWithRedirect,
+    getRedirectResult,
     signOut
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { getFirestore, doc, setDoc, getDoc, collection, getDocs, query, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
@@ -38,7 +39,8 @@ export {
     signInAnonymously, 
     onAuthStateChanged, 
     signInWithCustomToken, 
-    signInWithPopup,
+    signInWithRedirect,
+    getRedirectResult,
     signOut,
     googleProvider,
     doc, 
