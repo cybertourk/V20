@@ -544,8 +544,6 @@ window.updatePools = function() {
         box.dataset.state = healthStates[i] || 0;
     });
     
-    // ... [existing render code for weakness/XP areas] ...
-    
     renderSocialProfile();
     updateWalkthrough();
 
@@ -1206,8 +1204,56 @@ window.toggleXpSidebarLedger = function() {
     document.getElementById('xp-sidebar').classList.toggle('open');
 };
 
-// ... [Walkthrough and Step Logic unchanged] ...
+// --- CRITICAL RESTORATION: updateWalkthrough & changeStep ---
 
+export function updateWalkthrough() {
+    if (!window.state) return;
+    
+    // Check navigation steps and update icons/status
+    // This updates the visual state of the nav bar (lock/unlock/complete)
+    const nav = document.getElementById('sheet-nav');
+    if (nav && !window.state.isPlayMode) {
+         // Since we can't easily query specific step elements without rebuilding, 
+         // we might need to rely on changeStep's render logic, but simpler:
+         // Just check completion status for current step to unlock next?
+         
+         const current = window.state.currentPhase;
+         const furthest = window.state.furthestPhase || 1;
+         
+         // If current step is complete, unlock next
+         if (checkStepComplete(current, window.state)) {
+             if (current === furthest && current < 8) {
+                 window.state.furthestPhase = current + 1;
+                 // Re-render nav to show unlock
+                 // We call changeStep to re-render nav but keep current page active?
+                 // No, changeStep changes page.
+                 // We need a dedicated nav render function. 
+                 // For now, let's just trigger a re-render of nav by calling changeStep(current) 
+                 // which is slightly inefficient but safe.
+                 window.changeStep(current);
+             }
+         }
+         
+         // Update the guide message (bottom right)
+         const guideMsg = document.getElementById('guide-message');
+         const guideIcon = document.getElementById('guide-icon');
+         if (guideMsg && guideIcon) {
+             const isComplete = checkStepComplete(current, window.state);
+             if (isComplete) {
+                 guideMsg.innerText = "Step Complete! Proceed...";
+                 guideMsg.classList.add('text-green-400');
+                 guideIcon.classList.add('ready');
+             } else {
+                 guideMsg.classList.remove('text-green-400');
+                 guideIcon.classList.remove('ready');
+                 // Set specific messages based on step?
+                 if (current === 1) guideMsg.innerText = "Enter Name & Clan...";
+                 else if (current === 2) guideMsg.innerText = "Select Attributes...";
+                 else guideMsg.innerText = "Complete Requirements...";
+             }
+         }
+    }
+}
 window.updateWalkthrough = updateWalkthrough;
 
 window.nextStep = function() {
@@ -1393,8 +1439,6 @@ window.togglePlayMode = function() {
             ot.innerHTML = ''; Object.entries(window.state.dots.other).forEach(([n,v]) => { if(v>0) renderRow(ot, n, 'other', 0); });
         }
         
-        // ... [Vitals, Combat, etc. unchanged] ...
-        
         // RE-RENDER REST OF PLAY MODE SECTIONS (Identical to before)
         const plv = document.getElementById('play-vitals-list'); if(plv) {
             plv.innerHTML = ''; VIT.forEach(v => { const val = document.getElementById('bio-' + v)?.value; if(val) plv.innerHTML += `<div class="flex justify-between border-b border-[#222] py-1 font-bold"><span class="text-gray-400">${v.replace('-',' ')}:</span> <span>${val}</span></div>`; });
@@ -1424,7 +1468,6 @@ window.togglePlayMode = function() {
                 {n:'Two Weapons', diff:7, dmg:'Weapon', attr:'Dexterity', abil:'Firearms'}
             ];
             
-            // ... [Combat Render Logic same as before] ...
              standards.forEach(s => { 
                 const r = document.createElement('tr'); 
                 r.className='border-b border-[#222] text-[10px] text-gray-500 hover:bg-[#1a1a1a]'; 
