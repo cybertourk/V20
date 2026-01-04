@@ -72,7 +72,12 @@ export const BACKGROUNDS = [
 
 export const VIRTUES = ["Conscience", "Self-Control", "Courage"];
 
-export const VIT = ["Age", "Hair", "Eyes", "Height", "Weight", "Sex"];
+// Updated Vitals List based on your request
+export const VIT = [
+    "Age", "Apparent Age", "Date of Birth", "R.I.P.", 
+    "Hair", "Eyes", "Race", "Nationality", 
+    "Height", "Weight", "Sex"
+];
 
 export const DERANGEMENTS = [
     "Megalomania", "Sanguinary Animism", "Multiple Personalities", 
