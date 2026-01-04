@@ -373,15 +373,14 @@ function initUI() {
 // --- AUTHENTICATION & STARTUP ---
 
 // Check for redirect result on page load (for sign-in flow)
+// This is critical for signInWithRedirect to complete
 getRedirectResult(auth)
     .then((result) => {
         if (result) {
             // User signed in via redirect
-            const credential = GoogleAuthProvider.credentialFromResult(result);
-            const token = credential.accessToken;
-            // The signed-in user info.
             const user = result.user;
             console.log("Redirect login successful:", user.uid);
+            // No need to manually update UI here, onAuthStateChanged will trigger
         }
     }).catch((error) => {
         console.error("Redirect Login Error:", error);
@@ -398,6 +397,7 @@ onAuthStateChanged(auth, async (u) => {
     const userInfo = document.getElementById('user-info');
     const userName = document.getElementById('user-name');
     
+    // Check if user is logged in AND not anonymous
     if(u && !u.isAnonymous) {
         user = u;
         console.log("User signed in:", user.uid);
