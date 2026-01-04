@@ -363,14 +363,16 @@ onAuthStateChanged(auth, async (u) => {
     const userInfo = document.getElementById('user-info');
     const userName = document.getElementById('user-name');
     
-    if(u) {
+    if(u && !u.isAnonymous) {
         user = u;
         console.log("User signed in:", user.uid);
         
-        // UI Update for Auth
+        // UI Update for Authenticated User
         if(loginBtn) loginBtn.classList.add('hidden');
-        if(userInfo) userInfo.classList.remove('hidden');
-        if(userInfo) userInfo.style.display = 'flex';
+        if(userInfo) {
+            userInfo.classList.remove('hidden');
+            userInfo.style.display = 'flex';
+        }
         if(userName) userName.innerText = user.displayName || user.email || "User";
 
         try {
@@ -471,21 +473,56 @@ onAuthStateChanged(auth, async (u) => {
         }
     } else {
         // --- SAFE AUTHENTICATION (ANONYMOUS FALLBACK) ---
-        // UI Update for Auth
+        // UI Update for Auth: Show Login, Hide User Info
         if(loginBtn) loginBtn.classList.remove('hidden');
-        if(userInfo) userInfo.classList.add('hidden');
+        if(userInfo) {
+            userInfo.classList.add('hidden');
+            userInfo.style.display = 'none';
+        }
         
         try {
-            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                await signInWithCustomToken(auth, __initial_auth_token);
-            } else {
-                // IMPORTANT: Only auto-signin anonymously if not already trying to auth
-                // This prevents loops if sign-in fails
-                // However, for this app structure, we usually want at least anon access
-                // But if user explicitly signed out, maybe don't immediately sign in anon?
-                // For simplicity, we maintain anon login as baseline
-                await signInAnonymously(auth);
+            // Only try to sign in anonymously if we aren't already signed in as anon
+            // This handles the initial load and explicit sign-out scenarios
+            if (!u) {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
             }
+            
+            // Populate dropdowns even for anonymous users so they can use the app
+            const ns = document.getElementById('c-nature');
+            const ds = document.getElementById('c-demeanor');
+            if(ns && ds && ns.options.length <= 1 && typeof ARCHETYPES !== 'undefined') {
+                ns.innerHTML = '<option value="" disabled selected>Choose Nature...</option>'; 
+                ds.innerHTML = '<option value="" disabled selected>Choose Demeanor...</option>'; 
+                ARCHETYPES.sort().forEach(a => { ns.add(new Option(a,a)); ds.add(new Option(a,a)); });
+            }
+            
+            const cs = document.getElementById('c-clan');
+            if(cs && cs.options.length <= 1 && typeof CLANS !== 'undefined') {
+                cs.innerHTML = '<option value="" disabled selected>Choose Clan...</option>';
+                CLANS.sort().forEach(c => cs.add(new Option(c,c)));
+                cs.addEventListener('change', (e) => {
+                    const clan = e.target.value;
+                    const weaknessArea = document.getElementById('c-clan-weakness');
+                    if (weaknessArea && CLAN_WEAKNESSES[clan]) {
+                        weaknessArea.value = CLAN_WEAKNESSES[clan];
+                        if (!window.state.textFields) window.state.textFields = {};
+                        window.state.textFields['c-clan-weakness'] = CLAN_WEAKNESSES[clan];
+                    }
+                    if (CLAN_DISCIPLINES && CLAN_DISCIPLINES[clan]) {
+                        window.state.dots.disc = {};
+                        CLAN_DISCIPLINES[clan].forEach(d => { window.state.dots.disc[d] = 0; });
+                        renderDynamicAdvantageRow('list-disc', 'disc', DISCIPLINES);
+                    }
+                    updateWalkthrough();
+                });
+            }
+            
+            if(loader) loader.style.display = 'none';
+
         } catch (e) {
             console.error("Authentication Error:", e);
             if(loader) {
