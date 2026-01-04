@@ -205,19 +205,19 @@
                     <div class="section-title">Character Concept</div>
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
                         <div class="space-y-5">
-                            <div><label class="label-text">Name</label><input type="text" id="c-name"></div>
-                            <div><label class="label-text">Player</label><input type="text" id="c-player"></div>
-                            <div><label class="label-text">Chronicle</label><input type="text" id="c-chronicle"></div>
+                            <div><label class="label-text">Name</label><input type="text" id="c-name" name="c_name_field" autocomplete="off"></div>
+                            <div><label class="label-text">Player</label><input type="text" id="c-player" name="c_player_field" autocomplete="off"></div>
+                            <div><label class="label-text">Chronicle</label><input type="text" id="c-chronicle" name="c_chronicle_field" autocomplete="off"></div>
                         </div>
                         <div class="space-y-5">
-                            <div><label class="label-text">Nature</label><select id="c-nature"></select></div>
-                            <div><label class="label-text">Demeanor</label><select id="c-demeanor"></select></div>
-                            <div><label class="label-text">Concept</label><input type="text" id="c-concept"></div>
+                            <div><label class="label-text">Nature</label><select id="c-nature" name="c_nature_field" autocomplete="off"></select></div>
+                            <div><label class="label-text">Demeanor</label><select id="c-demeanor" name="c_demeanor_field" autocomplete="off"></select></div>
+                            <div><label class="label-text">Concept</label><input type="text" id="c-concept" name="c_concept_field" autocomplete="off"></div>
                         </div>
                         <div class="space-y-5">
-                            <div><label class="label-text">Clan</label><select id="c-clan"></select></div>
-                            <div><label class="label-text">Generation</label><input type="number" id="c-gen" value="13"></div>
-                            <div><label class="label-text">Sire</label><input type="text" id="c-sire"></div>
+                            <div><label class="label-text">Clan</label><select id="c-clan" name="c_clan_field" autocomplete="off"></select></div>
+                            <div><label class="label-text">Generation</label><input type="number" id="c-gen" value="13" name="c_gen_field" autocomplete="off"></div>
+                            <div><label class="label-text">Sire</label><input type="text" id="c-sire" name="c_sire_field" autocomplete="off"></div>
                         </div>
                     </div>
                     <div class="mt-4">
@@ -585,24 +585,29 @@
     <div id="auth-modal" class="modal-overlay">
         <div class="modal-box">
             <h2 class="heading text-xl text-gold mb-4 border-b border-[#333] pb-2">Authenticate</h2>
-            <div class="space-y-4">
-                <div>
-                    <label class="label-text">Email Address</label>
-                    <input type="email" id="auth-email" class="w-full text-sm font-bold bg-[#111] p-2 border border-[#333] focus:border-gold" placeholder="vampire@nod.org">
+            
+            <!-- ISOLATED FORM FOR PASSWORD MANAGER CONTROL -->
+            <form action="#" onsubmit="return false;" autocomplete="on">
+                <div class="space-y-4">
+                    <div>
+                        <label class="label-text">Email Address</label>
+                        <input type="email" id="auth-email" class="w-full text-sm font-bold bg-[#111] p-2 border border-[#333] focus:border-gold" placeholder="vampire@nod.org" autocomplete="username">
+                    </div>
+                    <div>
+                        <label class="label-text">Password</label>
+                        <input type="password" id="auth-password" class="w-full text-sm font-bold bg-[#111] p-2 border border-[#333] focus:border-gold" placeholder="******" autocomplete="current-password">
+                    </div>
+                    <div id="auth-error-msg" class="text-red-500 text-xs font-bold hidden"></div>
                 </div>
-                <div>
-                    <label class="label-text">Password</label>
-                    <input type="password" id="auth-password" class="w-full text-sm font-bold bg-[#111] p-2 border border-[#333] focus:border-gold" placeholder="******">
+                <div class="flex justify-between gap-2 mt-6">
+                     <button type="button" class="standard-button px-4 py-2 text-xs uppercase font-bold" onclick="document.getElementById('auth-modal').classList.remove('active')">Cancel</button>
+                     <div class="flex gap-2">
+                        <button type="button" id="confirm-register-btn" class="border border-[#444] text-gray-300 px-4 py-2 text-xs uppercase font-bold hover:bg-[#222]">Create Account</button>
+                        <button type="button" id="confirm-login-btn" class="bg-[#8b0000] text-white px-6 py-2 text-xs uppercase font-bold hover:bg-red-700 shadow-md">Login</button>
+                     </div>
                 </div>
-                <div id="auth-error-msg" class="text-red-500 text-xs font-bold hidden"></div>
-            </div>
-            <div class="flex justify-between gap-2 mt-6">
-                 <button type="button" class="standard-button px-4 py-2 text-xs uppercase font-bold" onclick="document.getElementById('auth-modal').classList.remove('active')">Cancel</button>
-                 <div class="flex gap-2">
-                    <button type="button" id="confirm-register-btn" class="border border-[#444] text-gray-300 px-4 py-2 text-xs uppercase font-bold hover:bg-[#222]">Create Account</button>
-                    <button type="button" id="confirm-login-btn" class="bg-[#8b0000] text-white px-6 py-2 text-xs uppercase font-bold hover:bg-red-700 shadow-md">Login</button>
-                 </div>
-            </div>
+            </form>
+            
         </div>
     </div>
 
