@@ -19,40 +19,42 @@
     
     <nav id="main-menubar" class="fixed top-0 left-0 w-full h-16 bg-[#050505] border-b-2 border-[#500] z-50 flex items-center justify-between px-6 shadow-2xl">
         
-        <div class="flex flex-col justify-center leading-none select-none cursor-default group">
-            <h1 class="text-2xl text-[#af0000] font-bold tracking-[0.2em] font-cinzel group-hover:text-[#ff0000] transition-colors shadow-black drop-shadow-md">VAMPIRE</h1>
-            <span class="text-[0.6rem] text-[#d4af37] tracking-[0.3em] font-serif italic uppercase opacity-80 group-hover:opacity-100 transition-opacity">The Masquerade</span>
-        </div>
+        <div class="flex items-center gap-6">
+            <div class="flex flex-col justify-center leading-none select-none cursor-default group">
+                <h1 class="text-2xl text-[#af0000] font-bold tracking-[0.2em] font-cinzel group-hover:text-[#ff0000] transition-colors shadow-black drop-shadow-md">VAMPIRE</h1>
+                <span class="text-[0.6rem] text-[#d4af37] tracking-[0.3em] font-serif italic uppercase opacity-80 group-hover:opacity-100 transition-opacity">The Masquerade</span>
+            </div>
 
-        <div class="flex items-center gap-2 bg-black/40 px-4 py-1.5 rounded-full border border-[#222]">
-            <button id="cmd-new" class="text-xs text-gray-400 font-bold uppercase hover:text-white hover:bg-[#222] px-3 py-1 rounded transition border border-transparent hover:border-[#444]">
-                <i class="fas fa-file-circle-plus mr-1"></i> New
-            </button>
-            <div class="h-4 w-px bg-[#333]"></div>
-            <button id="cmd-save" class="text-xs text-gray-400 font-bold uppercase hover:text-white hover:bg-[#222] px-3 py-1 rounded transition border border-transparent hover:border-[#444]">
-                <i class="fas fa-save mr-1"></i> Save
-            </button>
-            <div class="h-4 w-px bg-[#333]"></div>
-            <button id="cmd-load" class="text-xs text-gray-400 font-bold uppercase hover:text-white hover:bg-[#222] px-3 py-1 rounded transition border border-transparent hover:border-[#444]">
-                <i class="fas fa-folder-open mr-1"></i> Load
-            </button>
+            <div class="hidden md:flex items-center gap-2 bg-black/40 px-4 py-1.5 rounded-full border border-[#222]">
+                <button id="cmd-new" class="text-xs text-gray-400 font-bold uppercase hover:text-white hover:bg-[#222] px-3 py-1 rounded transition border border-transparent hover:border-[#444]">
+                    <i class="fas fa-file-circle-plus mr-1"></i> New
+                </button>
+                <div class="h-4 w-px bg-[#333]"></div>
+                <button id="cmd-save" class="text-xs text-gray-400 font-bold uppercase hover:text-white hover:bg-[#222] px-3 py-1 rounded transition border border-transparent hover:border-[#444]">
+                    <i class="fas fa-save mr-1"></i> Save
+                </button>
+                <div class="h-4 w-px bg-[#333]"></div>
+                <button id="cmd-load" class="text-xs text-gray-400 font-bold uppercase hover:text-white hover:bg-[#222] px-3 py-1 rounded transition border border-transparent hover:border-[#444]">
+                    <i class="fas fa-folder-open mr-1"></i> Load
+                </button>
+            </div>
         </div>
 
         <div class="flex items-center gap-4">
             
             <!-- FREEBIE -->
-            <button id="toggle-freebie-btn" class="flex items-center gap-2 px-3 py-1 rounded border border-[#333] hover:border-blue-500/50 hover:bg-blue-900/20 transition text-xs font-bold text-gray-400 disabled:opacity-30 disabled:cursor-not-allowed">
+            <button id="toggle-freebie-btn" class="hidden md:flex items-center gap-2 px-3 py-1 rounded border border-[#333] hover:border-blue-500/50 hover:bg-blue-900/20 transition text-xs font-bold text-gray-400 disabled:opacity-30 disabled:cursor-not-allowed">
                 <i class="fas fa-balance-scale"></i>
                 <span id="freebie-btn-text">Freebies</span>
             </button>
-            <div id="top-freebie-counter">
+            <div id="top-freebie-counter" class="hidden md:flex">
                 <span id="f-total-top">0</span>/<input type="number" id="c-freebie-total" value="15" class="w-8 bg-transparent text-gold border-b border-[#333] text-center font-bold">
             </div>
 
-            <div class="h-8 w-px bg-[#333]"></div>
+            <div class="hidden md:block h-8 w-px bg-[#333]"></div>
 
             <!-- EXPERIENCE -->
-            <button id="toggle-xp-btn" class="flex items-center gap-2 px-3 py-1 rounded border border-[#333] hover:border-purple-500/50 hover:bg-purple-900/20 transition text-xs font-bold text-gray-400 disabled:opacity-30 disabled:cursor-not-allowed">
+            <button id="toggle-xp-btn" class="hidden md:flex items-center gap-2 px-3 py-1 rounded border border-[#333] hover:border-purple-500/50 hover:bg-purple-900/20 transition text-xs font-bold text-gray-400 disabled:opacity-30 disabled:cursor-not-allowed">
                 <i class="fas fa-hourglass-half"></i>
                 <span id="xp-btn-text">Experience</span>
             </button>
@@ -60,7 +62,7 @@
                 <span id="x-total-spent">0</span> / <input type="number" id="c-xp-total" value="0" class="w-10 bg-transparent text-purple-400 border-b border-[#333] text-center font-bold"> XP
             </div>
 
-            <div class="h-8 w-px bg-[#333]"></div>
+            <div class="hidden md:block h-8 w-px bg-[#333]"></div>
 
             <button id="play-mode-btn" class="flex items-center gap-2 px-3 py-1 rounded border border-[#d4af37] text-[#d4af37] hover:bg-[#d4af37] hover:text-black transition text-xs font-bold uppercase tracking-wider shadow-[0_0_10px_rgba(212,175,55,0.2)]">
                 <i class="fas fa-gamepad"></i>
@@ -69,15 +71,15 @@
 
             <div class="h-8 w-px bg-[#333]"></div>
 
-            <!-- USER AUTH -->
-            <div id="user-auth-area" class="flex items-center gap-2">
-                <button id="login-btn" class="text-xs text-[#d4af37] font-bold uppercase hover:text-white transition flex items-center gap-1 border border-[#d4af37] px-2 py-1 rounded hover:bg-[#d4af37] hover:text-black">
+            <!-- USER AUTH (Explicitly Visible) -->
+            <div id="user-auth-area" class="flex items-center gap-2 relative z-50">
+                <button id="login-btn" class="text-xs text-[#d4af37] font-bold uppercase hover:text-white transition flex items-center gap-2 border border-[#d4af37] bg-black/50 px-3 py-1.5 rounded hover:bg-[#d4af37] hover:text-black shadow-lg">
                     <i class="fab fa-google"></i> Login
                 </button>
-                <div id="user-info" class="hidden flex items-center gap-2 border border-[#333] bg-black/40 px-2 py-1 rounded">
-                    <i class="fas fa-user-circle text-gray-500 text-xs"></i>
-                    <span id="user-name" class="text-[10px] text-gray-400 truncate max-w-[100px] font-bold">Guest</span>
-                    <button id="logout-btn" class="text-[10px] text-red-400 hover:text-red-200 transition ml-2 border-l border-[#333] pl-2" title="Logout">
+                <div id="user-info" class="hidden flex items-center gap-2 border border-[#333] bg-black/80 px-3 py-1.5 rounded shadow-lg">
+                    <i class="fas fa-user-circle text-gray-400 text-sm"></i>
+                    <span id="user-name" class="text-[10px] text-gray-300 font-bold truncate max-w-[100px]">Guest</span>
+                    <button id="logout-btn" class="text-xs text-red-500 hover:text-red-300 transition ml-2 border-l border-[#444] pl-2" title="Logout">
                         <i class="fas fa-sign-out-alt"></i>
                     </button>
                 </div>
