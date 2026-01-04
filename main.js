@@ -276,8 +276,13 @@ function initUI() {
                 try {
                     await signInWithPopup(auth, googleProvider);
                 } catch(e) {
-                    console.error(e);
-                    window.showNotification("Login Failed: " + e.message);
+                    console.error("Login Failed:", e);
+                    
+                    let msg = "Login Failed: " + e.message;
+                    if (e.code === 'auth/unauthorized-domain') {
+                        msg = "Domain not authorized in Firebase Console. Please add this domain.";
+                    }
+                    window.showNotification(msg);
                 }
             };
         }
