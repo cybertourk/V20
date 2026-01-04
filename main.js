@@ -3,7 +3,8 @@ import {
     signInAnonymously, 
     onAuthStateChanged, 
     signInWithCustomToken,
-    signInWithPopup,
+    signInWithRedirect,
+    getRedirectResult,
     googleProvider,
     signOut
 } from "./firebase-config.js";
@@ -278,7 +279,8 @@ function initUI() {
                     googleProvider.setCustomParameters({
                         prompt: 'select_account'
                     });
-                    await signInWithPopup(auth, googleProvider);
+                    // Use Redirect instead of Popup to avoid COOP errors
+                    await signInWithRedirect(auth, googleProvider);
                 } catch(e) {
                     console.error("Login Failed:", e);
                     
@@ -370,13 +372,32 @@ function initUI() {
 
 // --- AUTHENTICATION & STARTUP ---
 
+// Check for redirect result on page load (for sign-in flow)
+getRedirectResult(auth)
+    .then((result) => {
+        if (result) {
+            // User signed in via redirect
+            const credential = GoogleAuthProvider.credentialFromResult(result);
+            const token = credential.accessToken;
+            // The signed-in user info.
+            const user = result.user;
+            console.log("Redirect login successful:", user.uid);
+        }
+    }).catch((error) => {
+        console.error("Redirect Login Error:", error);
+        let msg = "Login Failed: " + error.message;
+        if (error.code === 'auth/unauthorized-domain') {
+            msg = "Domain not authorized. Add to Firebase Console.";
+        }
+        window.showNotification(msg);
+    });
+
 onAuthStateChanged(auth, async (u) => {
     const loader = document.getElementById('loading-overlay');
     const loginBtn = document.getElementById('login-btn');
     const userInfo = document.getElementById('user-info');
     const userName = document.getElementById('user-name');
     
-    // Check if user is logged in AND not anonymous
     if(u && !u.isAnonymous) {
         user = u;
         console.log("User signed in:", user.uid);
