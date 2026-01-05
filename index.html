@@ -683,7 +683,7 @@
             </div>
         </div>
     
-        <div class="print-section">
+        <div class="print-section mb-4">
             <div class="grid grid-cols-2 gap-8">
                 <div class="space-y-4">
                     <div>
@@ -717,6 +717,81 @@
                         </div>
                     </div>
                 </div>
+            </div>
+        </div>
+
+        <div class="print-page-break" style="page-break-before: always;"></div>
+
+        <div class="print-section mb-6">
+            <h3 class="section-header">Combat & Equipment</h3>
+            <div class="grid grid-cols-2 gap-8">
+                <div>
+                    <h4 class="col-header">Weapons & Attacks</h4>
+                    <table class="w-full text-xs text-left mb-4">
+                        <thead><tr class="border-b border-black"><th class="py-1">Name</th><th>Diff</th><th>Dmg</th></tr></thead>
+                        <tbody id="pr-combat-table"></tbody>
+                    </table>
+                    
+                    <h4 class="col-header">Armor</h4>
+                    <div id="pr-armor-info" class="text-xs mb-4"></div>
+                </div>
+                <div>
+                    <h4 class="col-header">Gear (Carried)</h4>
+                    <div id="pr-gear-carried" class="text-xs mb-4"></div>
+                    
+                    <h4 class="col-header">Equipment (Owned)</h4>
+                    <div id="pr-gear-owned" class="text-xs mb-4"></div>
+                    
+                    <h4 class="col-header">Vehicles</h4>
+                    <div id="pr-vehicles" class="text-xs"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="print-section mb-6">
+            <h3 class="section-header">Expanded Backgrounds & Havens</h3>
+            <div class="grid grid-cols-2 gap-8">
+                <div>
+                    <h4 class="col-header">Background Details</h4>
+                    <div id="pr-background-details" class="text-xs space-y-2"></div>
+                </div>
+                <div>
+                    <h4 class="col-header">Havens</h4>
+                    <div id="pr-havens" class="text-xs space-y-2"></div>
+                    
+                    <h4 class="col-header mt-4">Blood Bonds / Vinculi</h4>
+                    <div id="pr-blood-bonds" class="text-xs space-y-1"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="print-page-break" style="page-break-before: always;"></div>
+
+        <div class="print-section mb-6">
+            <h3 class="section-header">Biography & Psychology</h3>
+            <div class="grid grid-cols-2 gap-8 mb-4">
+                <div>
+                    <h4 class="col-header">Appearance / Description</h4>
+                    <div id="pr-appearance" class="text-xs whitespace-pre-wrap"></div>
+                </div>
+                <div>
+                    <h4 class="col-header">Derangements & Languages</h4>
+                    <div class="mb-2"><strong>Derangements:</strong> <span id="pr-derangements"></span></div>
+                    <div><strong>Languages:</strong> <span id="pr-languages"></span></div>
+                </div>
+            </div>
+            
+            <div class="mb-4">
+                <h4 class="col-header">Goals</h4>
+                <div class="grid grid-cols-2 gap-8">
+                    <div class="text-xs"><strong>Short Term:</strong> <span id="pr-goals-st"></span></div>
+                    <div class="text-xs"><strong>Long Term:</strong> <span id="pr-goals-lt"></span></div>
+                </div>
+            </div>
+
+            <div>
+                <h4 class="col-header">Character History</h4>
+                <div id="pr-history" class="text-xs whitespace-pre-wrap text-justify"></div>
             </div>
         </div>
     </div>
