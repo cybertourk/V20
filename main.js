@@ -71,6 +71,80 @@ window.handleLoadClick = FBManager.handleLoadClick;
 window.performSave = FBManager.performSave;
 window.deleteCharacter = FBManager.deleteCharacter;
 
+// --- LOCAL IMPORT / EXPORT HANDLERS ---
+
+function handleExport() {
+    if (!window.state) return;
+
+    // Ensure filename in meta is synced with text field name if available
+    if(window.state.textFields && window.state.textFields['c-name']) {
+        if(!window.state.meta) window.state.meta = {};
+        window.state.meta.filename = window.state.textFields['c-name'];
+    }
+
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(window.state, null, 2));
+    const downloadAnchorNode = document.createElement('a');
+    downloadAnchorNode.setAttribute("href", dataStr);
+    
+    // Sanitize filename
+    let rawName = window.state.textFields?.['c-name'] || "v20-character";
+    rawName = rawName.replace(/[^a-z0-9\s-_]/gi, '').trim() || "v20-character";
+    
+    downloadAnchorNode.setAttribute("download", rawName + ".json");
+    document.body.appendChild(downloadAnchorNode);
+    downloadAnchorNode.click();
+    downloadAnchorNode.remove();
+}
+
+function handleImport(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const json = JSON.parse(e.target.result);
+            
+            // Basic structure validation
+            if (!json || typeof json !== 'object') throw new Error("Invalid JSON");
+
+            // Confirm overwrite
+            if(!confirm(`Import character from "${file.name}"? Unsaved changes will be lost.`)) {
+                event.target.value = ''; // Reset input
+                return;
+            }
+
+            window.state = json;
+
+            // Legacy Data Patches / Safety Checks (Mirrors Firebase Load logic)
+            if(!window.state.meta) window.state.meta = { filename: file.name.replace('.json',''), folder: "" };
+            if(!window.state.specialties) window.state.specialties = {}; 
+            if (!window.state.furthestPhase) window.state.furthestPhase = 1;
+            if (window.state.status && window.state.status.tempWillpower === undefined) {
+                window.state.status.tempWillpower = window.state.status.willpower || 5;
+            }
+            if (window.state.status && (window.state.status.health_states === undefined || !Array.isArray(window.state.status.health_states))) {
+                const oldDamage = window.state.status.health || 0;
+                window.state.status.health_states = [0,0,0,0,0,0,0];
+                for(let i=0; i<oldDamage && i<7; i++) {
+                    window.state.status.health_states[i] = 2; 
+                }
+            }
+
+            window.fullRefresh();
+            window.showNotification("Character Imported");
+
+        } catch (err) {
+            console.error(err);
+            window.showNotification("Error: Invalid Character File");
+        }
+        // Reset input so same file can be selected again
+        event.target.value = '';
+    };
+    reader.readAsText(file);
+}
+
+
 // --- CRITICAL FIX: FULL UI REFRESH FUNCTION ---
 window.fullRefresh = function() {
     try {
@@ -314,6 +388,20 @@ function initUI() {
         const topPlayBtn = document.getElementById('play-mode-btn');
         if(topPlayBtn) topPlayBtn.onclick = window.togglePlayMode;
         
+        // --- LOCAL FILE HANDLERS (Export/Import/Print) ---
+        const exportBtn = document.getElementById('export-btn');
+        if(exportBtn) exportBtn.onclick = handleExport;
+
+        const importTrigger = document.getElementById('import-trigger');
+        const importInput = document.getElementById('import-input');
+        if(importTrigger && importInput) {
+            importTrigger.onclick = () => importInput.click();
+            importInput.onchange = handleImport;
+        }
+
+        const printBtn = document.getElementById('print-btn');
+        if(printBtn) printBtn.onclick = () => window.print();
+
         // --- DELEGATED TO UI-RENDERER ---
         // We use the window.toggle* functions defined in ui-renderer.js
         // DO NOT REDEFINE THEM HERE
