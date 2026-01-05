@@ -493,7 +493,7 @@ body.xp-mode #top-xp-counter { display: flex !important; }
     /* Hide ALL screen UI */
     #loading-overlay, #main-menubar, #sheet-nav, #notification, #dice-tray, 
     #freebie-sidebar, #xp-sidebar, #walkthrough-guide, #sheet-content,
-    .modal-overlay, #auth-modal, #save-modal, #load-modal {
+    .modal-overlay, #auth-modal, #save-modal, #load-modal, #dice-toggle-btn {
         display: none !important;
     }
 
