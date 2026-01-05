@@ -49,6 +49,7 @@ export function hydrateInputs() {
         const el = document.getElementById(id); 
         if (el) el.value = val; 
     });
+    renderPrintSheet(); // Initial print render
 }
 
 export function renderSocialProfile() {
@@ -70,7 +71,10 @@ export function renderSocialProfile() {
                 `;
                 list.appendChild(box);
                 const ta = box.querySelector('textarea');
-                ta.onblur = (e) => { window.state.textFields[safeId] = e.target.value; };
+                ta.onblur = (e) => { 
+                    window.state.textFields[safeId] = e.target.value; 
+                    renderPrintSheet(); 
+                };
             }
         });
     }
@@ -165,6 +169,7 @@ export function setupInventoryListeners() {
         document.getElementById('inv-name').value = "";
         baseSelect.value = "";
         renderInventoryList();
+        renderPrintSheet();
         window.showNotification("Item Added");
     };
 }
@@ -201,6 +206,7 @@ export function renderInventoryList() {
         else { if (item.status === 'carried') listCarried.appendChild(d); else listOwned.appendChild(d); }
     });
     window.updatePools();
+    renderPrintSheet();
 }
 
 window.removeInventory = (idx) => { window.state.inventory.splice(idx, 1); renderInventoryList(); };
@@ -233,6 +239,7 @@ window.handleBoxClick = function(type, val, element) {
         if(element) element.dataset.state = s; 
     }
     window.updatePools();
+    renderPrintSheet(); // Update print health/boxes
 };
 
 window.clearPool = function() {
@@ -717,7 +724,7 @@ export function refreshTraitRow(label, type, targetEl) {
     if(showSpecialty && (!window.state.isPlayMode || (window.state.isPlayMode && window.state.specialties[label]))) {
         const input = rowDiv.querySelector('input');
         if(input) {
-            input.onblur = (e) => { window.state.specialties[label] = e.target.value; };
+            input.onblur = (e) => { window.state.specialties[label] = e.target.value; renderPrintSheet(); };
             if (warningMsg) { input.onfocus = () => window.showNotification(warningMsg); }
             input.disabled = window.state.isPlayMode;
         }
@@ -810,6 +817,7 @@ export function setDots(name, type, val, min, max = 5) {
 
             window.showNotification(`Purchased ${name} ${val} (${cost} XP)`);
             window.updatePools(); // Refresh UI including sidebar
+            renderPrintSheet();
             
             // Refocus dots (visual refresh is handled by updatePools)
         }
@@ -834,7 +842,9 @@ export function setDots(name, type, val, min, max = 5) {
         // NOTE: In standard logic, we check cost limit *before* applying.
         // But since freebies can go negative if ST allows, we apply then check.
         // Calculating cost happens in updatePools.
-        window.updatePools(); return;
+        window.updatePools(); 
+        renderPrintSheet();
+        return;
     }
 
     const currentVal = window.state.dots[type][name] || min;
@@ -915,6 +925,7 @@ export function setDots(name, type, val, min, max = 5) {
     }
     window.updatePools();
     if(type === 'back') renderSocialProfile();
+    renderPrintSheet();
 }
 window.setDots = setDots;
 
@@ -985,7 +996,7 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                  if (SPECIALTY_EXAMPLES[name]) optionsHTML = SPECIALTY_EXAMPLES[name].map(s => `<option value="${s}">`).join('');
                  specWrapper.innerHTML = `<input type="text" list="${listId}" class="specialty-input w-full text-[10px] italic bg-transparent border-b border-gray-700 text-[#d4af37] text-center" placeholder="Specialty..." value="${specVal}"><datalist id="${listId}">${optionsHTML}</datalist>`;
                  const inp = specWrapper.querySelector('input');
-                 inp.onblur = (e) => { window.state.specialties[name] = e.target.value; };
+                 inp.onblur = (e) => { window.state.specialties[name] = e.target.value; renderPrintSheet(); };
                  inp.disabled = window.state.isPlayMode;
              }
         }
@@ -1076,10 +1087,11 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                 }
             }
             window.updatePools();
+            renderPrintSheet();
         };
         
         if (isAbil) inputField.onblur = (e) => onUpdate(e.target.value); else inputField.onchange = (e) => onUpdate(e.target.value);
-        removeBtn.onclick = () => { if (curName) { delete window.state.dots[type][curName]; if (window.state.customAbilityCategories && window.state.customAbilityCategories[curName]) delete window.state.customAbilityCategories[curName]; } row.remove(); window.updatePools(); if(type==='back') renderSocialProfile(); };
+        removeBtn.onclick = () => { if (curName) { delete window.state.dots[type][curName]; if (window.state.customAbilityCategories && window.state.customAbilityCategories[curName]) delete window.state.customAbilityCategories[curName]; } row.remove(); window.updatePools(); if(type==='back') renderSocialProfile(); renderPrintSheet(); };
         
         dotCont.onclick = (e) => { 
             if (!curName || !e.target.dataset.v) return; 
@@ -1144,6 +1156,7 @@ export function renderDynamicTraitRow(containerId, type, list) {
             });
             if (type === 'Merit') window.state.merits = newState; else window.state.flaws = newState;
             window.updatePools();
+            renderPrintSheet();
         };
         
         selectEl.addEventListener('change', () => {
@@ -1178,6 +1191,7 @@ export function renderBloodBondRow() {
         window.state.bloodBonds = Array.from(cont.querySelectorAll('.advantage-row')).map(r => ({ type: r.querySelector('select').value, name: r.querySelector('input[type="text"]').value, rating: r.querySelector('input[type="number"]').value })).filter(b => b.name);
         if (cont.lastElementChild === row && nI.value !== "") renderBloodBondRow();
         window.updatePools(); 
+        renderPrintSheet();
     };
     typeSel.onchange = onUpd; nI.onblur = onUpd; rI.onblur = onUpd; del.onclick = () => { row.remove(); onUpd(); };
     cont.appendChild(row);
@@ -1189,7 +1203,7 @@ export function renderDerangementsList() {
     cont.innerHTML = '';
     window.state.derangements.forEach((d, idx) => {
         const row = document.createElement('div'); row.className = "flex justify-between items-center text-xs text-white border-b border-[#333] py-1";
-        row.innerHTML = `<span>${d}</span><span class="remove-btn text-red-500" onclick="window.state.derangements.splice(${idx}, 1); renderDerangementsList(); window.updatePools();">&times;</span>`;
+        row.innerHTML = `<span>${d}</span><span class="remove-btn text-red-500" onclick="window.state.derangements.splice(${idx}, 1); renderDerangementsList(); window.updatePools(); renderPrintSheet();">&times;</span>`;
         cont.appendChild(row);
     });
     const addRow = document.createElement('div'); addRow.className = "flex gap-2 mt-2";
@@ -1200,7 +1214,7 @@ export function renderDerangementsList() {
     sel.onchange = () => { if (sel.value === 'Custom') { sel.classList.add('hidden'); inp.classList.remove('hidden'); inp.focus(); } };
     btn.onclick = () => {
         let val = sel.value === 'Custom' ? inp.value : sel.value;
-        if (val && val !== 'Custom') { window.state.derangements.push(val); renderDerangementsList(); window.updatePools(); }
+        if (val && val !== 'Custom') { window.state.derangements.push(val); renderDerangementsList(); window.updatePools(); renderPrintSheet(); }
     };
 }
 window.renderDerangementsList = renderDerangementsList;
@@ -1215,6 +1229,7 @@ export function renderDynamicHavenRow() {
         window.state.havens = Array.from(cont.querySelectorAll('.advantage-row')).map(r => ({ name: r.querySelectorAll('input')[0].value, loc: r.querySelectorAll('input')[1].value, desc: r.querySelector('textarea').value })).filter(h => h.name || h.loc);
         if (cont.lastElementChild === row && nameIn.value !== "") renderDynamicHavenRow();
         window.updatePools(); 
+        renderPrintSheet();
     };
     [nameIn, locIn, descIn].forEach(el => el.onblur = onUpd); del.onclick = () => { row.remove(); onUpd(); };
     cont.appendChild(row);
@@ -1349,6 +1364,7 @@ export function updateWalkthrough() {
              }
          }
     }
+    renderPrintSheet();
 }
 window.updateWalkthrough = updateWalkthrough;
 
@@ -1704,3 +1720,198 @@ window.renderBloodBondRow = renderBloodBondRow;
 window.renderDerangementsList = renderDerangementsList;
 window.renderDynamicHavenRow = renderDynamicHavenRow;
 window.updateWalkthrough = updateWalkthrough;
+
+// --- PRINT SHEET RENDERER ---
+
+export function renderPrintSheet() {
+    if (!window.state) return;
+
+    // 1. Header Fields
+    const map = {
+        'c-name': 'pr-name', 'c-nature': 'pr-nature', 'c-clan': 'pr-clan',
+        'c-player': 'pr-player', 'c-demeanor': 'pr-demeanor', 'c-gen': 'pr-gen',
+        'c-chronicle': 'pr-chronicle', 'c-concept': 'pr-concept', 'c-sire': 'pr-sire'
+    };
+    for (const [src, dest] of Object.entries(map)) {
+        const val = window.state.textFields[src] || "";
+        const el = document.getElementById(dest);
+        if (el) el.innerText = val;
+    }
+
+    // 2. Attributes
+    ['Physical', 'Social', 'Mental'].forEach(cat => {
+        let destId = "";
+        if(cat === 'Physical') destId = 'pr-attr-phys';
+        if(cat === 'Social') destId = 'pr-attr-soc';
+        if(cat === 'Mental') destId = 'pr-attr-men';
+        
+        const container = document.getElementById(destId);
+        if (container) {
+            // Preserve Header (h4), clear rows
+            const header = container.querySelector('h4');
+            container.innerHTML = '';
+            if(header) container.appendChild(header);
+
+            ATTRIBUTES[cat].forEach(attr => {
+                const val = window.state.dots.attr[attr] || 1;
+                const row = document.createElement('div');
+                row.className = "flex justify-between border-b border-black text-xs mb-1";
+                row.innerHTML = `<span class="font-bold uppercase">${attr}</span><span>${renderDots(val, 5)}</span>`; 
+                container.appendChild(row);
+            });
+        }
+    });
+
+    // 3. Abilities
+    ['Talents', 'Skills', 'Knowledges'].forEach(cat => {
+        let destId = "";
+        if(cat === 'Talents') destId = 'pr-abil-tal';
+        if(cat === 'Skills') destId = 'pr-abil-ski';
+        if(cat === 'Knowledges') destId = 'pr-abil-kno';
+
+        const container = document.getElementById(destId);
+        if (container) {
+            const header = container.querySelector('h4');
+            container.innerHTML = '';
+            if(header) container.appendChild(header);
+
+            ABILITIES[cat].forEach(abil => {
+                const val = window.state.dots.abil[abil] || 0;
+                const row = document.createElement('div');
+                row.className = "flex justify-between border-b border-black text-xs mb-1";
+                row.innerHTML = `<span class="font-bold uppercase">${abil}</span><span>${renderDots(val, 5)}</span>`;
+                container.appendChild(row);
+            });
+            
+            // Custom Abilities
+            if(window.state.customAbilityCategories) {
+                Object.entries(window.state.customAbilityCategories).forEach(([name, c]) => {
+                    if (c === cat) {
+                        const val = window.state.dots.abil[name] || 0;
+                        const row = document.createElement('div');
+                        row.className = "flex justify-between border-b border-black text-xs mb-1";
+                        row.innerHTML = `<span class="font-bold uppercase text-gray-700">${name}</span><span>${renderDots(val, 5)}</span>`;
+                        container.appendChild(row);
+                    }
+                });
+            }
+        }
+    });
+
+    // 4. Advantages (Disciplines, Backgrounds)
+    const renderAdvSection = (src, destId, max = 5) => {
+        const container = document.getElementById(destId);
+        if (container) {
+            container.innerHTML = '';
+            Object.entries(src).forEach(([name, val]) => {
+                if(val > 0) { // Only print dots > 0
+                    const row = document.createElement('div');
+                    row.className = "flex justify-between border-b border-black text-xs mb-1";
+                    row.innerHTML = `<span class="font-bold uppercase">${name}</span><span>${renderDots(val, max)}</span>`;
+                    container.appendChild(row);
+                }
+            });
+        }
+    };
+    renderAdvSection(window.state.dots.disc, 'pr-disc-list');
+    renderAdvSection(window.state.dots.back, 'pr-back-list');
+
+    // Virtues
+    const vCont = document.getElementById('pr-virt-list');
+    if(vCont) {
+        vCont.innerHTML = '';
+        VIRTUES.forEach(v => {
+            const val = window.state.dots.virt[v] || 1;
+            const row = document.createElement('div');
+            row.className = "flex justify-between border-b border-black text-xs mb-1";
+            row.innerHTML = `<span class="font-bold uppercase">${v}</span><span>${renderDots(val, 5)}</span>`;
+            vCont.appendChild(row);
+        });
+    }
+
+    // 5. Merits / Flaws / Other Traits
+    const mfCont = document.getElementById('pr-merits-flaws');
+    if(mfCont) {
+        mfCont.innerHTML = '';
+        const all = [...(window.state.merits||[]).map(m => `${m.name} (${m.val} pt Merit)`), 
+                     ...(window.state.flaws||[]).map(f => `${f.name} (${f.val} pt Flaw)`)];
+        all.forEach(txt => {
+            const div = document.createElement('div');
+            div.innerText = txt;
+            mfCont.appendChild(div);
+        });
+    }
+    
+    const otCont = document.getElementById('pr-other-traits');
+    if(otCont) {
+        otCont.innerHTML = '';
+        Object.entries(window.state.dots.other || {}).forEach(([k,v]) => {
+            if(v > 0) {
+                 const row = document.createElement('div');
+                 row.className = "flex justify-between border-b border-black text-xs mb-1";
+                 row.innerHTML = `<span>${k}</span><span>${renderDots(v,5)}</span>`;
+                 otCont.appendChild(row);
+            }
+        });
+    }
+
+    // 6. Humanity / Willpower / Blood
+    const hCont = document.getElementById('pr-humanity');
+    const bName = document.getElementById('pr-bearing');
+    if(hCont) {
+        // Calculate humanity if not set, or use stored
+        const baseH = (window.state.dots.virt?.Conscience || 1) + (window.state.dots.virt?.["Self-Control"] || 1);
+        const currentH = window.state.status.humanity !== undefined ? window.state.status.humanity : baseH;
+        hCont.innerHTML = renderDots(currentH, 10);
+    }
+    if(bName) bName.innerText = `${window.state.textFields['c-bearing-name']||''} (${window.state.textFields['c-bearing-value']||''})`;
+
+    const wDots = document.getElementById('pr-willpower-dots');
+    const wBox = document.getElementById('pr-willpower-boxes');
+    if(wDots) {
+        const baseW = window.state.dots.virt?.Courage || 1;
+        const currentW = window.state.status.willpower !== undefined ? window.state.status.willpower : baseW;
+        wDots.innerHTML = renderDots(currentW, 10);
+    }
+    if(wBox) {
+        let html = '';
+        // Temp willpower boxes
+        const temp = window.state.status.tempWillpower !== undefined ? window.state.status.tempWillpower : 5;
+        for(let i=0; i<10; i++) {
+             // Print: Empty square, user fills it in. Or mark used? 
+             // Usually print sheets have empty squares for temp.
+             // Let's mark 'checked' for available temp WP, and empty for spent?
+             // Or simple boxes. Let's do simple boxes.
+             html += `<span class="box ${i < temp ? 'checked' : ''}"></span>`;
+        }
+        wBox.innerHTML = html;
+    }
+
+    const bBox = document.getElementById('pr-blood-boxes');
+    if(bBox) {
+        // Max blood based on Gen
+        const gen = 13 - (window.state.dots.back['Generation']||0);
+        const max = gen <= 13 ? (gen === 13 ? 10 : (gen === 12 ? 11 : 10 + (13-gen)*1)) : 10; // Simple approximation or use Rules
+        // Actually utilize v20-rules if needed, but simple loop fine for now
+        let html = '';
+        const currentB = window.state.status.blood || 0;
+        for(let i=0; i<20; i++) { // Max 20 boxes on sheet usually
+             html += `<span class="box ${i < currentB ? 'checked' : ''}"></span>`;
+        }
+        bBox.innerHTML = html;
+    }
+
+    // 7. Health
+    const healthCont = document.getElementById('pr-health');
+    if(healthCont) {
+        healthCont.innerHTML = '';
+        const levels = ['Bruised', 'Hurt -1', 'Injured -1', 'Wounded -2', 'Mauled -2', 'Crippled -5', 'Incapacitated'];
+        levels.forEach((l, i) => {
+            const state = (window.state.status.health_states && window.state.status.health_states[i]) || 0;
+            const row = document.createElement('div');
+            row.className = "flex justify-between items-center border-b border-black";
+            row.innerHTML = `<span>${l}</span><span class="box" data-state="${state}"></span>`;
+            healthCont.appendChild(row);
+        });
+    }
+}
