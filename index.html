@@ -7,6 +7,16 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
     <link rel="stylesheet" href="styles.css">
+    <style>
+        /* Inline Print Overrides for Maximum Tightness */
+        @media print {
+            .section-header { margin-bottom: 2px !important; font-size: 10pt !important; border-bottom-width: 1px !important; }
+            .col-header { margin-bottom: 1px !important; font-size: 9pt !important; }
+            .print-row { margin-bottom: 1px !important; font-size: 8pt !important; }
+            .box { width: 10px !important; height: 10px !important; }
+            .dot { width: 8px !important; height: 8px !important; }
+        }
+    </style>
 </head>
 <body class="p-2 md:p-8 bg-black text-white font-serif">
 
@@ -616,10 +626,10 @@
         </div>
     </div>
 
-    <div id="print-sheet" class="hidden print:block bg-white text-black p-4 max-w-[210mm] mx-auto">
+    <div id="print-sheet" class="hidden print:block bg-white text-black p-2 max-w-[210mm] mx-auto">
         <div class="print-header">
-            <h1 class="font-cinzel text-2xl text-center font-bold uppercase mb-4 tracking-widest">Vampire: The Masquerade</h1>
-            <div class="grid grid-cols-3 gap-x-8 gap-y-2 text-xs uppercase font-bold mb-6">
+            <h1 class="font-cinzel text-xl text-center font-bold uppercase mb-1 tracking-wide">Vampire: The Masquerade</h1>
+            <div class="grid grid-cols-3 gap-x-4 gap-y-1 text-[10px] uppercase font-bold mb-2">
                 <!-- Header Inputs populated by JS -->
                 <div class="border-b border-black flex justify-between"><span>Name:</span><span id="pr-name"></span></div>
                 <div class="border-b border-black flex justify-between"><span>Nature:</span><span id="pr-nature"></span></div>
@@ -633,7 +643,7 @@
             </div>
         </div>
     
-        <div class="print-section mb-2">
+        <div class="print-section mb-1">
             <h3 class="section-header">Attributes</h3>
             <div class="grid grid-cols-3 gap-4">
                 <div id="pr-attr-phys">
@@ -649,7 +659,7 @@
             </div>
         </div>
     
-        <div class="print-section mb-2">
+        <div class="print-section mb-1">
             <h3 class="section-header">Abilities</h3>
             <div class="grid grid-cols-3 gap-4">
                 <div id="pr-abil-tal">
@@ -664,7 +674,7 @@
             </div>
         </div>
     
-        <div class="print-section mb-2">
+        <div class="print-section mb-1">
             <h3 class="section-header">Advantages</h3>
             <div class="grid grid-cols-3 gap-4">
                 <div>
@@ -682,18 +692,18 @@
             </div>
         </div>
     
-        <div class="print-section mb-4">
+        <div class="print-section mb-0">
             <div class="grid grid-cols-3 gap-6"> 
                 
                 <!-- Column 1: Merits & Flaws / Other Traits -->
                 <div class="space-y-4">
                     <div>
                         <h3 class="section-header">Merits & Flaws</h3>
-                        <div id="pr-merits-flaws" class="text-xs space-y-1"></div>
+                        <div id="pr-merits-flaws" class="text-[9px] space-y-1"></div>
                     </div>
                      <div>
                         <h3 class="section-header">Other Traits</h3>
-                        <div id="pr-other-traits" class="text-xs space-y-1"></div>
+                        <div id="pr-other-traits" class="text-[9px] space-y-1"></div>
                     </div>
                 </div>
 
@@ -701,8 +711,8 @@
                 <div class="space-y-4">
                     <div>
                         <h3 class="section-header">Humanity / Path</h3>
-                        <div id="pr-humanity" class="flex justify-center py-2 border-b border-black"></div>
-                        <div class="text-center text-xs mt-1 font-bold">Bearing: <span id="pr-bearing"></span></div>
+                        <div id="pr-humanity" class="flex justify-center py-1 border-b border-black"></div>
+                        <div class="text-center text-[10px] mt-1 font-bold">Bearing: <span id="pr-bearing"></span></div>
                     </div>
                     <div>
                         <h3 class="section-header">Willpower</h3>
@@ -711,14 +721,14 @@
                     </div>
                     <div>
                         <h3 class="section-header">Blood Pool</h3>
-                        <div id="pr-blood-boxes" class="grid grid-cols-10 gap-1 justify-center mt-2 px-2"></div>
+                        <div id="pr-blood-boxes" class="grid grid-cols-10 gap-1 justify-center mt-1 px-2"></div>
                     </div>
                 </div>
 
                 <!-- Column 3: Health -->
                 <div>
                     <h3 class="section-header">Health</h3>
-                    <div id="pr-health" class="text-[10px] space-y-1"></div>
+                    <div id="pr-health" class="text-[9px] space-y-1"></div>
                 </div>
 
             </div>
@@ -726,76 +736,76 @@
 
         <div class="print-page-break" style="page-break-before: always;"></div>
 
-        <div class="print-section mb-6">
+        <div class="print-section mb-4">
             <h3 class="section-header">Combat & Equipment</h3>
             <div class="grid grid-cols-2 gap-8">
                 <div>
                     <h4 class="col-header">Weapons & Attacks</h4>
-                    <table class="w-full text-xs text-left mb-4">
+                    <table class="w-full text-[10px] text-left mb-2">
                         <thead><tr class="border-b border-black"><th class="py-1">Name</th><th>Diff</th><th>Dmg</th></tr></thead>
                         <tbody id="pr-combat-table"></tbody>
                     </table>
                     
                     <h4 class="col-header">Armor</h4>
-                    <div id="pr-armor-info" class="text-xs mb-4"></div>
+                    <div id="pr-armor-info" class="text-[10px] mb-2"></div>
                 </div>
                 <div>
                     <h4 class="col-header">Gear (Carried)</h4>
-                    <div id="pr-gear-carried" class="text-xs mb-4"></div>
+                    <div id="pr-gear-carried" class="text-[10px] mb-2"></div>
                     
                     <h4 class="col-header">Equipment (Owned)</h4>
-                    <div id="pr-gear-owned" class="text-xs mb-4"></div>
+                    <div id="pr-gear-owned" class="text-[10px] mb-2"></div>
                     
                     <h4 class="col-header">Vehicles</h4>
-                    <div id="pr-vehicles" class="text-xs"></div>
+                    <div id="pr-vehicles" class="text-[10px]"></div>
                 </div>
             </div>
         </div>
 
-        <div class="print-section mb-6">
+        <div class="print-section mb-4">
             <h3 class="section-header">Expanded Backgrounds & Havens</h3>
             <div class="grid grid-cols-2 gap-8">
                 <div>
                     <h4 class="col-header">Background Details</h4>
-                    <div id="pr-background-details" class="text-xs space-y-2"></div>
+                    <div id="pr-background-details" class="text-[10px] space-y-2"></div>
                 </div>
                 <div>
                     <h4 class="col-header">Havens</h4>
-                    <div id="pr-havens" class="text-xs space-y-2"></div>
+                    <div id="pr-havens" class="text-[10px] space-y-2"></div>
                     
                     <h4 class="col-header mt-4">Blood Bonds / Vinculi</h4>
-                    <div id="pr-blood-bonds" class="text-xs space-y-1"></div>
+                    <div id="pr-blood-bonds" class="text-[10px] space-y-1"></div>
                 </div>
             </div>
         </div>
 
         <div class="print-page-break" style="page-break-before: always;"></div>
 
-        <div class="print-section mb-6">
+        <div class="print-section mb-4">
             <h3 class="section-header">Biography & Psychology</h3>
             <div class="grid grid-cols-2 gap-8 mb-4">
                 <div>
                     <h4 class="col-header">Appearance / Description</h4>
-                    <div id="pr-appearance" class="text-xs whitespace-pre-wrap"></div>
+                    <div id="pr-appearance" class="text-[10px] whitespace-pre-wrap"></div>
                 </div>
                 <div>
                     <h4 class="col-header">Derangements & Languages</h4>
-                    <div class="mb-2"><strong>Derangements:</strong> <span id="pr-derangements"></span></div>
-                    <div><strong>Languages:</strong> <span id="pr-languages"></span></div>
+                    <div class="mb-2 text-[10px]"><strong>Derangements:</strong> <span id="pr-derangements"></span></div>
+                    <div class="text-[10px]"><strong>Languages:</strong> <span id="pr-languages"></span></div>
                 </div>
             </div>
             
             <div class="mb-4">
                 <h4 class="col-header">Goals</h4>
                 <div class="grid grid-cols-2 gap-8">
-                    <div class="text-xs"><strong>Short Term:</strong> <span id="pr-goals-st"></span></div>
-                    <div class="text-xs"><strong>Long Term:</strong> <span id="pr-goals-lt"></span></div>
+                    <div class="text-[10px]"><strong>Short Term:</strong> <span id="pr-goals-st"></span></div>
+                    <div class="text-[10px]"><strong>Long Term:</strong> <span id="pr-goals-lt"></span></div>
                 </div>
             </div>
 
             <div>
                 <h4 class="col-header">Character History</h4>
-                <div id="pr-history" class="text-xs whitespace-pre-wrap text-justify"></div>
+                <div id="pr-history" class="text-[10px] whitespace-pre-wrap text-justify"></div>
             </div>
         </div>
     </div>
