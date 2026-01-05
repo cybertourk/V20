@@ -494,7 +494,7 @@ window.updatePools = function() {
 
          // 6. Humanity (1/dot)
          // Base is Sum of Conscience + Self-Control
-         const hDiff = Math.max(0, cH - bH);
+         const hDiff = Math.max(0, curH - bH); // FIXED: cH -> curH
          const hCost = hDiff * 1;
          setSafeText('sb-human', hCost);
          totalFreebieCost += hCost;
@@ -502,7 +502,7 @@ window.updatePools = function() {
 
          // 7. Willpower (1/dot)
          // Base is Courage
-         const wDiff = Math.max(0, cW - bW);
+         const wDiff = Math.max(0, curW - bW); // FIXED: cW -> curW
          const wCost = wDiff * 1;
          setSafeText('sb-will', wCost);
          totalFreebieCost += wCost;
