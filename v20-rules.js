@@ -216,54 +216,53 @@ export function getPool(state, attrName, abilName) {
  * @returns {number} The cost to buy the NEXT dot.
  */
 export function getXpCost(currentRating, type, isClan = false, isCaitiff = false) {
-    // Note: currentRating is what you HAVE. We are buying currentRating + 1.
-    // The multiplier applies to the NEW rating (currentRating + 1) for most things,
-    // OR "Current Rating" for Willpower.
-    
-    const nextDot = currentRating + 1;
+    // V20 Core Rulebook p.124: "take the rating the character currently has and multiply"
+    // We strictly follow the "Current Rating" multiplier logic.
 
     switch(type) {
         case 'attr': 
-            // "Attribute... current rating x 4" -> Standard V20 is New Rating x 4.
-            return nextDot * 4; 
+            // "Attribute... current rating x 4"
+            // Example: Str 2 to 3. Current 2. Cost 2 * 4 = 8.
+            return currentRating * 4; 
             
         case 'abil': 
             // "New Ability... 3"
             if (currentRating === 0) return 3;
-            // "Ability... current rating x 2" -> Standard V20 is New Rating x 2.
-            return nextDot * 2;
+            // "Ability... current rating x 2"
+            // Example: Brawl 1 to 2. Current 1. Cost 1 * 2 = 2.
+            return currentRating * 2;
             
         case 'disc': 
             // "New Discipline... 10"
             if (currentRating === 0) return 10;
             
             // "Caitiff... current rating x 6"
-            if (isCaitiff) return nextDot * 6;
+            if (isCaitiff) return currentRating * 6;
 
-            // "Clan Discipline... current rating x 5" -> Standard V20 is New Rating x 5
-            if (isClan) return nextDot * 5;
+            // "Clan Discipline... current rating x 5"
+            if (isClan) return currentRating * 5;
             
             // "Other Discipline... current rating x 7"
-            return nextDot * 7;
+            return currentRating * 7;
             
         case 'virt': 
-            // "Virtue... current rating x 2" -> Standard V20 is New Rating x 2
-            return nextDot * 2;
+            // "Virtue... current rating x 2"
+            return currentRating * 2;
             
         case 'humanity': 
-            // "Humanity... current rating x 2" -> Standard V20 is New Rating x 2
-            return nextDot * 2;
+            // "Humanity or Path... current rating x 2"
+            return currentRating * 2;
             
         case 'willpower': 
-            // "Willpower... current rating" -> Usually implies the cost is the number you HAVE.
-            // Example: 4 to 5 costs 4 XP.
+            // "Willpower... current rating"
+            // Example: Willpower 4 to 5. Current 4. Cost 4.
             return currentRating;
             
         case 'path':
             // "New Path... 7"
             if (currentRating === 0) return 7;
-            // "Secondary Path... current rating x 4" -> Standard V20 is New Rating x 4
-            return nextDot * 4;
+            // "Secondary Path... current rating x 4"
+            return currentRating * 4;
 
         default: return 0;
     }
