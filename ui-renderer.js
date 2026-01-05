@@ -1914,4 +1914,94 @@ export function renderPrintSheet() {
             healthCont.appendChild(row);
         });
     }
+
+    // 8. Combat & Inventory
+    const combatTbl = document.getElementById('pr-combat-table');
+    if (combatTbl) {
+        combatTbl.innerHTML = '';
+        // Add Maneuvers (Generic)
+        const manuevers = [
+            {n: 'Bite', d: 5, dmg: 'Str+1(A)'}, {n: 'Clinch', d: 6, dmg: 'Str(B)'}, {n: 'Grapple', d: 6, dmg: 'Str(B)'},
+            {n: 'Kick', d: 7, dmg: 'Str+1(B)'}, {n: 'Punch', d: 6, dmg: 'Str(B)'}, {n: 'Tackle', d: 7, dmg: 'Str+1(B)'}
+        ];
+        manuevers.forEach(m => {
+            combatTbl.innerHTML += `<tr><td class="py-1 border-b border-gray-300 font-bold">${m.n}</td><td class="border-b border-gray-300">${m.d}</td><td class="border-b border-gray-300">${m.dmg}</td></tr>`;
+        });
+        
+        // Add Weapons from Inventory
+        if(window.state.inventory) {
+            window.state.inventory.filter(i => i.type === 'Weapon' && i.status === 'carried').forEach(w => {
+                const name = w.displayName || w.name;
+                const stats = w.stats || {};
+                combatTbl.innerHTML += `<tr><td class="py-1 border-b border-gray-300 font-bold italic">${name}</td><td class="border-b border-gray-300">${stats.diff||6}</td><td class="border-b border-gray-300">${stats.dmg||'-'}</td></tr>`;
+            });
+        }
+    }
+
+    // Armor Info
+    const armorInfo = document.getElementById('pr-armor-info');
+    if (armorInfo && window.state.inventory) {
+        const armors = window.state.inventory.filter(i => i.type === 'Armor' && i.status === 'carried');
+        if (armors.length > 0) {
+            const names = armors.map(a => a.name).join(', ');
+            const rating = armors.reduce((a, b) => a + (parseInt(b.stats?.rating)||0), 0);
+            const penalty = armors.reduce((a, b) => a + (parseInt(b.stats?.penalty)||0), 0);
+            armorInfo.innerHTML = `<strong>Worn:</strong> ${names}<br><strong>Rating:</strong> ${rating} | <strong>Penalty:</strong> ${penalty}`;
+        } else {
+            armorInfo.innerHTML = "None";
+        }
+    }
+
+    // Gear Lists
+    const gearCarried = document.getElementById('pr-gear-carried');
+    const gearOwned = document.getElementById('pr-gear-owned');
+    const vehicles = document.getElementById('pr-vehicles');
+    
+    if (gearCarried) gearCarried.innerHTML = (window.state.inventory || []).filter(i => i.status === 'carried' && i.type !== 'Vehicle' && i.type !== 'Armor' && i.type !== 'Weapon').map(i => i.name).join(', ');
+    if (gearOwned) gearOwned.innerHTML = (window.state.inventory || []).filter(i => i.status === 'owned' && i.type !== 'Vehicle').map(i => i.name).join(', ');
+    if (vehicles) vehicles.innerHTML = (window.state.inventory || []).filter(i => i.type === 'Vehicle').map(i => `${i.name} (Safe:${i.stats?.safe} Max:${i.stats?.max})`).join('<br>');
+
+    // 9. Expanded Backgrounds & Havens
+    const bgDetails = document.getElementById('pr-background-details');
+    if (bgDetails) {
+        bgDetails.innerHTML = '';
+        Object.keys(window.state.dots.back).forEach(bgName => {
+            if(window.state.dots.back[bgName] > 0) {
+                const safeId = 'desc-' + bgName.toLowerCase().replace(/[^a-z0-9]/g, '-');
+                const txt = window.state.textFields[safeId] || "";
+                if(txt) {
+                    bgDetails.innerHTML += `<div><strong>${bgName}:</strong> ${txt}</div>`;
+                }
+            }
+        });
+    }
+
+    const havens = document.getElementById('pr-havens');
+    if(havens && window.state.havens) {
+        havens.innerHTML = window.state.havens.map(h => `<div><strong>${h.name}</strong> (${h.loc}): ${h.desc}</div>`).join('');
+    }
+
+    const bonds = document.getElementById('pr-blood-bonds');
+    if(bonds && window.state.bloodBonds) {
+        bonds.innerHTML = window.state.bloodBonds.map(b => `<div><strong>${b.type}:</strong> ${b.name} (${b.rating})</div>`).join('');
+    }
+
+    // 10. Bio / Psychology
+    const appearance = document.getElementById('pr-appearance');
+    if(appearance) appearance.innerText = document.getElementById('bio-desc')?.value || "";
+
+    const derangements = document.getElementById('pr-derangements');
+    if(derangements && window.state.derangements) derangements.innerText = window.state.derangements.join(', ');
+
+    const langs = document.getElementById('pr-languages');
+    if(langs) langs.innerText = document.getElementById('bio-languages')?.value || "";
+
+    const gst = document.getElementById('pr-goals-st');
+    if(gst) gst.innerText = document.getElementById('bio-goals-st')?.value || "";
+
+    const glt = document.getElementById('pr-goals-lt');
+    if(glt) glt.innerText = document.getElementById('bio-goals-lt')?.value || "";
+
+    const hist = document.getElementById('pr-history');
+    if(hist) hist.innerText = document.getElementById('char-history')?.value || "";
 }
