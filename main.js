@@ -27,7 +27,8 @@ import {
     renderDynamicHavenRow, 
     renderInventoryList, 
     updateWalkthrough,
-    setDots 
+    setDots,
+    renderPrintSheet 
 } from "./ui-renderer.js"; 
 
 // --- ERROR HANDLER ---
@@ -144,6 +145,27 @@ function handleImport(event) {
     reader.readAsText(file);
 }
 
+// --- HELPER: SAFE INPUT LOCKING ---
+// Applies readonly to prevent autofill, but ensures it unlocks immediately on interaction
+function applySmartLock(input) {
+    // Only lock if empty and not already focused
+    if (!input.value && document.activeElement !== input) {
+        input.setAttribute('readonly', 'true');
+        // We use a specific attribute to know this is a smart-lock
+        input.setAttribute('data-smartlock', 'true');
+    }
+    
+    // Ensure the unlock listeners are attached (idempotent)
+    if (!input.dataset.hasLockListeners) {
+        const unlock = () => {
+            input.removeAttribute('readonly');
+        };
+        input.addEventListener('focus', unlock);
+        input.addEventListener('click', unlock);
+        input.addEventListener('input', unlock);
+        input.dataset.hasLockListeners = 'true';
+    }
+}
 
 // --- CRITICAL FIX: FULL UI REFRESH FUNCTION ---
 window.fullRefresh = function() {
@@ -212,18 +234,15 @@ window.fullRefresh = function() {
         
         // 8. UPDATE POOLS (Freebie / XP Log)
         if (window.updatePools) window.updatePools();
+        if (renderPrintSheet) renderPrintSheet();
 
-        // 9. AUTOFILL PREVENTER (Reinforced)
+        // 9. SMART AUTOFILL PROTECTION (FIXED)
         setTimeout(() => {
-            const inputs = document.querySelectorAll('#sheet-content input[type="text"], #sheet-content textarea');
+            const inputs = document.querySelectorAll('#sheet-content input[type="text"], #sheet-content textarea, #sheet-content input[type="number"]');
             inputs.forEach(input => {
-                // Keep the readonly hack active if value is empty to prevent late autofill
-                if (!input.value) {
-                    input.setAttribute('readonly', 'true');
-                    input.setAttribute('autocomplete', 'off');
-                }
+                applySmartLock(input);
             });
-        }, 500);
+        }, 200);
         
         // 10. UNLOCK FREEBIE BUTTON
         const freebieBtn = document.getElementById('toggle-freebie-btn');
@@ -323,13 +342,15 @@ function initUI() {
             otherT.appendChild(d2);
             const dr = d2.querySelector('.dot-row'); dr.innerHTML = renderDots(0, 5); 
             dr.onclick = (e) => { 
-                const n = document.getElementById(`ot-n-${i}`).value || `Other_${i}`; 
+                const nameInp = document.getElementById(`ot-n-${i}`);
+                const n = nameInp.value || `Other_${i}`; 
                 if(e.target.classList.contains('dot')) { 
                     let v = parseInt(e.target.dataset.v); 
                     const currentVal = window.state.dots.other[n] || 0; 
                     if (v === currentVal) v = v - 1; 
                     window.state.dots.other[n] = v; 
                     dr.innerHTML = renderDots(window.state.dots.other[n], 5);
+                    renderPrintSheet();
                 } 
             };
         }
@@ -373,9 +394,21 @@ function initUI() {
                     window.state.textFields[e.target.id] = e.target.value; 
                     // Special case for XP Total input to update sidebar
                     if (e.target.id === 'c-xp-total') window.updatePools();
+                    renderPrintSheet();
                 }
             }
         });
+
+        // Apply protection to initial inputs
+        setTimeout(() => {
+            const allInputs = document.querySelectorAll('input, textarea');
+            allInputs.forEach(input => {
+                if(!input.id.startsWith('auth-')) { 
+                    input.setAttribute('autocomplete', 'off');
+                    applySmartLock(input);
+                }
+            });
+        }, 100);
 
         const cmdNew = document.getElementById('cmd-new');
         if(cmdNew) cmdNew.onclick = window.handleNew;
