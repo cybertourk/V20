@@ -684,7 +684,9 @@
         </div>
     
         <div class="print-section mb-4">
-            <div class="grid grid-cols-2 gap-8">
+            <div class="grid grid-cols-3 gap-6"> 
+                
+                <!-- Column 1: Merits & Flaws / Other Traits -->
                 <div class="space-y-4">
                     <div>
                         <h3 class="section-header">Merits & Flaws</h3>
@@ -695,6 +697,8 @@
                         <div id="pr-other-traits" class="text-xs space-y-1"></div>
                     </div>
                 </div>
+
+                <!-- Column 2: Humanity / Willpower / Blood Pool -->
                 <div class="space-y-4">
                     <div>
                         <h3 class="section-header">Humanity / Path</h3>
@@ -706,17 +710,18 @@
                         <div id="pr-willpower-dots" class="flex justify-center py-1"></div>
                         <div id="pr-willpower-boxes" class="flex justify-center gap-1 py-1"></div>
                     </div>
-                    <div class="flex gap-4">
-                        <div class="flex-1">
-                            <h3 class="section-header">Blood Pool</h3>
-                            <div id="pr-blood-boxes" class="grid grid-cols-10 gap-1 justify-center mt-2 px-2"></div>
-                        </div>
-                        <div class="flex-1">
-                            <h3 class="section-header">Health</h3>
-                            <div id="pr-health" class="text-[10px] space-y-1"></div>
-                        </div>
+                    <div>
+                        <h3 class="section-header">Blood Pool</h3>
+                        <div id="pr-blood-boxes" class="grid grid-cols-10 gap-1 justify-center mt-2 px-2"></div>
                     </div>
                 </div>
+
+                <!-- Column 3: Health -->
+                <div>
+                    <h3 class="section-header">Health</h3>
+                    <div id="pr-health" class="text-[10px] space-y-1"></div>
+                </div>
+
             </div>
         </div>
 
