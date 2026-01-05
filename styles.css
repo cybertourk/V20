@@ -484,10 +484,98 @@ body.xp-mode #top-xp-counter { display: flex !important; }
     100% { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0); }
 }
 
+
+/* --- PRINT STYLES --- */
+
+.section-header, .col-header { display: none; } /* Hidden normally, shown in print */
+
 @media print {
-    body { background: white !important; color: black !important; padding: 0 !important; margin: 0 !important; }
-    #loading-overlay, nav, #main-menubar, #sheet-nav, #notification, button, #dice-tray, #freebie-sidebar, #xp-sidebar, #walkthrough-guide { display: none !important; }
-    .step-container { display: block !important; opacity: 1 !important; }
-    .sheet-section { border-color: #000 !important; background: none !important; color: black !important; }
-    .section-title { background: white !important; color: black !important; border-color: black !important; }
+    /* Hide ALL screen UI */
+    #loading-overlay, #main-menubar, #sheet-nav, #notification, #dice-tray, 
+    #freebie-sidebar, #xp-sidebar, #walkthrough-guide, #sheet-content,
+    .modal-overlay, #auth-modal, #save-modal, #load-modal {
+        display: none !important;
+    }
+
+    /* Reset Body */
+    body {
+        background: white !important;
+        background-image: none !important;
+        color: black !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        height: auto !important;
+        overflow: visible !important;
+        -webkit-print-color-adjust: exact;
+    }
+
+    /* Show Print Sheet */
+    #print-sheet {
+        display: block !important;
+        background: white !important;
+        color: black !important;
+        font-family: 'IM Fell English', serif;
+        width: 100%;
+        max-width: 100%;
+    }
+
+    /* Print Typography */
+    .font-cinzel { font-family: 'Cinzel', serif; color: black !important; }
+    
+    /* Section Headers */
+    .section-header {
+        display: block;
+        border-bottom: 2px solid black;
+        font-family: 'Cinzel', serif;
+        font-weight: bold;
+        text-transform: uppercase;
+        font-size: 14px;
+        margin-bottom: 8px;
+        letter-spacing: 0.1em;
+    }
+    
+    .col-header {
+        display: block;
+        border-bottom: 1px solid black;
+        font-weight: bold;
+        text-transform: uppercase;
+        font-size: 11px;
+        margin-bottom: 4px;
+        text-align: center;
+        color: #333;
+    }
+
+    /* Dots & Boxes for Print */
+    .dot {
+        border: 1px solid #000 !important;
+        background: white !important;
+        box-shadow: none !important;
+        width: 10px;
+        height: 10px;
+        print-color-adjust: exact;
+    }
+    .dot.filled {
+        background: #000 !important;
+        box-shadow: none !important;
+    }
+
+    .box {
+        border: 1px solid #000 !important;
+        color: black !important;
+        width: 12px;
+        height: 12px;
+    }
+    .box.checked {
+        background: #000 !important;
+        color: white !important;
+    }
+    
+    /* Health Squares */
+    .box[data-state="1"]::after { content: "/" !important; color: black !important; }
+    .box[data-state="2"]::after { content: "X" !important; color: black !important; }
+    .box[data-state="3"]::after { content: "*" !important; color: black !important; }
+    .box[data-state="3"] { background: #ddd !important; }
+    
+    /* Hide scrollbars etc */
+    ::-webkit-scrollbar { display: none; }
 }
