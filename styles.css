@@ -417,17 +417,20 @@ select option { background: #111; color: white; }
 
 .cost-row { 
     display: flex; 
-    justify-content: flex-start;
-    align-items: baseline; 
-    font-size: 0.75rem; 
-    padding: 4px 0; 
+    justify-content: space-between; /* Pushes items to edges */
+    align-items: center; /* Vertical alignment */
+    font-size: 0.65rem; /* Reduced font size for more space */
+    padding: 3px 0; 
     width: 100%;
-    gap: 1rem; 
+    gap: 0.25rem; /* Minimal gap */
 }
 .cost-row > span:first-child { 
-    flex-grow: 0; 
-    white-space: nowrap; 
+    flex-grow: 1; 
+    white-space: nowrap; /* Keep single line */
     color: #aaa; 
+    text-align: left;
+    overflow: hidden;
+    text-overflow: ellipsis; /* Handle very long labels gracefully */
 }
 .cost-row > span:first-child::after { content: none; }
 .cost-val { 
@@ -436,6 +439,7 @@ select option { background: #111; color: white; }
     background: rgba(10,10,10,0.95);
     z-index: 2;
     flex-shrink: 0;
+    text-align: right;
 }
 
 .dice-result { font-family: 'Cinzel', serif; font-size: 1.25rem; display: inline-block; margin: 4px; padding: 4px 10px; border: 1px solid #555; background: #111; font-weight: bold; }
