@@ -138,12 +138,12 @@
         <div id="xp-sb-toggle-btn" class="absolute right-[-24px] top-0 w-6 h-20 bg-purple-900 border border-purple-500 border-l-0 text-white text-[10px] font-bold flex items-center justify-center cursor-pointer [writing-mode:vertical-rl] [text-orientation:mixed] tracking-widest uppercase rounded-r shadow-md hover:bg-purple-800" onclick="window.toggleXpSidebarLedger()">Ledger</div>
         <h3 class="heading text-purple-400 text-sm border-b border-purple-500 pb-2 mb-4 text-center">Experience Ledger</h3>
         <div class="space-y-2 text-xs">
-            <div class="cost-row"><span class="text-gray-400">Attributes (Rating x4)</span><span id="sb-xp-attr" class="cost-val text-purple-400 font-bold bg-black/95 z-10 shrink-0">0</span></div>
-            <div class="cost-row"><span class="text-gray-400">Abilities (Rating x2 / New 3)</span><span id="sb-xp-abil" class="cost-val text-purple-400 font-bold bg-black/95 z-10 shrink-0">0</span></div>
-            <div class="cost-row"><span class="text-gray-400">Disciplines (Clan x5 / Other x7)</span><span id="sb-xp-disc" class="cost-val text-purple-400 font-bold bg-black/95 z-10 shrink-0">0</span></div>
-            <div class="cost-row"><span class="text-gray-400">Virtues (Rating x2)</span><span id="sb-xp-virt" class="cost-val text-purple-400 font-bold bg-black/95 z-10 shrink-0">0</span></div>
-            <div class="cost-row"><span class="text-gray-400">Humanity/Path (Rating x2)</span><span id="sb-xp-human" class="cost-val text-purple-400 font-bold bg-black/95 z-10 shrink-0">0</span></div>
-            <div class="cost-row"><span class="text-gray-400">Willpower (Current Rating)</span><span id="sb-xp-will" class="cost-val text-purple-400 font-bold bg-black/95 z-10 shrink-0">0</span></div>
+            <div class="cost-row"><span class="text-gray-400">Attributes</span><span id="sb-xp-attr" class="cost-val text-purple-400 font-bold bg-black/95 z-10 shrink-0">0</span></div>
+            <div class="cost-row"><span class="text-gray-400">Abilities</span><span id="sb-xp-abil" class="cost-val text-purple-400 font-bold bg-black/95 z-10 shrink-0">0</span></div>
+            <div class="cost-row"><span class="text-gray-400">Disciplines</span><span id="sb-xp-disc" class="cost-val text-purple-400 font-bold bg-black/95 z-10 shrink-0">0</span></div>
+            <div class="cost-row"><span class="text-gray-400">Virtues</span><span id="sb-xp-virt" class="cost-val text-purple-400 font-bold bg-black/95 z-10 shrink-0">0</span></div>
+            <div class="cost-row"><span class="text-gray-400">Humanity/Path</span><span id="sb-xp-human" class="cost-val text-purple-400 font-bold bg-black/95 z-10 shrink-0">0</span></div>
+            <div class="cost-row"><span class="text-gray-400">Willpower</span><span id="sb-xp-will" class="cost-val text-purple-400 font-bold bg-black/95 z-10 shrink-0">0</span></div>
             <div class="mt-4 pt-2 border-t border-[#444] flex justify-between font-bold text-sm">
                 <span>Total Spent:</span>
                 <span id="sb-xp-spent" class="text-purple-400">0</span>
@@ -613,6 +613,111 @@
                 </div>
             </form>
             
+        </div>
+    </div>
+
+    <div id="print-sheet" class="hidden print:block bg-white text-black p-4 max-w-[210mm] mx-auto">
+        <div class="print-header">
+            <h1 class="font-cinzel text-4xl text-center font-bold uppercase mb-2">Vampire</h1>
+            <h2 class="font-cinzel text-xl text-center font-bold uppercase mb-6 tracking-widest">The Masquerade</h2>
+            <div class="grid grid-cols-3 gap-x-8 gap-y-2 text-xs uppercase font-bold mb-6">
+                <!-- Header Inputs populated by JS -->
+                <div class="border-b border-black flex justify-between"><span>Name:</span><span id="pr-name"></span></div>
+                <div class="border-b border-black flex justify-between"><span>Nature:</span><span id="pr-nature"></span></div>
+                <div class="border-b border-black flex justify-between"><span>Clan:</span><span id="pr-clan"></span></div>
+                <div class="border-b border-black flex justify-between"><span>Player:</span><span id="pr-player"></span></div>
+                <div class="border-b border-black flex justify-between"><span>Demeanor:</span><span id="pr-demeanor"></span></div>
+                <div class="border-b border-black flex justify-between"><span>Generation:</span><span id="pr-gen"></span></div>
+                <div class="border-b border-black flex justify-between"><span>Chronicle:</span><span id="pr-chronicle"></span></div>
+                <div class="border-b border-black flex justify-between"><span>Concept:</span><span id="pr-concept"></span></div>
+                <div class="border-b border-black flex justify-between"><span>Sire:</span><span id="pr-sire"></span></div>
+            </div>
+        </div>
+    
+        <div class="print-section mb-4">
+            <h3 class="section-header">Attributes</h3>
+            <div class="grid grid-cols-3 gap-4">
+                <div id="pr-attr-phys">
+                    <h4 class="col-header">Physical</h4>
+                    <!-- Rows injected here -->
+                </div>
+                <div id="pr-attr-soc">
+                    <h4 class="col-header">Social</h4>
+                </div>
+                <div id="pr-attr-men">
+                    <h4 class="col-header">Mental</h4>
+                </div>
+            </div>
+        </div>
+    
+        <div class="print-section mb-4">
+            <h3 class="section-header">Abilities</h3>
+            <div class="grid grid-cols-3 gap-4">
+                <div id="pr-abil-tal">
+                    <h4 class="col-header">Talents</h4>
+                </div>
+                <div id="pr-abil-ski">
+                    <h4 class="col-header">Skills</h4>
+                </div>
+                <div id="pr-abil-kno">
+                    <h4 class="col-header">Knowledges</h4>
+                </div>
+            </div>
+        </div>
+    
+        <div class="print-section mb-4">
+            <h3 class="section-header">Advantages</h3>
+            <div class="grid grid-cols-3 gap-4">
+                <div>
+                    <h4 class="col-header">Disciplines</h4>
+                    <div id="pr-disc-list" class="space-y-1"></div>
+                </div>
+                <div>
+                    <h4 class="col-header">Backgrounds</h4>
+                    <div id="pr-back-list" class="space-y-1"></div>
+                </div>
+                <div>
+                    <h4 class="col-header">Virtues</h4>
+                    <div id="pr-virt-list" class="space-y-2 mt-2"></div>
+                </div>
+            </div>
+        </div>
+    
+        <div class="print-section">
+            <div class="grid grid-cols-2 gap-8">
+                <div class="space-y-4">
+                    <div>
+                        <h3 class="section-header">Merits & Flaws</h3>
+                        <div id="pr-merits-flaws" class="text-xs space-y-1"></div>
+                    </div>
+                     <div>
+                        <h3 class="section-header">Other Traits</h3>
+                        <div id="pr-other-traits" class="text-xs space-y-1"></div>
+                    </div>
+                </div>
+                <div class="space-y-4">
+                    <div>
+                        <h3 class="section-header">Humanity / Path</h3>
+                        <div id="pr-humanity" class="flex justify-center py-2 border-b border-black"></div>
+                        <div class="text-center text-xs mt-1 font-bold">Bearing: <span id="pr-bearing"></span></div>
+                    </div>
+                    <div>
+                        <h3 class="section-header">Willpower</h3>
+                        <div id="pr-willpower-dots" class="flex justify-center py-1"></div>
+                        <div id="pr-willpower-boxes" class="flex justify-center gap-1 py-1"></div>
+                    </div>
+                    <div class="flex gap-4">
+                        <div class="flex-1">
+                            <h3 class="section-header">Blood Pool</h3>
+                            <div id="pr-blood-boxes" class="grid grid-cols-10 gap-1 justify-center mt-2 px-2"></div>
+                        </div>
+                        <div class="flex-1">
+                            <h3 class="section-header">Health</h3>
+                            <div id="pr-health" class="text-[10px] space-y-1"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
