@@ -71,78 +71,6 @@ window.handleLoadClick = FBManager.handleLoadClick;
 window.performSave = FBManager.performSave;
 window.deleteCharacter = FBManager.deleteCharacter;
 
-// --- MODE TOGGLES (Fixed to prevent lockout) ---
-
-window.toggleFreebieMode = function() {
-    window.state.freebieMode = !window.state.freebieMode;
-    
-    // Auto-disable XP mode if Freebie is on to prevent UI clutter
-    if(window.state.freebieMode && window.state.xpMode) window.toggleXpMode();
-
-    const sb = document.getElementById('freebie-sidebar');
-    const btn = document.getElementById('toggle-freebie-btn');
-    const lockMsgM = document.getElementById('merit-locked-msg');
-    const lockMsgF = document.getElementById('flaw-locked-msg');
-
-    if (window.state.freebieMode) {
-        sb.style.transform = "translateX(0)";
-        btn.classList.add('border-green-500', 'text-green-400');
-        if(lockMsgM) lockMsgM.style.display = 'none';
-        if(lockMsgF) lockMsgF.style.display = 'none';
-    } else {
-        sb.style.transform = "translateX(-100%)";
-        btn.classList.remove('border-green-500', 'text-green-400');
-        if(lockMsgM) lockMsgM.style.display = 'block';
-        if(lockMsgF) lockMsgF.style.display = 'block';
-    }
-    
-    // Always trigger a refresh to show/hide buttons and update costs
-    window.fullRefresh();
-};
-
-window.toggleXpMode = function() {
-    window.state.xpMode = !window.state.xpMode;
-
-    // Auto-disable Freebie mode if XP is on
-    if(window.state.xpMode && window.state.freebieMode) window.toggleFreebieMode();
-
-    const sb = document.getElementById('xp-sidebar');
-    const btn = document.getElementById('toggle-xp-btn');
-
-    if (window.state.xpMode) {
-        sb.classList.remove('hidden');
-        // Small delay to allow display:block to apply before transition
-        setTimeout(() => { sb.style.left = "0px"; }, 10);
-        btn.classList.add('border-purple-500', 'text-purple-400');
-    } else {
-        sb.style.left = "-210px";
-        setTimeout(() => { sb.classList.add('hidden'); }, 300);
-        btn.classList.remove('border-purple-500', 'text-purple-400');
-    }
-    
-    window.fullRefresh();
-};
-
-// Toggle Sidebars (Mobile/Desktop click handling)
-window.toggleSidebarLedger = function() {
-    const sb = document.getElementById('freebie-sidebar');
-    const current = sb.style.transform;
-    if (current === 'translateX(0px)' || current === '') {
-        sb.style.transform = 'translateX(-100%)';
-    } else {
-        sb.style.transform = 'translateX(0px)';
-    }
-};
-
-window.toggleXpSidebarLedger = function() {
-    const sb = document.getElementById('xp-sidebar');
-    if (sb.style.left === '0px') {
-        sb.style.left = '-210px';
-    } else {
-        sb.style.left = '0px';
-    }
-};
-
 // --- CRITICAL FIX: FULL UI REFRESH FUNCTION ---
 window.fullRefresh = function() {
     try {
@@ -209,7 +137,6 @@ window.fullRefresh = function() {
         updateWalkthrough();
         
         // 8. UPDATE POOLS (Freebie / XP Log)
-        // Call the function imported via ui-mechanics.js (attached to window)
         if (window.updatePools) window.updatePools();
 
         // 9. AUTOFILL PREVENTER (Reinforced)
@@ -225,7 +152,6 @@ window.fullRefresh = function() {
         }, 500);
         
         // 10. UNLOCK FREEBIE BUTTON
-        // Ensure the button isn't disabled by walkthrough logic logic if we want it accessible
         const freebieBtn = document.getElementById('toggle-freebie-btn');
         if(freebieBtn) freebieBtn.removeAttribute('disabled');
 
@@ -247,8 +173,6 @@ function initUI() {
         if (!document.getElementById('sheet-nav')) throw new Error("Navigation container 'sheet-nav' is missing from HTML.");
 
         // --- AGGRESSIVE ANTI-AUTOFILL ---
-        // Sets fields to readonly until interaction. 
-        // This tricks browsers into thinking the fields cannot be filled.
         const sensitiveInputs = ['c-name', 'c-player', 'c-sire', 'c-concept', 'c-chronicle'];
         sensitiveInputs.forEach(id => {
             const el = document.getElementById(id);
@@ -265,9 +189,7 @@ function initUI() {
                 // Remove readonly when user clicks or tabs into field
                 el.addEventListener('focus', enableInput);
                 el.addEventListener('click', enableInput);
-                // Also handle mouseenter as a backup for quick clickers
                 el.addEventListener('mouseenter', () => {
-                    // Optional: only remove if not focused to avoid keyboard jitter
                     if(document.activeElement !== el) el.removeAttribute('readonly');
                 });
             }
@@ -392,12 +314,15 @@ function initUI() {
         const topPlayBtn = document.getElementById('play-mode-btn');
         if(topPlayBtn) topPlayBtn.onclick = window.togglePlayMode;
         
-        // --- BUTTON LISTENERS ---
+        // --- DELEGATED TO UI-RENDERER ---
+        // We use the window.toggle* functions defined in ui-renderer.js
+        // DO NOT REDEFINE THEM HERE
+        
         const topFreebieBtn = document.getElementById('toggle-freebie-btn');
-        if(topFreebieBtn) topFreebieBtn.onclick = window.toggleFreebieMode;
+        if(topFreebieBtn) topFreebieBtn.onclick = () => { if(window.toggleFreebieMode) window.toggleFreebieMode(); };
         
         const topXpBtn = document.getElementById('toggle-xp-btn'); 
-        if(topXpBtn) topXpBtn.onclick = window.toggleXpMode;
+        if(topXpBtn) topXpBtn.onclick = () => { if(window.toggleXpMode) window.toggleXpMode(); };
 
         // AUTH HANDLERS
         const loginBtn = document.getElementById('login-btn');
