@@ -399,7 +399,7 @@ export const CLAN_WEAKNESSES = {
     "Lasombra": "Lasombra vampires cast no reflections. Whether in a mirror, in a body of water, on a polished surface, or in the rear-view of a taxicab, the image of the Keeper does not reflect.",
     "Malkavian": "All members of Clan Malkavian suffer from a permanent, incurable derangement. They may acquire and recover from other derangements, and may spend Willpower to ameliorate the effects of the derangement for a scene, but they can never recover from their original derangement.",
     "Nosferatu": "All Nosferatu have an Appearance score of zero, and they may never improve it. Cross it off the character sheet. Dice pools that use the Appearance Trait are inherently difficult for these hideous Kindred.",
-    "Ravnos": "Must indulge in a specific vice when the opportunity arises unless a Self-Control/Instincts roll (diff 6) is succeeded.",
+    "Ravnos": "Each Ravnos has a penchant for a specific vice (e.g. lying, cruelty, theft). When presented with the opportunity to engage in that vice, the Ravnos must indulge it unless the player succeeds on a Self-Control or Instincts roll (difficulty 6).",
     "Toreador": "Must make a Self-Control/Instincts roll (diff 6) when encountering something beautiful or be enthralled/unable to act for the scene.",
     "Tremere": "It takes only 2 drinks of another vampire's blood to become blood bound (first drink counts as two).",
     "Tzimisce": "Must rest with at least two handfuls of native soil. Failure halves dice pools every 24 hours until reduced to 1 die.",
