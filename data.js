@@ -72,7 +72,6 @@ export const BACKGROUNDS = [
 
 export const VIRTUES = ["Conscience", "Self-Control", "Courage"];
 
-// Updated Vitals List based on your request
 export const VIT = [
     "Age", "Apparent Age", "Date of Birth", "R.I.P.", 
     "Hair", "Eyes", "Race", "Nationality", 
@@ -392,7 +391,7 @@ export const V20_VEHICLE_LIST = [
 ];
 
 export const CLAN_WEAKNESSES = {
-    "Assamite": "Due to the Tremere blood-curse, consuming Kindred blood deals 1 unsoakable lethal damage per point. Diablerie deals automatic aggravated damage equal to victim's Willpower and provides no benefits.",
+    "Assamite": "Due to the Tremere blood-curse, should an Assamite consume the blood of another Kindred, she suffers one automatic level of unsoakable lethal damage per blood point imbibed. Diablerie attempts result in automatic aggravated damage, one health level per point of permanent Willpower the victim possesses; the would-be diablerist gains no benefits (including Generation reduction) if he survives the process. In addition, Assamites must tithe some of the profits from their contracts to their sires or superiors (generally around 10 percent of all such earnings).",
     "Brujah": "Frenzy difficulties are 2 higher than normal. Cannot spend Willpower to avoid frenzy (but can to end it).",
     "Followers of Set": "Suffer 2 additional health levels of damage from sunlight. -1 die to all rolls in bright light.",
     "Gangrel": "Gain a temporary animal feature after each frenzy. Features can become permanent over time.",
