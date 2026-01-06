@@ -8,13 +8,15 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
     <link rel="stylesheet" href="styles.css">
     <style>
-        /* Inline Print Overrides */
+        /* Inline Print Overrides - Middle Ground Sizing */
         @media print {
             .section-header { margin-bottom: 4px !important; font-size: 12pt !important; border-bottom-width: 2px !important; }
             .col-header { margin-bottom: 2px !important; font-size: 10pt !important; color: #222 !important; }
             .print-row { margin-bottom: 2px !important; font-size: 9pt !important; }
             .box { width: 12px !important; height: 12px !important; border-width: 1px !important; }
             .dot { width: 10px !important; height: 10px !important; border-width: 1px !important; }
+            
+            /* Ensure page breaks happen cleanly */
             .print-page-break { page-break-before: always; height: 0; display: block; }
         }
     </style>
@@ -28,7 +30,6 @@
 
     <div id="notification"></div>
     
-    <!-- TOP NAVIGATION: Reverted to Standard Responsive Layout -->
     <nav id="main-menubar" class="fixed top-0 left-0 w-full h-16 bg-[#050505] border-b-2 border-[#500] z-50 flex items-center justify-between px-6 shadow-2xl">
         
         <div class="flex items-center gap-6">
@@ -713,8 +714,8 @@
                 <div class="space-y-4">
                     <div>
                         <h3 class="section-header">Humanity / Path</h3>
-                        <div id="pr-humanity" class="flex justify-center py-1 border-b border-black"></div>
-                        <div class="text-center text-[10px] mt-1 font-bold">Bearing: <span id="pr-bearing"></span></div>
+                        <div id="pr-humanity" class="flex justify-center py-2 border-b border-black"></div>
+                        <div class="text-center text-[11px] mt-1 font-bold">Bearing: <span id="pr-bearing"></span></div>
                     </div>
                     <div>
                         <h3 class="section-header">Willpower</h3>
@@ -723,14 +724,14 @@
                     </div>
                     <div>
                         <h3 class="section-header">Blood Pool</h3>
-                        <div id="pr-blood-boxes" class="grid grid-cols-10 gap-1 justify-center mt-1 px-2"></div>
+                        <div id="pr-blood-boxes" class="grid grid-cols-10 gap-1 justify-center mt-2 px-2"></div>
                     </div>
                 </div>
 
                 <!-- Column 3: Health -->
                 <div>
                     <h3 class="section-header">Health</h3>
-                    <div id="pr-health" class="text-[9px] space-y-1"></div>
+                    <div id="pr-health" class="text-[11px] space-y-1"></div>
                 </div>
 
             </div>
