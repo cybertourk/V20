@@ -18,11 +18,11 @@ body {
     margin: 0;
     overflow-x: hidden;
     padding-top: 70px;
-    padding-bottom: 80px;
+    padding-bottom: 20px; /* Reduced from 80px as nav is no longer fixed bottom */
 }
 
 @media (min-width: 768px) {
-    body { padding-bottom: 0; padding-right: 60px; }
+    body { padding-bottom: 0; padding-right: 0; } /* Removed right padding */
 }
 
 h1, h2, h3, .heading { font-family: 'Cinzel', serif; letter-spacing: 0.1em; }
@@ -172,13 +172,14 @@ select option { background: #111; color: white; }
     background: rgba(0, 0, 0, 0.85);
     backdrop-filter: blur(4px);
     z-index: 99999;
-    display: none;
+    display: none; /* Crucial: Hidden by default */
     align-items: center;
     justify-content: center;
     opacity: 0;
+    pointer-events: none; /* Ensure clicks pass through when hidden */
     transition: opacity 0.3s ease;
 }
-.modal-overlay.active { display: flex; opacity: 1; }
+.modal-overlay.active { display: flex; opacity: 1; pointer-events: auto; }
 
 .modal-box {
     background: #050505;
@@ -230,19 +231,8 @@ select option { background: #111; color: white; }
 .file-row:hover .file-delete-btn { opacity: 1; }
 .file-delete-btn:hover { color: #ff0000; text-shadow: 0 0 5px #ff0000; }
 
-/* --- RIGHT DOCK --- */
-#sheet-nav {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    width: 100%;
-    background: rgba(5, 5, 5, 0.95);
-    border-top: 1px solid #333;
-    z-index: 40;
-    display: flex;
-    justify-content: space-around;
-    padding: 0.5rem 0;
-}
+/* --- NAVIGATION STYLES (Refactored for Sticky Layout) --- */
+/* We removed the fixed positioning #sheet-nav block to resolve the mobile overlay conflict */
 
 .nav-item { 
     cursor: pointer; 
@@ -257,63 +247,38 @@ select option { background: #111; color: white; }
     height: 40px;
     border-radius: 50%;
     border: 1px solid transparent;
+    margin: 0.5rem; /* Add spacing for sticky row layout */
 }
 
 .nav-item i { font-size: 1.2rem; transition: color 0.3s; }
 .nav-item span { display: none; }
 
+.nav-item:hover {
+    width: 50px;
+    background: var(--v-blood);
+    border-color: var(--v-gold);
+}
+
+.nav-item.active {
+    background: var(--v-blood);
+    border-color: var(--v-gold);
+    width: 50px;
+    box-shadow: 0 0 15px var(--v-blood);
+    z-index: 10;
+}
+
+.nav-item.completed { border-color: #4ade80; }
+.nav-item i { font-size: 1.4rem; }
+.nav-item.active i, .nav-item:hover i { color: white !important; }
+
+/* Desktop Hover Labels */
 @media(min-width: 768px) {
-    #sheet-nav {
-        top: 50%;
-        bottom: auto;
-        left: auto;
-        right: 0;
-        width: auto;
-        height: auto;
-        transform: translateY(-50%);
-        flex-direction: column;
-        background: transparent;
-        border: none;
-        gap: 0.8rem;
-        padding: 1rem 0.5rem;
-    }
-
-    .nav-item {
-        background: rgba(10, 10, 10, 0.9);
-        border: 1px solid #333;
-        border-right: none; 
-        border-radius: 8px 0 0 8px;
-        width: 50px;
-        height: 50px;
-        box-shadow: -3px 3px 10px rgba(0,0,0,0.5);
-        margin-right: -5px;
-    }
-
-    .nav-item:hover {
-        width: 60px;
-        background: var(--v-blood);
-        border-color: var(--v-gold);
-        margin-right: 0;
-    }
-
-    .nav-item.active {
-        background: var(--v-blood);
-        border-color: var(--v-gold);
-        width: 60px;
-        box-shadow: 0 0 15px var(--v-blood);
-        z-index: 10;
-    }
-
-    .nav-item.completed { border-color: #4ade80; }
-    .nav-item i { font-size: 1.4rem; }
-    .nav-item.active i, .nav-item:hover i { color: white !important; }
-
     .nav-item span {
         display: block;
         position: absolute;
-        right: 120%;
-        top: 50%;
-        transform: translateY(-50%) translateX(10px);
+        bottom: 110%; /* Show above icon */
+        left: 50%;
+        transform: translateX(-50%) translateY(10px);
         background: black;
         color: var(--v-gold);
         padding: 0.4rem 0.8rem;
@@ -330,8 +295,7 @@ select option { background: #111; color: white; }
         font-weight: bold;
         box-shadow: 0 0 10px rgba(0,0,0,0.8);
     }
-
-    .nav-item:hover span { opacity: 1; transform: translateY(-50%) translateX(0); }
+    .nav-item:hover span { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
 
 .nav-item.completed i { color: #4ade80; }
@@ -396,17 +360,17 @@ select option { background: #111; color: white; }
         left: auto;
         bottom: -100%;
         top: auto;
-        transform: none; /* Remove vertical centering transform */
+        transform: none; 
         width: 100% !important;
-        height: 60vh; /* Slide up nicely */
+        height: 60vh; 
         transition: bottom 0.3s ease-in-out;
-        z-index: 10001; /* Above navbar */
+        z-index: 10001; 
         border-top: 2px solid var(--v-gold);
     }
     
     #freebie-sidebar.open {
         left: 0;
-        bottom: 0; /* Slide up */
+        bottom: 0; 
     }
     
     #xp-sidebar {
@@ -418,7 +382,7 @@ select option { background: #111; color: white; }
         height: 60vh;
         transition: bottom 0.3s ease-in-out;
         z-index: 10001;
-        border-top: 2px solid #a855f7; /* Purple for XP */
+        border-top: 2px solid #a855f7; 
     }
     
     #xp-sidebar.open {
@@ -426,10 +390,7 @@ select option { background: #111; color: white; }
         bottom: 0;
     }
 
-    /* Hide the vertical text toggle buttons on mobile, use top nav buttons instead */
-    #sb-toggle-btn, #xp-sb-toggle-btn {
-        display: none;
-    }
+    #sb-toggle-btn, #xp-sb-toggle-btn { display: none; }
 }
 
 /* Freebie Sidebar Desktop Defaults */
