@@ -2,26 +2,24 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>VtM Character Creator V20</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
     <link rel="stylesheet" href="styles.css">
     <style>
-        /* Inline Print Overrides - Middle Ground Sizing */
+        /* Inline Print Overrides */
         @media print {
             .section-header { margin-bottom: 4px !important; font-size: 12pt !important; border-bottom-width: 2px !important; }
             .col-header { margin-bottom: 2px !important; font-size: 10pt !important; color: #222 !important; }
             .print-row { margin-bottom: 2px !important; font-size: 9pt !important; }
             .box { width: 12px !important; height: 12px !important; border-width: 1px !important; }
             .dot { width: 10px !important; height: 10px !important; border-width: 1px !important; }
-            
-            /* Ensure page breaks happen cleanly */
             .print-page-break { page-break-before: always; height: 0; display: block; }
         }
     </style>
 </head>
-<body class="bg-black text-white font-serif overflow-x-hidden">
+<body class="p-2 md:p-8 bg-black text-white font-serif">
 
     <div id="loading-overlay" class="fixed inset-0 bg-black flex flex-col items-center justify-center z-[9999]">
         <h1 class="text-[#8b0000] text-7xl font-bold animate-pulse tracking-[0.5em] heading">V20</h1>
@@ -30,96 +28,90 @@
 
     <div id="notification"></div>
     
-    <!-- TOP NAVIGATION: Made Scrollable for Mobile -->
-    <nav id="main-menubar" class="fixed top-0 left-0 w-full h-16 bg-[#050505] border-b-2 border-[#500] z-50 shadow-2xl">
-        <div class="flex items-center justify-between px-4 h-full w-full overflow-x-auto overflow-y-hidden whitespace-nowrap gap-6 no-scrollbar">
-            
-            <!-- LOGO AREA -->
-            <div class="flex items-center gap-6 flex-shrink-0">
-                <div class="flex flex-col justify-center leading-none select-none cursor-default group">
-                    <h1 class="text-2xl text-[#af0000] font-bold tracking-[0.2em] font-cinzel group-hover:text-[#ff0000] transition-colors shadow-black drop-shadow-md">VAMPIRE</h1>
-                    <span class="text-[0.6rem] text-[#d4af37] tracking-[0.3em] font-serif italic uppercase opacity-80 group-hover:opacity-100 transition-opacity">The Masquerade</span>
-                </div>
+    <!-- TOP NAVIGATION: Reverted to Standard Responsive Layout -->
+    <nav id="main-menubar" class="fixed top-0 left-0 w-full h-16 bg-[#050505] border-b-2 border-[#500] z-50 flex items-center justify-between px-6 shadow-2xl">
+        
+        <div class="flex items-center gap-6">
+            <div class="flex flex-col justify-center leading-none select-none cursor-default group">
+                <h1 class="text-2xl text-[#af0000] font-bold tracking-[0.2em] font-cinzel group-hover:text-[#ff0000] transition-colors shadow-black drop-shadow-md">VAMPIRE</h1>
+                <span class="text-[0.6rem] text-[#d4af37] tracking-[0.3em] font-serif italic uppercase opacity-80 group-hover:opacity-100 transition-opacity">The Masquerade</span>
+            </div>
 
-                <!-- USER AUTH -->
-                <div id="user-auth-area" class="flex items-center gap-2">
-                    <button type="button" id="login-btn" class="text-xs text-[#d4af37] font-bold uppercase hover:text-white transition flex items-center gap-2 border border-[#d4af37] bg-black/50 px-3 py-1.5 rounded hover:bg-[#d4af37] hover:text-black shadow-lg">
-                        <i class="fas fa-envelope"></i> Login
-                    </button>
-                    
-                    <div id="user-info" class="hidden flex items-center gap-2 border border-[#333] bg-black/80 px-3 py-1.5 rounded shadow-lg">
-                        <i class="fas fa-user-circle text-gray-400 text-sm"></i>
-                        <span id="user-name" class="text-[10px] text-gray-300 font-bold truncate max-w-[100px]">Guest</span>
-                        <button type="button" id="logout-btn" class="text-xs text-red-500 hover:text-red-300 transition ml-2 border-l border-[#444] pl-2" title="Logout">
-                            <i class="fas fa-sign-out-alt"></i>
-                        </button>
-                    </div>
-                </div>
-
-                <div class="h-8 w-px bg-[#333] hidden md:block"></div>
-
-                <!-- FILE ACTIONS (Desktop) / ICONS (Mobile) -->
-                <div class="flex items-center gap-2 bg-black/40 px-4 py-1.5 rounded-full border border-[#222]">
-                    <button type="button" id="cmd-new" class="text-xs text-gray-400 font-bold uppercase hover:text-white hover:bg-[#222] px-3 py-1 rounded transition border border-transparent hover:border-[#444]">
-                        <i class="fas fa-file-circle-plus md:mr-1"></i> <span class="hidden md:inline">New</span>
-                    </button>
-                    <div class="h-4 w-px bg-[#333]"></div>
-                    <button type="button" id="cmd-save" class="text-xs text-gray-400 font-bold uppercase hover:text-white hover:bg-[#222] px-3 py-1 rounded transition border border-transparent hover:border-[#444]">
-                        <i class="fas fa-save md:mr-1"></i> <span class="hidden md:inline">Save</span>
-                    </button>
-                    <div class="h-4 w-px bg-[#333]"></div>
-                    <button type="button" id="cmd-load" class="text-xs text-gray-400 font-bold uppercase hover:text-white hover:bg-[#222] px-3 py-1 rounded transition border border-transparent hover:border-[#444]">
-                        <i class="fas fa-folder-open md:mr-1"></i> <span class="hidden md:inline">Load</span>
+            <!-- USER AUTH (Moved to Top Left) -->
+            <div id="user-auth-area" class="flex items-center gap-2">
+                <!-- Login Button (Visible by default, hidden when logged in) -->
+                <button type="button" id="login-btn" class="text-xs text-[#d4af37] font-bold uppercase hover:text-white transition flex items-center gap-2 border border-[#d4af37] bg-black/50 px-3 py-1.5 rounded hover:bg-[#d4af37] hover:text-black shadow-lg">
+                    <i class="fas fa-envelope"></i> Login
+                </button>
+                
+                <!-- User Info (Hidden by default, visible when logged in) -->
+                <div id="user-info" class="hidden flex items-center gap-2 border border-[#333] bg-black/80 px-3 py-1.5 rounded shadow-lg">
+                    <i class="fas fa-user-circle text-gray-400 text-sm"></i>
+                    <span id="user-name" class="text-[10px] text-gray-300 font-bold truncate max-w-[100px]">Guest</span>
+                    <button type="button" id="logout-btn" class="text-xs text-red-500 hover:text-red-300 transition ml-2 border-l border-[#444] pl-2" title="Logout">
+                        <i class="fas fa-sign-out-alt"></i>
                     </button>
                 </div>
             </div>
 
-            <!-- RIGHT SIDE CONTROLS -->
-            <div class="flex items-center gap-4 flex-shrink-0">
-                
-                <!-- FREEBIE TOGGLE -->
-                <button type="button" id="toggle-freebie-btn" class="flex items-center gap-2 px-3 py-1 rounded border border-[#333] hover:border-blue-500/50 hover:bg-blue-900/20 transition text-xs font-bold text-gray-400 disabled:opacity-30 disabled:cursor-not-allowed">
-                    <i class="fas fa-balance-scale"></i>
-                    <span id="freebie-btn-text" class="hidden md:inline">Freebies</span>
+            <div class="h-8 w-px bg-[#333] hidden md:block"></div>
+
+            <div class="hidden md:flex items-center gap-2 bg-black/40 px-4 py-1.5 rounded-full border border-[#222]">
+                <button type="button" id="cmd-new" class="text-xs text-gray-400 font-bold uppercase hover:text-white hover:bg-[#222] px-3 py-1 rounded transition border border-transparent hover:border-[#444]">
+                    <i class="fas fa-file-circle-plus mr-1"></i> New
                 </button>
-                <div id="top-freebie-counter" class="hidden flex">
-                    <span id="f-total-top">0</span>/<input type="number" id="c-freebie-total" value="15" class="w-8 bg-transparent text-gold border-b border-[#333] text-center font-bold">
-                </div>
-
-                <div class="hidden md:block h-8 w-px bg-[#333]"></div>
-
-                <!-- EXPERIENCE TOGGLE -->
-                <button type="button" id="toggle-xp-btn" class="flex items-center gap-2 px-3 py-1 rounded border border-[#333] hover:border-purple-500/50 hover:bg-purple-900/20 transition text-xs font-bold text-gray-400 disabled:opacity-30 disabled:cursor-not-allowed">
-                    <i class="fas fa-hourglass-half"></i>
-                    <span id="xp-btn-text" class="hidden md:inline">Experience</span>
+                <div class="h-4 w-px bg-[#333]"></div>
+                <button type="button" id="cmd-save" class="text-xs text-gray-400 font-bold uppercase hover:text-white hover:bg-[#222] px-3 py-1 rounded transition border border-transparent hover:border-[#444]">
+                    <i class="fas fa-save mr-1"></i> Save
                 </button>
-                <div id="top-xp-counter" class="hidden items-center gap-1 text-purple-400 text-xs font-bold">
-                    <span id="x-total-spent">0</span> / <input type="number" id="c-xp-total" value="0" class="w-10 bg-transparent text-purple-400 border-b border-[#333] text-center font-bold"> XP
-                </div>
-
-                <div class="hidden md:block h-8 w-px bg-[#333]"></div>
-
-                <!-- PLAY MODE -->
-                <button type="button" id="play-mode-btn" class="flex items-center gap-2 px-3 py-1 rounded border border-[#d4af37] text-[#d4af37] hover:bg-[#d4af37] hover:text-black transition text-xs font-bold uppercase tracking-wider shadow-[0_0_10px_rgba(212,175,55,0.2)]">
-                    <i class="fas fa-gamepad"></i>
-                    <span id="play-btn-text" class="hidden md:inline">Play</span>
+                <div class="h-4 w-px bg-[#333]"></div>
+                <button type="button" id="cmd-load" class="text-xs text-gray-400 font-bold uppercase hover:text-white hover:bg-[#222] px-3 py-1 rounded transition border border-transparent hover:border-[#444]">
+                    <i class="fas fa-folder-open mr-1"></i> Load
                 </button>
+            </div>
+        </div>
 
-                <div class="h-8 w-px bg-[#333]"></div>
+        <div class="flex items-center gap-4">
+            
+            <!-- FREEBIE -->
+            <button type="button" id="toggle-freebie-btn" class="hidden md:flex items-center gap-2 px-3 py-1 rounded border border-[#333] hover:border-blue-500/50 hover:bg-blue-900/20 transition text-xs font-bold text-gray-400 disabled:opacity-30 disabled:cursor-not-allowed">
+                <i class="fas fa-balance-scale"></i>
+                <span id="freebie-btn-text">Freebies</span>
+            </button>
+            <div id="top-freebie-counter" class="hidden md:flex">
+                <span id="f-total-top">0</span>/<input type="number" id="c-freebie-total" value="15" class="w-8 bg-transparent text-gold border-b border-[#333] text-center font-bold">
+            </div>
 
-                <!-- UTILS -->
-                <div class="flex gap-2 text-gray-500">
-                    <button type="button" id="export-btn" class="hover:text-white w-8 h-8 rounded hover:bg-[#222] transition" title="Export JSON"><i class="fas fa-file-export"></i></button>
-                    <button type="button" id="import-trigger" class="hover:text-white w-8 h-8 rounded hover:bg-[#222] transition" title="Import JSON"><i class="fas fa-file-import"></i></button>
-                    <button type="button" id="print-btn" class="hover:text-white w-8 h-8 rounded hover:bg-[#222] transition" title="Print Sheet"><i class="fas fa-print"></i></button>
-                    <input type="file" id="import-input" class="hidden" accept=".json">
-                </div>
+            <div class="hidden md:block h-8 w-px bg-[#333]"></div>
+
+            <!-- EXPERIENCE -->
+            <button type="button" id="toggle-xp-btn" class="hidden md:flex items-center gap-2 px-3 py-1 rounded border border-[#333] hover:border-purple-500/50 hover:bg-purple-900/20 transition text-xs font-bold text-gray-400 disabled:opacity-30 disabled:cursor-not-allowed">
+                <i class="fas fa-hourglass-half"></i>
+                <span id="xp-btn-text">Experience</span>
+            </button>
+            <div id="top-xp-counter" class="hidden items-center gap-1 text-purple-400 text-xs font-bold">
+                <span id="x-total-spent">0</span> / <input type="number" id="c-xp-total" value="0" class="w-10 bg-transparent text-purple-400 border-b border-[#333] text-center font-bold"> XP
+            </div>
+
+            <div class="hidden md:block h-8 w-px bg-[#333]"></div>
+
+            <button type="button" id="play-mode-btn" class="flex items-center gap-2 px-3 py-1 rounded border border-[#d4af37] text-[#d4af37] hover:bg-[#d4af37] hover:text-black transition text-xs font-bold uppercase tracking-wider shadow-[0_0_10px_rgba(212,175,55,0.2)]">
+                <i class="fas fa-gamepad"></i>
+                <span id="play-btn-text">Play</span>
+            </button>
+
+            <div class="h-8 w-px bg-[#333]"></div>
+
+            <div class="flex gap-2 text-gray-500">
+                <button type="button" id="export-btn" class="hover:text-white w-8 h-8 rounded hover:bg-[#222] transition" title="Export JSON"><i class="fas fa-file-export"></i></button>
+                <button type="button" id="import-trigger" class="hover:text-white w-8 h-8 rounded hover:bg-[#222] transition" title="Import JSON"><i class="fas fa-file-import"></i></button>
+                <button type="button" id="print-btn" class="hover:text-white w-8 h-8 rounded hover:bg-[#222] transition" title="Print Sheet"><i class="fas fa-print"></i></button>
+                <input type="file" id="import-input" class="hidden" accept=".json">
             </div>
         </div>
     </nav>
 
-    <!-- Walkthrough Guide (Hidden on mobile to save space) -->
-    <div id="walkthrough-guide" class="fixed bottom-24 right-20 z-40 hidden md:flex items-center gap-4 translate-y-20 opacity-0 pointer-events-none md:pointer-events-auto">
+    <div id="walkthrough-guide" class="fixed bottom-24 right-20 z-40 flex items-center gap-4 translate-y-20 opacity-0 pointer-events-none md:pointer-events-auto">
         <div id="guide-message" class="bg-black/90 border border-[#d4af37] text-[#f0e6d2] px-4 py-2 rounded text-xs font-bold shadow-lg w-48 text-right">
             Initialize Character...
         </div>
@@ -128,7 +120,6 @@
         </div>
     </div>
 
-    <!-- FREEBIE SIDEBAR -->
     <div id="freebie-sidebar">
         <div id="sb-toggle-btn" onclick="window.toggleSidebarLedger()">Ledger</div>
         <h3 class="heading text-gold text-sm border-b border-gold pb-2 mb-4 text-center" id="ledger-title">Freebie Ledger</h3>
@@ -147,6 +138,7 @@
                 <span id="sb-total" class="text-green-400">15</span>
             </div>
         </div>
+        <!-- NEW FREEBIE LOG CONTAINER -->
         <div class="mt-4">
             <h4 class="text-[9px] uppercase text-gray-500 font-bold mb-1 tracking-wider">Spending Log</h4>
             <div id="freebie-log-recent" class="text-[9px] text-gray-400 h-24 overflow-y-auto border border-[#333] p-1 font-mono bg-white/5"></div>
@@ -217,12 +209,13 @@
         <div id="roll-results" class="max-h-52 overflow-y-auto space-y-3"></div>
     </div>
 
-    <!-- MAIN CONTENT: Added padding-top for mobile -->
-    <div id="sheet-content" class="w-full max-w-5xl mx-auto shadow-2xl bg-black/30 pb-32 border-x border-b border-[#222] mt-20 md:mt-24">
+    <div id="sheet-content" class="max-w-5xl mx-auto shadow-2xl bg-black/30 pb-20 border-x border-b border-[#222]">
 
         <nav id="sheet-nav" class="flex justify-center bg-black sticky top-0 z-40 border-b border-[#333]"></nav>
         
-        <div class="p-4 md:p-12">
+        <div class="mt-8 md:mt-12"></div>
+
+        <div class="p-6 md:p-12">
             <!-- Edit Mode Phases -->
             <div id="phase-1" class="step-container active">
                 <div class="sheet-section !mt-0">
@@ -454,7 +447,7 @@
 
             <div id="phase-7" class="step-container space-y-10">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
-                    <div class="sheet-section !mt-0"><div class="section-title">Physical Appearance</div><div id="vitals-create-inputs" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div><div class="mt-6"><label class="label-text">Description / Sketch Notes</label><textarea id="bio-desc" class="h-32"></textarea></div></div>
+                    <div class="sheet-section !mt-0"><div class="section-title">Physical Appearance</div><div id="vitals-create-inputs" class="grid grid-cols-2 gap-4"></div><div class="mt-6"><label class="label-text">Description / Sketch Notes</label><textarea id="bio-desc" class="h-32"></textarea></div></div>
                     <div class="space-y-6"><div class="sheet-section !mt-0"><div class="section-title">Mental Traits & Goals</div><div class="space-y-4"><div><label class="label-text text-gold">Derangements</label><div id="derangements-list" class="space-y-2 mt-2"></div></div><div><label class="label-text text-gold">Languages</label><textarea id="bio-languages" class="h-20"></textarea></div><div><label class="label-text text-gold">Short-Term Goals</label><textarea id="bio-goals-st" class="h-20"></textarea></div><div><label class="label-text text-gold">Long-Term Goals</label><textarea id="bio-goals-lt" class="h-20"></textarea></div></div></div></div>
                 </div>
             </div>
@@ -490,7 +483,7 @@
             <!-- Play Mode Sheet (NEW LAYOUT) -->
             <div id="play-mode-sheet" class="hidden">
                 <div id="play-mode-1" class="step-container space-y-10 active">
-                    <div id="play-concept-row" class="grid grid-cols-1 md:grid-cols-3 gap-6 text-[11px] uppercase border-b border-[#333] pb-6 font-bold text-gold"></div>
+                    <div id="play-concept-row" class="grid grid-cols-3 gap-6 text-[11px] uppercase border-b border-[#333] pb-6 font-bold text-gold"></div>
                     <div id="play-rows-container" class="space-y-10"><div id="play-row-attr" class="grid grid-cols-1 md:grid-cols-3 gap-10"></div><div id="play-row-abil" class="grid grid-cols-1 md:grid-cols-3 gap-10"></div><div id="play-row-adv" class="grid grid-cols-1 md:grid-cols-3 gap-10"></div></div>
                     
                     <!-- NEW BOTTOM SECTION LAYOUT -->
