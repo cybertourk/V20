@@ -393,7 +393,7 @@ export const V20_VEHICLE_LIST = [
 export const CLAN_WEAKNESSES = {
     "Assamite": "Due to the Tremere blood-curse, should an Assamite consume the blood of another Kindred, she suffers one automatic level of unsoakable lethal damage per blood point imbibed. Diablerie attempts result in automatic aggravated damage, one health level per point of permanent Willpower the victim possesses; the would-be diablerist gains no benefits (including Generation reduction) if he survives the process. In addition, Assamites must tithe some of the profits from their contracts to their sires or superiors (generally around 10 percent of all such earnings).",
     "Brujah": "The difficulties of rolls to resist or guide frenzy are two higher than normal. Additionally, a Brujah may never spend Willpower to avoid frenzy, though he may spend a point of Willpower to end a frenzy that has already begun.",
-    "Followers of Set": "Suffer 2 additional health levels of damage from sunlight. -1 die to all rolls in bright light.",
+    "Followers of Set": "Given their origins in darkness, the Serpents react negatively to bright light: Add two health levels to damage caused by exposure to sunlight. Setites also lose one die from dice pools for actions taken in bright light (police spotlights, stage lights, flares, etc.).",
     "Gangrel": "Gain a temporary animal feature after each frenzy. Features can become permanent over time.",
     "Giovanni": "The Kiss causes excruciating pain and deals double damage to mortals (2 health levels per blood point).",
     "Lasombra": "Cast no reflection in mirrors, water, or other surfaces.",
