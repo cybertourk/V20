@@ -8,15 +8,13 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
     <link rel="stylesheet" href="styles.css">
     <style>
-        /* Inline Print Overrides - Middle Ground Sizing */
+        /* Inline Print Overrides */
         @media print {
             .section-header { margin-bottom: 4px !important; font-size: 12pt !important; border-bottom-width: 2px !important; }
             .col-header { margin-bottom: 2px !important; font-size: 10pt !important; color: #222 !important; }
             .print-row { margin-bottom: 2px !important; font-size: 9pt !important; }
             .box { width: 12px !important; height: 12px !important; border-width: 1px !important; }
             .dot { width: 10px !important; height: 10px !important; border-width: 1px !important; }
-            
-            /* Ensure page breaks happen cleanly */
             .print-page-break { page-break-before: always; height: 0; display: block; }
         }
     </style>
@@ -30,9 +28,9 @@
 
     <div id="notification"></div>
     
-    <!-- TOP NAVIGATION: Added Horizontal Scrolling Wrapper -->
+    <!-- TOP NAVIGATION: Horizontal Scroll Enabled -->
     <nav id="main-menubar" class="fixed top-0 left-0 w-full h-16 bg-[#050505] border-b-2 border-[#500] z-50 shadow-2xl">
-        <!-- Scrollable Container -->
+        <!-- Scroll Container -->
         <div class="flex items-center justify-between px-6 h-full w-full overflow-x-auto overflow-y-hidden whitespace-nowrap gap-6 no-scrollbar">
             
             <div class="flex items-center gap-6 flex-shrink-0">
@@ -56,8 +54,9 @@
                     </div>
                 </div>
 
-                <div class="h-8 w-px bg-[#333] hidden md:block"></div>
+                <div class="h-8 w-px bg-[#333]"></div>
 
+                <!-- File Actions (Always Visible, Scrollable) -->
                 <div class="flex items-center gap-2 bg-black/40 px-4 py-1.5 rounded-full border border-[#222]">
                     <button type="button" id="cmd-new" class="text-xs text-gray-400 font-bold uppercase hover:text-white hover:bg-[#222] px-3 py-1 rounded transition border border-transparent hover:border-[#444]">
                         <i class="fas fa-file-circle-plus mr-1"></i> New
@@ -84,7 +83,7 @@
                     <span id="f-total-top">0</span>/<input type="number" id="c-freebie-total" value="15" class="w-8 bg-transparent text-gold border-b border-[#333] text-center font-bold">
                 </div>
 
-                <div class="hidden md:block h-8 w-px bg-[#333]"></div>
+                <div class="h-8 w-px bg-[#333]"></div>
 
                 <!-- EXPERIENCE -->
                 <button type="button" id="toggle-xp-btn" class="flex items-center gap-2 px-3 py-1 rounded border border-[#333] hover:border-purple-500/50 hover:bg-purple-900/20 transition text-xs font-bold text-gray-400 disabled:opacity-30 disabled:cursor-not-allowed">
@@ -95,8 +94,9 @@
                     <span id="x-total-spent">0</span> / <input type="number" id="c-xp-total" value="0" class="w-10 bg-transparent text-purple-400 border-b border-[#333] text-center font-bold"> XP
                 </div>
 
-                <div class="hidden md:block h-8 w-px bg-[#333]"></div>
+                <div class="h-8 w-px bg-[#333]"></div>
 
+                <!-- PLAY MODE -->
                 <button type="button" id="play-mode-btn" class="flex items-center gap-2 px-3 py-1 rounded border border-[#d4af37] text-[#d4af37] hover:bg-[#d4af37] hover:text-black transition text-xs font-bold uppercase tracking-wider shadow-[0_0_10px_rgba(212,175,55,0.2)]">
                     <i class="fas fa-gamepad"></i>
                     <span id="play-btn-text">Play</span>
@@ -104,6 +104,7 @@
 
                 <div class="h-8 w-px bg-[#333]"></div>
 
+                <!-- UTILS -->
                 <div class="flex gap-2 text-gray-500">
                     <button type="button" id="export-btn" class="hover:text-white w-8 h-8 rounded hover:bg-[#222] transition" title="Export JSON"><i class="fas fa-file-export"></i></button>
                     <button type="button" id="import-trigger" class="hover:text-white w-8 h-8 rounded hover:bg-[#222] transition" title="Import JSON"><i class="fas fa-file-import"></i></button>
@@ -214,7 +215,7 @@
 
     <div id="sheet-content" class="max-w-5xl mx-auto shadow-2xl bg-black/30 pb-20 border-x border-b border-[#222]">
 
-        <nav id="sheet-nav" class="flex justify-center bg-black sticky top-0 z-40 border-b border-[#333]"></nav>
+        <nav id="sheet-nav"></nav>
         
         <div class="mt-8 md:mt-12"></div>
 
@@ -716,7 +717,7 @@
                 <div class="space-y-4">
                     <div>
                         <h3 class="section-header">Humanity / Path</h3>
-                        <div id="pr-humanity" class="flex justify-center py-2 border-b border-black"></div>
+                        <div id="pr-humanity" class="flex justify-center py-1 border-b border-black"></div>
                         <div class="text-center text-[10px] mt-1 font-bold">Bearing: <span id="pr-bearing"></span></div>
                     </div>
                     <div>
@@ -726,7 +727,7 @@
                     </div>
                     <div>
                         <h3 class="section-header">Blood Pool</h3>
-                        <div id="pr-blood-boxes" class="grid grid-cols-10 gap-1 justify-center mt-2 px-2"></div>
+                        <div id="pr-blood-boxes" class="grid grid-cols-10 gap-1 justify-center mt-1 px-2"></div>
                     </div>
                 </div>
 
