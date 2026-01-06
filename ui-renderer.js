@@ -392,6 +392,67 @@ window.toggleDiceTray = function() {
     if (tray) tray.classList.toggle('open');
 };
 
+// --- FRENZY ROLL FUNCTION ---
+window.rollFrenzy = function() {
+    const traitName = "Self-Control"; 
+    let traitVal = window.state.dots.virt[traitName] || 1;
+    // Vampires with Instincts always frenzy (per rules), but in app we allow rolling if they have it
+    // Or we use Instincts as the pool
+    if (window.state.dots.virt["Instincts"]) traitVal = window.state.dots.virt["Instincts"];
+
+    const clan = window.state.textFields['c-clan'] || document.getElementById('c-clan')?.value || "None";
+    let difficulty = 6; 
+    let diffMsg = "Standard Difficulty";
+
+    if (clan === "Brujah") {
+        difficulty += 2;
+        diffMsg = "Brujah Curse (+2 Diff)";
+    }
+
+    let successes = 0;
+    let rolls = [];
+    let ones = 0;
+    
+    for(let i=0; i<traitVal; i++) {
+        const die = Math.floor(Math.random() * 10) + 1;
+        rolls.push(die);
+        if (die >= difficulty) successes++;
+        if (die === 1) ones++;
+    }
+
+    let net = Math.max(0, successes - ones);
+    let outcome = "";
+    
+    if (successes === 0 && ones > 0) outcome = "BOTCH! The Beast takes over immediately!";
+    else if (net === 0) outcome = "FAILURE! You succumb to Frenzy.";
+    else if (net >= 5) outcome = "RIDING THE WAVE! You control the Frenzy.";
+    else outcome = `SUCCESS (${net})! You resist for now.`;
+
+    const tray = document.getElementById('roll-results');
+    const row = document.createElement('div');
+    row.className = 'bg-red-900/60 p-2 border border-red-500 text-[10px] mb-2 animate-in fade-in slide-in-from-right-4 duration-300';
+    
+    const diceRender = rolls.map(d => {
+        let c = 'text-gray-400';
+        if (d === 1) c = 'text-[#ff0000] font-bold';
+        else if (d >= difficulty) c = 'text-[#d4af37] font-bold';
+        return `<span class="${c} text-2xl mx-1">${d}</span>`;
+    }).join(' ');
+
+    row.innerHTML = `
+        <div class="flex justify-between border-b border-red-500 pb-1 mb-1">
+            <span class="text-red-200 font-bold">FRENZY CHECK (${traitName})</span>
+            <span class="text-white font-bold text-xs">${outcome.split('!')[0]}</span>
+        </div>
+        <div class="text-center text-[9px] text-gray-300 mb-1">Diff ${difficulty} (${diffMsg})</div>
+        <div class="tracking-widest flex flex-wrap justify-center py-2">${diceRender}</div>
+        <div class="text-center text-[9px] italic text-gray-400">${outcome}</div>
+    `;
+    
+    tray.insertBefore(row, tray.firstChild);
+    document.getElementById('dice-tray').classList.add('open');
+};
+
 // --- UPDATED POOL LOGIC WITH FREEBIE LOGGING ---
 window.updatePools = function() {
     if (!window.state.status) window.state.status = { humanity: 7, willpower: 5, tempWillpower: 5, health_states: [0,0,0,0,0,0,0], blood: 0 };
@@ -1324,10 +1385,6 @@ export function updateWalkthrough() {
     // This updates the visual state of the nav bar (lock/unlock/complete)
     const nav = document.getElementById('sheet-nav');
     if (nav && !window.state.isPlayMode) {
-         // Since we can't easily query specific step elements without rebuilding, 
-         // we might need to rely on changeStep's render logic, but simpler:
-         // Just check completion status for current step to unlock next?
-         
          const current = window.state.currentPhase;
          const furthest = window.state.furthestPhase || 1;
          
@@ -1335,12 +1392,6 @@ export function updateWalkthrough() {
          if (checkStepComplete(current, window.state)) {
              if (current === furthest && current < 8) {
                  window.state.furthestPhase = current + 1;
-                 // Re-render nav to show unlock
-                 // We call changeStep to re-render nav but keep current page active?
-                 // No, changeStep changes page.
-                 // We need a dedicated nav render function. 
-                 // For now, let's just trigger a re-render of nav by calling changeStep(current) 
-                 // which is slightly inefficient but safe.
                  window.changeStep(current);
              }
          }
@@ -1458,7 +1509,6 @@ window.togglePlayMode = function() {
     const pBtn = document.getElementById('play-mode-btn'); const pBtnText = document.getElementById('play-btn-text');
     if(pBtnText) pBtnText.innerText = window.state.isPlayMode ? "Edit" : "Play";
     
-    // ... [existing play mode input disable logic] ...
     document.querySelectorAll('input, select, textarea').forEach(el => {
         if (['save-filename', 'char-select', 'roll-diff', 'use-specialty', 'c-path-name', 'c-path-name-create', 'c-bearing-name', 'c-bearing-value', 'custom-weakness-input', 'xp-points-input', 'blood-per-turn-input', 'custom-dice-input', 'spend-willpower', 'c-xp-total'].includes(el.id)) {
             el.disabled = false;
@@ -1640,19 +1690,35 @@ window.togglePlayMode = function() {
         if (document.getElementById('play-vehicles')) { const pv = document.getElementById('play-vehicles'); pv.innerHTML = ''; if (window.state.inventory) { window.state.inventory.filter(i => i.type === 'Vehicle').forEach(v => { let display = v.displayName || v.name; pv.innerHTML += `<div class="mb-2 border-b border-[#333] pb-1"><div class="font-bold text-white uppercase text-[10px]">${display}</div><div class="text-[9px] text-gray-400">Safe:${v.stats.safe} | Max:${v.stats.max} | Man:${v.stats.man}</div></div>`; }); } }
         if (document.getElementById('play-havens-list')) { const ph = document.getElementById('play-havens-list'); ph.innerHTML = ''; window.state.havens.forEach(h => { ph.innerHTML += `<div class="border-l-2 border-gold pl-4 mb-4"><div class="flex justify-between"><div><div class="font-bold text-white uppercase text-[10px]">${h.name}</div><div class="text-[9px] text-gold italic">${h.loc}</div></div></div><div class="text-xs text-gray-400 mt-1">${h.desc}</div></div>`; }); }
         
-        // ... [Weakness and XP Play display] ...
+        // --- CLAN SPECIFIC WEAKNESS & FRENZY ---
         const weaknessCont = document.getElementById('weakness-play-container');
         if (weaknessCont) {
             weaknessCont.innerHTML = '';
             const clan = window.state.textFields['c-clan'] || document.getElementById('c-clan')?.value || "None";
             const weaknessText = CLAN_WEAKNESSES[clan] || "Select a Clan to see weakness.";
             const customNote = window.state.textFields['custom-weakness'] || "";
+            
+            // Frenzy Button for ALL, special note for Brujah
+            let frenzyBtnText = "Roll Frenzy (Std Diff)";
+            let frenzyBtnClass = "bg-[#444] hover:bg-gray-600";
+            
+            if (clan === "Brujah") {
+                frenzyBtnText = "Roll Frenzy (+2 Diff)";
+                frenzyBtnClass = "bg-[#8b0000] hover:bg-red-700";
+            }
+
             weaknessCont.innerHTML = `
                 <div class="section-title">Weakness</div>
                 <div class="bg-[#111] p-3 border border-[#333] h-full flex flex-col mt-2">
                     <div class="text-[11px] text-gray-300 italic mb-3 leading-snug flex-1">${weaknessText}</div>
                     <div class="text-[9px] font-bold text-gray-500 mb-1 uppercase">Specifics / Notes</div>
                     <textarea id="custom-weakness-input" class="w-full h-16 bg-black border border-[#444] text-[10px] text-white p-2 focus:border-gold outline-none resize-none" placeholder="e.g. 'Only Brunettes'">${customNote}</textarea>
+                    
+                    <div class="mt-2 border-t border-[#333] pt-2">
+                        <button onclick="window.rollFrenzy()" class="w-full ${frenzyBtnClass} text-white font-bold py-1 text-[10px] uppercase transition-colors">
+                            <i class="fas fa-bolt mr-1"></i> ${frenzyBtnText}
+                        </button>
+                    </div>
                 </div>
             `;
             const ta = document.getElementById('custom-weakness-input');
@@ -1705,6 +1771,81 @@ window.togglePlayMode = function() {
         }
         window.changeStep(window.state.furthestPhase || 1);
     }
+};
+
+// --- FRENZY ROLL FUNCTION (Updated for V20) ---
+window.rollFrenzy = function() {
+    // Determine Trait: Self-Control (Camarilla) or Instincts (Sabbat/Path)
+    // We check virtues. Usually Self-Control is standard.
+    const sc = window.state.dots.virt["Self-Control"] || 0;
+    const inst = window.state.dots.virt["Instincts"] || 0;
+    
+    // Auto-detect which to use (whichever is > 0 or defaults to Self-Control)
+    let traitName = "Self-Control";
+    let traitVal = sc;
+    
+    // If Instincts is present/higher (implying Sabbat path), use it? 
+    // Or just prefer if SC is 0/1 default and Inst is bought.
+    if (inst > sc) {
+        traitName = "Instincts";
+        traitVal = inst;
+    }
+    // Fallback minimum 1 die
+    if (traitVal < 1) traitVal = 1;
+
+    const clan = window.state.textFields['c-clan'] || document.getElementById('c-clan')?.value || "None";
+    let difficulty = 6; // Standard base difficulty for provocation (variable 3-8 per rules)
+    let diffMsg = "Standard Difficulty";
+
+    if (clan === "Brujah") {
+        difficulty += 2;
+        diffMsg = "Brujah Curse (+2 Diff)";
+    }
+
+    // Perform Roll Logic
+    let successes = 0;
+    let rolls = [];
+    let ones = 0;
+    
+    for(let i=0; i<traitVal; i++) {
+        const die = Math.floor(Math.random() * 10) + 1;
+        rolls.push(die);
+        if (die >= difficulty) successes++;
+        if (die === 1) ones++;
+    }
+
+    // Net Successes
+    let net = Math.max(0, successes - ones);
+    let outcome = "";
+    
+    if (successes === 0 && ones > 0) outcome = "BOTCH! The Beast takes over immediately!";
+    else if (net === 0) outcome = "FAILURE! You succumb to Frenzy.";
+    else if (net >= 5) outcome = "RIDING THE WAVE! You control the Frenzy.";
+    else outcome = `SUCCESS (${net})! You resist for now.`;
+
+    const tray = document.getElementById('roll-results');
+    const row = document.createElement('div');
+    row.className = 'bg-red-900/60 p-2 border border-red-500 text-[10px] mb-2 animate-in fade-in slide-in-from-right-4 duration-300';
+    
+    const diceRender = rolls.map(d => {
+        let c = 'text-gray-400';
+        if (d === 1) c = 'text-[#ff0000] font-bold';
+        else if (d >= difficulty) c = 'text-[#d4af37] font-bold';
+        return `<span class="${c} text-2xl mx-1">${d}</span>`;
+    }).join(' ');
+
+    row.innerHTML = `
+        <div class="flex justify-between border-b border-red-500 pb-1 mb-1">
+            <span class="text-red-200 font-bold">FRENZY CHECK (${traitName})</span>
+            <span class="text-white font-bold text-xs">${outcome.split('!')[0]}</span>
+        </div>
+        <div class="text-center text-[9px] text-gray-300 mb-1">Diff ${difficulty} (${diffMsg})</div>
+        <div class="tracking-widest flex flex-wrap justify-center py-2">${diceRender}</div>
+        <div class="text-center text-[9px] italic text-gray-400">${outcome}</div>
+    `;
+    
+    tray.insertBefore(row, tray.firstChild);
+    document.getElementById('dice-tray').classList.add('open');
 };
 
 window.hydrateInputs = hydrateInputs;
