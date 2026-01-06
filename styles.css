@@ -34,6 +34,16 @@ h1, h2, h3, .heading { font-family: 'Cinzel', serif; letter-spacing: 0.1em; }
 ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--v-blood); }
 
+/* Hide scrollbar for Chrome/Safari/Opera */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+/* Hide scrollbar for IE, Edge and Firefox */
+.no-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
 .dot {
     width: 12px;
     height: 12px;
@@ -371,11 +381,62 @@ select option { background: #111; color: white; }
 }
 #dice-tray.open { transform: translateY(0); }
 
-/* Freebie Sidebar */
+/* MOBILE ADJUSTMENTS for Dice Tray & Sidebars */
+@media (max-width: 768px) {
+    #dice-tray {
+        width: 100% !important;
+        right: 0;
+        bottom: 0;
+        border-left: none;
+        border-top: 2px solid var(--v-gold);
+        max-height: 50vh;
+    }
+    
+    #freebie-sidebar {
+        left: auto;
+        bottom: -100%;
+        top: auto;
+        transform: none; /* Remove vertical centering transform */
+        width: 100% !important;
+        height: 60vh; /* Slide up nicely */
+        transition: bottom 0.3s ease-in-out;
+        z-index: 10001; /* Above navbar */
+        border-top: 2px solid var(--v-gold);
+    }
+    
+    #freebie-sidebar.open {
+        left: 0;
+        bottom: 0; /* Slide up */
+    }
+    
+    #xp-sidebar {
+        left: auto;
+        bottom: -100%;
+        top: auto;
+        transform: none;
+        width: 100% !important;
+        height: 60vh;
+        transition: bottom 0.3s ease-in-out;
+        z-index: 10001;
+        border-top: 2px solid #a855f7; /* Purple for XP */
+    }
+    
+    #xp-sidebar.open {
+        left: 0;
+        bottom: 0;
+    }
+
+    /* Hide the vertical text toggle buttons on mobile, use top nav buttons instead */
+    #sb-toggle-btn, #xp-sb-toggle-btn {
+        display: none;
+    }
+}
+
+/* Freebie Sidebar Desktop Defaults */
 #freebie-sidebar {
     position: fixed;
     left: -210px;
-    top: 55%; /* Moved down slightly to not hit top bar */
+    top: 55%; 
     transform: translateY(-50%);
     width: 210px;
     background: rgba(10,10,10,0.95);
@@ -417,20 +478,20 @@ select option { background: #111; color: white; }
 
 .cost-row { 
     display: flex; 
-    justify-content: space-between; /* Pushes items to edges */
-    align-items: center; /* Vertical alignment */
-    font-size: 0.65rem; /* Reduced font size for more space */
+    justify-content: space-between; 
+    align-items: center; 
+    font-size: 0.65rem; 
     padding: 3px 0; 
     width: 100%;
-    gap: 0.25rem; /* Minimal gap */
+    gap: 0.25rem; 
 }
 .cost-row > span:first-child { 
     flex-grow: 1; 
-    white-space: nowrap; /* Keep single line */
+    white-space: nowrap; 
     color: #aaa; 
     text-align: left;
     overflow: hidden;
-    text-overflow: ellipsis; /* Handle very long labels gracefully */
+    text-overflow: ellipsis; 
 }
 .cost-row > span:first-child::after { content: none; }
 .cost-val { 
