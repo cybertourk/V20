@@ -813,6 +813,58 @@ export function togglePlayMode() {
                 });
             }
         }
+        
+        // --- THE BEAST (FRENZY / RÖTSCHRECK) ---
+        // NEW SECTION INSERTED HERE
+        const healthContainer = document.getElementById('health-chart-play')?.parentElement?.parentElement;
+        // The container holding Health is inside the "Right Column: Health & Weakness"
+        // Let's create the container if it doesn't exist, or clear it if it does
+        
+        // IMPORTANT: We need a dedicated slot in HTML or inject it dynamically.
+        // In the togglePlayMode HTML structure below, we can insert it.
+        // However, since we are building HTML strings, let's inject it into the DOM directly after the Health section
+        // inside the Right Column container.
+
+        // Actually, looking at the structure in togglePlayMode below, I can simply add the HTML there.
+        // But for now, let's find the container. The Right Column container has id="play-mode-1" -> grid -> right col
+        // The right column contains Health, Weakness, Experience.
+        
+        // I will locate the Weakness container and insert "The Beast" BEFORE it.
+        if (weaknessCont && weaknessCont.parentNode) {
+            let beastCont = document.getElementById('beast-play-container');
+            if (!beastCont) {
+                beastCont = document.createElement('div');
+                beastCont.id = 'beast-play-container';
+                beastCont.className = 'sheet-section';
+                weaknessCont.parentNode.insertBefore(beastCont, weaknessCont);
+            }
+            
+            beastCont.innerHTML = `
+                <div class="section-title">The Beast</div>
+                <div class="bg-[#111] p-3 border border-[#333] mt-2 space-y-4">
+                    <!-- Frenzy -->
+                    <div>
+                        <div class="flex justify-between items-center text-[10px] uppercase font-bold text-gray-400 mb-1">
+                            <span>Frenzy Check</span>
+                            <input type="number" id="frenzy-diff" placeholder="Diff (Auto)" class="w-16 bg-black border border-[#444] text-center text-white p-1 text-[10px]">
+                        </div>
+                        <button onclick="window.rollFrenzy()" class="w-full bg-[#8b0000] hover:bg-red-700 text-white font-bold py-1 text-[10px] uppercase transition-colors flex items-center justify-center">
+                            <i class="fas fa-bolt mr-1"></i> Check Frenzy
+                        </button>
+                    </div>
+                    <!-- Rötschreck -->
+                    <div class="border-t border-[#333] pt-2">
+                        <div class="flex justify-between items-center text-[10px] uppercase font-bold text-gray-400 mb-1">
+                            <span>Rötschreck (Fire/Sun)</span>
+                            <input type="number" id="rotschreck-diff" placeholder="Diff (6)" value="6" class="w-16 bg-black border border-[#444] text-center text-white p-1 text-[10px]">
+                        </div>
+                        <button onclick="window.rollRotschreck()" class="w-full bg-[#d97706] hover:bg-orange-600 text-white font-bold py-1 text-[10px] uppercase transition-colors flex items-center justify-center">
+                            <i class="fas fa-fire mr-1"></i> Check Fear
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
 
         const xpCont = document.getElementById('experience-play-container');
         if (xpCont) {
