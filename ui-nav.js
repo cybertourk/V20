@@ -970,7 +970,7 @@ export function renderPrintSheet() {
         // Use a single string buffer to construct the innerHTML
         let tblHTML = '';
         
-        // Add Maneuvers (Generic)
+        // Add Maneuvers (Extended V20 List)
         const manuevers = [
             {n: 'Bite', d: 6, dmg: 'Str+1 (A)'},
             {n: 'Block', d: 6, dmg: 'None (R)'},
