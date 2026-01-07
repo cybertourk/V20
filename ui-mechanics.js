@@ -14,6 +14,71 @@ import {
 } from "./ui-common.js";
 
 
+// --- CLAN MECHANICS UI HELPER ---
+function updateClanMechanicsUI() {
+    const clan = window.state.textFields['c-clan'] || document.getElementById('c-clan')?.value || "None";
+    
+    // --- 1. FOLLOWERS OF SET: SUNLIGHT DAMAGE TOGGLE ---
+    const dmgInput = document.getElementById('dmg-input-val');
+    // We look for the parent container of the input to append the toggle
+    if (dmgInput && dmgInput.parentNode) {
+        let sunWrapper = document.getElementById('setite-sunlight-wrapper');
+        
+        if (clan === "Followers of Set") {
+            if (!sunWrapper) {
+                sunWrapper = document.createElement('div');
+                sunWrapper.id = 'setite-sunlight-wrapper';
+                sunWrapper.className = "flex items-center gap-1 mt-2 justify-center animate-in fade-in bg-orange-900/30 p-1 rounded border border-orange-800/50";
+                sunWrapper.innerHTML = `
+                    <input type="checkbox" id="setite-sunlight-toggle" class="accent-orange-500 w-3 h-3 cursor-pointer">
+                    <label for="setite-sunlight-toggle" class="text-[9px] text-orange-400 font-bold uppercase cursor-pointer select-none">Sunlight Exposure (+2 Dmg)</label>
+                `;
+                // Append after the input container's last child (usually the buttons)
+                // Or closer to the input. We'll append to parent for now.
+                dmgInput.parentNode.appendChild(sunWrapper);
+            }
+            sunWrapper.style.display = 'flex';
+        } else {
+            if (sunWrapper) sunWrapper.style.display = 'none';
+        }
+    }
+
+    // --- 2. FOLLOWERS OF SET: BRIGHT LIGHT PENALTY (Dice Tray) ---
+    const tray = document.getElementById('dice-tray');
+    if (tray) {
+        let lightWrapper = document.getElementById('setite-light-wrapper');
+        
+        if (clan === "Followers of Set") {
+            if (!lightWrapper) {
+                lightWrapper = document.createElement('div');
+                lightWrapper.id = 'setite-light-wrapper';
+                lightWrapper.className = "flex items-center gap-2 mb-2 px-3 py-2 bg-yellow-900/20 border border-yellow-600/30 rounded flex animate-in fade-in";
+                lightWrapper.innerHTML = `
+                    <input type="checkbox" id="setite-light-toggle" class="accent-yellow-500 w-4 h-4 cursor-pointer">
+                    <label for="setite-light-toggle" class="text-[10px] text-yellow-200 font-bold uppercase cursor-pointer select-none tracking-tight">Bright Light (-1 Die)</label>
+                `;
+                
+                // Try to insert before the Roll Button section to make it visible
+                // The structure usually has the roll button or diff inputs. 
+                // We'll insert it at the top of the tray content or before roll button if found.
+                const rollBtn = document.getElementById('roll-btn');
+                if (rollBtn) {
+                     // Go up to the row container
+                     const row = rollBtn.closest('.flex'); 
+                     if(row) tray.insertBefore(lightWrapper, row);
+                     else tray.appendChild(lightWrapper);
+                } else {
+                    tray.appendChild(lightWrapper);
+                }
+            }
+            lightWrapper.style.display = 'flex';
+        } else {
+            if (lightWrapper) lightWrapper.style.display = 'none';
+        }
+    }
+}
+
+
 // --- DICE & POOL MECHANICS ---
 
 export function clearPool() {
@@ -52,6 +117,13 @@ export function clearPool() {
     // Hide Tray Armor Toggle if it exists
     const armorCont = document.getElementById('tray-armor-toggle-container');
     if(armorCont) armorCont.style.display = 'none';
+
+    // Reset Setite Light Toggle if exists
+    const lightToggle = document.getElementById('setite-light-toggle');
+    if (lightToggle) lightToggle.checked = false;
+
+    // Refresh Clan UI Elements
+    updateClanMechanicsUI();
 
     document.getElementById('dice-tray').classList.remove('open');
 }
@@ -115,6 +187,7 @@ export function handleTraitClick(name, type) {
             }
         }
         document.getElementById('dice-tray').classList.add('open');
+        updateClanMechanicsUI(); // Ensure toggle is visible
     } else {
         window.clearPool();
     }
@@ -142,10 +215,18 @@ export function rollPool() {
     }
 
     const custom = parseInt(document.getElementById('custom-dice-input')?.value) || 0;
-    const poolSize = window.state.activePool.reduce((a,b) => a + b.val, 0) + custom;
+    let poolSize = window.state.activePool.reduce((a,b) => a + b.val, 0) + custom;
     
+    // --- CLAN WEAKNESS: FOLLOWERS OF SET (Bright Light) ---
+    const clan = window.state.textFields['c-clan'] || "None";
+    const lightToggle = document.getElementById('setite-light-toggle');
+    if (clan === "Followers of Set" && lightToggle && lightToggle.checked) {
+        poolSize -= 1;
+        // Do not return here, we proceed with reduced pool
+    }
+
     if (poolSize <= 0 && autoSuccesses === 0) { 
-        window.showNotification("Pool Empty"); 
+        window.showNotification("Pool Empty (or reduced to 0)"); 
         return; 
     }
     
@@ -198,7 +279,11 @@ export function rollPool() {
     }).join(' ');
 
     let extras = "";
-    if (autoSuccesses > 0) extras = `<div class="text-[9px] text-blue-300 font-bold mt-1 text-center border-t border-[#333] pt-1 uppercase">Willpower Applied (+1 Success)</div>`;
+    if (autoSuccesses > 0) extras += `<div class="text-[9px] text-blue-300 font-bold mt-1 text-center border-t border-[#333] pt-1 uppercase">Willpower Applied (+1 Success)</div>`;
+    
+    if (clan === "Followers of Set" && lightToggle && lightToggle.checked) {
+        extras += `<div class="text-[9px] text-yellow-500 font-bold mt-1 text-center border-t border-[#333] pt-1 uppercase">Bright Light Penalty (-1 Die)</div>`;
+    }
 
     row.innerHTML = `<div class="flex justify-between border-b border-[#444] pb-1 mb-1"><span class="text-gray-400">Diff ${diff}${isSpec ? '*' : ''}</span><span class="${outcomeClass} font-black text-sm">${outcome}</span></div><div class="tracking-widest flex flex-wrap justify-center py-2">${diceRender}</div>${extras}`;
     tray.insertBefore(row, tray.firstChild);
@@ -234,6 +319,9 @@ window.rollCombat = rollCombat;
 export function toggleDiceTray() {
     const tray = document.getElementById('dice-tray');
     if (tray) tray.classList.toggle('open');
+    if (tray.classList.contains('open')) {
+        updateClanMechanicsUI();
+    }
 }
 window.toggleDiceTray = toggleDiceTray;
 
@@ -331,7 +419,16 @@ export function applyDamage(typeStr) {
     const val = typeMap[typeStr];
     if(!val) return;
 
-    const amount = parseInt(document.getElementById('dmg-input-val')?.value) || 1;
+    let amount = parseInt(document.getElementById('dmg-input-val')?.value) || 1;
+    
+    // --- CLAN WEAKNESS: FOLLOWERS OF SET (Sunlight) ---
+    const clan = window.state.textFields['c-clan'] || "None";
+    const sunlightToggle = document.getElementById('setite-sunlight-toggle');
+    if (clan === "Followers of Set" && sunlightToggle && sunlightToggle.checked) {
+        amount += 2;
+        window.showNotification("Sunlight: +2 Health Levels (Setite Weakness)");
+    }
+
     // Ensure health_states exists
     let currentHealth = (window.state.status.health_states && Array.isArray(window.state.status.health_states)) 
         ? [...window.state.status.health_states] 
@@ -757,6 +854,9 @@ export function updatePools() {
     
     renderSocialProfile();
     if(window.updateWalkthrough) window.updateWalkthrough();
+
+    // --- CLAN MECHANICS UPDATE ---
+    updateClanMechanicsUI();
 
     // --- Ensure Dice Button Exists & Update State ---
     let diceBtn = document.getElementById('dice-toggle-btn');
