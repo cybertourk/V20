@@ -550,8 +550,25 @@
                                 <!-- Health Chart with safe font size -->
                                 <div id="health-chart-play" class="space-y-2 mt-4 mb-4 flex-shrink-0 text-xs"></div>
                                 
+                                <!-- NEW DAMAGE CONTROLS -->
+                                <div id="damage-app-container" class="mb-4 border-t border-[#333] pt-2">
+                                    <div class="flex items-center justify-between mb-2 gap-2">
+                                        <span class="text-[10px] font-bold text-gray-400 uppercase">Incoming Dmg:</span>
+                                        <input type="number" id="dmg-input-val" value="1" min="1" class="w-12 bg-[#111] border border-[#444] text-white text-center text-xs font-bold">
+                                    </div>
+                                    <div class="grid grid-cols-3 gap-1 mb-2">
+                                        <button type="button" class="bg-[#1e3a8a] text-blue-200 text-[9px] font-bold py-1 px-1 rounded border border-blue-800 hover:bg-blue-900 uppercase" onclick="window.applyDamage('Bashing')">Bash (/)</button>
+                                        <button type="button" class="bg-[#7f1d1d] text-red-200 text-[9px] font-bold py-1 px-1 rounded border border-red-800 hover:bg-red-900 uppercase" onclick="window.applyDamage('Lethal')">Lethal (X)</button>
+                                        <button type="button" class="bg-[#713f12] text-yellow-200 text-[9px] font-bold py-1 px-1 rounded border border-yellow-800 hover:bg-yellow-900 uppercase" onclick="window.applyDamage('Aggravated')">Agg (*)</button>
+                                    </div>
+                                    <div class="flex gap-2">
+                                        <button type="button" class="flex-1 bg-gray-800 text-gray-300 text-[9px] font-bold py-1 rounded border border-gray-600 hover:bg-gray-700 uppercase" onclick="window.setupSoak()">Roll Soak</button>
+                                        <button type="button" class="flex-1 bg-green-900/40 text-green-300 text-[9px] font-bold py-1 rounded border border-green-800 hover:bg-green-900 uppercase" onclick="window.healOneLevel()">Heal (1 BP)</button>
+                                    </div>
+                                </div>
+
                                 <!-- Beast Container (Frenzy/Rotschreck) injected by JS -->
-                                <div id="beast-play-container" class="mt-4 border-t border-[#333] pt-4"></div>
+                                <div id="beast-play-container" class="mt-auto pt-2 border-t border-[#333]"></div>
                             </div>
                             
                             <!-- Experience Container (Separated to handle overflow naturally) -->
