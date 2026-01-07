@@ -248,6 +248,8 @@ export function rollFrenzy() {
     window.state.activePool.push({name: traitName, val: traitVal});
 
     const clan = window.state.textFields['c-clan'] || document.getElementById('c-clan')?.value || "None";
+    
+    // 1. Determine Base Difficulty
     let difficulty = 6; 
     let diffMsg = "";
 
@@ -255,9 +257,12 @@ export function rollFrenzy() {
     if (diffInputOverride && diffInputOverride.value) {
         difficulty = parseInt(diffInputOverride.value) || 6;
         diffMsg = " (Custom)";
-    } else if (clan === "Brujah") {
+    }
+
+    // 2. Apply Brujah Weakness regardless of custom input
+    if (clan === "Brujah") {
         difficulty += 2;
-        diffMsg = " (Brujah Curse)";
+        diffMsg += " (Brujah Curse)";
         
         // --- BRUJAH CURSE IMPLEMENTATION: NO WP TO AVOID FRENZY ---
         const wpCheck = document.getElementById('spend-willpower');
