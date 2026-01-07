@@ -36,12 +36,17 @@ export function clearPool() {
     }
     
     // --- RESET DICE TRAY UI (Standard Mode) ---
-    // Show Willpower
+    // Show Willpower & Reset State (Fix for Brujah Curse persistence)
     const wpCont = document.getElementById('willpower-spend-container');
     if(wpCont) {
         wpCont.style.display = 'flex';
         const wpCheck = document.getElementById('spend-willpower');
-        if(wpCheck) wpCheck.checked = false;
+        if(wpCheck) {
+            wpCheck.checked = false;
+            wpCheck.disabled = false;
+        }
+        const wpLabel = document.querySelector('label[for="spend-willpower"]');
+        if(wpLabel) wpLabel.innerText = "Spend Willpower (Auto Success)";
     }
     
     // Hide Tray Armor Toggle if it exists
@@ -253,6 +258,18 @@ export function rollFrenzy() {
     } else if (clan === "Brujah") {
         difficulty += 2;
         diffMsg = " (Brujah Curse)";
+        
+        // --- BRUJAH CURSE IMPLEMENTATION: NO WP TO AVOID FRENZY ---
+        const wpCheck = document.getElementById('spend-willpower');
+        if (wpCheck) {
+            wpCheck.checked = false;
+            wpCheck.disabled = true;
+        }
+        const wpLabel = document.querySelector('label[for="spend-willpower"]');
+        if (wpLabel) {
+            wpLabel.innerHTML = `<span class="text-red-500 font-black animate-pulse">BRUJAH: CANNOT SPEND WP</span>`;
+        }
+        window.showNotification("Brujah: +2 Diff, No Willpower");
     }
 
     const diffInput = document.getElementById('roll-diff');
