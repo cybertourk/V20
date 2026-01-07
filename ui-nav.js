@@ -973,12 +973,14 @@ export function renderPrintSheet() {
         // Add Maneuvers (Generic)
         const manuevers = [
             {n: 'Bite', d: 6, dmg: 'Str+1 (A)'},
+            {n: 'Block', d: 6, dmg: 'None (R)'},
+            {n: 'Claw', d: 6, dmg: 'Str+1 (A)'},
             {n: 'Clinch', d: 6, dmg: 'Str (B)'},
             {n: 'Disarm', d: 7, dmg: 'Special'},
-            {n: 'Dodge', d: 6, dmg: '-'},
-            {n: 'Hold', d: 6, dmg: '-'},
+            {n: 'Dodge', d: 6, dmg: 'None (R)'},
+            {n: 'Hold', d: 6, dmg: 'None (C)'},
             {n: 'Kick', d: 7, dmg: 'Str+1 (B)'},
-            {n: 'Parry', d: 6, dmg: '-'},
+            {n: 'Parry', d: 6, dmg: 'None (R)'},
             {n: 'Strike', d: 6, dmg: 'Str (B)'},
             {n: 'Sweep', d: 7, dmg: 'Str (K)'},
             {n: 'Tackle', d: 7, dmg: 'Str+1 (K)'},
