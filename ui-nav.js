@@ -248,21 +248,77 @@ export function renderDynamicTraitRow(containerId, type, list) {
 window.renderDynamicTraitRow = renderDynamicTraitRow;
 
 export function renderBloodBondRow() {
-    const cont = document.getElementById('blood-bond-list'); if (!cont) return;
-    const row = document.createElement('div'); row.className = 'flex gap-2 items-center border-b border-[#222] pb-2 advantage-row';
-    row.innerHTML = `<select class="w-24 text-[10px] uppercase font-bold mr-2 border-b border-[#333] bg-transparent"><option value="Bond">Bond</option><option value="Vinculum">Vinculum</option></select><input type="text" placeholder="Bound to..." class="flex-1 text-xs"><input type="number" placeholder="Lvl" class="w-10 text-center text-xs" min="1" max="3"><div class="remove-btn">&times;</div>`;
-    const typeSel = row.querySelector('select'); const nI = row.querySelector('input[type="text"]'); const rI = row.querySelector('input[type="number"]'); const del = row.querySelector('.remove-btn');
-    if (cont.children.length === 0) del.style.visibility = 'hidden';
-    const onUpd = () => {
-        if (typeSel.value === 'Bond') { rI.max = 3; if(parseInt(rI.value) > 3) rI.value = 3; }
-        if (typeSel.value === 'Vinculum') { rI.max = 10; if(parseInt(rI.value) > 10) rI.value = 10; }
-        window.state.bloodBonds = Array.from(cont.querySelectorAll('.advantage-row')).map(r => ({ type: r.querySelector('select').value, name: r.querySelector('input[type="text"]').value, rating: r.querySelector('input[type="number"]').value })).filter(b => b.name);
-        if (cont.lastElementChild === row && nI.value !== "") renderBloodBondRow();
-        updatePools(); 
-        renderPrintSheet();
+    const cont = document.getElementById('blood-bond-list'); 
+    if (!cont) return;
+    
+    // Clear list to prevent dupes on reload
+    cont.innerHTML = ''; 
+
+    // Define Builder
+    const buildRow = (data = null) => {
+        const row = document.createElement('div'); 
+        row.className = 'flex gap-2 items-center border-b border-[#222] pb-2 advantage-row';
+        
+        const typeVal = data ? data.type : "Bond";
+        const nameVal = data ? data.name : "";
+        const ratVal = data ? data.rating : "";
+
+        row.innerHTML = `
+            <select class="w-24 text-[10px] uppercase font-bold mr-2 border-b border-[#333] bg-transparent">
+                <option value="Bond" ${typeVal === 'Bond' ? 'selected' : ''}>Bond</option>
+                <option value="Vinculum" ${typeVal === 'Vinculum' ? 'selected' : ''}>Vinculum</option>
+            </select>
+            <input type="text" placeholder="Bound to..." class="flex-1 text-xs" value="${nameVal}">
+            <input type="number" placeholder="Lvl" class="w-10 text-center text-xs" min="1" max="3" value="${ratVal}">
+            <div class="remove-btn">&times;</div>
+        `;
+        
+        const typeSel = row.querySelector('select'); 
+        const nI = row.querySelector('input[type="text"]'); 
+        const rI = row.querySelector('input[type="number"]'); 
+        const del = row.querySelector('.remove-btn');
+        
+        // Hide delete on empty row until used
+        if (!data) del.style.visibility = 'hidden';
+
+        const onUpd = () => {
+            if (typeSel.value === 'Bond') { rI.max = 3; if(parseInt(rI.value) > 3) rI.value = 3; }
+            if (typeSel.value === 'Vinculum') { rI.max = 10; if(parseInt(rI.value) > 10) rI.value = 10; }
+            
+            window.state.bloodBonds = Array.from(cont.querySelectorAll('.advantage-row')).map(r => ({ 
+                type: r.querySelector('select').value, 
+                name: r.querySelector('input[type="text"]').value, 
+                rating: r.querySelector('input[type="number"]').value 
+            })).filter(b => b.name);
+            
+            if (cont.lastElementChild === row && nI.value !== "") {
+                del.style.visibility = 'visible';
+                buildRow();
+            }
+            
+            updatePools(); 
+            renderPrintSheet();
+        };
+        
+        typeSel.onchange = onUpd; 
+        nI.onblur = onUpd; 
+        rI.onblur = onUpd; 
+        
+        del.onclick = () => { 
+            row.remove(); 
+            if(cont.children.length === 0) buildRow();
+            onUpd(); 
+        };
+        
+        cont.appendChild(row);
     };
-    typeSel.onchange = onUpd; nI.onblur = onUpd; rI.onblur = onUpd; del.onclick = () => { row.remove(); onUpd(); };
-    cont.appendChild(row);
+
+    // Initialize from State
+    if(window.state.bloodBonds && Array.isArray(window.state.bloodBonds)) {
+        window.state.bloodBonds.forEach(b => buildRow(b));
+    }
+    // Add trailing empty row
+    buildRow();
 }
 window.renderBloodBondRow = renderBloodBondRow;
 
@@ -288,19 +344,70 @@ export function renderDerangementsList() {
 window.renderDerangementsList = renderDerangementsList;
 
 export function renderDynamicHavenRow() {
-    const cont = document.getElementById('multi-haven-list'); if (!cont) return;
-    const row = document.createElement('div'); row.className = 'border-b border-[#222] pb-4 advantage-row';
-    row.innerHTML = `<div class="flex justify-between items-center mb-2"><input type="text" placeholder="Haven Title..." class="flex-1 text-[10px] font-bold text-gold uppercase !border-b !border-[#333]"><div class="remove-btn">&times;</div></div><input type="text" placeholder="Location..." class="text-xs mb-2 !border-b !border-[#333]"><textarea class="h-16 text-xs" placeholder="Details..."></textarea>`;
-    const nameIn = row.querySelectorAll('input')[0]; const locIn = row.querySelectorAll('input')[1]; const descIn = row.querySelector('textarea'); const del = row.querySelector('.remove-btn');
-    if (cont.children.length === 0) del.style.visibility = 'hidden';
-    const onUpd = () => {
-        window.state.havens = Array.from(cont.querySelectorAll('.advantage-row')).map(r => ({ name: r.querySelectorAll('input')[0].value, loc: r.querySelectorAll('input')[1].value, desc: r.querySelector('textarea').value })).filter(h => h.name || h.loc);
-        if (cont.lastElementChild === row && nameIn.value !== "") renderDynamicHavenRow();
-        updatePools(); 
-        renderPrintSheet();
+    const container = document.getElementById('multi-haven-list'); 
+    if (!container) return;
+    
+    // Clear to prevent duplicate rows on load
+    container.innerHTML = ''; 
+
+    const buildRow = (data = null) => {
+        const row = document.createElement('div'); 
+        row.className = 'border-b border-[#222] pb-4 advantage-row';
+        
+        const nameVal = data ? data.name : "";
+        const locVal = data ? data.loc : "";
+        const descVal = data ? data.desc : "";
+
+        row.innerHTML = `
+            <div class="flex justify-between items-center mb-2">
+                <input type="text" placeholder="Haven Title..." class="flex-1 text-[10px] font-bold text-gold uppercase !border-b !border-[#333]" value="${nameVal}">
+                <div class="remove-btn">&times;</div>
+            </div>
+            <input type="text" placeholder="Location..." class="text-xs mb-2 !border-b !border-[#333]" value="${locVal}">
+            <textarea class="h-16 text-xs" placeholder="Details...">${descVal}</textarea>
+        `;
+        
+        const nameIn = row.querySelectorAll('input')[0]; 
+        const locIn = row.querySelectorAll('input')[1]; 
+        const descIn = row.querySelector('textarea'); 
+        const del = row.querySelector('.remove-btn');
+        
+        if (!data) del.style.visibility = 'hidden';
+
+        const onUpd = () => {
+            window.state.havens = Array.from(container.querySelectorAll('.advantage-row')).map(r => ({ 
+                name: r.querySelectorAll('input')[0].value, 
+                loc: r.querySelectorAll('input')[1].value, 
+                desc: r.querySelector('textarea').value 
+            })).filter(h => h.name || h.loc);
+            
+            if (container.lastElementChild === row && nameIn.value !== "") {
+                del.style.visibility = 'visible';
+                renderDynamicHavenRow(); // Recursive call is safe here because we rebuild from state
+            }
+            
+            updatePools(); 
+            renderPrintSheet();
+        };
+        
+        [nameIn, locIn, descIn].forEach(el => el.onblur = onUpd); 
+        
+        del.onclick = () => { 
+            row.remove(); 
+            if(container.children.length === 0) buildRow();
+            onUpd(); 
+        };
+        
+        container.appendChild(row);
     };
-    [nameIn, locIn, descIn].forEach(el => el.onblur = onUpd); del.onclick = () => { row.remove(); onUpd(); };
-    cont.appendChild(row);
+
+    // 1. Rebuild from state
+    if (window.state.havens && Array.isArray(window.state.havens)) {
+        window.state.havens.forEach(h => buildRow(h));
+    }
+    
+    // 2. Append trailing blank row
+    buildRow();
 }
 window.renderDynamicHavenRow = renderDynamicHavenRow;
 
