@@ -20,7 +20,6 @@ function updateClanMechanicsUI() {
     
     // --- 1. FOLLOWERS OF SET: SUNLIGHT DAMAGE TOGGLE ---
     const dmgInput = document.getElementById('dmg-input-val');
-    // We look for the parent container of the input to append the toggle
     if (dmgInput && dmgInput.parentNode) {
         let sunWrapper = document.getElementById('setite-sunlight-wrapper');
         
@@ -33,7 +32,6 @@ function updateClanMechanicsUI() {
                     <input type="checkbox" id="setite-sunlight-toggle" class="accent-orange-500 w-3 h-3 cursor-pointer pointer-events-auto">
                     <label for="setite-sunlight-toggle" class="text-[9px] text-orange-400 font-bold uppercase cursor-pointer select-none">Sunlight Exposure (+2 Dmg)</label>
                 `;
-                // Append after the input container's last child (usually the buttons)
                 dmgInput.parentNode.appendChild(sunWrapper);
             }
             sunWrapper.style.display = 'flex';
@@ -57,7 +55,6 @@ function updateClanMechanicsUI() {
                     <label for="setite-light-toggle" class="text-[10px] text-yellow-300 font-bold uppercase cursor-pointer select-none tracking-tight hover:text-white">Bright Light (-1 Die)</label>
                 `;
                 
-                // Insert before the Roll Button section to make it visible
                 const rollBtn = document.getElementById('roll-btn');
                 if (rollBtn) {
                      const row = rollBtn.closest('.flex'); 
@@ -72,7 +69,111 @@ function updateClanMechanicsUI() {
             if (lightWrapper) lightWrapper.style.display = 'none';
         }
     }
+
+    // --- 3. GANGREL: BEAST TRAITS PANEL ---
+    let gangrelPanel = document.getElementById('gangrel-beast-panel');
+    
+    if (clan === "Gangrel") {
+        if (!gangrelPanel) {
+            gangrelPanel = document.createElement('div');
+            gangrelPanel.id = 'gangrel-beast-panel';
+            gangrelPanel.className = "mt-4 p-3 bg-[#1a1a1a] border border-[#8b0000] rounded shadow-lg animate-in fade-in";
+            // Append to a sensible location in Play Mode (e.g., near Health or Sidebar)
+            // Trying to find the health chart container to append after
+            const healthCont = document.getElementById('health-chart-play');
+            if(healthCont && healthCont.parentNode) {
+                // Insert after health chart
+                healthCont.parentNode.appendChild(gangrelPanel);
+            } else {
+                // Fallback: Append to Dice Tray parent
+                const tray = document.getElementById('dice-tray');
+                if(tray && tray.parentNode) tray.parentNode.appendChild(gangrelPanel);
+            }
+        }
+        gangrelPanel.style.display = 'block';
+        renderGangrelPanel(gangrelPanel);
+    } else {
+        if (gangrelPanel) gangrelPanel.style.display = 'none';
+    }
 }
+
+// --- GANGREL HELPER FUNCTIONS ---
+function renderGangrelPanel(container) {
+    if (!window.state.beastTraits) window.state.beastTraits = [];
+    
+    const traits = window.state.beastTraits;
+    
+    let listHTML = `<div class="text-[#d4af37] font-bold text-xs uppercase mb-2 border-b border-[#333] pb-1 flex justify-between items-center">
+        <span>Gangrel Beast Traits</span>
+        <span class="text-[9px] text-gray-400">Weakness</span>
+    </div>`;
+    
+    if (traits.length === 0) {
+        listHTML += `<div class="text-gray-500 text-[10px] italic text-center py-2">No animal traits acquired... yet.</div>`;
+    } else {
+        listHTML += `<div class="space-y-2 mb-3">`;
+        traits.forEach((t, idx) => {
+            const isPerm = t.type === 'Permanent';
+            listHTML += `
+            <div class="bg-black/40 p-2 rounded border ${isPerm ? 'border-red-900' : 'border-gray-700'} relative group">
+                <div class="flex justify-between items-start">
+                    <span class="text-[#d4af37] font-bold text-[11px]">${t.name}</span>
+                    <span class="text-[9px] ${isPerm ? 'text-red-500 font-bold' : 'text-gray-400'} uppercase">${t.type}</span>
+                </div>
+                <div class="text-gray-300 text-[10px] mt-1 italic">${t.effect}</div>
+                <button onclick="window.removeBeastTrait(${idx})" class="absolute top-1 right-1 text-gray-600 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>`;
+        });
+        listHTML += `</div>`;
+    }
+    
+    listHTML += `
+    <div class="mt-2 pt-2 border-t border-[#333]">
+        <div class="text-[9px] text-gray-400 mb-1">Add New Trait (Frenzy Result)</div>
+        <div class="grid grid-cols-1 gap-2">
+            <input type="text" id="gt-name" placeholder="Trait (e.g. Wolf Ears)" class="w-full bg-black/50 border border-gray-700 text-gray-300 text-[10px] px-2 py-1 rounded focus:border-[#d4af37] outline-none">
+            <input type="text" id="gt-effect" placeholder="Effect (e.g. -1 Social)" class="w-full bg-black/50 border border-gray-700 text-gray-300 text-[10px] px-2 py-1 rounded focus:border-[#d4af37] outline-none">
+            <div class="flex gap-2">
+                <select id="gt-type" class="bg-black/50 border border-gray-700 text-gray-300 text-[10px] px-2 py-1 rounded focus:border-[#d4af37] outline-none flex-1">
+                    <option value="Temporary">Temporary</option>
+                    <option value="Permanent">Permanent</option>
+                </select>
+                <button onclick="window.addBeastTrait()" class="bg-[#8b0000] hover:bg-[#a00000] text-white text-[10px] font-bold px-3 py-1 rounded transition-colors">ADD</button>
+            </div>
+        </div>
+    </div>`;
+    
+    container.innerHTML = listHTML;
+}
+
+window.addBeastTrait = function() {
+    const name = document.getElementById('gt-name')?.value;
+    const effect = document.getElementById('gt-effect')?.value;
+    const type = document.getElementById('gt-type')?.value;
+    
+    if(!name || !effect) {
+        showNotification("Please enter Name and Effect.");
+        return;
+    }
+    
+    window.state.beastTraits.push({ name, effect, type });
+    showNotification("Beast Trait Added.");
+    
+    const panel = document.getElementById('gangrel-beast-panel');
+    if(panel) renderGangrelPanel(panel);
+    if(window.renderPrintSheet) window.renderPrintSheet();
+};
+
+window.removeBeastTrait = function(idx) {
+    if(confirm("Remove this Beast Trait?")) {
+        window.state.beastTraits.splice(idx, 1);
+        const panel = document.getElementById('gangrel-beast-panel');
+        if(panel) renderGangrelPanel(panel);
+        if(window.renderPrintSheet) window.renderPrintSheet();
+    }
+};
 
 
 // --- DICE & POOL MECHANICS ---
@@ -128,7 +229,6 @@ window.clearPool = clearPool;
 
 export function handleTraitClick(name, type) {
     // If we were in a special mode (Soak), clear first to reset UI
-    // FIX: Only check style.display if the element actually exists to prevent incorrect resets
     const armorCont = document.getElementById('tray-armor-toggle-container');
     if(armorCont && armorCont.style.display !== 'none') {
         window.clearPool();
@@ -220,7 +320,6 @@ export function rollPool() {
     const lightToggle = document.getElementById('setite-light-toggle');
     if (clan === "Followers of Set" && lightToggle && lightToggle.checked) {
         poolSize -= 1;
-        // Do not return here, we proceed with reduced pool
     }
 
     if (poolSize <= 0 && autoSuccesses === 0) { 
@@ -361,6 +460,12 @@ export function rollFrenzy() {
             wpLabel.innerHTML = `<span class="text-red-500 font-black animate-pulse">BRUJAH: CANNOT SPEND WP</span>`;
         }
         window.showNotification("Brujah: +2 Diff, No Willpower");
+    }
+    
+    // 3. Gangrel Frenzy Notification
+    if (clan === "Gangrel") {
+        window.showNotification("GANGREL: If Frenzy occurs, you gain a Beast Trait!");
+        diffMsg += " (Gangrel: Beast Trait Risk)";
     }
 
     const diffInput = document.getElementById('roll-diff');
