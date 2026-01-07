@@ -306,6 +306,138 @@ export function rollRotschreck() {
 window.rollRotschreck = rollRotschreck;
 
 
+// --- DAMAGE HANDLING & SOAK ---
+
+export function applyDamage(typeStr) {
+    const typeMap = { 'Bashing': 1, 'Lethal': 2, 'Aggravated': 3 };
+    const val = typeMap[typeStr];
+    if(!val) return;
+
+    const amount = parseInt(document.getElementById('dmg-input-val')?.value) || 1;
+    // Ensure health_states exists
+    let currentHealth = (window.state.status.health_states && Array.isArray(window.state.status.health_states)) 
+        ? [...window.state.status.health_states] 
+        : [0,0,0,0,0,0,0];
+    
+    // 1. Flatten existing damage to list
+    let damageList = currentHealth.filter(x => x > 0);
+    
+    // 2. Add new damage
+    for(let i=0; i<amount; i++) {
+        damageList.push(val);
+    }
+    
+    // 3. Sort: Agg (3) > Lethal (2) > Bash (1)
+    // This implements the "push down" logic: Agg sits on top, then Lethal, then Bash.
+    damageList.sort((a,b) => b - a);
+    
+    // 4. Handle Overflow (Limit to 7)
+    // In V20, if you take damage while incapacitated, you generally die or torpor.
+    // For this simple UI, we will cap at 7 and warn.
+    while(damageList.length > 7) {
+        // V20 Rules Note: Bashing overflowing Incap causes Torpor (effectively like taking a Lethal).
+        // Lethal overflowing Incap causes Torpor.
+        // Agg overflowing Incap causes Final Death.
+        // We will just remove the "excess" (least severe usually if we sort desc) and warn.
+        
+        // However, if we sort Descending, the "overflow" is actually the Bashing (1) at the end.
+        // We should just remove the last element and Notify.
+        damageList.pop();
+        window.showNotification("Health Track Full! Check Torpor/Death rules.");
+    }
+
+    // 5. Re-fill array
+    let newStates = [0,0,0,0,0,0,0];
+    for(let i=0; i<7; i++) {
+        if(i < damageList.length) newStates[i] = damageList[i];
+        else newStates[i] = 0;
+    }
+    
+    window.state.status.health_states = newStates;
+    
+    // Update UI
+    if(window.renderPrintSheet) window.renderPrintSheet();
+    updatePools(); // Refresh health boxes
+}
+window.applyDamage = applyDamage;
+
+export function setupSoak() {
+    // Soak = Stamina + Fortitude (for everything except pure Agg which is Fortitude only usually, but UI button is generic)
+    // V20: Vampires soak Bashing & Lethal with Stamina + Fortitude.
+    // Aggravated soak is Fortitude only.
+    // Since we don't know the damage type context here without more UI, we default to full soak pool (Stam + Fort).
+    // The player can remove Stamina manually if soaking Agg.
+    
+    const stam = window.state.dots.attr['Stamina'] || 1;
+    const fort = window.state.dots.disc['Fortitude'] || 0;
+    
+    window.clearPool();
+    window.state.activePool.push({name: 'Stamina', val: stam});
+    if(fort > 0) window.state.activePool.push({name: 'Fortitude', val: fort});
+    
+    setSafeText('pool-display', `Soak Roll: Stamina (${stam}) ${fort>0 ? `+ Fortitude (${fort})` : ''}`);
+    document.getElementById('dice-tray').classList.add('open');
+    showNotification("Soak Pool Ready. Roll vs Diff 6 (usually).");
+}
+window.setupSoak = setupSoak;
+
+export function healOneLevel() {
+    // Rules: "Normal damage isn’t as severe as aggravated, so it’s always marked last and healed first."
+    // Marked last means visually at the bottom.
+    // Our array logic: Index 0 is top (Bruised), Index 6 is bottom (Incapacitated).
+    // But our sort logic was [3, 3, 2, 1...] which puts Agg at index 0.
+    // This matches the "Agg marked above Lethal" visual rule.
+    // So "Healed First" means we heal the item at the END of the array (highest index).
+    
+    let currentHealth = (window.state.status.health_states && Array.isArray(window.state.status.health_states)) 
+        ? [...window.state.status.health_states] 
+        : [0,0,0,0,0,0,0];
+        
+    let damageList = currentHealth.filter(x => x > 0);
+    
+    if(damageList.length === 0) {
+        showNotification("No damage to heal.");
+        return;
+    }
+    
+    // Get the "least severe" or "last marked" wound
+    // Because we sort 3,2,1... the last item is the least severe.
+    const lastWound = damageList[damageList.length - 1];
+    
+    // Check if it's Aggravated (3). If only Agg left, we can't heal with 1 BP button.
+    if(lastWound === 3) {
+        showNotification("Aggravated damage requires 5 BP + Rest.");
+        return;
+    }
+    
+    // Check Blood
+    const curBlood = window.state.status.blood || 0;
+    if(curBlood < 1) {
+        showNotification("Not enough Blood (Need 1 BP).");
+        return;
+    }
+    
+    // Spend Blood
+    window.state.status.blood = curBlood - 1;
+    
+    // Heal (Remove last item)
+    damageList.pop();
+    
+    // Rebuild State
+    let newStates = [0,0,0,0,0,0,0];
+    for(let i=0; i<7; i++) {
+        if(i < damageList.length) newStates[i] = damageList[i];
+        else newStates[i] = 0;
+    }
+    window.state.status.health_states = newStates;
+    
+    if(window.renderPrintSheet) window.renderPrintSheet();
+    updatePools();
+    showNotification("Healed 1 wound level (1 BP).");
+}
+window.healOneLevel = healOneLevel;
+
+
 // --- STATE MANAGEMENT & POOL UPDATES ---
 
 export function updatePools() {
@@ -592,7 +724,6 @@ export function updatePools() {
 }
 window.updatePools = updatePools;
 
-
 export function refreshTraitRow(label, type, targetEl) {
     let rowDiv = targetEl;
     if (!rowDiv) {
@@ -649,7 +780,6 @@ export function refreshTraitRow(label, type, targetEl) {
 }
 window.refreshTraitRow = refreshTraitRow;
 
-
 export function renderRow(contId, label, type, min, max = 5) {
     const cont = typeof contId === 'string' ? document.getElementById(contId) : contId;
     if (!cont) return;
@@ -660,7 +790,6 @@ export function renderRow(contId, label, type, min, max = 5) {
     refreshTraitRow(label, type, div); 
 }
 window.renderRow = renderRow;
-
 
 // --- UPDATED setDots with Experience Mode ---
 export function setDots(name, type, val, min, max = 5) {
@@ -773,51 +902,33 @@ export function setDots(name, type, val, min, max = 5) {
     } else {
         // ... [Standard Priority Checks for Phases 2,3,4] ...
         if (type === 'attr') {
-            let group = null; 
-            Object.keys(ATTRIBUTES).forEach(k => { if(ATTRIBUTES[k].includes(name)) group = k; });
-            
+            let group = null; Object.keys(ATTRIBUTES).forEach(k => { if(ATTRIBUTES[k].includes(name)) group = k; });
             if (group) {
                  const limit = window.state.prios.attr[group];
                  if (limit === undefined) { window.showNotification(`Select priority for ${group}!`); return; }
-                 
                  let currentSpent = 0;
                  ATTRIBUTES[group].forEach(a => { if (a !== name) { const v = window.state.dots.attr[a] || 1; currentSpent += (v - 1); } });
-                 
                  if (currentSpent + (newVal - 1) > limit) { window.showNotification("Limit Exceeded!"); return; }
             }
         } else if (type === 'abil') {
             if (newVal > 3) { window.showNotification("Max 3 dots in Abilities during creation!"); return; }
-            
-            let group = null; 
-            Object.keys(ABILITIES).forEach(k => { if(ABILITIES[k].includes(name)) group = k; });
+            let group = null; Object.keys(ABILITIES).forEach(k => { if(ABILITIES[k].includes(name)) group = k; });
             if (!group && window.state.customAbilityCategories && window.state.customAbilityCategories[name]) group = window.state.customAbilityCategories[name];
-            
             if (group) {
                 const limit = window.state.prios.abil[group];
                 if (limit === undefined) { window.showNotification(`Select priority for ${group}!`); return; }
-                
-                let currentSpent = 0; 
-                ABILITIES[group].forEach(a => { if (a !== name) currentSpent += (window.state.dots.abil[a] || 0); });
-                
-                if (window.state.customAbilityCategories) { 
-                    Object.keys(window.state.dots.abil).forEach(k => { 
-                        if (k !== name && window.state.customAbilityCategories[k] === group) currentSpent += (window.state.dots.abil[k] || 0); 
-                    }); 
-                }
-                
+                let currentSpent = 0; ABILITIES[group].forEach(a => { if (a !== name) currentSpent += (window.state.dots.abil[a] || 0); });
+                if (window.state.customAbilityCategories) { Object.keys(window.state.dots.abil).forEach(k => { if (k !== name && window.state.customAbilityCategories[k] === group) currentSpent += (window.state.dots.abil[k] || 0); }); }
                 if (currentSpent + newVal > limit) { window.showNotification("Limit Exceeded!"); return; }
             }
         } else if (type === 'disc') {
-            let currentSpent = 0; 
-            Object.keys(window.state.dots.disc).forEach(d => { if (d !== name) currentSpent += (window.state.dots.disc[d] || 0); });
+            let currentSpent = 0; Object.keys(window.state.dots.disc).forEach(d => { if (d !== name) currentSpent += (window.state.dots.disc[d] || 0); });
             if (currentSpent + newVal > 3) { window.showNotification("Max 3 Creation Dots!"); return; }
         } else if (type === 'back') {
-            let currentSpent = 0; 
-            Object.keys(window.state.dots.back).forEach(b => { if (b !== name) currentSpent += (window.state.dots.back[b] || 0); });
+            let currentSpent = 0; Object.keys(window.state.dots.back).forEach(b => { if (b !== name) currentSpent += (window.state.dots.back[b] || 0); });
             if (currentSpent + newVal > 5) { window.showNotification("Max 5 Creation Dots!"); return; }
         } else if (type === 'virt') {
-            let currentSpent = 0; 
-            VIRTUES.forEach(v => { if (v !== name) currentSpent += (window.state.dots.virt[v] || 1); });
+            let currentSpent = 0; VIRTUES.forEach(v => { if (v !== name) currentSpent += (window.state.dots.virt[v] || 1); });
             if ((currentSpent + newVal) > 10) { window.showNotification("Max 7 Creation Dots!"); return; }
         }
     }
