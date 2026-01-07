@@ -134,14 +134,14 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                  window.state.xpLog.push({
                     trait: newVal,
                     old: 0,
-                    new: 1, // Usually starts at 1
+                    new: 1, // Usually starts at 1? V20 rules say "New Ability... 3". Does that buy the dot? Usually yes.
                     cost: baseCost,
                     type: type,
                     date: new Date().toISOString()
                 });
                 
-                 window.state.dots[type][newVal] = 1; 
-                 showNotification(`Learned ${newVal} (${baseCost} XP)`);
+                 window.state.dots[type][newVal] = 1; // Start at 1 dot?
+                 window.showNotification(`Learned ${newVal} (${baseCost} XP)`);
             }
             // Normal creation logic
             else if (curName && curName !== newVal) { 
@@ -174,7 +174,7 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
         };
         
         if (isAbil) inputField.onblur = (e) => onUpdate(e.target.value); else inputField.onchange = (e) => onUpdate(e.target.value);
-        removeBtn.onclick = () => { if (curName) { delete window.state.dots[type][curName]; if (window.state.customAbilityCategories && window.state.customAbilityCategories[curName]) delete window.state.customAbilityCategories[curName]; } row.remove(); updatePools(); if(type==='back') window.renderSocialProfile(); renderPrintSheet(); };
+        removeBtn.onclick = () => { if (curName) { delete window.state.dots[type][curName]; if (window.state.customAbilityCategories && window.state.customAbilityCategories[curName]) delete window.state.customAbilityCategories[curName]; } row.remove(); updatePools(); if(type==='back') renderSocialProfile(); renderPrintSheet(); };
         
         dotCont.onclick = (e) => { 
             if (!curName || !e.target.dataset.v) return; 
@@ -1027,6 +1027,48 @@ export function renderPrintSheet() {
         if (gearCarried) gearCarried.innerHTML = window.state.inventory.filter(i => i.status === 'carried' && i.type !== 'Vehicle' && i.type !== 'Armor' && i.type !== 'Weapon').map(i => i.name).join(', ');
         if (gearOwned) gearOwned.innerHTML = window.state.inventory.filter(i => i.status === 'owned' && i.type !== 'Vehicle').map(i => i.name).join(', ');
         if (vehicles) vehicles.innerHTML = window.state.inventory.filter(i => i.type === 'Vehicle').map(i => `${i.name} (Safe:${i.stats?.safe} Max:${i.stats?.max})`).join('<br>');
+    }
+
+    // --- NEW: Update Edit Mode (Phase 6) Combat/Armor ---
+    const armorRatingEl = document.getElementById('total-armor-rating');
+    const armorPenaltyEl = document.getElementById('total-armor-penalty');
+    const armorNamesEl = document.getElementById('active-armor-names');
+    const combatListEl = document.getElementById('combat-list-create');
+
+    if (window.state.inventory && Array.isArray(window.state.inventory)) {
+        // Armor Logic for Edit Mode
+        const armors = window.state.inventory.filter(i => i.type === 'Armor' && i.status === 'carried');
+        let totalR = 0, totalP = 0, names = [];
+        armors.forEach(a => {
+            totalR += parseInt(a.stats?.rating) || 0;
+            totalP += parseInt(a.stats?.penalty) || 0;
+            names.push(a.displayName || a.name);
+        });
+        if (armorRatingEl) armorRatingEl.innerText = totalR;
+        if (armorPenaltyEl) armorPenaltyEl.innerText = totalP;
+        if (armorNamesEl) armorNamesEl.innerText = names.length > 0 ? names.join(', ') : "None";
+
+        // Weapon Logic for Edit Mode
+        if (combatListEl) {
+            combatListEl.innerHTML = '';
+            const firearms = ['Pistol', 'Revolver', 'Rifle', 'SMG', 'Shotgun', 'Crossbow'];
+            window.state.inventory.filter(i => i.type === 'Weapon' && i.status === 'carried').forEach(w => {
+               const name = w.displayName || w.name;
+               
+               // Match the grid-cols-6 structure of index.html Phase 6
+               const row = document.createElement('div');
+               row.className = "grid grid-cols-6 gap-2 text-[10px] border-b border-[#222] py-1 text-center text-gray-500";
+               row.innerHTML = `
+                   <div class="col-span-2 text-left pl-2 font-bold text-gold truncate">${name}</div>
+                   <div>${w.stats.diff || 6}</div>
+                   <div>${w.stats.dmg || '-'}</div>
+                   <div>${w.stats.range || '-'}</div>
+                   <div>${w.stats.rate || '-'}</div>
+                   <div>${w.stats.clip || '-'}</div>
+               `;
+               combatListEl.appendChild(row);
+            });
+        }
     }
 
     // 9. Expanded Backgrounds & Havens
