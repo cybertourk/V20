@@ -72,28 +72,44 @@ function updateClanMechanicsUI() {
 
     // --- 3. GANGREL: BEAST TRAITS PANEL ---
     let gangrelPanel = document.getElementById('gangrel-beast-panel');
-    
+    const healthCont = document.getElementById('health-chart-play');
+
     if (clan === "Gangrel") {
         if (!gangrelPanel) {
             gangrelPanel = document.createElement('div');
             gangrelPanel.id = 'gangrel-beast-panel';
             gangrelPanel.className = "mt-4 p-3 bg-[#1a1a1a] border border-[#8b0000] rounded shadow-lg animate-in fade-in";
-            // Append to a sensible location in Play Mode (e.g., near Health or Sidebar)
-            // Trying to find the health chart container to append after
-            const healthCont = document.getElementById('health-chart-play');
+            
             if(healthCont && healthCont.parentNode) {
-                // Insert after health chart
                 healthCont.parentNode.appendChild(gangrelPanel);
-            } else {
-                // Fallback: Append to Dice Tray parent
-                const tray = document.getElementById('dice-tray');
-                if(tray && tray.parentNode) tray.parentNode.appendChild(gangrelPanel);
+            } else if (tray && tray.parentNode) {
+                tray.parentNode.appendChild(gangrelPanel);
             }
         }
         gangrelPanel.style.display = 'block';
         renderGangrelPanel(gangrelPanel);
     } else {
         if (gangrelPanel) gangrelPanel.style.display = 'none';
+    }
+
+    // --- 4. MALKAVIAN: DERANGEMENT MECHANICS ---
+    let malkPanel = document.getElementById('malkavian-mechanics-panel');
+    if (clan === "Malkavian") {
+        if (!malkPanel) {
+            malkPanel = document.createElement('div');
+            malkPanel.id = 'malkavian-mechanics-panel';
+            malkPanel.className = "mt-4 p-3 bg-[#1a1a1a] border border-[#7a28cb] rounded shadow-lg animate-in fade-in"; // Purple border
+            
+            if(healthCont && healthCont.parentNode) {
+                healthCont.parentNode.appendChild(malkPanel);
+            } else if (tray && tray.parentNode) {
+                tray.parentNode.appendChild(malkPanel);
+            }
+        }
+        malkPanel.style.display = 'block';
+        renderMalkavianPanel(malkPanel);
+    } else {
+        if (malkPanel) malkPanel.style.display = 'none';
     }
 }
 
@@ -172,6 +188,99 @@ window.removeBeastTrait = function(idx) {
         const panel = document.getElementById('gangrel-beast-panel');
         if(panel) renderGangrelPanel(panel);
         if(window.renderPrintSheet) window.renderPrintSheet();
+    }
+};
+
+// --- MALKAVIAN HELPER FUNCTIONS ---
+function renderMalkavianPanel(container) {
+    if (!window.state.derangements) window.state.derangements = [];
+    
+    const derangements = window.state.derangements;
+    
+    let listHTML = `<div class="text-[#a855f7] font-bold text-xs uppercase mb-2 border-b border-[#333] pb-1 flex justify-between items-center">
+        <span>Malkavian Derangements</span>
+        <span class="text-[9px] text-gray-400">Weakness</span>
+    </div>`;
+    
+    // Warning for Character Creation
+    if (derangements.length === 0) {
+        listHTML += `<div class="text-red-500 font-bold text-[10px] text-center py-2 animate-pulse bg-red-900/10 rounded mb-2 border border-red-900/50">
+            <i class="fas fa-exclamation-triangle mr-1"></i> MUST POSSESS A DERANGEMENT
+        </div>`;
+    }
+
+    if (derangements.length > 0) {
+        listHTML += `<div class="space-y-2 mb-3">`;
+        derangements.forEach((d, idx) => {
+            const isIncurable = (idx === 0); // First one is always original/incurable per weakness
+            listHTML += `
+            <div class="bg-black/40 p-2 rounded border ${isIncurable ? 'border-[#a855f7] bg-[#a855f7]/10' : 'border-gray-700'} relative group flex justify-between items-center">
+                <span class="text-gray-200 text-[11px] font-medium">${d}</span>
+                ${isIncurable 
+                    ? `<span class="text-[9px] text-[#a855f7] font-bold uppercase flex items-center gap-1"><i class="fas fa-lock"></i> Incurable</span>` 
+                    : `<button onclick="window.removeDerangement(${idx})" class="text-gray-600 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><i class="fas fa-times"></i></button>`
+                }
+            </div>`;
+        });
+        listHTML += `</div>`;
+    }
+    
+    listHTML += `
+    <div class="mt-2 pt-2 border-t border-[#333]">
+        <!-- Add New -->
+        <div class="flex gap-2 mb-3">
+            <input type="text" id="malk-new-d" placeholder="Add Derangement..." class="w-full bg-black/50 border border-gray-700 text-gray-300 text-[10px] px-2 py-1 rounded focus:border-[#a855f7] outline-none">
+            <button onclick="window.addDerangement()" class="bg-[#a855f7] hover:bg-[#c084fc] text-white text-[10px] font-bold px-3 py-1 rounded transition-colors uppercase">Add</button>
+        </div>
+        
+        <!-- Suppress Button -->
+        <div class="flex items-center justify-between bg-gray-900/50 p-2 rounded border border-gray-700">
+            <span class="text-[9px] text-gray-400">Ameliorate symptoms (1 Scene)</span>
+            <button onclick="window.suppressDerangement()" class="bg-blue-900 hover:bg-blue-800 text-blue-200 border border-blue-700 text-[10px] font-bold px-2 py-1 rounded transition-colors flex items-center gap-1">
+                <span>Suppress</span>
+                <span class="bg-black/30 px-1 rounded text-[8px] text-blue-300">1 WP</span>
+            </button>
+        </div>
+    </div>`;
+    
+    container.innerHTML = listHTML;
+}
+
+window.addDerangement = function() {
+    const val = document.getElementById('malk-new-d')?.value;
+    if (!val) {
+        showNotification("Enter a Derangement name.");
+        return;
+    }
+    
+    window.state.derangements.push(val);
+    showNotification(window.state.derangements.length === 1 ? "Primary Incurable Derangement Set." : "Derangement Added.");
+    
+    const panel = document.getElementById('malkavian-mechanics-panel');
+    if(panel) renderMalkavianPanel(panel);
+    if(window.renderPrintSheet) window.renderPrintSheet();
+};
+
+window.removeDerangement = function(idx) {
+    if (idx === 0) {
+        showNotification("Cannot remove the original Incurable Derangement!");
+        return;
+    }
+    if(confirm("Remove this Derangement?")) {
+        window.state.derangements.splice(idx, 1);
+        const panel = document.getElementById('malkavian-mechanics-panel');
+        if(panel) renderMalkavianPanel(panel);
+        if(window.renderPrintSheet) window.renderPrintSheet();
+    }
+};
+
+window.suppressDerangement = function() {
+    if ((window.state.status.tempWillpower || 0) > 0) {
+        window.state.status.tempWillpower--;
+        updatePools(); // Update WP dots/boxes
+        showNotification("Spent 1 WP: Derangements suppressed for 1 Scene.");
+    } else {
+        showNotification("Not enough Willpower!");
     }
 };
 
