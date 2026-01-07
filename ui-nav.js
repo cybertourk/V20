@@ -330,15 +330,33 @@ window.renderBloodBondRow = renderBloodBondRow;
 export function renderDerangementsList() {
     const cont = document.getElementById('derangements-list'); if (!cont) return;
     cont.innerHTML = '';
+    
+    // --- MALKAVIAN CHECK ---
+    const clan = window.state.textFields['c-clan'] || document.getElementById('c-clan')?.value || "None";
+    const isMalk = clan === "Malkavian";
+
     window.state.derangements.forEach((d, idx) => {
-        const row = document.createElement('div'); row.className = "flex justify-between items-center text-xs text-white border-b border-[#333] py-1";
-        row.innerHTML = `<span>${d}</span><span class="remove-btn text-red-500" onclick="window.state.derangements.splice(${idx}, 1); renderDerangementsList(); window.updatePools(); renderPrintSheet();">&times;</span>`;
+        const row = document.createElement('div'); 
+        row.className = "flex justify-between items-center text-xs text-white border-b border-[#333] py-1";
+        
+        let labelHTML = `<span>${d}</span>`;
+        let deleteBtnHTML = `<span class="remove-btn text-red-500" onclick="window.state.derangements.splice(${idx}, 1); renderDerangementsList(); window.updatePools(); renderPrintSheet();">&times;</span>`;
+        
+        // Lock 1st Derangement for Malkavians
+        if (isMalk && idx === 0) {
+            labelHTML = `<span class="text-[#a855f7] font-bold" title="Incurable Weakness">${d}</span>`;
+            deleteBtnHTML = `<span class="text-[#a855f7] text-[10px]"><i class="fas fa-lock"></i></span>`;
+        }
+
+        row.innerHTML = `${labelHTML}${deleteBtnHTML}`;
         cont.appendChild(row);
     });
+    
     const addRow = document.createElement('div'); addRow.className = "flex gap-2 mt-2";
     let options = `<option value="">+ Add Derangement</option>` + DERANGEMENTS.map(d => `<option value="${d}">${d}</option>`).join('');
     addRow.innerHTML = `<select id="derangement-select" class="flex-1 text-[10px] uppercase font-bold bg-black/40 border border-[#444] text-white p-1">${options}<option value="Custom">Custom...</option></select><input type="text" id="derangement-custom" class="hidden flex-1 text-[10px] bg-black/40 border border-[#444] text-white p-1" placeholder="Type name..."><button id="add-derangement-btn" class="bg-[#8b0000] text-white px-2 py-1 text-[10px] font-bold hover:bg-red-700">ADD</button>`;
     cont.appendChild(addRow);
+    
     const sel = document.getElementById('derangement-select'); const inp = document.getElementById('derangement-custom'); const btn = document.getElementById('add-derangement-btn');
     sel.onchange = () => { if (sel.value === 'Custom') { sel.classList.add('hidden'); inp.classList.remove('hidden'); inp.focus(); } };
     btn.onclick = () => {
@@ -714,7 +732,7 @@ export function togglePlayMode() {
                         <span class="${valueColor} font-bold text-[10px]">${item.val} pts</span>
                     </div>
                     <textarea class="merit-flaw-desc bg-transparent border-none text-[10px] text-gray-400 w-full italic focus:text-white focus:not-italic resize-none overflow-hidden" 
-                           placeholder="Description / Note..." rows="1" style="min-height: 20px;">${item.desc || ''}</textarea>
+                            placeholder="Description / Note..." rows="1" style="min-height: 20px;">${item.desc || ''}</textarea>
                 `;
                 
                 // Bind Listener
@@ -828,7 +846,33 @@ export function togglePlayMode() {
         let carried = []; let owned = []; if(window.state.inventory) { window.state.inventory.forEach(i => { const str = `${i.displayName || i.name} ${i.type === 'Armor' ? `(R:${i.stats.rating} P:${i.stats.penalty})` : ''}`; if(i.status === 'carried') carried.push(str); else owned.push(str); }); }
         setSafeText('play-gear-carried', carried.join(', ')); setSafeText('play-gear-owned', owned.join(', '));
         if(document.getElementById('play-bio-desc')) document.getElementById('play-bio-desc').innerText = document.getElementById('bio-desc').value;
-        if(document.getElementById('play-derangements')) { const pd = document.getElementById('play-derangements'); pd.innerHTML = window.state.derangements.length > 0 ? window.state.derangements.map(d => `<div>• ${d}</div>`).join('') : '<span class="text-gray-500 italic">None</span>'; }
+        
+        // --- UPDATED MALKAVIAN LOGIC FOR PLAY MODE ---
+        if(document.getElementById('play-derangements')) { 
+            const pd = document.getElementById('play-derangements'); 
+            const clan = window.state.textFields['c-clan'] || "None";
+            const isMalk = clan === "Malkavian";
+            
+            let contentHtml = window.state.derangements.length > 0 
+                ? window.state.derangements.map((d, i) => {
+                    if (isMalk && i === 0) return `<div class="text-[#a855f7] font-bold"><i class="fas fa-lock text-[8px] mr-1"></i>${d} (Incurable)</div>`;
+                    return `<div>• ${d}</div>`;
+                }).join('') 
+                : '<span class="text-gray-500 italic">None</span>';
+                
+            if (isMalk) {
+                contentHtml += `
+                    <div class="mt-2 pt-2 border-t border-[#333] flex items-center justify-between">
+                        <span class="text-[9px] text-[#a855f7] uppercase font-bold">Weakness</span>
+                        <button onclick="window.suppressDerangement()" class="bg-[#a855f7] hover:bg-[#c084fc] text-white text-[9px] font-bold px-2 py-1 rounded flex items-center gap-1">
+                            <i class="fas fa-power-off"></i> Suppress (1 WP)
+                        </button>
+                    </div>
+                `;
+            }
+            pd.innerHTML = contentHtml; 
+        }
+        
         if(document.getElementById('play-languages')) document.getElementById('play-languages').innerText = document.getElementById('bio-languages').value;
         if(document.getElementById('play-goals-st')) document.getElementById('play-goals-st').innerText = document.getElementById('bio-goals-st').value;
         if(document.getElementById('play-goals-lt')) document.getElementById('play-goals-lt').innerText = document.getElementById('bio-goals-lt').value;
