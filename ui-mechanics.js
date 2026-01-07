@@ -28,13 +28,12 @@ function updateClanMechanicsUI() {
             if (!sunWrapper) {
                 sunWrapper = document.createElement('div');
                 sunWrapper.id = 'setite-sunlight-wrapper';
-                sunWrapper.className = "flex items-center gap-1 mt-2 justify-center animate-in fade-in bg-orange-900/30 p-1 rounded border border-orange-800/50";
+                sunWrapper.className = "flex items-center gap-1 mt-2 justify-center animate-in fade-in bg-orange-900/50 p-1 rounded border border-orange-800/50 relative z-20";
                 sunWrapper.innerHTML = `
-                    <input type="checkbox" id="setite-sunlight-toggle" class="accent-orange-500 w-3 h-3 cursor-pointer">
+                    <input type="checkbox" id="setite-sunlight-toggle" class="accent-orange-500 w-3 h-3 cursor-pointer pointer-events-auto">
                     <label for="setite-sunlight-toggle" class="text-[9px] text-orange-400 font-bold uppercase cursor-pointer select-none">Sunlight Exposure (+2 Dmg)</label>
                 `;
                 // Append after the input container's last child (usually the buttons)
-                // Or closer to the input. We'll append to parent for now.
                 dmgInput.parentNode.appendChild(sunWrapper);
             }
             sunWrapper.style.display = 'flex';
@@ -52,18 +51,15 @@ function updateClanMechanicsUI() {
             if (!lightWrapper) {
                 lightWrapper = document.createElement('div');
                 lightWrapper.id = 'setite-light-wrapper';
-                lightWrapper.className = "flex items-center gap-2 mb-2 px-3 py-2 bg-yellow-900/20 border border-yellow-600/30 rounded flex animate-in fade-in";
+                lightWrapper.className = "flex items-center gap-2 mb-2 px-3 py-2 bg-yellow-900/60 border border-yellow-500/50 rounded flex animate-in fade-in relative z-20 shadow-sm";
                 lightWrapper.innerHTML = `
-                    <input type="checkbox" id="setite-light-toggle" class="accent-yellow-500 w-4 h-4 cursor-pointer">
-                    <label for="setite-light-toggle" class="text-[10px] text-yellow-200 font-bold uppercase cursor-pointer select-none tracking-tight">Bright Light (-1 Die)</label>
+                    <input type="checkbox" id="setite-light-toggle" class="accent-yellow-500 w-4 h-4 cursor-pointer pointer-events-auto ring-1 ring-yellow-500/50">
+                    <label for="setite-light-toggle" class="text-[10px] text-yellow-300 font-bold uppercase cursor-pointer select-none tracking-tight hover:text-white">Bright Light (-1 Die)</label>
                 `;
                 
-                // Try to insert before the Roll Button section to make it visible
-                // The structure usually has the roll button or diff inputs. 
-                // We'll insert it at the top of the tray content or before roll button if found.
+                // Insert before the Roll Button section to make it visible
                 const rollBtn = document.getElementById('roll-btn');
                 if (rollBtn) {
-                     // Go up to the row container
                      const row = rollBtn.closest('.flex'); 
                      if(row) tray.insertBefore(lightWrapper, row);
                      else tray.appendChild(lightWrapper);
@@ -132,7 +128,9 @@ window.clearPool = clearPool;
 
 export function handleTraitClick(name, type) {
     // If we were in a special mode (Soak), clear first to reset UI
-    if(document.getElementById('tray-armor-toggle-container')?.style.display !== 'none') {
+    // FIX: Only check style.display if the element actually exists to prevent incorrect resets
+    const armorCont = document.getElementById('tray-armor-toggle-container');
+    if(armorCont && armorCont.style.display !== 'none') {
         window.clearPool();
     }
 
@@ -187,7 +185,7 @@ export function handleTraitClick(name, type) {
             }
         }
         document.getElementById('dice-tray').classList.add('open');
-        updateClanMechanicsUI(); // Ensure toggle is visible
+        updateClanMechanicsUI(); // Ensure toggle is visible and updated
     } else {
         window.clearPool();
     }
