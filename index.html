@@ -491,7 +491,8 @@
                     <div id="play-rows-container" class="space-y-10"><div id="play-row-attr" class="grid grid-cols-1 md:grid-cols-3 gap-10"></div><div id="play-row-abil" class="grid grid-cols-1 md:grid-cols-3 gap-10"></div><div id="play-row-adv" class="grid grid-cols-1 md:grid-cols-3 gap-10"></div></div>
                     
                     <!-- REARRANGED BOTTOM SECTION: 3 Columns -->
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-8 border-t border-[#333] pt-10">
+                    <!-- Changed breakpoint to lg:grid-cols-3 to prevent overlap on tablets -->
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 border-t border-[#333] pt-10">
                         
                         <!-- COLUMN 1: Merits/Flaws & Notes & Weakness -->
                         <div class="flex flex-col gap-6">
@@ -531,29 +532,23 @@
                             <!-- Blood Pool -->
                             <div class="sheet-section">
                                 <div class="section-title">Blood Pool</div>
-                                <div id="blood-boxes-play" class="grid grid-cols-10 gap-2 justify-center mt-4 px-4"></div>
+                                <!-- Changed from grid-cols-10 to flex-wrap to prevent overlap/overflow on smaller screens -->
+                                <div id="blood-boxes-play" class="flex flex-wrap gap-1 justify-center mt-4 px-4"></div>
                                 <div class="text-center mt-4 text-xs text-gray-500 font-bold uppercase tracking-wider">Blood Per Turn: <input type="number" id="blood-per-turn-input" class="w-8 bg-transparent text-center border-b border-[#333] text-white" value="1"></div>
                             </div>
                         </div>
 
                         <!-- COLUMN 3: Health, Frenzy, Rötschreck (One Box visually) -->
                         <div class="flex flex-col gap-6">
-                            <div class="sheet-section h-full flex flex-col">
+                            <div class="sheet-section h-full flex flex-col relative">
                                 <div class="section-title">Vitality & The Beast</div>
                                 
-                                <!-- Health Chart -->
-                                <div id="health-chart-play" class="space-y-2 mt-4 mb-8 flex-shrink-0"></div>
+                                <!-- Health Chart with safe font size -->
+                                <div id="health-chart-play" class="space-y-2 mt-4 mb-8 flex-shrink-0 text-xs"></div>
                                 
                                 <!-- Beast Container (Frenzy/Rotschreck) injected by JS -->
                                 <div id="beast-play-container" class="mt-auto"></div>
                                 
-                                <!-- Experience moved to bottom of col 3 as filler or remains in col 2? 
-                                     User didn't specify XP location, but previous layout had it. 
-                                     I'll place it at the very bottom of Col 3 for balance if needed, 
-                                     or let JS inject it into its container.
-                                     Wait, previous HTML had #experience-play-container. I should keep it somewhere.
-                                     I'll put it below the Beast box in Col 3.
-                                -->
                                 <div id="experience-play-container" class="mt-6 border-t border-[#333] pt-4"></div>
                             </div>
                         </div>
@@ -561,7 +556,6 @@
                 </div>
 
                 <div id="play-mode-2" class="step-container space-y-10">
-                    <!-- REMOVED Merits/Flaws from here as they are now on Page 1 -->
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
                         <div class="sheet-section !mt-0">
                             <div class="section-title">Other Traits</div>
