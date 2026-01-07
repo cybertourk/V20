@@ -19,24 +19,9 @@
         }
 
         /* --- LAYOUT FIXES FOR PLAY MODE --- */
-        /* Hide the redundant "The Beast" title inside the already titled Vitality box */
+        /* Hide redundant titles injected by JS if they exist inside specific named containers */
         #beast-play-container .section-title { 
             display: none !important; 
-        }
-        
-        /* Reset Experience title to standard position so it doesn't float to the top */
-        #experience-play-container .section-title {
-            position: static !important;
-            transform: none !important;
-            margin: 0 0 8px 0 !important;
-            border: none !important;
-            padding: 0 !important;
-            text-align: center !important;
-            background: transparent !important;
-            color: #d4af37 !important; /* Gold */
-            font-size: 10px !important;
-            width: 100% !important;
-            left: auto !important;
         }
     </style>
 </head>
@@ -562,16 +547,17 @@
                         <!-- COLUMN 3: Health, Frenzy, Rötschreck (One Box visually) -->
                         <div class="flex flex-col gap-6">
                             <div class="sheet-section h-full flex flex-col relative">
-                                <div class="section-title">Vitality & The Beast</div>
+                                <div class="section-title">Health</div>
                                 
                                 <!-- Health Chart with safe font size -->
-                                <div id="health-chart-play" class="space-y-2 mt-4 mb-8 flex-shrink-0 text-xs"></div>
+                                <div id="health-chart-play" class="space-y-2 mt-4 mb-4 flex-shrink-0 text-xs"></div>
                                 
                                 <!-- Beast Container (Frenzy/Rotschreck) injected by JS -->
-                                <div id="beast-play-container" class="mt-auto"></div>
-                                
-                                <div id="experience-play-container" class="mt-6 border-t border-[#333] pt-4"></div>
+                                <div id="beast-play-container" class="mt-4 border-t border-[#333] pt-4"></div>
                             </div>
+                            
+                            <!-- Experience Container (Separated to handle overflow naturally) -->
+                            <div class="sheet-section" id="experience-play-container"></div>
                         </div>
                     </div>
                 </div>
