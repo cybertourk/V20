@@ -967,38 +967,44 @@ export function renderPrintSheet() {
     // 8. Combat & Inventory
     const combatTbl = document.getElementById('pr-combat-table');
     if (combatTbl) {
-        combatTbl.innerHTML = '';
+        // Use a single string buffer to construct the innerHTML
+        let tblHTML = '';
+        
         // Add Maneuvers (Generic)
         const manuevers = [
             {n: 'Bite', d: 5, dmg: 'Str+1(A)'}, {n: 'Clinch', d: 6, dmg: 'Str(B)'}, {n: 'Grapple', d: 6, dmg: 'Str(B)'},
             {n: 'Kick', d: 7, dmg: 'Str+1(B)'}, {n: 'Punch', d: 6, dmg: 'Str(B)'}, {n: 'Tackle', d: 7, dmg: 'Str+1(B)'}
         ];
         manuevers.forEach(m => {
-            combatTbl.innerHTML += `<tr><td class="py-1 border-b border-gray-300 font-bold">${m.n}</td><td class="border-b border-gray-300">${m.d}</td><td class="border-b border-gray-300">${m.dmg}</td></tr>`;
+            tblHTML += `<tr><td class="py-1 border-b border-gray-300 font-bold">${m.n}</td><td class="border-b border-gray-300">${m.d}</td><td class="border-b border-gray-300">${m.dmg}</td></tr>`;
         });
         
         // Add Weapons from Inventory
-        if(window.state.inventory) {
+        if(window.state.inventory && Array.isArray(window.state.inventory)) {
             window.state.inventory.filter(i => i.type === 'Weapon' && i.status === 'carried').forEach(w => {
                 const name = w.displayName || w.name;
                 const stats = w.stats || {};
-                combatTbl.innerHTML += `<tr><td class="py-1 border-b border-gray-300 font-bold italic">${name}</td><td class="border-b border-gray-300">${stats.diff||6}</td><td class="border-b border-gray-300">${stats.dmg||'-'}</td></tr>`;
+                tblHTML += `<tr><td class="py-1 border-b border-gray-300 font-bold italic">${name}</td><td class="border-b border-gray-300">${stats.diff||6}</td><td class="border-b border-gray-300">${stats.dmg||'-'}</td></tr>`;
             });
         }
+        
+        combatTbl.innerHTML = tblHTML;
     }
 
     // Armor Info
     const armorInfo = document.getElementById('pr-armor-info');
-    if (armorInfo && window.state.inventory) {
-        const armors = window.state.inventory.filter(i => i.type === 'Armor' && i.status === 'carried');
-        if (armors.length > 0) {
-            const names = armors.map(a => a.name).join(', ');
-            const rating = armors.reduce((a, b) => a + (parseInt(b.stats?.rating)||0), 0);
-            const penalty = armors.reduce((a, b) => a + (parseInt(b.stats?.penalty)||0), 0);
-            armorInfo.innerHTML = `<strong>Worn:</strong> ${names}<br><strong>Rating:</strong> ${rating} | <strong>Penalty:</strong> ${penalty}`;
-        } else {
-            armorInfo.innerHTML = "None";
+    if (armorInfo) {
+        let armorHTML = "None";
+        if (window.state.inventory && Array.isArray(window.state.inventory)) {
+            const armors = window.state.inventory.filter(i => i.type === 'Armor' && i.status === 'carried');
+            if (armors.length > 0) {
+                const names = armors.map(a => a.name).join(', ');
+                const rating = armors.reduce((a, b) => a + (parseInt(b.stats?.rating)||0), 0);
+                const penalty = armors.reduce((a, b) => a + (parseInt(b.stats?.penalty)||0), 0);
+                armorHTML = `<strong>Worn:</strong> ${names}<br><strong>Rating:</strong> ${rating} | <strong>Penalty:</strong> ${penalty}`;
+            }
         }
+        armorInfo.innerHTML = armorHTML;
     }
 
     // Gear Lists
@@ -1006,9 +1012,11 @@ export function renderPrintSheet() {
     const gearOwned = document.getElementById('pr-gear-owned');
     const vehicles = document.getElementById('pr-vehicles');
     
-    if (gearCarried) gearCarried.innerHTML = (window.state.inventory || []).filter(i => i.status === 'carried' && i.type !== 'Vehicle' && i.type !== 'Armor' && i.type !== 'Weapon').map(i => i.name).join(', ');
-    if (gearOwned) gearOwned.innerHTML = (window.state.inventory || []).filter(i => i.status === 'owned' && i.type !== 'Vehicle').map(i => i.name).join(', ');
-    if (vehicles) vehicles.innerHTML = (window.state.inventory || []).filter(i => i.type === 'Vehicle').map(i => `${i.name} (Safe:${i.stats?.safe} Max:${i.stats?.max})`).join('<br>');
+    if (window.state.inventory && Array.isArray(window.state.inventory)) {
+        if (gearCarried) gearCarried.innerHTML = window.state.inventory.filter(i => i.status === 'carried' && i.type !== 'Vehicle' && i.type !== 'Armor' && i.type !== 'Weapon').map(i => i.name).join(', ');
+        if (gearOwned) gearOwned.innerHTML = window.state.inventory.filter(i => i.status === 'owned' && i.type !== 'Vehicle').map(i => i.name).join(', ');
+        if (vehicles) vehicles.innerHTML = window.state.inventory.filter(i => i.type === 'Vehicle').map(i => `${i.name} (Safe:${i.stats?.safe} Max:${i.stats?.max})`).join('<br>');
+    }
 
     // 9. Expanded Backgrounds & Havens
     const bgDetails = document.getElementById('pr-background-details');
