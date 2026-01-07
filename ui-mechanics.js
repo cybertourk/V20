@@ -184,7 +184,8 @@ window.removeBeastTrait = function(idx) {
 // --- DERANGEMENT MANAGEMENT (Shared + Malkavian Logic) ---
 
 window.addDerangement = function() {
-    const input = document.getElementById('derangement-input');
+    // Attempt to find input from various possible IDs depending on where it's rendered
+    const input = document.getElementById('derangement-input') || document.getElementById('malk-new-d');
     const val = input?.value;
     if (!val) {
         showNotification("Enter a Derangement name.");
@@ -202,9 +203,11 @@ window.addDerangement = function() {
     }
     
     if(input) input.value = '';
-    // Trigger render update (renderer will handle UI)
+    
+    // Refresh relevant views
     if(window.renderSocialProfile) window.renderSocialProfile(); 
     if(window.renderPrintSheet) window.renderPrintSheet();
+    if(window.renderBioTab) window.renderBioTab(); // Anticipating future bio render function
 };
 
 window.removeDerangement = function(idx) {
@@ -220,6 +223,7 @@ window.removeDerangement = function(idx) {
         window.state.derangements.splice(idx, 1);
         if(window.renderSocialProfile) window.renderSocialProfile();
         if(window.renderPrintSheet) window.renderPrintSheet();
+        if(window.renderBioTab) window.renderBioTab();
     }
 };
 
