@@ -35,9 +35,18 @@ export function clearPool() {
         if(valDisplay) valDisplay.innerText = "0";
     }
     
-    // Clear Willpower Spend Checkbox
-    const wpSpend = document.getElementById('spend-willpower');
-    if(wpSpend) wpSpend.checked = false;
+    // --- RESET DICE TRAY UI (Standard Mode) ---
+    // Show Willpower
+    const wpCont = document.getElementById('willpower-spend-container');
+    if(wpCont) {
+        wpCont.style.display = 'flex';
+        const wpCheck = document.getElementById('spend-willpower');
+        if(wpCheck) wpCheck.checked = false;
+    }
+    
+    // Hide Tray Armor Toggle if it exists
+    const armorCont = document.getElementById('tray-armor-toggle-container');
+    if(armorCont) armorCont.style.display = 'none';
 
     document.getElementById('dice-tray').classList.remove('open');
 }
@@ -45,6 +54,11 @@ window.clearPool = clearPool;
 
 
 export function handleTraitClick(name, type) {
+    // If we were in a special mode (Soak), clear first to reset UI
+    if(document.getElementById('tray-armor-toggle-container')?.style.display !== 'none') {
+        window.clearPool();
+    }
+
     const val = window.state.dots[type][name] || 0;
     const existingIdx = window.state.activePool.findIndex(p => p.name === name);
     
@@ -222,25 +236,16 @@ window.toggleDiceTray = toggleDiceTray;
 // --- FRENZY & RÖTSCHRECK ---
 
 export function rollFrenzy() {
-    // 1. Setup Pool (Clear existing)
     window.clearPool();
-    
-    // V20 Rules: Frenzy is usually rolled on Self-Control. 
-    // Vampires with Instincts ride the wave (automatic frenzy unless they spend willpower to control it?), 
-    // but often players roll Instincts to control/direct it. 
-    // For this app, we will load the appropriate virtue into the pool.
     const traitName = window.state.dots.virt["Instincts"] ? "Instincts" : "Self-Control";
     const traitVal = window.state.dots.virt[traitName] || 1;
     
-    // Push to active pool so standard roller can use it
     window.state.activePool.push({name: traitName, val: traitVal});
 
-    // 2. Setup Difficulty
     const clan = window.state.textFields['c-clan'] || document.getElementById('c-clan')?.value || "None";
     let difficulty = 6; 
     let diffMsg = "";
 
-    // Check for UI override
     const diffInputOverride = document.getElementById('frenzy-diff');
     if (diffInputOverride && diffInputOverride.value) {
         difficulty = parseInt(diffInputOverride.value) || 6;
@@ -250,19 +255,15 @@ export function rollFrenzy() {
         diffMsg = " (Brujah Curse)";
     }
 
-    // Set Main Diff Input
     const diffInput = document.getElementById('roll-diff');
     if (diffInput) diffInput.value = difficulty;
 
-    // 3. Update Display
     const display = document.getElementById('pool-display');
     if (display) {
         setSafeText('pool-display', `Frenzy Check: ${traitName} (${traitVal})`);
-        // Optional: color code to indicate danger
         display.classList.add('text-red-500');
     }
 
-    // 4. Open Tray for Player to Roll
     const tray = document.getElementById('dice-tray');
     if (tray) tray.classList.add('open');
 
@@ -272,15 +273,12 @@ window.rollFrenzy = rollFrenzy;
 
 
 export function rollRotschreck() {
-    // 1. Setup Pool
     window.clearPool();
-    
     const traitName = "Courage";
     const traitVal = window.state.dots.virt[traitName] || 1;
     
     window.state.activePool.push({name: traitName, val: traitVal});
     
-    // 2. Setup Difficulty
     let difficulty = 6;
     const diffInputOverride = document.getElementById('rotschreck-diff');
     if (diffInputOverride && diffInputOverride.value) {
@@ -290,14 +288,12 @@ export function rollRotschreck() {
     const diffInput = document.getElementById('roll-diff');
     if (diffInput) diffInput.value = difficulty;
     
-    // 3. Update Display
     const display = document.getElementById('pool-display');
     if (display) {
         setSafeText('pool-display', `Rötschreck Check: ${traitName} (${traitVal})`);
         display.classList.add('text-orange-500');
     }
 
-    // 4. Open Tray for Player to Roll
     const tray = document.getElementById('dice-tray');
     if (tray) tray.classList.add('open');
 
@@ -328,20 +324,10 @@ export function applyDamage(typeStr) {
     }
     
     // 3. Sort: Agg (3) > Lethal (2) > Bash (1)
-    // This implements the "push down" logic: Agg sits on top, then Lethal, then Bash.
     damageList.sort((a,b) => b - a);
     
     // 4. Handle Overflow (Limit to 7)
-    // In V20, if you take damage while incapacitated, you generally die or torpor.
-    // For this simple UI, we will cap at 7 and warn.
     while(damageList.length > 7) {
-        // V20 Rules Note: Bashing overflowing Incap causes Torpor (effectively like taking a Lethal).
-        // Lethal overflowing Incap causes Torpor.
-        // Agg overflowing Incap causes Final Death.
-        // We will just remove the "excess" (least severe usually if we sort desc) and warn.
-        
-        // However, if we sort Descending, the "overflow" is actually the Bashing (1) at the end.
-        // We should just remove the last element and Notify.
         damageList.pop();
         window.showNotification("Health Track Full! Check Torpor/Death rules.");
     }
@@ -362,33 +348,89 @@ export function applyDamage(typeStr) {
 window.applyDamage = applyDamage;
 
 export function setupSoak() {
-    // Soak = Stamina + Fortitude (for everything except pure Agg which is Fortitude only usually, but UI button is generic)
-    // V20: Vampires soak Bashing & Lethal with Stamina + Fortitude.
-    // Aggravated soak is Fortitude only.
-    // Since we don't know the damage type context here without more UI, we default to full soak pool (Stam + Fort).
-    // The player can remove Stamina manually if soaking Agg.
+    // 1. Manipulate UI: Hide Willpower, Show Armor Toggle in Dice Tray
+    const wpCont = document.getElementById('willpower-spend-container');
+    if(wpCont) wpCont.style.display = 'none';
+
+    let trayArmorContainer = document.getElementById('tray-armor-toggle-container');
+    if (!trayArmorContainer) {
+        const tray = document.getElementById('dice-tray');
+        trayArmorContainer = document.createElement('div');
+        trayArmorContainer.id = 'tray-armor-toggle-container';
+        trayArmorContainer.className = "items-center gap-2 mb-4 px-3 py-2 bg-gray-800/50 border border-gray-600 rounded flex animate-in fade-in";
+        trayArmorContainer.innerHTML = `
+            <input type="checkbox" id="tray-use-armor" class="w-4 h-4 cursor-pointer accent-gray-500">
+            <label for="tray-use-armor" class="text-[10px] uppercase font-black text-gray-300 cursor-pointer tracking-tight">Add Armor to Soak</label>
+        `;
+        // Insert before Roll Button wrapper (or roll btn itself)
+        const rollBtn = document.getElementById('roll-btn');
+        if(rollBtn && rollBtn.parentNode) {
+            // Find the flex container wrapping diff and roll btn
+            const rollRow = rollBtn.parentNode;
+            tray.insertBefore(trayArmorContainer, rollRow);
+        } else {
+            tray.appendChild(trayArmorContainer);
+        }
+        
+        // Add Listener
+        const trayToggle = trayArmorContainer.querySelector('input');
+        trayToggle.onchange = () => window.setupSoak();
+    }
+    trayArmorContainer.style.display = 'flex';
+
+    // 2. Sync Logic between Health Toggle and Tray Toggle
+    const healthToggle = document.getElementById('soak-armor-toggle');
+    const trayToggle = document.getElementById('tray-use-armor');
     
+    // If Health Toggle triggered this, update Tray Toggle
+    if (healthToggle && document.activeElement === healthToggle) {
+        if(trayToggle) trayToggle.checked = healthToggle.checked;
+    }
+    // If Tray Toggle triggered this, update Health Toggle
+    else if (trayToggle && document.activeElement === trayToggle) {
+        if(healthToggle) healthToggle.checked = trayToggle.checked;
+    }
+    // Initial / Default
+    else if (healthToggle && trayToggle) {
+        trayToggle.checked = healthToggle.checked;
+    }
+
+    // 3. Clear Active Pool (but don't trigger UI reset via clearPool() standard)
+    window.state.activePool = [];
+    
+    // 4. Calculate Values
     const stam = window.state.dots.attr['Stamina'] || 1;
     const fort = window.state.dots.disc['Fortitude'] || 0;
     
-    window.clearPool();
+    let armorRating = 0;
+    const isArmorActive = trayToggle ? trayToggle.checked : false;
+    
+    if (isArmorActive && window.state.inventory && Array.isArray(window.state.inventory)) {
+        const armors = window.state.inventory.filter(i => i.type === 'Armor' && i.status === 'carried');
+        armors.forEach(a => {
+            // Robust parsing
+            let r = 0;
+            if (a.stats && a.stats.rating) r = parseInt(a.stats.rating);
+            if (!isNaN(r)) armorRating += r;
+        });
+    }
+    
+    // 5. Build Pool
     window.state.activePool.push({name: 'Stamina', val: stam});
     if(fort > 0) window.state.activePool.push({name: 'Fortitude', val: fort});
+    if(armorRating > 0) window.state.activePool.push({name: 'Armor', val: armorRating});
     
-    setSafeText('pool-display', `Soak Roll: Stamina (${stam}) ${fort>0 ? `+ Fortitude (${fort})` : ''}`);
+    // 6. Update Text
+    const armorText = armorRating > 0 ? ` + Armor (${armorRating})` : '';
+    setSafeText('pool-display', `Soak Roll: Stamina (${stam}) ${fort>0 ? `+ Fortitude (${fort})` : ''}${armorText}`);
+    
+    // 7. Open Tray
     document.getElementById('dice-tray').classList.add('open');
-    showNotification("Soak Pool Ready. Roll vs Diff 6 (usually).");
+    showNotification("Soak Pool Ready.");
 }
 window.setupSoak = setupSoak;
 
 export function healOneLevel() {
-    // Rules: "Normal damage isn’t as severe as aggravated, so it’s always marked last and healed first."
-    // Marked last means visually at the bottom.
-    // Our array logic: Index 0 is top (Bruised), Index 6 is bottom (Incapacitated).
-    // But our sort logic was [3, 3, 2, 1...] which puts Agg at index 0.
-    // This matches the "Agg marked above Lethal" visual rule.
-    // So "Healed First" means we heal the item at the END of the array (highest index).
-    
     let currentHealth = (window.state.status.health_states && Array.isArray(window.state.status.health_states)) 
         ? [...window.state.status.health_states] 
         : [0,0,0,0,0,0,0];
@@ -401,10 +443,8 @@ export function healOneLevel() {
     }
     
     // Get the "least severe" or "last marked" wound
-    // Because we sort 3,2,1... the last item is the least severe.
     const lastWound = damageList[damageList.length - 1];
     
-    // Check if it's Aggravated (3). If only Agg left, we can't heal with 1 BP button.
     if(lastWound === 3) {
         showNotification("Aggravated damage requires 5 BP + Rest.");
         return;
