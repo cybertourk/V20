@@ -17,6 +17,27 @@
             .dot { width: 10px !important; height: 10px !important; border-width: 1px !important; }
             .print-page-break { page-break-before: always; height: 0; display: block; }
         }
+
+        /* --- LAYOUT FIXES FOR PLAY MODE --- */
+        /* Hide the redundant "The Beast" title inside the already titled Vitality box */
+        #beast-play-container .section-title { 
+            display: none !important; 
+        }
+        
+        /* Reset Experience title to standard position so it doesn't float to the top */
+        #experience-play-container .section-title {
+            position: static !important;
+            transform: none !important;
+            margin: 0 0 8px 0 !important;
+            border: none !important;
+            padding: 0 !important;
+            text-align: center !important;
+            background: transparent !important;
+            color: #d4af37 !important; /* Gold */
+            font-size: 10px !important;
+            width: 100% !important;
+            left: auto !important;
+        }
     </style>
 </head>
 <body class="p-2 md:p-8 bg-black text-white font-serif">
