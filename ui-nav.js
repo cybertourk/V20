@@ -1057,13 +1057,28 @@ export function renderPrintSheet() {
     const mfCont = document.getElementById('pr-merits-flaws');
     if(mfCont) {
         mfCont.innerHTML = '';
-        const all = [...(window.state.merits||[]).map(m => `${m.name} (${m.val} pt Merit)`), 
-                     ...(window.state.flaws||[]).map(f => `${f.name} (${f.val} pt Flaw)`)];
-        all.forEach(txt => {
+        
+        const renderItem = (item, type) => {
             const div = document.createElement('div');
-            div.innerText = txt;
+            div.className = "mb-1";
+            // Format: Name (Val pt Type): Description
+            const header = document.createElement('span');
+            header.className = "font-bold";
+            header.innerText = `${item.name} (${item.val} pt ${type})`;
+            
+            div.appendChild(header);
+            
+            if (item.desc) {
+                const descSpan = document.createElement('span');
+                descSpan.className = "italic ml-1";
+                descSpan.innerText = `- ${item.desc}`;
+                div.appendChild(descSpan);
+            }
             mfCont.appendChild(div);
-        });
+        };
+
+        (window.state.merits || []).forEach(m => renderItem(m, 'Merit'));
+        (window.state.flaws || []).forEach(f => renderItem(f, 'Flaw'));
     }
     
     const otCont = document.getElementById('pr-other-traits');
