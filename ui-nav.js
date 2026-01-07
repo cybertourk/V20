@@ -1036,7 +1036,7 @@ export function renderPrintSheet() {
                 }
             });
         }
-    });
+    };
     renderAdvSection(window.state.dots.disc, 'pr-disc-list');
     renderAdvSection(window.state.dots.back, 'pr-back-list');
 
