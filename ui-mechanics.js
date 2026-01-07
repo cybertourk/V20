@@ -169,6 +169,8 @@ export function toggleDiceTray() {
 }
 window.toggleDiceTray = toggleDiceTray;
 
+// --- FRENZY & RÖTSCHRECK ---
+
 export function rollFrenzy() {
     const traitName = "Self-Control"; 
     let traitVal = window.state.dots.virt[traitName] || 1;
@@ -180,7 +182,12 @@ export function rollFrenzy() {
     let difficulty = 6; 
     let diffMsg = "Standard Difficulty";
 
-    if (clan === "Brujah") {
+    // Check for UI override
+    const diffInput = document.getElementById('frenzy-diff');
+    if (diffInput && diffInput.value) {
+        difficulty = parseInt(diffInput.value) || 6;
+        diffMsg = "Variable Difficulty";
+    } else if (clan === "Brujah") {
         difficulty += 2;
         diffMsg = "Brujah Curse (+2 Diff)";
     }
@@ -198,11 +205,12 @@ export function rollFrenzy() {
 
     let net = Math.max(0, successes - ones);
     let outcome = "";
+    let outcomeClass = "";
     
-    if (successes === 0 && ones > 0) outcome = "BOTCH! The Beast takes over immediately!";
-    else if (net === 0) outcome = "FAILURE! You succumb to Frenzy.";
-    else if (net >= 5) outcome = "RIDING THE WAVE! You control the Frenzy.";
-    else outcome = `SUCCESS (${net})! You resist for now.`;
+    if (successes === 0 && ones > 0) { outcome = "BOTCH! The Beast takes over!"; outcomeClass = "text-[#ff0000]"; }
+    else if (net === 0) { outcome = "FAILURE! You succumb to Frenzy."; outcomeClass = "text-gray-400"; }
+    else if (net >= 5) { outcome = "RIDING THE WAVE! Complete Control."; outcomeClass = "text-[#4ade80]"; }
+    else { outcome = `SUCCESS (${net})! Resist for ${net} Turn(s).`; outcomeClass = "text-[#d4af37]"; }
 
     const tray = document.getElementById('roll-results');
     const row = document.createElement('div');
@@ -222,13 +230,80 @@ export function rollFrenzy() {
         </div>
         <div class="text-center text-[9px] text-gray-300 mb-1">Diff ${difficulty} (${diffMsg})</div>
         <div class="tracking-widest flex flex-wrap justify-center py-2">${diceRender}</div>
-        <div class="text-center text-[9px] italic text-gray-400">${outcome}</div>
+        <div class="text-center text-[9px] italic font-bold ${outcomeClass}">${outcome}</div>
     `;
     
     tray.insertBefore(row, tray.firstChild);
     document.getElementById('dice-tray').classList.add('open');
 }
 window.rollFrenzy = rollFrenzy;
+
+export function rollRotschreck() {
+    const traitName = "Courage";
+    let traitVal = window.state.dots.virt[traitName] || 1;
+    
+    let difficulty = 6;
+    const diffInput = document.getElementById('rotschreck-diff');
+    if (diffInput) difficulty = parseInt(diffInput.value) || 6;
+
+    let successes = 0;
+    let rolls = [];
+    let ones = 0;
+    
+    for(let i=0; i<traitVal; i++) {
+        const die = Math.floor(Math.random() * 10) + 1;
+        rolls.push(die);
+        if (die >= difficulty) successes++;
+        if (die === 1) ones++;
+    }
+
+    let net = Math.max(0, successes - ones);
+    let outcome = "";
+    let outcomeClass = "";
+    
+    // Rötschreck Botch = Immediate Frenzy
+    if (successes === 0 && ones > 0) { 
+        outcome = "BOTCH! Immediate Frenzy / Red Fear!"; 
+        outcomeClass = "text-[#ff0000]"; 
+    }
+    else if (net === 0) { 
+        outcome = "FAILURE! You flee in panic (Red Fear)."; 
+        outcomeClass = "text-gray-400"; 
+    }
+    else if (net >= 5) { 
+        outcome = "SUCCESS! You ignore the Beast completely."; 
+        outcomeClass = "text-[#4ade80]"; 
+    }
+    else { 
+        outcome = `SUCCESS (${net})! You hold fast for now.`; 
+        outcomeClass = "text-[#d4af37]"; 
+    }
+
+    const tray = document.getElementById('roll-results');
+    const row = document.createElement('div');
+    row.className = 'bg-orange-900/60 p-2 border border-orange-500 text-[10px] mb-2 animate-in fade-in slide-in-from-right-4 duration-300';
+    
+    const diceRender = rolls.map(d => {
+        let c = 'text-gray-400';
+        if (d === 1) c = 'text-[#ff0000] font-bold';
+        else if (d >= difficulty) c = 'text-[#d4af37] font-bold';
+        return `<span class="${c} text-2xl mx-1">${d}</span>`;
+    }).join(' ');
+
+    row.innerHTML = `
+        <div class="flex justify-between border-b border-orange-500 pb-1 mb-1">
+            <span class="text-orange-200 font-bold">RÖTSCHRECK (${traitName})</span>
+            <span class="text-white font-bold text-xs">${outcome.split('!')[0]}</span>
+        </div>
+        <div class="text-center text-[9px] text-gray-300 mb-1">Diff ${difficulty} (Fire/Sun)</div>
+        <div class="tracking-widest flex flex-wrap justify-center py-2">${diceRender}</div>
+        <div class="text-center text-[9px] italic font-bold ${outcomeClass}">${outcome}</div>
+    `;
+    
+    tray.insertBefore(row, tray.firstChild);
+    document.getElementById('dice-tray').classList.add('open');
+}
+window.rollRotschreck = rollRotschreck;
 
 // --- STATE MANAGEMENT & POOL UPDATES ---
 
