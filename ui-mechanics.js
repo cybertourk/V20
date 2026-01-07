@@ -92,27 +92,7 @@ function updateClanMechanicsUI() {
         if (gangrelPanel) gangrelPanel.style.display = 'none';
     }
 
-    // --- 4. MALKAVIAN: DERANGEMENT MECHANICS ---
-    let malkPanel = document.getElementById('malkavian-mechanics-panel');
-    if (clan === "Malkavian") {
-        if (!malkPanel) {
-            malkPanel = document.createElement('div');
-            malkPanel.id = 'malkavian-mechanics-panel';
-            malkPanel.className = "mt-4 p-3 bg-[#1a1a1a] border border-[#7a28cb] rounded shadow-lg animate-in fade-in"; 
-            
-            if(healthCont && healthCont.parentNode) {
-                healthCont.parentNode.appendChild(malkPanel);
-            } else if (tray && tray.parentNode) {
-                tray.parentNode.appendChild(malkPanel);
-            }
-        }
-        malkPanel.style.display = 'block';
-        renderMalkavianPanel(malkPanel);
-    } else {
-        if (malkPanel) malkPanel.style.display = 'none';
-    }
-
-    // --- 5. NOSFERATU: APPEARANCE RESET ---
+    // --- 4. NOSFERATU: APPEARANCE RESET ---
     // Ensure state integrity if clan changes to Nosferatu
     if (clan === "Nosferatu") {
         if (window.state.dots.attr["Appearance"] > 0) {
@@ -201,85 +181,44 @@ window.removeBeastTrait = function(idx) {
     }
 };
 
-// --- MALKAVIAN HELPER FUNCTIONS ---
-function renderMalkavianPanel(container) {
-    if (!window.state.derangements) window.state.derangements = [];
-    
-    const derangements = window.state.derangements;
-    
-    let listHTML = `<div class="text-[#a855f7] font-bold text-xs uppercase mb-2 border-b border-[#333] pb-1 flex justify-between items-center">
-        <span>Malkavian Derangements</span>
-        <span class="text-[9px] text-gray-400">Weakness</span>
-    </div>`;
-    
-    // Warning for Character Creation
-    if (derangements.length === 0) {
-        listHTML += `<div class="text-red-500 font-bold text-[10px] text-center py-2 animate-pulse bg-red-900/10 rounded mb-2 border border-red-900/50">
-            <i class="fas fa-exclamation-triangle mr-1"></i> MUST POSSESS A DERANGEMENT
-        </div>`;
-    }
-
-    if (derangements.length > 0) {
-        listHTML += `<div class="space-y-2 mb-3">`;
-        derangements.forEach((d, idx) => {
-            const isIncurable = (idx === 0); // First one is always original/incurable per weakness
-            listHTML += `
-            <div class="bg-black/40 p-2 rounded border ${isIncurable ? 'border-[#a855f7] bg-[#a855f7]/10' : 'border-gray-700'} relative group flex justify-between items-center">
-                <span class="text-gray-200 text-[11px] font-medium">${d}</span>
-                ${isIncurable 
-                    ? `<span class="text-[9px] text-[#a855f7] font-bold uppercase flex items-center gap-1"><i class="fas fa-lock"></i> Incurable</span>` 
-                    : `<button onclick="window.removeDerangement(${idx})" class="text-gray-600 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><i class="fas fa-times"></i></button>`
-                }
-            </div>`;
-        });
-        listHTML += `</div>`;
-    }
-    
-    listHTML += `
-    <div class="mt-2 pt-2 border-t border-[#333]">
-        <!-- Add New -->
-        <div class="flex gap-2 mb-3">
-            <input type="text" id="malk-new-d" placeholder="Add Derangement..." class="w-full bg-black/50 border border-gray-700 text-gray-300 text-[10px] px-2 py-1 rounded focus:border-[#a855f7] outline-none">
-            <button onclick="window.addDerangement()" class="bg-[#a855f7] hover:bg-[#c084fc] text-white text-[10px] font-bold px-3 py-1 rounded transition-colors uppercase">Add</button>
-        </div>
-        
-        <!-- Suppress Button -->
-        <div class="flex items-center justify-between bg-gray-900/50 p-2 rounded border border-gray-700">
-            <span class="text-[9px] text-gray-400">Ameliorate symptoms (1 Scene)</span>
-            <button onclick="window.suppressDerangement()" class="bg-blue-900 hover:bg-blue-800 text-blue-200 border border-blue-700 text-[10px] font-bold px-2 py-1 rounded transition-colors flex items-center gap-1">
-                <span>Suppress</span>
-                <span class="bg-black/30 px-1 rounded text-[8px] text-blue-300">1 WP</span>
-            </button>
-        </div>
-    </div>`;
-    
-    container.innerHTML = listHTML;
-}
+// --- DERANGEMENT MANAGEMENT (Shared + Malkavian Logic) ---
 
 window.addDerangement = function() {
-    const val = document.getElementById('malk-new-d')?.value;
+    const input = document.getElementById('derangement-input');
+    const val = input?.value;
     if (!val) {
         showNotification("Enter a Derangement name.");
         return;
     }
     
+    if (!window.state.derangements) window.state.derangements = [];
     window.state.derangements.push(val);
-    showNotification(window.state.derangements.length === 1 ? "Primary Incurable Derangement Set." : "Derangement Added.");
     
-    const panel = document.getElementById('malkavian-mechanics-panel');
-    if(panel) renderMalkavianPanel(panel);
+    const clan = window.state.textFields['c-clan'] || document.getElementById('c-clan')?.value || "None";
+    if (clan === "Malkavian" && window.state.derangements.length === 1) {
+        showNotification("Primary Incurable Derangement Set.");
+    } else {
+        showNotification("Derangement Added.");
+    }
+    
+    if(input) input.value = '';
+    // Trigger render update (renderer will handle UI)
+    if(window.renderSocialProfile) window.renderSocialProfile(); 
     if(window.renderPrintSheet) window.renderPrintSheet();
 };
 
 window.removeDerangement = function(idx) {
-    if (idx === 0) {
-        showNotification("Cannot remove the original Incurable Derangement!");
+    const clan = window.state.textFields['c-clan'] || document.getElementById('c-clan')?.value || "None";
+    
+    // Malkavian Weakness: Cannot remove the first derangement
+    if (clan === "Malkavian" && idx === 0) {
+        showNotification("Malkavian Weakness: Cannot remove the original Incurable Derangement!");
         return;
     }
+    
     if(confirm("Remove this Derangement?")) {
         window.state.derangements.splice(idx, 1);
-        const panel = document.getElementById('malkavian-mechanics-panel');
-        if(panel) renderMalkavianPanel(panel);
+        if(window.renderSocialProfile) window.renderSocialProfile();
         if(window.renderPrintSheet) window.renderPrintSheet();
     }
 };
