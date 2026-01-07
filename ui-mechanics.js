@@ -13,14 +13,19 @@ import {
     renderDots, renderBoxes, showNotification, setSafeText, renderSocialProfile 
 } from "./ui-common.js";
 
+
 // --- DICE & POOL MECHANICS ---
 
 export function clearPool() {
     window.state.activePool = [];
     document.querySelectorAll('.trait-label').forEach(el => el.classList.remove('selected'));
     setSafeText('pool-display', "Select traits to build pool...");
-    const hint = document.getElementById('specialty-hint'); if(hint) hint.innerHTML = '';
-    const cb = document.getElementById('use-specialty'); if(cb) cb.checked = false;
+    
+    const hint = document.getElementById('specialty-hint'); 
+    if(hint) hint.innerHTML = '';
+    
+    const cb = document.getElementById('use-specialty'); 
+    if(cb) cb.checked = false;
     
     // Clear Custom Dice Slider
     const slider = document.getElementById('custom-dice-input');
@@ -38,37 +43,65 @@ export function clearPool() {
 }
 window.clearPool = clearPool;
 
+
 export function handleTraitClick(name, type) {
     const val = window.state.dots[type][name] || 0;
     const existingIdx = window.state.activePool.findIndex(p => p.name === name);
-    if (existingIdx > -1) window.state.activePool.splice(existingIdx, 1);
-    else { if (window.state.activePool.length >= 2) window.state.activePool.shift(); window.state.activePool.push({name, val}); }
+    
+    if (existingIdx > -1) {
+        window.state.activePool.splice(existingIdx, 1);
+    } else { 
+        if (window.state.activePool.length >= 2) window.state.activePool.shift(); 
+        window.state.activePool.push({name, val}); 
+    }
+    
     document.querySelectorAll('.trait-label').forEach(el => el.classList.toggle('selected', window.state.activePool.some(p => p.name === el.innerText)));
+    
     const display = document.getElementById('pool-display');
     const hint = document.getElementById('specialty-hint');
+    
     if (!hint && display) {
-        const hDiv = document.createElement('div'); hDiv.id = 'specialty-hint'; hDiv.className = 'text-[9px] text-[#4ade80] mt-1 h-4 flex items-center';
+        const hDiv = document.createElement('div'); 
+        hDiv.id = 'specialty-hint'; 
+        hDiv.className = 'text-[9px] text-[#4ade80] mt-1 h-4 flex items-center';
         display.parentNode.insertBefore(hDiv, display.nextSibling);
     }
+    
     if (window.state.activePool.length > 0) {
         setSafeText('pool-display', window.state.activePool.map(p => `${p.name} (${p.val})`).join(' + '));
+        
         const specs = window.state.activePool.map(p => window.state.specialties[p.name]).filter(s => s); 
         const hintEl = document.getElementById('specialty-hint');
+        
         if (hintEl) {
             if (specs.length > 0) {
                  const isApplied = document.getElementById('use-specialty')?.checked;
-                 if(isApplied) hintEl.innerHTML = `<span class="text-[#d4af37] font-bold">Specialty Active! (10s = 2 Successes)</span>`;
-                 else {
+                 if(isApplied) {
+                     hintEl.innerHTML = `<span class="text-[#d4af37] font-bold">Specialty Active! (10s = 2 Successes)</span>`;
+                 } else {
                      hintEl.innerHTML = `<span>Possible Specialty: ${specs.join(', ')}</span><button id="apply-spec-btn" class="ml-2 bg-[#d4af37] text-black px-1 rounded hover:bg-white pointer-events-auto text-[9px] font-bold uppercase">APPLY</button>`;
                      const btn = document.getElementById('apply-spec-btn');
-                     if(btn) btn.onclick = (e) => { e.stopPropagation(); const cb = document.getElementById('use-specialty'); if(cb) { cb.checked = true; window.showNotification(`Applied: ${specs.join(', ')}`); hintEl.innerHTML = `<span class="text-[#d4af37] font-bold">Specialty Active! (10s = 2 Successes)</span>`; } };
+                     if(btn) btn.onclick = (e) => { 
+                         e.stopPropagation(); 
+                         const cb = document.getElementById('use-specialty'); 
+                         if(cb) { 
+                             cb.checked = true; 
+                             window.showNotification(`Applied: ${specs.join(', ')}`); 
+                             hintEl.innerHTML = `<span class="text-[#d4af37] font-bold">Specialty Active! (10s = 2 Successes)</span>`; 
+                         } 
+                     };
                  }
-            } else hintEl.innerHTML = '';
+            } else {
+                hintEl.innerHTML = '';
+            }
         }
         document.getElementById('dice-tray').classList.add('open');
-    } else window.clearPool();
+    } else {
+        window.clearPool();
+    }
 }
 window.handleTraitClick = handleTraitClick;
+
 
 export function rollPool() {
     const spendWP = document.getElementById('spend-willpower')?.checked;
@@ -92,7 +125,10 @@ export function rollPool() {
     const custom = parseInt(document.getElementById('custom-dice-input')?.value) || 0;
     const poolSize = window.state.activePool.reduce((a,b) => a + b.val, 0) + custom;
     
-    if (poolSize <= 0 && autoSuccesses === 0) { window.showNotification("Pool Empty"); return; }
+    if (poolSize <= 0 && autoSuccesses === 0) { 
+        window.showNotification("Pool Empty"); 
+        return; 
+    }
     
     const diff = parseInt(document.getElementById('roll-diff').value) || 6;
     const isSpec = document.getElementById('use-specialty').checked;
@@ -102,7 +138,10 @@ export function rollPool() {
         const die = Math.floor(Math.random() * 10) + 1;
         results.push(die);
         if (die === 1) ones++;
-        if (die >= diff) { if (isSpec && die === 10) rawSuccesses += 2; else rawSuccesses += 1; }
+        if (die >= diff) { 
+            if (isSpec && die === 10) rawSuccesses += 2; 
+            else rawSuccesses += 1; 
+        }
     }
     
     // Net Calculation:
@@ -132,7 +171,10 @@ export function rollPool() {
     const diceRender = results.map(d => {
         let c = 'text-gray-500';
         if (d === 1) c = 'text-[#ff0000] font-bold';
-        else if (d >= diff) { c = 'text-[#d4af37] font-bold'; if (d === 10 && isSpec) c = 'text-[#4ade80] font-black'; }
+        else if (d >= diff) { 
+            c = 'text-[#d4af37] font-bold'; 
+            if (d === 10 && isSpec) c = 'text-[#4ade80] font-black'; 
+        }
         return `<span class="${c} text-3xl mx-1">${d}</span>`;
     }).join(' ');
 
@@ -144,24 +186,31 @@ export function rollPool() {
 }
 window.rollPool = rollPool;
 
+
 export function rollCombat(name, diff, attr, ability) {
     window.clearPool();
     const attrVal = window.state.dots.attr[attr] || 1;
     window.state.activePool.push({name: attr, val: attrVal});
+    
     const abilVal = window.state.dots.abil[ability] || 0;
     window.state.activePool.push({name: ability, val: abilVal});
+    
     document.querySelectorAll('.trait-label').forEach(el => {
         if (el.innerText === attr || el.innerText === ability) el.classList.add('selected');
         else el.classList.remove('selected');
     });
+    
     const diffInput = document.getElementById('roll-diff');
     if (diffInput) diffInput.value = diff;
+    
     const display = document.getElementById('pool-display');
     if (display) setSafeText('pool-display', `${attr} (${attrVal}) + ${ability} (${abilVal})`);
+    
     const tray = document.getElementById('dice-tray');
     if (tray) tray.classList.add('open');
 }
 window.rollCombat = rollCombat;
+
 
 export function toggleDiceTray() {
     const tray = document.getElementById('dice-tray');
@@ -169,141 +218,93 @@ export function toggleDiceTray() {
 }
 window.toggleDiceTray = toggleDiceTray;
 
+
 // --- FRENZY & RÖTSCHRECK ---
 
 export function rollFrenzy() {
-    const traitName = "Self-Control"; 
-    let traitVal = window.state.dots.virt[traitName] || 1;
-    // Vampires with Instincts always frenzy (per rules), but in app we allow rolling if they have it
-    // Or we use Instincts as the pool
-    if (window.state.dots.virt["Instincts"]) traitVal = window.state.dots.virt["Instincts"];
+    // 1. Setup Pool (Clear existing)
+    window.clearPool();
+    
+    // V20 Rules: Frenzy is usually rolled on Self-Control. 
+    // Vampires with Instincts ride the wave (automatic frenzy unless they spend willpower to control it?), 
+    // but often players roll Instincts to control/direct it. 
+    // For this app, we will load the appropriate virtue into the pool.
+    const traitName = window.state.dots.virt["Instincts"] ? "Instincts" : "Self-Control";
+    const traitVal = window.state.dots.virt[traitName] || 1;
+    
+    // Push to active pool so standard roller can use it
+    window.state.activePool.push({name: traitName, val: traitVal});
 
+    // 2. Setup Difficulty
     const clan = window.state.textFields['c-clan'] || document.getElementById('c-clan')?.value || "None";
     let difficulty = 6; 
-    let diffMsg = "Standard Difficulty";
+    let diffMsg = "";
 
     // Check for UI override
-    const diffInput = document.getElementById('frenzy-diff');
-    if (diffInput && diffInput.value) {
-        difficulty = parseInt(diffInput.value) || 6;
-        diffMsg = "Variable Difficulty";
+    const diffInputOverride = document.getElementById('frenzy-diff');
+    if (diffInputOverride && diffInputOverride.value) {
+        difficulty = parseInt(diffInputOverride.value) || 6;
+        diffMsg = " (Custom)";
     } else if (clan === "Brujah") {
         difficulty += 2;
-        diffMsg = "Brujah Curse (+2 Diff)";
+        diffMsg = " (Brujah Curse)";
     }
 
-    let successes = 0;
-    let rolls = [];
-    let ones = 0;
-    
-    for(let i=0; i<traitVal; i++) {
-        const die = Math.floor(Math.random() * 10) + 1;
-        rolls.push(die);
-        if (die >= difficulty) successes++;
-        if (die === 1) ones++;
+    // Set Main Diff Input
+    const diffInput = document.getElementById('roll-diff');
+    if (diffInput) diffInput.value = difficulty;
+
+    // 3. Update Display
+    const display = document.getElementById('pool-display');
+    if (display) {
+        setSafeText('pool-display', `Frenzy Check: ${traitName} (${traitVal})`);
+        // Optional: color code to indicate danger
+        display.classList.add('text-red-500');
     }
 
-    let net = Math.max(0, successes - ones);
-    let outcome = "";
-    let outcomeClass = "";
-    
-    if (successes === 0 && ones > 0) { outcome = "BOTCH! The Beast takes over!"; outcomeClass = "text-[#ff0000]"; }
-    else if (net === 0) { outcome = "FAILURE! You succumb to Frenzy."; outcomeClass = "text-gray-400"; }
-    else if (net >= 5) { outcome = "RIDING THE WAVE! Complete Control."; outcomeClass = "text-[#4ade80]"; }
-    else { outcome = `SUCCESS (${net})! Resist for ${net} Turn(s).`; outcomeClass = "text-[#d4af37]"; }
+    // 4. Open Tray for Player to Roll
+    const tray = document.getElementById('dice-tray');
+    if (tray) tray.classList.add('open');
 
-    const tray = document.getElementById('roll-results');
-    const row = document.createElement('div');
-    row.className = 'bg-red-900/60 p-2 border border-red-500 text-[10px] mb-2 animate-in fade-in slide-in-from-right-4 duration-300';
-    
-    const diceRender = rolls.map(d => {
-        let c = 'text-gray-400';
-        if (d === 1) c = 'text-[#ff0000] font-bold';
-        else if (d >= difficulty) c = 'text-[#d4af37] font-bold';
-        return `<span class="${c} text-2xl mx-1">${d}</span>`;
-    }).join(' ');
-
-    row.innerHTML = `
-        <div class="flex justify-between border-b border-red-500 pb-1 mb-1">
-            <span class="text-red-200 font-bold">FRENZY CHECK (${traitName})</span>
-            <span class="text-white font-bold text-xs">${outcome.split('!')[0]}</span>
-        </div>
-        <div class="text-center text-[9px] text-gray-300 mb-1">Diff ${difficulty} (${diffMsg})</div>
-        <div class="tracking-widest flex flex-wrap justify-center py-2">${diceRender}</div>
-        <div class="text-center text-[9px] italic font-bold ${outcomeClass}">${outcome}</div>
-    `;
-    
-    tray.insertBefore(row, tray.firstChild);
-    document.getElementById('dice-tray').classList.add('open');
+    showNotification(`Frenzy Pool Ready (Diff ${difficulty}${diffMsg}). Roll when ready.`);
 }
 window.rollFrenzy = rollFrenzy;
 
+
 export function rollRotschreck() {
+    // 1. Setup Pool
+    window.clearPool();
+    
     const traitName = "Courage";
-    let traitVal = window.state.dots.virt[traitName] || 1;
+    const traitVal = window.state.dots.virt[traitName] || 1;
     
+    window.state.activePool.push({name: traitName, val: traitVal});
+    
+    // 2. Setup Difficulty
     let difficulty = 6;
-    const diffInput = document.getElementById('rotschreck-diff');
-    if (diffInput) difficulty = parseInt(diffInput.value) || 6;
-
-    let successes = 0;
-    let rolls = [];
-    let ones = 0;
-    
-    for(let i=0; i<traitVal; i++) {
-        const die = Math.floor(Math.random() * 10) + 1;
-        rolls.push(die);
-        if (die >= difficulty) successes++;
-        if (die === 1) ones++;
+    const diffInputOverride = document.getElementById('rotschreck-diff');
+    if (diffInputOverride && diffInputOverride.value) {
+        difficulty = parseInt(diffInputOverride.value) || 6;
     }
 
-    let net = Math.max(0, successes - ones);
-    let outcome = "";
-    let outcomeClass = "";
+    const diffInput = document.getElementById('roll-diff');
+    if (diffInput) diffInput.value = difficulty;
     
-    // Rötschreck Botch = Immediate Frenzy
-    if (successes === 0 && ones > 0) { 
-        outcome = "BOTCH! Immediate Frenzy / Red Fear!"; 
-        outcomeClass = "text-[#ff0000]"; 
-    }
-    else if (net === 0) { 
-        outcome = "FAILURE! You flee in panic (Red Fear)."; 
-        outcomeClass = "text-gray-400"; 
-    }
-    else if (net >= 5) { 
-        outcome = "SUCCESS! You ignore the Beast completely."; 
-        outcomeClass = "text-[#4ade80]"; 
-    }
-    else { 
-        outcome = `SUCCESS (${net})! You hold fast for now.`; 
-        outcomeClass = "text-[#d4af37]"; 
+    // 3. Update Display
+    const display = document.getElementById('pool-display');
+    if (display) {
+        setSafeText('pool-display', `Rötschreck Check: ${traitName} (${traitVal})`);
+        display.classList.add('text-orange-500');
     }
 
-    const tray = document.getElementById('roll-results');
-    const row = document.createElement('div');
-    row.className = 'bg-orange-900/60 p-2 border border-orange-500 text-[10px] mb-2 animate-in fade-in slide-in-from-right-4 duration-300';
-    
-    const diceRender = rolls.map(d => {
-        let c = 'text-gray-400';
-        if (d === 1) c = 'text-[#ff0000] font-bold';
-        else if (d >= difficulty) c = 'text-[#d4af37] font-bold';
-        return `<span class="${c} text-2xl mx-1">${d}</span>`;
-    }).join(' ');
+    // 4. Open Tray for Player to Roll
+    const tray = document.getElementById('dice-tray');
+    if (tray) tray.classList.add('open');
 
-    row.innerHTML = `
-        <div class="flex justify-between border-b border-orange-500 pb-1 mb-1">
-            <span class="text-orange-200 font-bold">RÖTSCHRECK (${traitName})</span>
-            <span class="text-white font-bold text-xs">${outcome.split('!')[0]}</span>
-        </div>
-        <div class="text-center text-[9px] text-gray-300 mb-1">Diff ${difficulty} (Fire/Sun)</div>
-        <div class="tracking-widest flex flex-wrap justify-center py-2">${diceRender}</div>
-        <div class="text-center text-[9px] italic font-bold ${outcomeClass}">${outcome}</div>
-    `;
-    
-    tray.insertBefore(row, tray.firstChild);
-    document.getElementById('dice-tray').classList.add('open');
+    showNotification(`Fear Pool Ready (Diff ${difficulty}). Roll when ready.`);
 }
 window.rollRotschreck = rollRotschreck;
+
 
 // --- STATE MANAGEMENT & POOL UPDATES ---
 
@@ -328,21 +329,29 @@ export function updatePools() {
 
     // Priority Counts
     Object.keys(ATTRIBUTES).forEach(cat => {
-        let cs = 0; ATTRIBUTES[cat].forEach(a => cs += ((window.state.dots.attr[a] || 1) - 1));
+        let cs = 0; 
+        ATTRIBUTES[cat].forEach(a => cs += ((window.state.dots.attr[a] || 1) - 1));
         const targetId = (cat === 'Social') ? 'p-social' : (cat === 'Mental') ? 'p-mental' : 'p-phys';
         setSafeText(targetId, `[${Math.max(0, (window.state.prios.attr[cat] || 0) - cs)}]`);
     });
     
     Object.keys(ABILITIES).forEach(cat => {
-        let cs = 0; ABILITIES[cat].forEach(a => cs += (window.state.dots.abil[a] || 0));
-        if (window.state.customAbilityCategories) { Object.entries(window.state.customAbilityCategories).forEach(([name, c]) => { if (c === cat && window.state.dots.abil[name]) cs += window.state.dots.abil[name]; }); }
+        let cs = 0; 
+        ABILITIES[cat].forEach(a => cs += (window.state.dots.abil[a] || 0));
+        if (window.state.customAbilityCategories) { 
+            Object.entries(window.state.customAbilityCategories).forEach(([name, c]) => { 
+                if (c === cat && window.state.dots.abil[name]) cs += window.state.dots.abil[name]; 
+            }); 
+        }
         setSafeText('p-' + cat.toLowerCase().slice(0,3), `[${Math.max(0, (window.state.prios.abil[cat] || 0) - cs)}]`);
     });
     
     const discSpent = Object.values(window.state.dots.disc || {}).reduce((a, b) => a + b, 0);
     setSafeText('p-disc', `[${Math.max(0, 3 - discSpent)}]`);
+    
     const backSpent = Object.values(window.state.dots.back || {}).reduce((a, b) => a + b, 0);
     setSafeText('p-back', `[${Math.max(0, 5 - backSpent)}]`);
+    
     const virtTotalDots = VIRTUES.reduce((a, v) => a + (window.state.dots.virt[v] || 1), 0);
     setSafeText('p-virt', `[${Math.max(0, 7 - (virtTotalDots - 3))}]`);
 
@@ -583,6 +592,7 @@ export function updatePools() {
 }
 window.updatePools = updatePools;
 
+
 export function refreshTraitRow(label, type, targetEl) {
     let rowDiv = targetEl;
     if (!rowDiv) {
@@ -639,6 +649,7 @@ export function refreshTraitRow(label, type, targetEl) {
 }
 window.refreshTraitRow = refreshTraitRow;
 
+
 export function renderRow(contId, label, type, min, max = 5) {
     const cont = typeof contId === 'string' ? document.getElementById(contId) : contId;
     if (!cont) return;
@@ -649,6 +660,7 @@ export function renderRow(contId, label, type, min, max = 5) {
     refreshTraitRow(label, type, div); 
 }
 window.renderRow = renderRow;
+
 
 // --- UPDATED setDots with Experience Mode ---
 export function setDots(name, type, val, min, max = 5) {
@@ -761,33 +773,51 @@ export function setDots(name, type, val, min, max = 5) {
     } else {
         // ... [Standard Priority Checks for Phases 2,3,4] ...
         if (type === 'attr') {
-            let group = null; Object.keys(ATTRIBUTES).forEach(k => { if(ATTRIBUTES[k].includes(name)) group = k; });
+            let group = null; 
+            Object.keys(ATTRIBUTES).forEach(k => { if(ATTRIBUTES[k].includes(name)) group = k; });
+            
             if (group) {
                  const limit = window.state.prios.attr[group];
                  if (limit === undefined) { window.showNotification(`Select priority for ${group}!`); return; }
+                 
                  let currentSpent = 0;
                  ATTRIBUTES[group].forEach(a => { if (a !== name) { const v = window.state.dots.attr[a] || 1; currentSpent += (v - 1); } });
+                 
                  if (currentSpent + (newVal - 1) > limit) { window.showNotification("Limit Exceeded!"); return; }
             }
         } else if (type === 'abil') {
             if (newVal > 3) { window.showNotification("Max 3 dots in Abilities during creation!"); return; }
-            let group = null; Object.keys(ABILITIES).forEach(k => { if(ABILITIES[k].includes(name)) group = k; });
+            
+            let group = null; 
+            Object.keys(ABILITIES).forEach(k => { if(ABILITIES[k].includes(name)) group = k; });
             if (!group && window.state.customAbilityCategories && window.state.customAbilityCategories[name]) group = window.state.customAbilityCategories[name];
+            
             if (group) {
                 const limit = window.state.prios.abil[group];
                 if (limit === undefined) { window.showNotification(`Select priority for ${group}!`); return; }
-                let currentSpent = 0; ABILITIES[group].forEach(a => { if (a !== name) currentSpent += (window.state.dots.abil[a] || 0); });
-                if (window.state.customAbilityCategories) { Object.keys(window.state.dots.abil).forEach(k => { if (k !== name && window.state.customAbilityCategories[k] === group) currentSpent += (window.state.dots.abil[k] || 0); }); }
+                
+                let currentSpent = 0; 
+                ABILITIES[group].forEach(a => { if (a !== name) currentSpent += (window.state.dots.abil[a] || 0); });
+                
+                if (window.state.customAbilityCategories) { 
+                    Object.keys(window.state.dots.abil).forEach(k => { 
+                        if (k !== name && window.state.customAbilityCategories[k] === group) currentSpent += (window.state.dots.abil[k] || 0); 
+                    }); 
+                }
+                
                 if (currentSpent + newVal > limit) { window.showNotification("Limit Exceeded!"); return; }
             }
         } else if (type === 'disc') {
-            let currentSpent = 0; Object.keys(window.state.dots.disc).forEach(d => { if (d !== name) currentSpent += (window.state.dots.disc[d] || 0); });
+            let currentSpent = 0; 
+            Object.keys(window.state.dots.disc).forEach(d => { if (d !== name) currentSpent += (window.state.dots.disc[d] || 0); });
             if (currentSpent + newVal > 3) { window.showNotification("Max 3 Creation Dots!"); return; }
         } else if (type === 'back') {
-            let currentSpent = 0; Object.keys(window.state.dots.back).forEach(b => { if (b !== name) currentSpent += (window.state.dots.back[b] || 0); });
+            let currentSpent = 0; 
+            Object.keys(window.state.dots.back).forEach(b => { if (b !== name) currentSpent += (window.state.dots.back[b] || 0); });
             if (currentSpent + newVal > 5) { window.showNotification("Max 5 Creation Dots!"); return; }
         } else if (type === 'virt') {
-            let currentSpent = 0; VIRTUES.forEach(v => { if (v !== name) currentSpent += (window.state.dots.virt[v] || 1); });
+            let currentSpent = 0; 
+            VIRTUES.forEach(v => { if (v !== name) currentSpent += (window.state.dots.virt[v] || 1); });
             if ((currentSpent + newVal) > 10) { window.showNotification("Max 7 Creation Dots!"); return; }
         }
     }
