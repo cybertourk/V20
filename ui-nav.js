@@ -713,17 +713,25 @@ export function togglePlayMode() {
                         <span class="font-bold text-white">${item.name}</span>
                         <span class="${valueColor} font-bold text-[10px]">${item.val} pts</span>
                     </div>
-                    <input type="text" class="merit-flaw-desc bg-transparent border-none text-[10px] text-gray-400 w-full italic focus:text-white focus:not-italic" 
-                           placeholder="Description / Note..." value="${item.desc || ''}">
+                    <textarea class="merit-flaw-desc bg-transparent border-none text-[10px] text-gray-400 w-full italic focus:text-white focus:not-italic resize-none overflow-hidden" 
+                           placeholder="Description / Note..." rows="1" style="min-height: 20px;">${item.desc || ''}</textarea>
                 `;
                 
                 // Bind Listener
-                const input = row.querySelector('input');
+                const input = row.querySelector('textarea');
+                // Auto-resize function
+                const resize = () => {
+                    input.style.height = 'auto';
+                    input.style.height = (input.scrollHeight) + 'px';
+                };
+                // Initial resize
+                requestAnimationFrame(resize);
+                
+                input.oninput = resize;
                 input.onblur = (e) => {
                     const arr = type === 'Merit' ? window.state.merits : window.state.flaws;
                     if(arr[index]) {
                         arr[index].desc = e.target.value;
-                        // Trigger autosave if needed or just update state for manual save
                     }
                 };
                 
@@ -1028,7 +1036,7 @@ export function renderPrintSheet() {
                 }
             });
         }
-    };
+    });
     renderAdvSection(window.state.dots.disc, 'pr-disc-list');
     renderAdvSection(window.state.dots.back, 'pr-back-list');
 
