@@ -98,7 +98,7 @@ function updateClanMechanicsUI() {
         if (!malkPanel) {
             malkPanel = document.createElement('div');
             malkPanel.id = 'malkavian-mechanics-panel';
-            malkPanel.className = "mt-4 p-3 bg-[#1a1a1a] border border-[#7a28cb] rounded shadow-lg animate-in fade-in"; // Purple border
+            malkPanel.className = "mt-4 p-3 bg-[#1a1a1a] border border-[#7a28cb] rounded shadow-lg animate-in fade-in"; 
             
             if(healthCont && healthCont.parentNode) {
                 healthCont.parentNode.appendChild(malkPanel);
@@ -110,6 +110,16 @@ function updateClanMechanicsUI() {
         renderMalkavianPanel(malkPanel);
     } else {
         if (malkPanel) malkPanel.style.display = 'none';
+    }
+
+    // --- 5. NOSFERATU: APPEARANCE RESET ---
+    // Ensure state integrity if clan changes to Nosferatu
+    if (clan === "Nosferatu") {
+        if (window.state.dots.attr["Appearance"] > 0) {
+            window.state.dots.attr["Appearance"] = 0;
+            // Trigger a refresh of that specific row if it exists in DOM
+            refreshTraitRow("Appearance", "attr");
+        }
     }
 }
 
@@ -1138,9 +1148,28 @@ export function refreshTraitRow(label, type, targetEl) {
         }
     } else { specInputHTML = '<div class="flex-1"></div>'; }
 
-    rowDiv.innerHTML = `<span class="trait-label font-bold uppercase text-[11px] whitespace-nowrap cursor-pointer hover:text-gold">${label}</span>${specInputHTML}<div class="dot-row flex-shrink-0" data-n="${label}" data-t="${type}">${renderDots(val, max)}</div>`;
+    // --- NOSFERATU VISUAL STYLING ---
+    const clan = window.state.textFields['c-clan'] || document.getElementById('c-clan')?.value || "None";
+    let styleOverride = "";
+    let pointerEvents = "auto";
+    let titleMsg = "";
+    
+    if (clan === "Nosferatu" && label === "Appearance") {
+        styleOverride = "text-decoration: line-through; color: #666; cursor: not-allowed; opacity: 0.5;";
+        pointerEvents = "none"; // Disable dots
+        titleMsg = "Nosferatu Weakness: Appearance 0";
+    }
 
-    rowDiv.querySelector('.trait-label').onclick = () => { if(window.state.isPlayMode) window.handleTraitClick(label, type); };
+    rowDiv.innerHTML = `
+        <span class="trait-label font-bold uppercase text-[11px] whitespace-nowrap cursor-pointer hover:text-gold" style="${styleOverride}" title="${titleMsg}">
+            ${label}
+        </span>
+        ${specInputHTML}
+        <div class="dot-row flex-shrink-0" data-n="${label}" data-t="${type}" style="pointer-events: ${pointerEvents}; opacity: ${clan === "Nosferatu" && label === "Appearance" ? '0.3' : '1'}">
+            ${renderDots(val, max)}
+        </div>`;
+
+    rowDiv.querySelector('.trait-label').onclick = () => { if(window.state.isPlayMode && !(clan === "Nosferatu" && label === "Appearance")) window.handleTraitClick(label, type); };
     rowDiv.querySelector('.dot-row').onclick = (e) => { if (e.target.dataset.v) setDots(label, type, parseInt(e.target.dataset.v), min, max); };
     
     if(showSpecialty && (!window.state.isPlayMode || (window.state.isPlayMode && window.state.specialties[label]))) {
@@ -1168,6 +1197,13 @@ window.renderRow = renderRow;
 // --- UPDATED setDots with Experience Mode ---
 export function setDots(name, type, val, min, max = 5) {
     if (window.state.isPlayMode) return;
+
+    // --- NOSFERATU BLOCK ---
+    const clan = window.state.textFields['c-clan'] || document.getElementById('c-clan')?.value || "None";
+    if (clan === "Nosferatu" && name === "Appearance") {
+        window.showNotification("Nosferatu Weakness: Appearance is 0.");
+        return;
+    }
 
     // --- EXPERIENCE MODE LOGIC ---
     if (window.state.xpMode) {
