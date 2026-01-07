@@ -221,7 +221,12 @@ export function renderDynamicTraitRow(containerId, type, list) {
                 const n = r.querySelector('input[type="number"]');
                 let name = s.value === 'Custom' ? t.value : s.value;
                 let val = parseInt(n.value) || 0;
-                if (name && name !== 'Custom') newState.push({ name, val });
+                // Preserve description if it exists in current state
+                let desc = "";
+                const existing = (type === 'Merit' ? window.state.merits : window.state.flaws).find(i => i.name === name);
+                if (existing) desc = existing.desc || "";
+
+                if (name && name !== 'Custom') newState.push({ name, val, desc });
             });
             if (type === 'Merit') window.state.merits = newState; else window.state.flaws = newState;
             updatePools();
@@ -609,7 +614,7 @@ export function togglePlayMode() {
     if(pBtnText) pBtnText.innerText = window.state.isPlayMode ? "Edit" : "Play";
     
     document.querySelectorAll('input, select, textarea').forEach(el => {
-        if (['save-filename', 'char-select', 'roll-diff', 'use-specialty', 'c-path-name', 'c-path-name-create', 'c-bearing-name', 'c-bearing-value', 'custom-weakness-input', 'xp-points-input', 'blood-per-turn-input', 'custom-dice-input', 'spend-willpower', 'c-xp-total', 'frenzy-diff', 'rotschreck-diff'].includes(el.id)) {
+        if (['save-filename', 'char-select', 'roll-diff', 'use-specialty', 'c-path-name', 'c-path-name-create', 'c-bearing-name', 'c-bearing-value', 'custom-weakness-input', 'xp-points-input', 'blood-per-turn-input', 'custom-dice-input', 'spend-willpower', 'c-xp-total', 'frenzy-diff', 'rotschreck-diff', 'play-merit-notes'].includes(el.id) || el.classList.contains('merit-flaw-desc')) {
             el.disabled = false;
             return;
         }
@@ -692,8 +697,45 @@ export function togglePlayMode() {
             pb.innerHTML = ''; window.state.bloodBonds.forEach(b => { const label = b.type === 'Bond' ? (b.rating == 3 ? 'Full Bond' : `Drink ${b.rating}`) : `Vinculum ${b.rating}`; pb.innerHTML += `<div class="flex justify-between border-b border-[#222] py-1 text-xs"><span>${b.name}</span><span class="text-gold font-bold">${label}</span></div>`; });
         }
 
-        const mf = document.getElementById('merit-flaw-rows-play'); if(mf) {
-            mf.innerHTML = ''; if(window.state.merits) window.state.merits.forEach(m => { mf.innerHTML += `<div class="flex justify-between text-xs py-1 border-b border-[#222]"><span>${m.name}</span><span class="text-red-400 font-bold">${m.val}</span></div>`; }); if(window.state.flaws) window.state.flaws.forEach(f => { mf.innerHTML += `<div class="flex justify-between text-xs py-1 border-b border-[#222]"><span>${f.name}</span><span class="text-green-400 font-bold">${f.val}</span></div>`; });
+        // --- UPDATED MERITS & FLAWS (Name | Value | Editable Description) ---
+        const mf = document.getElementById('merit-flaw-rows-play'); 
+        if(mf) {
+            mf.innerHTML = ''; 
+            
+            // Helper to render editable row
+            const renderMFRow = (item, type, index) => {
+                const row = document.createElement('div');
+                row.className = "flex flex-col border-b border-[#222] py-2 mb-1";
+                const valueColor = type === 'Merit' ? 'text-red-400' : 'text-green-400'; // Cost vs Bonus logic
+                
+                row.innerHTML = `
+                    <div class="flex justify-between text-xs mb-1">
+                        <span class="font-bold text-white">${item.name}</span>
+                        <span class="${valueColor} font-bold text-[10px]">${item.val} pts</span>
+                    </div>
+                    <input type="text" class="merit-flaw-desc bg-transparent border-none text-[10px] text-gray-400 w-full italic focus:text-white focus:not-italic" 
+                           placeholder="Description / Note..." value="${item.desc || ''}">
+                `;
+                
+                // Bind Listener
+                const input = row.querySelector('input');
+                input.onblur = (e) => {
+                    const arr = type === 'Merit' ? window.state.merits : window.state.flaws;
+                    if(arr[index]) {
+                        arr[index].desc = e.target.value;
+                        // Trigger autosave if needed or just update state for manual save
+                    }
+                };
+                
+                mf.appendChild(row);
+            };
+
+            if(window.state.merits) window.state.merits.forEach((m, i) => renderMFRow(m, 'Merit', i));
+            if(window.state.flaws) window.state.flaws.forEach((f, i) => renderMFRow(f, 'Flaw', i));
+            
+            if (!window.state.merits?.length && !window.state.flaws?.length) {
+                mf.innerHTML = '<div class="text-[10px] text-gray-600 italic text-center">No Merits or Flaws selected.</div>';
+            }
         }
 
         const ot = document.getElementById('other-traits-rows-play'); if(ot) {
@@ -815,21 +857,6 @@ export function togglePlayMode() {
         }
         
         // --- THE BEAST (FRENZY / RÖTSCHRECK) ---
-        // NEW SECTION INSERTED HERE
-        const healthContainer = document.getElementById('health-chart-play')?.parentElement?.parentElement;
-        // The container holding Health is inside the "Right Column: Health & Weakness"
-        // Let's create the container if it doesn't exist, or clear it if it does
-        
-        // IMPORTANT: We need a dedicated slot in HTML or inject it dynamically.
-        // In the togglePlayMode HTML structure below, we can insert it.
-        // However, since we are building HTML strings, let's inject it into the DOM directly after the Health section
-        // inside the Right Column container.
-
-        // Actually, looking at the structure in togglePlayMode below, I can simply add the HTML there.
-        // But for now, let's find the container. The Right Column container has id="play-mode-1" -> grid -> right col
-        // The right column contains Health, Weakness, Experience.
-        
-        // I will locate the Weakness container and insert "The Beast" BEFORE it.
         if (weaknessCont && weaknessCont.parentNode) {
             let beastCont = document.getElementById('beast-play-container');
             if (!beastCont) {
@@ -873,12 +900,13 @@ export function togglePlayMode() {
             const log = window.state.xpLog || [];
             const spent = log.reduce((a,b)=>a+b.cost,0);
             
+            // Reduced padding and font size to prevent overflow
             xpCont.innerHTML = `
                 <div class="section-title mt-6">Experience</div>
-                <div class="bg-[#111] p-3 border border-[#333] h-full flex flex-col mt-2">
-                    <div class="flex justify-between text-xs mb-2"><span>Total Earned:</span> <span class="text-purple-400 font-bold">${xpVal}</span></div>
-                    <div class="flex justify-between text-xs mb-2"><span>Total Spent:</span> <span class="text-gray-400 font-bold">${spent}</span></div>
-                    <div class="flex justify-between text-xs mb-2 border-t border-[#333] pt-2"><span>Remaining:</span> <span class="text-white font-bold">${xpVal - spent}</span></div>
+                <div class="bg-[#111] p-2 border border-[#333] mt-2">
+                    <div class="flex justify-between text-[10px] mb-1"><span>Earned:</span> <span class="text-purple-400 font-bold">${xpVal}</span></div>
+                    <div class="flex justify-between text-[10px] mb-1"><span>Spent:</span> <span class="text-gray-400 font-bold">${spent}</span></div>
+                    <div class="flex justify-between text-[10px] border-t border-[#333] pt-1 mt-1"><span>Remain:</span> <span class="text-white font-bold">${xpVal - spent}</span></div>
                 </div>
             `;
         }
