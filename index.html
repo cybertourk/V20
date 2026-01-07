@@ -566,9 +566,9 @@
                                             <button type="button" class="flex-1 bg-gray-800 text-gray-300 text-[9px] font-bold py-1 rounded border border-gray-600 hover:bg-gray-700 uppercase" onclick="window.setupSoak()">Roll Soak</button>
                                             <button type="button" class="flex-1 bg-green-900/40 text-green-300 text-[9px] font-bold py-1 rounded border border-green-800 hover:bg-green-900 uppercase" onclick="window.healOneLevel()">Heal (1 BP)</button>
                                         </div>
-                                        <!-- ARMOR TOGGLE (Updated Visuals) -->
+                                        <!-- ARMOR TOGGLE (Updated with onchange event) -->
                                         <div class="flex items-center justify-center gap-2 bg-white/5 p-1 rounded mt-1 border border-white/10">
-                                            <input type="checkbox" id="soak-armor-toggle" class="w-3 h-3 accent-gray-500 cursor-pointer">
+                                            <input type="checkbox" id="soak-armor-toggle" class="w-3 h-3 accent-gray-500 cursor-pointer" onchange="window.setupSoak()">
                                             <label for="soak-armor-toggle" class="text-[9px] text-[#d4af37] uppercase font-bold cursor-pointer hover:text-white transition-colors">Add Armor to Soak</label>
                                         </div>
                                     </div>
