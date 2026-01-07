@@ -12,7 +12,7 @@ import {
 } from "./ui-common.js";
 
 import { 
-    updatePools, renderRow, setDots, rollCombat, rollFrenzy 
+    updatePools, renderRow, setDots, rollCombat, rollFrenzy, rollRotschreck
 } from "./ui-mechanics.js";
 
 // --- DYNAMIC ADVANTAGES (Disciplines, Backgrounds, etc.) ---
@@ -383,7 +383,7 @@ export function renderDynamicHavenRow() {
             
             if (container.lastElementChild === row && nameIn.value !== "") {
                 del.style.visibility = 'visible';
-                renderDynamicHavenRow(); // Recursive call is safe here because we rebuild from state
+                renderDynamicHavenRow(); 
             }
             
             updatePools(); 
@@ -609,7 +609,7 @@ export function togglePlayMode() {
     if(pBtnText) pBtnText.innerText = window.state.isPlayMode ? "Edit" : "Play";
     
     document.querySelectorAll('input, select, textarea').forEach(el => {
-        if (['save-filename', 'char-select', 'roll-diff', 'use-specialty', 'c-path-name', 'c-path-name-create', 'c-bearing-name', 'c-bearing-value', 'custom-weakness-input', 'xp-points-input', 'blood-per-turn-input', 'custom-dice-input', 'spend-willpower', 'c-xp-total'].includes(el.id)) {
+        if (['save-filename', 'char-select', 'roll-diff', 'use-specialty', 'c-path-name', 'c-path-name-create', 'c-bearing-name', 'c-bearing-value', 'custom-weakness-input', 'xp-points-input', 'blood-per-turn-input', 'custom-dice-input', 'spend-willpower', 'c-xp-total', 'frenzy-diff', 'rotschreck-diff'].includes(el.id)) {
             el.disabled = false;
             return;
         }
@@ -796,26 +796,13 @@ export function togglePlayMode() {
             const weaknessText = CLAN_WEAKNESSES[clan] || "Select a Clan to see weakness.";
             const customNote = window.state.textFields['custom-weakness'] || "";
             
-            let frenzyBtnText = "Roll Frenzy (Std Diff)";
-            let frenzyBtnClass = "bg-[#444] hover:bg-gray-600";
-            
-            if (clan === "Brujah") {
-                frenzyBtnText = "Roll Frenzy (+2 Diff)";
-                frenzyBtnClass = "bg-[#8b0000] hover:bg-red-700";
-            }
-
+            // REMOVED FRENZY BUTTON FROM HERE
             weaknessCont.innerHTML = `
                 <div class="section-title">Weakness</div>
                 <div class="bg-[#111] p-3 border border-[#333] h-full flex flex-col mt-2">
                     <div class="text-[11px] text-gray-300 italic mb-3 leading-snug flex-1">${weaknessText}</div>
                     <div class="text-[9px] font-bold text-gray-500 mb-1 uppercase">Specifics / Notes</div>
                     <textarea id="custom-weakness-input" class="w-full h-16 bg-black border border-[#444] text-[10px] text-white p-2 focus:border-gold outline-none resize-none" placeholder="e.g. 'Only Brunettes'">${customNote}</textarea>
-                    
-                    <div class="mt-2 border-t border-[#333] pt-2">
-                        <button onclick="window.rollFrenzy()" class="w-full ${frenzyBtnClass} text-white font-bold py-1 text-[10px] uppercase transition-colors">
-                            <i class="fas fa-bolt mr-1"></i> ${frenzyBtnText}
-                        </button>
-                    </div>
                 </div>
             `;
             const ta = document.getElementById('custom-weakness-input');
