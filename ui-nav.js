@@ -972,8 +972,17 @@ export function renderPrintSheet() {
         
         // Add Maneuvers (Generic)
         const manuevers = [
-            {n: 'Bite', d: 5, dmg: 'Str+1(A)'}, {n: 'Clinch', d: 6, dmg: 'Str(B)'}, {n: 'Grapple', d: 6, dmg: 'Str(B)'},
-            {n: 'Kick', d: 7, dmg: 'Str+1(B)'}, {n: 'Punch', d: 6, dmg: 'Str(B)'}, {n: 'Tackle', d: 7, dmg: 'Str+1(B)'}
+            {n: 'Bite', d: 6, dmg: 'Str+1 (A)'},
+            {n: 'Clinch', d: 6, dmg: 'Str (B)'},
+            {n: 'Disarm', d: 7, dmg: 'Special'},
+            {n: 'Dodge', d: 6, dmg: '-'},
+            {n: 'Hold', d: 6, dmg: '-'},
+            {n: 'Kick', d: 7, dmg: 'Str+1 (B)'},
+            {n: 'Parry', d: 6, dmg: '-'},
+            {n: 'Strike', d: 6, dmg: 'Str (B)'},
+            {n: 'Sweep', d: 7, dmg: 'Str (K)'},
+            {n: 'Tackle', d: 7, dmg: 'Str+1 (K)'},
+            {n: 'Weapon Str.', d: 6, dmg: 'Weapon'}
         ];
         manuevers.forEach(m => {
             tblHTML += `<tr><td class="py-1 border-b border-gray-300 font-bold">${m.n}</td><td class="border-b border-gray-300">${m.d}</td><td class="border-b border-gray-300">${m.dmg}</td></tr>`;
