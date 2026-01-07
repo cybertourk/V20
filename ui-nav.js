@@ -37,7 +37,6 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
         row.className = 'flex items-center justify-between gap-1 mb-2 advantage-row w-full';
         
         let inputField;
-        // In XP Mode, we want to allow typing new things IF it's the empty row
         const isLocked = !window.state.freebieMode && !window.state.xpMode && !!name; 
         
         if (isAbil) { 
@@ -52,9 +51,7 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
             inputField.className = 'font-bold uppercase text-[11px] w-24 flex-shrink-0'; 
             inputField.innerHTML = `<option value="">-- Choose ${type} --</option>` + list.map(item => `<option value="${item}" ${item === name ? 'selected' : ''}>${item}</option>`).join(''); 
             inputField.disabled = isLocked;
-            // Handle pre-selection if it matches (for existing items)
              if (name && list.includes(name)) inputField.value = name;
-             // Handle custom/legacy values that aren't in the list
              else if (name) {
                  const opt = document.createElement('option');
                  opt.value = name;
@@ -96,7 +93,6 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
         const removeBtn = document.createElement('div'); 
         removeBtn.className = 'remove-btn flex-shrink-0 ml-1'; 
         removeBtn.innerHTML = '&times;';
-        // In XP mode, you generally can't remove a discipline you bought, but for this UI we might allow removing 0-dot items
         if (!name || (window.state.xpMode && val > 0)) removeBtn.style.visibility = 'hidden';
 
         let curName = name;
@@ -104,12 +100,9 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
         if (containerId === 'custom-talents') category = 'Talents'; else if (containerId === 'custom-skills') category = 'Skills'; else if (containerId === 'custom-knowledges') category = 'Knowledges';
         
         const onUpdate = (newVal) => {
-            // Logic for renaming/adding
             if (!newVal) return;
 
-            // In XP Mode: Adding a new Discipline/Ability has a base cost
             if (window.state.xpMode && !curName) {
-                // Cost check
                 let baseCost = 0;
                 let costType = '';
                 if (type === 'disc') { baseCost = 10; costType = 'New Discipline'; }
@@ -120,7 +113,7 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                 
                 if (baseCost > (totalXP - spentXP)) {
                     showNotification(`Need ${baseCost} XP for ${costType}.`);
-                    inputField.value = ""; // Reset
+                    inputField.value = ""; 
                     return;
                 }
 
@@ -129,41 +122,36 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                     return;
                 }
                 
-                // Log the initial purchase
                  if (!window.state.xpLog) window.state.xpLog = [];
                  window.state.xpLog.push({
                     trait: newVal,
                     old: 0,
-                    new: 1, // Usually starts at 1? V20 rules say "New Ability... 3". Does that buy the dot? Usually yes.
+                    new: 1, 
                     cost: baseCost,
                     type: type,
                     date: new Date().toISOString()
                 });
                 
-                 window.state.dots[type][newVal] = 1; // Start at 1 dot?
-                 window.showNotification(`Learned ${newVal} (${baseCost} XP)`);
+                 window.state.dots[type][newVal] = 1; 
+                 showNotification(`Learned ${newVal} (${baseCost} XP)`);
             }
-            // Normal creation logic
             else if (curName && curName !== newVal) { 
                 const dots = window.state.dots[type][curName]; delete window.state.dots[type][curName]; 
                 if (window.state.customAbilityCategories && window.state.customAbilityCategories[curName]) delete window.state.customAbilityCategories[curName];
                 if (newVal) window.state.dots[type][newVal] = dots || 0; 
                 if(window.state.specialties[curName]) { window.state.specialties[newVal] = window.state.specialties[curName]; delete window.state.specialties[curName]; }
             } else if (!curName && newVal && !window.state.xpMode) {
-                 // Standard creation add
-                 window.state.dots[type][newVal] = 0; // Starts at 0, user clicks dot to raise
+                 window.state.dots[type][newVal] = 0; 
             }
             
             curName = newVal;
             if (newVal) { 
-                // Ensure existence
                 if (window.state.dots[type][newVal] === undefined) window.state.dots[type][newVal] = window.state.xpMode ? 1 : 0;
 
                 dotCont.innerHTML = renderDots(window.state.dots[type][newVal], 5);
                 dotCont.dataset.n = newVal; dotCont.dataset.t = type;
                 if (category) { if (!window.state.customAbilityCategories) window.state.customAbilityCategories = {}; window.state.customAbilityCategories[newVal] = category; }
                 
-                // Add new empty row if this was the last one
                 if (row === container.lastElementChild) { 
                     removeBtn.style.visibility = window.state.xpMode ? 'hidden' : 'visible'; 
                     buildRow(); 
@@ -188,7 +176,7 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
         container.appendChild(row);
     };
     existingItems.forEach(item => buildRow(item));
-    buildRow(); // Empty row
+    buildRow(); 
 }
 window.renderDynamicAdvantageRow = renderDynamicAdvantageRow;
 
@@ -1035,8 +1023,8 @@ export function renderPrintSheet() {
     const armorNamesEl = document.getElementById('active-armor-names');
     const combatListEl = document.getElementById('combat-list-create');
 
+    // 1. Calculate Armor for Edit Mode
     if (window.state.inventory && Array.isArray(window.state.inventory)) {
-        // Armor Logic for Edit Mode
         const armors = window.state.inventory.filter(i => i.type === 'Armor' && i.status === 'carried');
         let totalR = 0, totalP = 0, names = [];
         armors.forEach(a => {
@@ -1047,27 +1035,81 @@ export function renderPrintSheet() {
         if (armorRatingEl) armorRatingEl.innerText = totalR;
         if (armorPenaltyEl) armorPenaltyEl.innerText = totalP;
         if (armorNamesEl) armorNamesEl.innerText = names.length > 0 ? names.join(', ') : "None";
+    }
 
-        // Weapon Logic for Edit Mode
-        if (combatListEl) {
-            combatListEl.innerHTML = '';
-            const firearms = ['Pistol', 'Revolver', 'Rifle', 'SMG', 'Shotgun', 'Crossbow'];
-            window.state.inventory.filter(i => i.type === 'Weapon' && i.status === 'carried').forEach(w => {
-               const name = w.displayName || w.name;
-               
-               // Match the grid-cols-6 structure of index.html Phase 6
-               const row = document.createElement('div');
-               row.className = "grid grid-cols-6 gap-2 text-[10px] border-b border-[#222] py-1 text-center text-gray-500";
-               row.innerHTML = `
-                   <div class="col-span-2 text-left pl-2 font-bold text-gold truncate">${name}</div>
-                   <div>${w.stats.diff || 6}</div>
-                   <div>${w.stats.dmg || '-'}</div>
-                   <div>${w.stats.range || '-'}</div>
-                   <div>${w.stats.rate || '-'}</div>
-                   <div>${w.stats.clip || '-'}</div>
-               `;
-               combatListEl.appendChild(row);
+    // 2. Full Update of Edit Mode Combat List
+    if (combatListEl) {
+        // Get the parent container (the column flex container)
+        const combatContainer = combatListEl.parentElement;
+        if (combatContainer) {
+            // Rebuild the ENTIRE content of the parent to replace hardcoded items
+            let html = `
+                <div class="grid grid-cols-7 gap-1 text-[9px] uppercase text-gray-400 font-bold border-b border-[#555] pb-1 mb-2 text-center">
+                    <div class="col-span-2 text-left pl-2">Attack</div>
+                    <div>Diff</div>
+                    <div>Dmg</div>
+                    <div>Rng</div>
+                    <div>Rate</div>
+                    <div>Clip</div>
+                </div>
+            `;
+
+            // Standard V20 Maneuvers (Same list as Play Mode)
+            const standards = [
+                {n:'Bite', diff:6, dmg:'Str+1(A)', rng:'-', rate:'-', clip:'-'},
+                {n:'Block', diff:6, dmg:'None (R)', rng:'-', rate:'-', clip:'-'},
+                {n:'Claw', diff:6, dmg:'Str+1(A)', rng:'-', rate:'-', clip:'-'},
+                {n:'Clinch', diff:6, dmg:'Str(C)', rng:'-', rate:'-', clip:'-'},
+                {n:'Disarm', diff:7, dmg:'Special', rng:'-', rate:'-', clip:'-'},
+                {n:'Dodge', diff:6, dmg:'None (R)', rng:'-', rate:'-', clip:'-'},
+                {n:'Hold', diff:6, dmg:'None (C)', rng:'-', rate:'-', clip:'-'},
+                {n:'Kick', diff:7, dmg:'Str+1', rng:'-', rate:'-', clip:'-'},
+                {n:'Parry', diff:6, dmg:'None (R)', rng:'-', rate:'-', clip:'-'},
+                {n:'Strike', diff:6, dmg:'Str', rng:'-', rate:'-', clip:'-'},
+                {n:'Sweep', diff:7, dmg:'Str(K)', rng:'-', rate:'-', clip:'-'},
+                {n:'Tackle', diff:7, dmg:'Str+1(K)', rng:'-', rate:'-', clip:'-'},
+                {n:'Weapon Strike', diff:6, dmg:'Weapon', rng:'-', rate:'-', clip:'-'},
+                {n:'Auto Fire', diff:8, dmg:'Special', rng:'-', rate:'-', clip:'-'},
+                {n:'Multi Shot', diff:6, dmg:'Weapon', rng:'-', rate:'-', clip:'-'},
+                {n:'Strafing', diff:8, dmg:'Special', rng:'-', rate:'-', clip:'-'},
+                {n:'3-Rnd Burst', diff:7, dmg:'Weapon', rng:'-', rate:'-', clip:'-'},
+                {n:'Two Weapons', diff:7, dmg:'Weapon', rng:'-', rate:'-', clip:'-'}
+            ];
+
+            standards.forEach(s => {
+                html += `
+                    <div class="grid grid-cols-7 gap-1 text-[9px] border-b border-[#222] py-1 text-center text-gray-500 hover:bg-[#1a1a1a]">
+                        <div class="col-span-2 text-left pl-2 font-bold text-white">${s.n}</div>
+                        <div>${s.diff}</div>
+                        <div>${s.dmg}</div>
+                        <div>${s.rng}</div>
+                        <div>${s.rate}</div>
+                        <div>${s.clip}</div>
+                    </div>
+                `;
             });
+
+            // Add Equipped Weapons
+            if (window.state.inventory && Array.isArray(window.state.inventory)) {
+                window.state.inventory.filter(i => i.type === 'Weapon' && i.status === 'carried').forEach(w => {
+                    const name = w.displayName || w.name;
+                    html += `
+                        <div class="grid grid-cols-7 gap-1 text-[9px] border-b border-[#222] py-1 text-center text-gray-500 hover:bg-[#1a1a1a]">
+                            <div class="col-span-2 text-left pl-2 font-bold text-gold truncate" title="${name}">${name}</div>
+                            <div>${w.stats.diff || 6}</div>
+                            <div>${w.stats.dmg || '-'}</div>
+                            <div>${w.stats.range || '-'}</div>
+                            <div>${w.stats.rate || '-'}</div>
+                            <div>${w.stats.clip || '-'}</div>
+                        </div>
+                    `;
+                });
+            }
+
+            // Restore the empty container div for future use (though we are overwriting parent)
+            html += '<div id="combat-list-create" class="space-y-1 mt-2"></div>';
+            
+            combatContainer.innerHTML = html;
         }
     }
 
