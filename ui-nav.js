@@ -1,7 +1,8 @@
 import { 
     ATTRIBUTES, ABILITIES, VIRTUES, BACKGROUNDS, 
     STEPS_CONFIG, DERANGEMENTS, VIT, CLAN_WEAKNESSES, 
-    SPECIALTY_EXAMPLES, HEALTH_STATES, V20_WEAPONS_LIST, V20_ARMOR_LIST
+    SPECIALTY_EXAMPLES, HEALTH_STATES, V20_WEAPONS_LIST, V20_ARMOR_LIST,
+    CLAN_DISCIPLINES
 } from "./data.js";
 
 import { checkStepComplete } from "./v20-rules.js";
@@ -511,90 +512,164 @@ window.toggleXpMode = toggleXpMode;
 export function renderXpSidebar() {
     if (!window.state.xpMode) return;
     
+    // Calculate Spending Buckets from XP Log
     const log = window.state.xpLog || [];
-    let spentAttr = 0, spentAbil = 0, spentDisc = 0, spentVirt = 0, spentHuman = 0, spentWill = 0;
-    
+    let buckets = {
+        newAbil: 0,
+        newDisc: 0,
+        newPath: 0,
+        attr: 0,
+        abil: 0,
+        clanDisc: 0,
+        otherDisc: 0,
+        caitiffDisc: 0, // Catch-all for Caitiff
+        secPath: 0,
+        virt: 0,
+        humanity: 0,
+        willpower: 0
+    };
+
+    const clan = window.state.textFields['c-clan'] || document.getElementById('c-clan')?.value || "None";
+    const isCaitiff = clan === "Caitiff";
+    const clanDiscs = CLAN_DISCIPLINES[clan] || [];
+
     log.forEach(entry => {
-        if (entry.type === 'attr') spentAttr += entry.cost;
-        else if (entry.type === 'abil') spentAbil += entry.cost;
-        else if (entry.type === 'disc') spentDisc += entry.cost;
-        else if (entry.type === 'virt') spentVirt += entry.cost;
-        else if (entry.type === 'humanity' || (entry.type === 'status' && entry.trait === 'Humanity')) spentHuman += entry.cost;
-        else if (entry.type === 'willpower' || (entry.type === 'status' && entry.trait === 'Willpower')) spentWill += entry.cost;
+        // Logic to categorize XP spend
+        const isNew = entry.old === 0;
+        const name = entry.trait || "";
+        const type = entry.type;
+        const cost = entry.cost;
+
+        if (type === 'abil') {
+            if (isNew) buckets.newAbil += cost;
+            else buckets.abil += cost;
+        } 
+        else if (type === 'attr') {
+            buckets.attr += cost;
+        }
+        else if (type === 'disc') {
+            const isPath = name.toLowerCase().includes('path');
+            if (isPath) {
+                if (isNew) buckets.newPath += cost; 
+                else buckets.secPath += cost; 
+            } else {
+                if (isNew) buckets.newDisc += cost;
+                else {
+                    // Raising Discipline
+                    if (isCaitiff) buckets.caitiffDisc += cost;
+                    else if (clanDiscs.includes(name)) buckets.clanDisc += cost;
+                    else buckets.otherDisc += cost;
+                }
+            }
+        }
+        else if (type === 'virt') buckets.virt += cost;
+        else if (type === 'humanity' || (type === 'status' && name === 'Humanity')) buckets.humanity += cost;
+        else if (type === 'willpower' || (type === 'status' && name === 'Willpower')) buckets.willpower += cost;
+        else if (type === 'path') buckets.secPath += cost; // Catch-all for path upgrades
     });
+
+    const sb = document.getElementById('xp-sidebar');
+    if (!sb) return;
+
+    // Clear existing content except the toggle button
+    const toggleBtn = document.getElementById('xp-sb-toggle-btn');
+    sb.innerHTML = '';
+    if (toggleBtn) sb.appendChild(toggleBtn);
+
+    const title = document.createElement('h3');
+    title.className = "heading text-purple-400 text-sm border-b border-purple-500 pb-2 mb-4 text-center";
+    title.innerText = "Experience Ledger";
+    sb.appendChild(title);
+
+    const listDiv = document.createElement('div');
+    listDiv.className = "space-y-2 text-xs";
+
+    // Helper to add row
+    const addRow = (label, val, highlight = false) => {
+        const row = document.createElement('div');
+        row.className = "cost-row";
+        const valClass = highlight ? "text-purple-300 font-bold" : "text-gray-400 font-bold";
+        
+        // Hide row if 0 value? No, user wants structure shown (like freebie ledger)
+        // Freebie ledger shows all 0s. We will show all 0s.
+        // Wait, for Caitiff vs Non-Caitiff we switch structure.
+        
+        row.innerHTML = `<span class="text-gray-400">${label}</span><span class="cost-val ${valClass} bg-black/95 z-10 shrink-0">${val}</span>`;
+        listDiv.appendChild(row);
+    };
+
+    // --- RENDER ROWS BASED ON USER SPECS ---
+    addRow("New Ability (3)", buckets.newAbil);
+    addRow("New Discipline (10)", buckets.newDisc);
+    addRow("New Path (7)", buckets.newPath);
     
-    setSafeText('sb-xp-attr', spentAttr);
-    setSafeText('sb-xp-abil', spentAbil);
-    setSafeText('sb-xp-disc', spentDisc);
-    setSafeText('sb-xp-virt', spentVirt);
-    setSafeText('sb-xp-human', spentHuman);
-    setSafeText('sb-xp-will', spentWill);
+    addRow("Attribute (Cur x4)", buckets.attr);
+    addRow("Ability (Cur x2)", buckets.abil);
     
-    const totalSpent = spentAttr + spentAbil + spentDisc + spentVirt + spentHuman + spentWill;
-    setSafeText('sb-xp-spent', totalSpent);
-    setSafeText('x-total-spent', totalSpent);
+    if (isCaitiff) {
+        // Caitiff Special Rule
+        addRow("Discipline (Cur x6)*", buckets.caitiffDisc, true); // Highlight
+    } else {
+        // Standard
+        addRow("Clan Disc (Cur x5)*", buckets.clanDisc);
+        addRow("Other Disc (Cur x7)*", buckets.otherDisc);
+    }
     
+    addRow("Sec. Path (Cur x4)", buckets.secPath);
+    addRow("Virtue (Cur x2)**", buckets.virt);
+    addRow("Humanity/Path (Cur x2)", buckets.humanity);
+    addRow("Willpower (Cur x1)", buckets.willpower);
+
+    // Totals
+    const totalSpent = Object.values(buckets).reduce((a,b) => a+b, 0);
     const totalEarned = parseInt(document.getElementById('c-xp-total')?.value) || 0;
-    setSafeText('sb-xp-remaining', totalEarned - totalSpent);
     
-    const logDiv = document.getElementById('xp-log-recent');
-    if(logDiv) {
-        logDiv.innerHTML = log.slice().reverse().map(l => {
+    const divTotal = document.createElement('div');
+    divTotal.className = "mt-4 pt-2 border-t border-[#444] flex justify-between font-bold text-sm";
+    divTotal.innerHTML = `<span>Total Spent:</span><span class="text-purple-400">${totalSpent}</span>`;
+    listDiv.appendChild(divTotal);
+
+    const divRemain = document.createElement('div');
+    divRemain.className = "flex justify-between font-bold text-sm";
+    divRemain.innerHTML = `<span>Remaining:</span><span class="text-white">${totalEarned - totalSpent}</span>`;
+    listDiv.appendChild(divRemain);
+
+    sb.appendChild(listDiv);
+
+    // Recent Log (Scrollable)
+    const logContainer = document.createElement('div');
+    logContainer.className = "mt-4";
+    logContainer.innerHTML = `<h4 class="text-[9px] uppercase text-gray-500 font-bold mb-1 tracking-wider">Session Log</h4>`;
+    const logInner = document.createElement('div');
+    logInner.id = "xp-log-recent";
+    logInner.className = "text-[9px] text-gray-400 h-24 overflow-y-auto border border-[#333] p-1 font-mono bg-white/5";
+    
+    if(log.length > 0) {
+        logInner.innerHTML = log.slice().reverse().map(l => {
             const d = new Date(l.date).toLocaleDateString();
             return `<div>[${d}] ${l.trait} -> ${l.new} (${l.cost}xp)</div>`;
         }).join('');
     }
-
-    // --- XP COST REFERENCE TABLE ---
-    const sb = document.getElementById('xp-sidebar');
-    let refTable = document.getElementById('xp-ref-table');
     
-    if (!refTable && sb) {
-        refTable = document.createElement('div');
-        refTable.id = 'xp-ref-table';
-        refTable.className = "mt-4 pt-2 border-t border-[#444] space-y-1 text-[9px]";
-        // Insert before log container if possible
-        const logHeader = sb.querySelector('h4'); // "Session Log"
-        if(logHeader && logHeader.parentElement) {
-             sb.insertBefore(refTable, logHeader.parentElement);
-        } else {
-             sb.appendChild(refTable);
-        }
+    logContainer.appendChild(logInner);
+    sb.appendChild(logContainer);
+
+    // Explanation Footnotes
+    const footer = document.createElement('div');
+    footer.className = "mt-4 pt-2 border-t border-[#444] text-[8px] text-gray-500 italic leading-tight";
+    
+    let footerText = `
+        <div>** Virtues do not raise Traits.</div>
+    `;
+    
+    if (isCaitiff) {
+        footerText += `<div class="mt-1 text-purple-400">* Caitiff cost is x6 (Curse/Blessing).</div>`;
+    } else {
+        footerText += `<div class="mt-1">* In-Clan/Out-of-Clan multiplier.</div>`;
     }
-
-    if (refTable) {
-        const clan = window.state.textFields['c-clan'] || document.getElementById('c-clan')?.value || "None";
-        const isCaitiff = clan === "Caitiff";
-
-        // Logic for Discipline Rows (Standard vs Caitiff)
-        let discRows = "";
-        if (isCaitiff) {
-            discRows = `<div class="cost-row"><span>Discipline (All)</span><span class="text-purple-300 font-bold">Cur x6</span></div>`;
-        } else {
-            discRows = `
-                <div class="cost-row"><span>Clan Discipline</span><span class="text-gray-400">Cur x5</span></div>
-                <div class="cost-row"><span>Other Discipline</span><span class="text-gray-400">Cur x7</span></div>
-            `;
-        }
-
-        refTable.innerHTML = `
-            <div class="font-bold text-center text-[#d4af37] mb-2 uppercase tracking-wide">XP Costs</div>
-            
-            <div class="cost-row"><span>New Ability</span><span class="text-gray-400">3</span></div>
-            <div class="cost-row"><span>New Discipline</span><span class="text-gray-400">10</span></div>
-            <div class="cost-row"><span>New Path</span><span class="text-gray-400">7</span></div>
-            
-            <div class="cost-row"><span>Attribute</span><span class="text-gray-400">Cur x4</span></div>
-            <div class="cost-row"><span>Ability</span><span class="text-gray-400">Cur x2</span></div>
-            
-            ${discRows}
-            
-            <div class="cost-row"><span>Secondary Path</span><span class="text-gray-400">Cur x4</span></div>
-            <div class="cost-row"><span>Virtue</span><span class="text-gray-400">Cur x2</span></div>
-            <div class="cost-row"><span>Humanity/Path</span><span class="text-gray-400">Cur x2</span></div>
-            <div class="cost-row"><span>Willpower</span><span class="text-gray-400">Cur x1</span></div>
-        `;
-    }
+    
+    footer.innerHTML = footerText;
+    sb.appendChild(footer);
 }
 window.renderXpSidebar = renderXpSidebar;
 
