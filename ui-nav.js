@@ -259,6 +259,15 @@ export function renderBloodBondRow() {
     // Clear list to prevent dupes on reload
     cont.innerHTML = ''; 
 
+    // --- TREMERE WARNING (Edit Mode) ---
+    const clan = window.state.textFields['c-clan'] || document.getElementById('c-clan')?.value || "None";
+    if (clan === "Tremere") {
+        const wDiv = document.createElement('div');
+        wDiv.className = "text-[#a855f7] text-[9px] font-bold mb-2 uppercase border border-[#a855f7]/50 p-1 rounded bg-[#a855f7]/10 text-center";
+        wDiv.innerHTML = "<i class='fas fa-flask mr-1'></i> Weakness: 1st Drink = Step 2 Bond";
+        cont.appendChild(wDiv);
+    }
+
     // Define Builder
     const buildRow = (data = null) => {
         const row = document.createElement('div'); 
@@ -336,8 +345,7 @@ export function renderDerangementsList() {
     const isMalk = clan === "Malkavian";
 
     window.state.derangements.forEach((d, idx) => {
-        const row = document.createElement('div'); 
-        row.className = "flex justify-between items-center text-xs text-white border-b border-[#333] py-1";
+        const row = document.createElement('div'); row.className = "flex justify-between items-center text-xs text-white border-b border-[#333] py-1";
         
         let labelHTML = `<span>${d}</span>`;
         let deleteBtnHTML = `<span class="remove-btn text-red-500" onclick="window.state.derangements.splice(${idx}, 1); renderDerangementsList(); window.updatePools(); renderPrintSheet();">&times;</span>`;
@@ -356,7 +364,6 @@ export function renderDerangementsList() {
     let options = `<option value="">+ Add Derangement</option>` + DERANGEMENTS.map(d => `<option value="${d}">${d}</option>`).join('');
     addRow.innerHTML = `<select id="derangement-select" class="flex-1 text-[10px] uppercase font-bold bg-black/40 border border-[#444] text-white p-1">${options}<option value="Custom">Custom...</option></select><input type="text" id="derangement-custom" class="hidden flex-1 text-[10px] bg-black/40 border border-[#444] text-white p-1" placeholder="Type name..."><button id="add-derangement-btn" class="bg-[#8b0000] text-white px-2 py-1 text-[10px] font-bold hover:bg-red-700">ADD</button>`;
     cont.appendChild(addRow);
-    
     const sel = document.getElementById('derangement-select'); const inp = document.getElementById('derangement-custom'); const btn = document.getElementById('add-derangement-btn');
     sel.onchange = () => { if (sel.value === 'Custom') { sel.classList.add('hidden'); inp.classList.remove('hidden'); inp.focus(); } };
     btn.onclick = () => {
@@ -712,7 +719,15 @@ export function togglePlayMode() {
         }
 
         const pb = document.getElementById('play-blood-bonds'); if(pb) {
-            pb.innerHTML = ''; window.state.bloodBonds.forEach(b => { const label = b.type === 'Bond' ? (b.rating == 3 ? 'Full Bond' : `Drink ${b.rating}`) : `Vinculum ${b.rating}`; pb.innerHTML += `<div class="flex justify-between border-b border-[#222] py-1 text-xs"><span>${b.name}</span><span class="text-gold font-bold">${label}</span></div>`; });
+            pb.innerHTML = ''; 
+            
+            // --- TREMERE WEAKNESS NOTE (PLAY MODE) ---
+            const clan = window.state.textFields['c-clan'] || "None";
+            if (clan === "Tremere") {
+                pb.innerHTML += `<div class="text-[#a855f7] text-[9px] font-bold mb-2 uppercase border-b border-[#a855f7]/30 pb-1 italic"><i class="fas fa-flask mr-1"></i> Weakness: 1st Drink = 2 Steps</div>`;
+            }
+
+            window.state.bloodBonds.forEach(b => { const label = b.type === 'Bond' ? (b.rating == 3 ? 'Full Bond' : `Drink ${b.rating}`) : `Vinculum ${b.rating}`; pb.innerHTML += `<div class="flex justify-between border-b border-[#222] py-1 text-xs"><span>${b.name}</span><span class="text-gold font-bold">${label}</span></div>`; });
         }
 
         // --- UPDATED MERITS & FLAWS (Name | Value | Editable Description) ---
