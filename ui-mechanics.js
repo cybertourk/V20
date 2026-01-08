@@ -97,41 +97,14 @@ function updateClanMechanicsUI() {
         } else {
             if (tzimisceWrapper) tzimisceWrapper.style.display = 'none';
         }
-
-        // C. TOREADOR: ART/BEAUTY WEAKNESS ROLL
-        let toreadorWrapper = document.getElementById('toreador-weakness-wrapper');
-        
-        if (clan === "Toreador") {
-            if (!toreadorWrapper) {
-                toreadorWrapper = document.createElement('div');
-                toreadorWrapper.id = 'toreador-weakness-wrapper';
-                // Rose/Pink styling
-                toreadorWrapper.className = "flex items-center justify-center gap-2 mb-2 px-3 py-2 bg-[#3e1b28] border border-[#f472b6]/50 rounded flex animate-in fade-in relative z-20 shadow-sm";
-                toreadorWrapper.innerHTML = `
-                    <button onclick="window.rollToreadorWeakness()" class="text-[10px] text-[#fbcfe8] font-bold uppercase cursor-pointer select-none tracking-tight hover:text-white flex items-center gap-2 hover:bg-[#831843] px-2 py-1 rounded transition-colors border border-transparent hover:border-[#f472b6]">
-                        <i class="fas fa-palette"></i> Roll Weakness: Art/Beauty (Diff 6)
-                    </button>
-                `;
-                
-                const rollBtn = document.getElementById('roll-btn');
-                if (rollBtn) {
-                     const row = rollBtn.closest('.flex'); 
-                     if(row) tray.insertBefore(toreadorWrapper, row);
-                     else tray.appendChild(toreadorWrapper);
-                } else {
-                    tray.appendChild(toreadorWrapper);
-                }
-            }
-            toreadorWrapper.style.display = 'flex';
-        } else {
-            if (toreadorWrapper) toreadorWrapper.style.display = 'none';
-        }
     }
 
-    // --- 3. GANGREL: BEAST TRAITS PANEL ---
-    let gangrelPanel = document.getElementById('gangrel-beast-panel');
+    // --- 3. CLAN ACTION PANELS (PLAY MODE) ---
+    // These appear below the health/weakness area
     const healthCont = document.getElementById('health-chart-play');
-
+    
+    // A. GANGREL: BEAST TRAITS PANEL
+    let gangrelPanel = document.getElementById('gangrel-beast-panel');
     if (clan === "Gangrel") {
         if (!gangrelPanel) {
             gangrelPanel = document.createElement('div');
@@ -140,14 +113,63 @@ function updateClanMechanicsUI() {
             
             if(healthCont && healthCont.parentNode) {
                 healthCont.parentNode.appendChild(gangrelPanel);
-            } else if (tray && tray.parentNode) {
-                tray.parentNode.appendChild(gangrelPanel);
             }
         }
         gangrelPanel.style.display = 'block';
         renderGangrelPanel(gangrelPanel);
     } else {
         if (gangrelPanel) gangrelPanel.style.display = 'none';
+    }
+
+    // B. TOREADOR: ENRAPTURE PANEL
+    let toreadorPanel = document.getElementById('toreador-action-panel');
+    if (clan === "Toreador") {
+        if (!toreadorPanel) {
+            toreadorPanel = document.createElement('div');
+            toreadorPanel.id = 'toreador-action-panel';
+            toreadorPanel.className = "mt-4 p-3 bg-[#3e1b28] border border-[#f472b6] rounded shadow-lg animate-in fade-in";
+            toreadorPanel.innerHTML = `
+                <div class="text-[#fbcfe8] font-bold text-xs uppercase mb-2 border-b border-[#831843] pb-1">Clan Weakness: Enrapture</div>
+                <div class="text-[10px] text-gray-300 mb-2 italic">Difficulty 6 Self-Control/Instincts to resist becoming enraptured by beauty.</div>
+                <button onclick="window.rollToreadorWeakness()" class="w-full bg-[#831843] hover:bg-[#be185d] text-white text-[10px] font-bold px-3 py-2 rounded transition-colors uppercase border border-[#f472b6] shadow-md hover:shadow-lg transform active:scale-95">
+                    Resist Enrapture
+                </button>
+            `;
+            
+            if(healthCont && healthCont.parentNode) {
+                healthCont.parentNode.appendChild(toreadorPanel);
+            }
+        }
+        toreadorPanel.style.display = 'block';
+    } else {
+        if (toreadorPanel) toreadorPanel.style.display = 'none';
+    }
+
+    // C. RAVNOS: VICE PANEL
+    let ravnosPanel = document.getElementById('ravnos-action-panel');
+    if (clan === "Ravnos") {
+        if (!ravnosPanel) {
+            ravnosPanel = document.createElement('div');
+            ravnosPanel.id = 'ravnos-action-panel';
+            ravnosPanel.className = "mt-4 p-3 bg-[#4a0404] border border-[#f87171] rounded shadow-lg animate-in fade-in";
+            ravnosPanel.innerHTML = `
+                <div class="text-[#fca5a5] font-bold text-xs uppercase mb-2 border-b border-[#7f1d1d] pb-1">Clan Weakness: Vice</div>
+                <div class="text-[10px] text-gray-300 mb-2 italic">Difficulty 6 Self-Control/Instincts to resist indulging in your specific vice.</div>
+                <div class="flex flex-col gap-2">
+                    <input type="text" id="ravnos-vice-input-panel" placeholder="Specific Vice (e.g. Theft)" class="w-full bg-black/50 border border-[#f87171]/50 text-white text-[10px] px-2 py-1 rounded focus:outline-none focus:border-[#f87171]">
+                    <button onclick="window.rollRavnosWeakness()" class="w-full bg-[#7f1d1d] hover:bg-[#991b1b] text-white text-[10px] font-bold px-3 py-2 rounded transition-colors uppercase border border-[#f87171] shadow-md hover:shadow-lg transform active:scale-95">
+                        Resist Vice
+                    </button>
+                </div>
+            `;
+            
+            if(healthCont && healthCont.parentNode) {
+                healthCont.parentNode.appendChild(ravnosPanel);
+            }
+        }
+        ravnosPanel.style.display = 'block';
+    } else {
+        if (ravnosPanel) ravnosPanel.style.display = 'none';
     }
 
     // --- 4. NOSFERATU: APPEARANCE ENFORCEMENT & VISUALS ---
@@ -683,6 +705,35 @@ export function rollToreadorWeakness() {
     showNotification(`Beauty/Art Check (Diff 6). Failure = Enraptured.`);
 }
 window.rollToreadorWeakness = rollToreadorWeakness;
+
+// --- RAVNOS WEAKNESS ROLL ---
+export function rollRavnosWeakness() {
+    window.clearPool();
+    // V20: Self-Control or Instincts
+    const traitName = window.state.dots.virt["Instincts"] ? "Instincts" : "Self-Control";
+    const traitVal = window.state.dots.virt[traitName] || 1;
+    
+    window.state.activePool.push({name: traitName, val: traitVal});
+    
+    const difficulty = 6;
+    const diffInput = document.getElementById('roll-diff');
+    if (diffInput) diffInput.value = difficulty;
+    
+    const viceInput = document.getElementById('ravnos-vice-input-panel'); // Updated ID check
+    const vice = viceInput && viceInput.value ? viceInput.value : "Vice";
+
+    const display = document.getElementById('pool-display');
+    if (display) {
+        setSafeText('pool-display', `Ravnos Weakness: ${traitName} (${traitVal})`);
+        display.classList.add('text-red-400');
+    }
+
+    const tray = document.getElementById('dice-tray');
+    if (tray) tray.classList.add('open');
+
+    showNotification(`Resist ${vice} (Diff 6). Failure = Indulge.`);
+}
+window.rollRavnosWeakness = rollRavnosWeakness;
 
 
 // --- DAMAGE HANDLING & SOAK ---
