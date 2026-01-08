@@ -106,8 +106,10 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                 let baseCost = 0;
                 let costType = '';
                 
+                // --- XP COSTS FOR NEW TRAITS ---
                 if (type === 'disc') { 
-                    // Check for "Path" based on name heuristic
+                    // V20 Rules: New Path is 7, New Discipline is 10
+                    // Heuristic: If it contains "Path", treat as Path
                     if (newVal.toLowerCase().includes('path')) {
                         baseCost = 7;
                         costType = 'New Path';
@@ -210,7 +212,7 @@ export function renderDynamicTraitRow(containerId, type, list) {
             let disabledAttr = "";
             let styleAttr = "";
             
-            // Check for Additional Discipline restriction for Caitiff
+            // Restriction: Caitiff cannot take Additional Discipline
             if (type === 'Merit' && clan === "Caitiff" && item.n === "Additional Discipline") {
                 disabledAttr = "disabled";
                 styleAttr = "color: #555; font-style: italic;";
@@ -546,29 +548,52 @@ export function renderXpSidebar() {
     // --- XP COST REFERENCE TABLE ---
     const sb = document.getElementById('xp-sidebar');
     let refTable = document.getElementById('xp-ref-table');
+    
     if (!refTable && sb) {
         refTable = document.createElement('div');
         refTable.id = 'xp-ref-table';
-        refTable.className = "text-[9px] text-gray-400 border-t border-[#444] mt-4 pt-2";
+        refTable.className = "mt-4 pt-2 border-t border-[#444] space-y-1 text-[9px]";
+        // Insert before log container if possible
+        const logHeader = sb.querySelector('h4'); // "Session Log"
+        if(logHeader && logHeader.parentElement) {
+             sb.insertBefore(refTable, logHeader.parentElement);
+        } else {
+             sb.appendChild(refTable);
+        }
+    }
+
+    if (refTable) {
+        const clan = window.state.textFields['c-clan'] || document.getElementById('c-clan')?.value || "None";
+        const isCaitiff = clan === "Caitiff";
+
+        // Logic for Discipline Rows (Standard vs Caitiff)
+        let discRows = "";
+        if (isCaitiff) {
+            discRows = `<div class="cost-row"><span>Discipline (All)</span><span class="text-purple-300 font-bold">Cur x6</span></div>`;
+        } else {
+            discRows = `
+                <div class="cost-row"><span>Clan Discipline</span><span class="text-gray-400">Cur x5</span></div>
+                <div class="cost-row"><span>Other Discipline</span><span class="text-gray-400">Cur x7</span></div>
+            `;
+        }
+
         refTable.innerHTML = `
-            <div class="font-bold text-center text-[#d4af37] mb-2 uppercase tracking-wide">XP Costs (V20)</div>
-            <div class="grid grid-cols-2 gap-x-2 gap-y-1">
-                <div class="text-white">New Ability</div><div class="text-right">3</div>
-                <div class="text-white">New Discipline</div><div class="text-right">10</div>
-                <div class="text-white">New Path</div><div class="text-right">7</div>
-                <div>Attribute</div><div class="text-right">Cur x4</div>
-                <div>Ability</div><div class="text-right">Cur x2</div>
-                <div>Clan Disc.</div><div class="text-right">Cur x5</div>
-                <div>Other Disc.</div><div class="text-right">Cur x7</div>
-                <div>Caitiff Disc.</div><div class="text-right">Cur x6</div>
-                <div>Sec. Path</div><div class="text-right">Cur x4</div>
-                <div>Virtue</div><div class="text-right">Cur x2</div>
-                <div>Humanity</div><div class="text-right">Cur x2</div>
-                <div>Willpower</div><div class="text-right">Cur x1</div>
-            </div>
+            <div class="font-bold text-center text-[#d4af37] mb-2 uppercase tracking-wide">XP Costs</div>
+            
+            <div class="cost-row"><span>New Ability</span><span class="text-gray-400">3</span></div>
+            <div class="cost-row"><span>New Discipline</span><span class="text-gray-400">10</span></div>
+            <div class="cost-row"><span>New Path</span><span class="text-gray-400">7</span></div>
+            
+            <div class="cost-row"><span>Attribute</span><span class="text-gray-400">Cur x4</span></div>
+            <div class="cost-row"><span>Ability</span><span class="text-gray-400">Cur x2</span></div>
+            
+            ${discRows}
+            
+            <div class="cost-row"><span>Secondary Path</span><span class="text-gray-400">Cur x4</span></div>
+            <div class="cost-row"><span>Virtue</span><span class="text-gray-400">Cur x2</span></div>
+            <div class="cost-row"><span>Humanity/Path</span><span class="text-gray-400">Cur x2</span></div>
+            <div class="cost-row"><span>Willpower</span><span class="text-gray-400">Cur x1</span></div>
         `;
-        // Insert before the toggle button or append
-        sb.appendChild(refTable);
     }
 }
 window.renderXpSidebar = renderXpSidebar;
