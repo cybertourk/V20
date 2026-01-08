@@ -92,12 +92,14 @@ function updateClanMechanicsUI() {
         if (gangrelPanel) gangrelPanel.style.display = 'none';
     }
 
-    // --- 4. NOSFERATU: APPEARANCE RESET ---
-    // Ensure state integrity if clan changes to Nosferatu
+    // --- 4. NOSFERATU: APPEARANCE ENFORCEMENT & VISUALS ---
+    // Always refresh Appearance row to ensure styles (strikethrough) and dots (0 vs 1) match current clan
+    refreshTraitRow("Appearance", "attr");
+
+    // Force data consistency
     if (clan === "Nosferatu") {
         if (window.state.dots.attr["Appearance"] > 0) {
             window.state.dots.attr["Appearance"] = 0;
-            // Trigger a refresh of that specific row if it exists in DOM
             refreshTraitRow("Appearance", "attr");
         }
     }
@@ -207,7 +209,7 @@ window.addDerangement = function() {
     // Refresh relevant views
     if(window.renderSocialProfile) window.renderSocialProfile(); 
     if(window.renderPrintSheet) window.renderPrintSheet();
-    if(window.renderBioTab) window.renderBioTab(); // Anticipating future bio render function
+    if(window.renderBioTab) window.renderBioTab();
 };
 
 window.removeDerangement = function(idx) {
@@ -382,6 +384,7 @@ export function rollPool() {
     const lightToggle = document.getElementById('setite-light-toggle');
     if (clan === "Followers of Set" && lightToggle && lightToggle.checked) {
         poolSize -= 1;
+        // Do not return here, we proceed with reduced pool
     }
 
     if (poolSize <= 0 && autoSuccesses === 0) { 
@@ -1020,9 +1023,6 @@ export function updatePools() {
     renderSocialProfile();
     if(window.updateWalkthrough) window.updateWalkthrough();
 
-    // --- CLAN MECHANICS UPDATE ---
-    updateClanMechanicsUI();
-
     // --- Ensure Dice Button Exists & Update State ---
     let diceBtn = document.getElementById('dice-toggle-btn');
     if (!diceBtn) {
@@ -1048,6 +1048,9 @@ export function updatePools() {
             if(window.handleBoxClick) window.handleBoxClick(t, v, b);
         };
     });
+
+    // --- CLAN MECHANICS UPDATE ---
+    updateClanMechanicsUI();
 }
 window.updatePools = updatePools;
 
@@ -1060,8 +1063,22 @@ export function refreshTraitRow(label, type, targetEl) {
     
     if(!rowDiv) return;
 
-    const min = (type === 'attr') ? 1 : 0;
-    const val = window.state.dots[type][label] || min;
+    // --- UPDATED MIN VALUE LOGIC ---
+    const clan = window.state.textFields['c-clan'] || document.getElementById('c-clan')?.value || "None";
+    let min = (type === 'attr') ? 1 : 0;
+    
+    // Override min for Nosferatu Appearance
+    if (clan === "Nosferatu" && label === "Appearance") min = 0;
+
+    let val = window.state.dots[type][label];
+    if (val === undefined) val = min;
+    
+    // Ensure value respects min (e.g. switching away from Nosferatu 0 -> 1)
+    if (val < min) {
+        val = min;
+        window.state.dots[type][label] = val; // Sync state
+    }
+
     const max = 5;
 
     let showSpecialty = false;
@@ -1091,12 +1108,11 @@ export function refreshTraitRow(label, type, targetEl) {
         }
     } else { specInputHTML = '<div class="flex-1"></div>'; }
 
-    // --- NOSFERATU VISUAL STYLING ---
-    const clan = window.state.textFields['c-clan'] || document.getElementById('c-clan')?.value || "None";
     let styleOverride = "";
     let pointerEvents = "auto";
     let titleMsg = "";
     
+    // --- NOSFERATU VISUAL STYLING ---
     if (clan === "Nosferatu" && label === "Appearance") {
         styleOverride = "text-decoration: line-through; color: #666; cursor: not-allowed; opacity: 0.5;";
         pointerEvents = "none"; // Disable dots
