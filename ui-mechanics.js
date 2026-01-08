@@ -977,6 +977,20 @@ export function updatePools() {
 
     // FREEBIE MODE SIDEBAR & LOGGING
     if (window.state.freebieMode) {
+         // --- CAITIFF MERIT RESTRICTION (Enforce on every update) ---
+         // "Caitiff characters cannot take the Additional Discipline (5pt. Merit)"
+         const clan = window.state.textFields['c-clan'] || document.getElementById('c-clan')?.value || "None";
+         if (clan === "Caitiff" && window.state.merits) {
+             const forbiddenIndex = window.state.merits.findIndex(m => m.name === "Additional Discipline");
+             if (forbiddenIndex > -1) {
+                 window.state.merits.splice(forbiddenIndex, 1);
+                 showNotification("Restriction: Caitiff cannot take Additional Discipline.");
+                 // Re-render merit list in UI if possible, or wait for next render cycle
+                 // Note: Since this modifies state, the cost calculation below will be correct immediately.
+                 if(window.renderMeritsFlaws) window.renderMeritsFlaws(); 
+             }
+         }
+
          const logEntries = [];
          let totalFreebieCost = 0;
          let totalFlawBonus = 0;
