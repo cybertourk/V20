@@ -191,12 +191,12 @@
         <!-- CUSTOM DICE SLIDER -->
         <div id="custom-dice-wrapper" class="w-full px-1 mb-4 flex flex-col pointer-events-auto relative z-50">
             <div class="flex justify-between text-[10px] uppercase font-bold text-gray-400 mb-1 pointer-events-none">
-                <span>Bonus / Custom Dice</span>
+                <span>Dice Modifier</span>
                 <span id="bonus-dice-val" class="text-white font-bold">0</span>
             </div>
-            <input type="range" id="custom-dice-input" min="0" max="20" value="0" step="1" 
+            <input type="range" id="custom-dice-input" min="-10" max="10" value="0" step="1" 
                    class="w-full h-4 accent-[#8b0000] cursor-pointer pointer-events-auto relative z-50 appearance-none !bg-white/10 rounded-full !border-none focus:!outline-none"
-                   oninput="document.getElementById('bonus-dice-val').innerText = this.value">
+                   oninput="let v = parseInt(this.value); document.getElementById('bonus-dice-val').innerText = (v > 0 ? '+' : '') + v; document.getElementById('bonus-dice-val').className = v > 0 ? 'text-green-400 font-bold' : (v < 0 ? 'text-red-500 font-bold' : 'text-white font-bold');">
         </div>
 
         <!-- SPECIALTY -->
@@ -663,11 +663,11 @@
                     <div id="auth-error-msg" class="text-red-500 text-xs font-bold hidden"></div>
                 </div>
                 <div class="flex justify-between gap-2 mt-6">
-                     <button type="button" class="standard-button px-4 py-2 text-xs uppercase font-bold" onclick="document.getElementById('auth-modal').classList.remove('active')">Cancel</button>
-                     <div class="flex gap-2">
+                      <button type="button" class="standard-button px-4 py-2 text-xs uppercase font-bold" onclick="document.getElementById('auth-modal').classList.remove('active')">Cancel</button>
+                      <div class="flex gap-2">
                         <button type="button" id="confirm-register-btn" class="border border-[#444] text-gray-300 px-4 py-2 text-xs uppercase font-bold hover:bg-[#222]">Create Account</button>
                         <button type="button" id="confirm-login-btn" class="bg-[#8b0000] text-white px-6 py-2 text-xs uppercase font-bold hover:bg-red-700 shadow-md">Login</button>
-                     </div>
+                      </div>
                 </div>
             </form>
             
@@ -749,7 +749,7 @@
                         <h3 class="section-header">Merits & Flaws</h3>
                         <div id="pr-merits-flaws" class="text-[11px] space-y-1"></div>
                     </div>
-                     <div>
+                      <div>
                         <h3 class="section-header">Other Traits</h3>
                         <div id="pr-other-traits" class="text-[11px] space-y-1"></div>
                     </div>
