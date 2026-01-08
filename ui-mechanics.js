@@ -102,22 +102,17 @@ function updateClanMechanicsUI() {
     // --- 3. CLAN ACTION PANELS (PLAY MODE) ---
     
     // TARGET CONTAINER LOGIC:
-    // We want Toreador/Ravnos panels in Column 1 (Weakness area).
-    let weaknessContainer = document.getElementById('play-weakness-container');
+    // FIX: Using the exact ID from index.html -> 'weakness-play-container' (Column 1)
+    let weaknessContainer = document.getElementById('weakness-play-container');
     
-    // Fallback: If no specific weakness container, try to find Column 1
-    if (!weaknessContainer) {
-         // Attempt to find the first column in the play tab grid
-         const playTab = document.getElementById('play-tab');
-         if (playTab) {
-             const columns = playTab.querySelectorAll('.grid > div'); // Standard Tailwind grid cols
-             if (columns.length > 0) weaknessContainer = columns[0];
-         }
-    }
-    // Ultimate Fallback: Health chart parent (Col 3), but we try to avoid this for Toreador/Ravnos
+    // Ultimate Fallback if needed
     const fallbackContainer = document.getElementById('health-chart-play')?.parentNode;
 
-    // A. GANGREL: BEAST TRAITS PANEL (Keep in Col 3 with Frenzy/Health)
+    // TARGET FOR GANGREL (Column 3 - Beast Container)
+    let beastContainer = document.getElementById('beast-play-container');
+    if (!beastContainer && fallbackContainer) beastContainer = fallbackContainer;
+
+    // A. GANGREL: BEAST TRAITS PANEL (Keep in Col 3)
     let gangrelPanel = document.getElementById('gangrel-beast-panel');
     if (clan === "Gangrel") {
         if (!gangrelPanel) {
@@ -125,7 +120,7 @@ function updateClanMechanicsUI() {
             gangrelPanel.id = 'gangrel-beast-panel';
             gangrelPanel.className = "mt-4 p-3 bg-[#1a1a1a] border border-[#8b0000] rounded shadow-lg animate-in fade-in";
             
-            if(fallbackContainer) fallbackContainer.appendChild(gangrelPanel);
+            if(beastContainer) beastContainer.appendChild(gangrelPanel);
         }
         gangrelPanel.style.display = 'block';
         renderGangrelPanel(gangrelPanel);
