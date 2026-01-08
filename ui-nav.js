@@ -186,10 +186,26 @@ export function renderDynamicTraitRow(containerId, type, list) {
     const stateArray = type === 'Merit' ? (window.state.merits || []) : (window.state.flaws || []);
     container.innerHTML = '';
     
+    // --- CAITIFF CHECK FOR MERITS ---
+    const clan = window.state.textFields['c-clan'] || document.getElementById('c-clan')?.value || "None";
+
     const appendRow = (data = null) => {
         const row = document.createElement('div'); row.className = 'flex gap-2 items-center mb-2 trait-row';
         let options = `<option value="">-- Select ${type} --</option>`;
-        list.forEach(item => { options += `<option value="${item.n}" data-val="${item.v}" data-var="${item.variable||false}">${item.n} (${item.range ? item.range + 'pt' : item.v + 'pt'})</option>`; });
+        
+        list.forEach(item => { 
+            let disabledAttr = "";
+            let styleAttr = "";
+            
+            // Check for Additional Discipline restriction for Caitiff
+            if (type === 'Merit' && clan === "Caitiff" && item.n === "Additional Discipline") {
+                disabledAttr = "disabled";
+                styleAttr = "color: #555; font-style: italic;";
+            }
+            
+            options += `<option value="${item.n}" data-val="${item.v}" data-var="${item.variable||false}" ${disabledAttr} style="${styleAttr}">${item.n} (${item.range ? item.range + 'pt' : item.v + 'pt'})</option>`; 
+        });
+        
         options += '<option value="Custom">-- Custom / Write-in --</option>';
         row.innerHTML = `<div class="flex-1 relative"><select class="w-full text-[11px] font-bold uppercase bg-[#111] text-white border-b border-[#444]">${options}</select><input type="text" placeholder="Custom Name..." class="hidden w-full text-[11px] font-bold uppercase border-b border-[#444] bg-transparent text-white"></div><input type="number" class="w-10 text-center text-[11px] !border !border-[#444] font-bold" min="1"><div class="remove-btn">&times;</div>`;
         container.appendChild(row);
