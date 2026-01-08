@@ -1427,6 +1427,15 @@ export function setDots(name, type, val, min, max = 5) {
     if (val === currentVal) newVal = val - 1;
     if (newVal < min) newVal = min;
 
+    // --- CAITIFF RESTRICTIONS (Creation Mode) ---
+    // Caitiff may not purchase Status background during creation.
+    if (!window.state.freebieMode && clan === "Caitiff") {
+        if (type === 'back' && name === 'Status' && newVal > 0) {
+            window.showNotification("Restriction: Caitiff cannot purchase Status during creation.");
+            return;
+        }
+    }
+
     if (window.state.freebieMode) {
         // Freebie mode allows unlimited editing, the ledger just tracks the cost.
     } else {
