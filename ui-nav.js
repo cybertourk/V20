@@ -723,11 +723,37 @@ export function togglePlayMode() {
             
             // --- TREMERE WEAKNESS NOTE (PLAY MODE) ---
             const clan = window.state.textFields['c-clan'] || "None";
-            if (clan === "Tremere") {
+            const isTremere = clan === "Tremere";
+
+            if (isTremere) {
                 pb.innerHTML += `<div class="text-[#a855f7] text-[9px] font-bold mb-2 uppercase border-b border-[#a855f7]/30 pb-1 italic"><i class="fas fa-flask mr-1"></i> Weakness: 1st Drink = 2 Steps</div>`;
             }
 
-            window.state.bloodBonds.forEach(b => { const label = b.type === 'Bond' ? (b.rating == 3 ? 'Full Bond' : `Drink ${b.rating}`) : `Vinculum ${b.rating}`; pb.innerHTML += `<div class="flex justify-between border-b border-[#222] py-1 text-xs"><span>${b.name}</span><span class="text-gold font-bold">${label}</span></div>`; });
+            window.state.bloodBonds.forEach(b => { 
+                let label = "";
+                if (b.type === 'Bond') {
+                    let r = parseInt(b.rating) || 0;
+                    
+                    // Apply Tremere Weakness Logic
+                    if (isTremere) {
+                        if (r === 1) {
+                            label = `<span class="text-[#a855f7]">Step 2</span> (1 Drink)`;
+                        } else if (r >= 2) {
+                            label = `<span class="text-[#a855f7] font-black">Full Bond</span>`; 
+                        } else {
+                            label = `Step ${r}`; // Should effectively be 0
+                        }
+                    } else {
+                        // Standard
+                        if (r >= 3) label = 'Full Bond';
+                        else label = `Drink ${r}`;
+                    }
+                } else {
+                    label = `Vinculum ${b.rating}`;
+                }
+                
+                pb.innerHTML += `<div class="flex justify-between border-b border-[#222] py-1 text-xs"><span>${b.name}</span><span class="text-gold font-bold">${label}</span></div>`; 
+            });
         }
 
         // --- UPDATED MERITS & FLAWS (Name | Value | Editable Description) ---
