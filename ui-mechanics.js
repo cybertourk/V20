@@ -100,10 +100,24 @@ function updateClanMechanicsUI() {
     }
 
     // --- 3. CLAN ACTION PANELS (PLAY MODE) ---
-    // These appear below the health/weakness area
-    const healthCont = document.getElementById('health-chart-play');
     
-    // A. GANGREL: BEAST TRAITS PANEL
+    // TARGET CONTAINER LOGIC:
+    // We want Toreador/Ravnos panels in Column 1 (Weakness area).
+    let weaknessContainer = document.getElementById('play-weakness-container');
+    
+    // Fallback: If no specific weakness container, try to find Column 1
+    if (!weaknessContainer) {
+         // Attempt to find the first column in the play tab grid
+         const playTab = document.getElementById('play-tab');
+         if (playTab) {
+             const columns = playTab.querySelectorAll('.grid > div'); // Standard Tailwind grid cols
+             if (columns.length > 0) weaknessContainer = columns[0];
+         }
+    }
+    // Ultimate Fallback: Health chart parent (Col 3), but we try to avoid this for Toreador/Ravnos
+    const fallbackContainer = document.getElementById('health-chart-play')?.parentNode;
+
+    // A. GANGREL: BEAST TRAITS PANEL (Keep in Col 3 with Frenzy/Health)
     let gangrelPanel = document.getElementById('gangrel-beast-panel');
     if (clan === "Gangrel") {
         if (!gangrelPanel) {
@@ -111,9 +125,7 @@ function updateClanMechanicsUI() {
             gangrelPanel.id = 'gangrel-beast-panel';
             gangrelPanel.className = "mt-4 p-3 bg-[#1a1a1a] border border-[#8b0000] rounded shadow-lg animate-in fade-in";
             
-            if(healthCont && healthCont.parentNode) {
-                healthCont.parentNode.appendChild(gangrelPanel);
-            }
+            if(fallbackContainer) fallbackContainer.appendChild(gangrelPanel);
         }
         gangrelPanel.style.display = 'block';
         renderGangrelPanel(gangrelPanel);
@@ -121,7 +133,7 @@ function updateClanMechanicsUI() {
         if (gangrelPanel) gangrelPanel.style.display = 'none';
     }
 
-    // B. TOREADOR: ENRAPTURE PANEL
+    // B. TOREADOR: ENRAPTURE PANEL (Col 1)
     let toreadorPanel = document.getElementById('toreador-action-panel');
     if (clan === "Toreador") {
         if (!toreadorPanel) {
@@ -131,21 +143,20 @@ function updateClanMechanicsUI() {
             toreadorPanel.innerHTML = `
                 <div class="text-[#fbcfe8] font-bold text-xs uppercase mb-2 border-b border-[#831843] pb-1">Clan Weakness: Enrapture</div>
                 <div class="text-[10px] text-gray-300 mb-2 italic">Difficulty 6 Self-Control/Instincts to resist becoming enraptured by beauty.</div>
-                <button onclick="window.rollToreadorWeakness()" class="w-full bg-[#831843] hover:bg-[#be185d] text-white text-[10px] font-bold px-3 py-2 rounded transition-colors uppercase border border-[#f472b6] shadow-md hover:shadow-lg transform active:scale-95">
+                <button onclick="window.setupToreadorWeakness()" class="w-full bg-[#831843] hover:bg-[#be185d] text-white text-[10px] font-bold px-3 py-2 rounded transition-colors uppercase border border-[#f472b6] shadow-md hover:shadow-lg transform active:scale-95">
                     Resist Enrapture
                 </button>
             `;
             
-            if(healthCont && healthCont.parentNode) {
-                healthCont.parentNode.appendChild(toreadorPanel);
-            }
+            if(weaknessContainer) weaknessContainer.appendChild(toreadorPanel);
+            else if(fallbackContainer) fallbackContainer.appendChild(toreadorPanel);
         }
         toreadorPanel.style.display = 'block';
     } else {
         if (toreadorPanel) toreadorPanel.style.display = 'none';
     }
 
-    // C. RAVNOS: VICE PANEL
+    // C. RAVNOS: VICE PANEL (Col 1)
     let ravnosPanel = document.getElementById('ravnos-action-panel');
     if (clan === "Ravnos") {
         if (!ravnosPanel) {
@@ -157,15 +168,14 @@ function updateClanMechanicsUI() {
                 <div class="text-[10px] text-gray-300 mb-2 italic">Difficulty 6 Self-Control/Instincts to resist indulging in your specific vice.</div>
                 <div class="flex flex-col gap-2">
                     <input type="text" id="ravnos-vice-input-panel" placeholder="Specific Vice (e.g. Theft)" class="w-full bg-black/50 border border-[#f87171]/50 text-white text-[10px] px-2 py-1 rounded focus:outline-none focus:border-[#f87171]">
-                    <button onclick="window.rollRavnosWeakness()" class="w-full bg-[#7f1d1d] hover:bg-[#991b1b] text-white text-[10px] font-bold px-3 py-2 rounded transition-colors uppercase border border-[#f87171] shadow-md hover:shadow-lg transform active:scale-95">
+                    <button onclick="window.setupRavnosWeakness()" class="w-full bg-[#7f1d1d] hover:bg-[#991b1b] text-white text-[10px] font-bold px-3 py-2 rounded transition-colors uppercase border border-[#f87171] shadow-md hover:shadow-lg transform active:scale-95">
                         Resist Vice
                     </button>
                 </div>
             `;
             
-            if(healthCont && healthCont.parentNode) {
-                healthCont.parentNode.appendChild(ravnosPanel);
-            }
+            if(weaknessContainer) weaknessContainer.appendChild(ravnosPanel);
+            else if(fallbackContainer) fallbackContainer.appendChild(ravnosPanel);
         }
         ravnosPanel.style.display = 'block';
     } else {
@@ -680,8 +690,8 @@ export function rollRotschreck() {
 }
 window.rollRotschreck = rollRotschreck;
 
-// --- TOREADOR WEAKNESS ROLL ---
-export function rollToreadorWeakness() {
+// --- TOREADOR WEAKNESS SETUP ---
+export function setupToreadorWeakness() {
     window.clearPool();
     // V20: Self-Control or Instincts
     const traitName = window.state.dots.virt["Instincts"] ? "Instincts" : "Self-Control";
@@ -702,12 +712,12 @@ export function rollToreadorWeakness() {
     const tray = document.getElementById('dice-tray');
     if (tray) tray.classList.add('open');
 
-    showNotification(`Beauty/Art Check (Diff 6). Failure = Enraptured.`);
+    showNotification(`Enrapture Pool Set (Diff 6). Click Roll.`);
 }
-window.rollToreadorWeakness = rollToreadorWeakness;
+window.setupToreadorWeakness = setupToreadorWeakness;
 
-// --- RAVNOS WEAKNESS ROLL ---
-export function rollRavnosWeakness() {
+// --- RAVNOS WEAKNESS SETUP ---
+export function setupRavnosWeakness() {
     window.clearPool();
     // V20: Self-Control or Instincts
     const traitName = window.state.dots.virt["Instincts"] ? "Instincts" : "Self-Control";
@@ -731,9 +741,9 @@ export function rollRavnosWeakness() {
     const tray = document.getElementById('dice-tray');
     if (tray) tray.classList.add('open');
 
-    showNotification(`Resist ${vice} (Diff 6). Failure = Indulge.`);
+    showNotification(`Resist ${vice} Pool Set (Diff 6). Click Roll.`);
 }
-window.rollRavnosWeakness = rollRavnosWeakness;
+window.setupRavnosWeakness = setupRavnosWeakness;
 
 
 // --- DAMAGE HANDLING & SOAK ---
