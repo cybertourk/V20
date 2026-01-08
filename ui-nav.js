@@ -105,8 +105,21 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
             if (window.state.xpMode && !curName) {
                 let baseCost = 0;
                 let costType = '';
-                if (type === 'disc') { baseCost = 10; costType = 'New Discipline'; }
-                else if (isAbil) { baseCost = 3; costType = 'New Ability'; }
+                
+                if (type === 'disc') { 
+                    // Check for "Path" based on name heuristic
+                    if (newVal.toLowerCase().includes('path')) {
+                        baseCost = 7;
+                        costType = 'New Path';
+                    } else {
+                        baseCost = 10; 
+                        costType = 'New Discipline'; 
+                    }
+                }
+                else if (isAbil) { 
+                    baseCost = 3; 
+                    costType = 'New Ability'; 
+                }
                 
                 const totalXP = parseInt(document.getElementById('c-xp-total')?.value) || 0;
                 let spentXP = window.state.xpLog ? window.state.xpLog.reduce((acc, log) => acc + log.cost, 0) : 0;
@@ -528,6 +541,34 @@ export function renderXpSidebar() {
             const d = new Date(l.date).toLocaleDateString();
             return `<div>[${d}] ${l.trait} -> ${l.new} (${l.cost}xp)</div>`;
         }).join('');
+    }
+
+    // --- XP COST REFERENCE TABLE ---
+    const sb = document.getElementById('xp-sidebar');
+    let refTable = document.getElementById('xp-ref-table');
+    if (!refTable && sb) {
+        refTable = document.createElement('div');
+        refTable.id = 'xp-ref-table';
+        refTable.className = "text-[9px] text-gray-400 border-t border-[#444] mt-4 pt-2";
+        refTable.innerHTML = `
+            <div class="font-bold text-center text-[#d4af37] mb-2 uppercase tracking-wide">XP Costs (V20)</div>
+            <div class="grid grid-cols-2 gap-x-2 gap-y-1">
+                <div class="text-white">New Ability</div><div class="text-right">3</div>
+                <div class="text-white">New Discipline</div><div class="text-right">10</div>
+                <div class="text-white">New Path</div><div class="text-right">7</div>
+                <div>Attribute</div><div class="text-right">Cur x4</div>
+                <div>Ability</div><div class="text-right">Cur x2</div>
+                <div>Clan Disc.</div><div class="text-right">Cur x5</div>
+                <div>Other Disc.</div><div class="text-right">Cur x7</div>
+                <div>Caitiff Disc.</div><div class="text-right">Cur x6</div>
+                <div>Sec. Path</div><div class="text-right">Cur x4</div>
+                <div>Virtue</div><div class="text-right">Cur x2</div>
+                <div>Humanity</div><div class="text-right">Cur x2</div>
+                <div>Willpower</div><div class="text-right">Cur x1</div>
+            </div>
+        `;
+        // Insert before the toggle button or append
+        sb.appendChild(refTable);
     }
 }
 window.renderXpSidebar = renderXpSidebar;
