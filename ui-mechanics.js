@@ -1,1442 +1,1342 @@
 import { 
-    ATTRIBUTES, ABILITIES, VIRTUES, BACKGROUNDS, 
-    STEPS_CONFIG, DERANGEMENTS, VIT, CLAN_WEAKNESSES, 
-    SPECIALTY_EXAMPLES, HEALTH_STATES, V20_WEAPONS_LIST, V20_ARMOR_LIST
+    ATTRIBUTES, ABILITIES, VIRTUES, 
+    GEN_LIMITS, HEALTH_STATES, SPECIALTY_EXAMPLES, 
+    CLAN_DISCIPLINES, CLAN_WEAKNESSES 
 } from "./data.js";
 
-import { checkStepComplete } from "./v20-rules.js";
+import { 
+    getXpCost,
+    BROAD_ABILITIES
+} from "./v20-rules.js";
 
 import { 
-    renderDots, renderBoxes, setSafeText, 
-    renderInventoryList, showNotification 
+    renderDots, renderBoxes, showNotification, setSafeText, renderSocialProfile 
 } from "./ui-common.js";
 
-import { 
-    updatePools, renderRow, setDots, rollCombat, rollFrenzy, rollRotschreck
-} from "./ui-mechanics.js";
 
-// --- DYNAMIC ADVANTAGES (Disciplines, Backgrounds, etc.) ---
-
-export function renderDynamicAdvantageRow(containerId, type, list, isAbil = false) {
-    const container = document.getElementById(containerId);
-    if (!container) return;
-    container.innerHTML = '';
+// --- CLAN MECHANICS UI HELPER ---
+function updateClanMechanicsUI() {
+    const clan = window.state.textFields['c-clan'] || document.getElementById('c-clan')?.value || "None";
     
-    let existingItems = [];
-    if (type === 'abil') {
-        let category = '';
-        if (containerId === 'custom-talents') category = 'Talents';
-        else if (containerId === 'custom-skills') category = 'Skills';
-        else if (containerId === 'custom-knowledges') category = 'Knowledges';
-        if (window.state.customAbilityCategories) { existingItems = Object.keys(window.state.dots.abil).filter(k => window.state.customAbilityCategories[k] === category); }
-    } else { if (window.state.dots[type]) existingItems = Object.keys(window.state.dots[type]); }
-
-    // RENDER FUNCTION
-    const buildRow = (name = "") => {
-        const row = document.createElement('div'); 
-        row.className = 'flex items-center justify-between gap-1 mb-2 advantage-row w-full';
+    // --- 1. FOLLOWERS OF SET: SUNLIGHT DAMAGE TOGGLE ---
+    const dmgInput = document.getElementById('dmg-input-val');
+    if (dmgInput && dmgInput.parentNode) {
+        let sunWrapper = document.getElementById('setite-sunlight-wrapper');
         
-        let inputField;
-        const isLocked = !window.state.freebieMode && !window.state.xpMode && !!name; 
-        
-        if (isAbil) { 
-            inputField = document.createElement('input'); 
-            inputField.type = 'text'; 
-            inputField.placeholder = "Write-in..."; 
-            inputField.className = 'font-bold uppercase !bg-black/20 !border-b !border-[#333] text-[11px] w-24 flex-shrink-0'; 
-            inputField.value = name;
-            inputField.disabled = isLocked;
-        } else { 
-            inputField = document.createElement('select'); 
-            inputField.className = 'font-bold uppercase text-[11px] w-24 flex-shrink-0'; 
-            inputField.innerHTML = `<option value="">-- Choose ${type} --</option>` + list.map(item => `<option value="${item}" ${item === name ? 'selected' : ''}>${item}</option>`).join(''); 
-            inputField.disabled = isLocked;
-             if (name && list.includes(name)) inputField.value = name;
-             else if (name) {
-                 const opt = document.createElement('option');
-                 opt.value = name;
-                 opt.innerText = name;
-                 opt.selected = true;
-                 inputField.add(opt);
-             }
-        }
-
-        let showSpecialty = false;
-        if (name && (isAbil || type === 'attr')) { 
-             const currentVal = window.state.dots[type][name] || 0;
-             if (currentVal >= 1) showSpecialty = true;
-        }
-
-        const specWrapper = document.createElement('div');
-        specWrapper.className = 'flex-1 mx-2 relative'; 
-        
-        if (showSpecialty) {
-             const specVal = window.state.specialties[name] || "";
-             if (window.state.isPlayMode && !specVal) specWrapper.innerHTML = ''; 
-             else {
-                 const listId = `list-${name.replace(/[^a-zA-Z0-9]/g, '')}`;
-                 let optionsHTML = '';
-                 if (SPECIALTY_EXAMPLES[name]) optionsHTML = SPECIALTY_EXAMPLES[name].map(s => `<option value="${s}">`).join('');
-                 specWrapper.innerHTML = `<input type="text" list="${listId}" class="specialty-input w-full text-[10px] italic bg-transparent border-b border-gray-700 text-[#d4af37] text-center" placeholder="Specialty..." value="${specVal}"><datalist id="${listId}">${optionsHTML}</datalist>`;
-                 const inp = specWrapper.querySelector('input');
-                 inp.onblur = (e) => { window.state.specialties[name] = e.target.value; renderPrintSheet(); };
-                 inp.disabled = window.state.isPlayMode;
-             }
-        }
-
-        const dotCont = document.createElement('div'); 
-        dotCont.className = 'dot-row flex-shrink-0';
-        const val = name ? (window.state.dots[type][name] || 0) : 0;
-        dotCont.innerHTML = renderDots(val, 5);
-        if (name) { dotCont.dataset.n = name; dotCont.dataset.t = type; }
-
-        const removeBtn = document.createElement('div'); 
-        removeBtn.className = 'remove-btn flex-shrink-0 ml-1'; 
-        removeBtn.innerHTML = '&times;';
-        if (!name || (window.state.xpMode && val > 0)) removeBtn.style.visibility = 'hidden';
-
-        let curName = name;
-        let category = null;
-        if (containerId === 'custom-talents') category = 'Talents'; else if (containerId === 'custom-skills') category = 'Skills'; else if (containerId === 'custom-knowledges') category = 'Knowledges';
-        
-        const onUpdate = (newVal) => {
-            if (!newVal) return;
-
-            if (window.state.xpMode && !curName) {
-                let baseCost = 0;
-                let costType = '';
-                if (type === 'disc') { baseCost = 10; costType = 'New Discipline'; }
-                else if (isAbil) { baseCost = 3; costType = 'New Ability'; }
-                
-                const totalXP = parseInt(document.getElementById('c-xp-total')?.value) || 0;
-                let spentXP = window.state.xpLog ? window.state.xpLog.reduce((acc, log) => acc + log.cost, 0) : 0;
-                
-                if (baseCost > (totalXP - spentXP)) {
-                    showNotification(`Need ${baseCost} XP for ${costType}.`);
-                    inputField.value = ""; 
-                    return;
-                }
-
-                if (!confirm(`Spend ${baseCost} XP to learn ${newVal}?`)) {
-                    inputField.value = "";
-                    return;
-                }
-                
-                 if (!window.state.xpLog) window.state.xpLog = [];
-                 window.state.xpLog.push({
-                    trait: newVal,
-                    old: 0,
-                    new: 1, 
-                    cost: baseCost,
-                    type: type,
-                    date: new Date().toISOString()
-                });
-                
-                 window.state.dots[type][newVal] = 1; 
-                 showNotification(`Learned ${newVal} (${baseCost} XP)`);
+        if (clan === "Followers of Set") {
+            if (!sunWrapper) {
+                sunWrapper = document.createElement('div');
+                sunWrapper.id = 'setite-sunlight-wrapper';
+                sunWrapper.className = "flex items-center gap-1 mt-2 justify-center animate-in fade-in bg-orange-900/50 p-1 rounded border border-orange-800/50 relative z-20";
+                sunWrapper.innerHTML = `
+                    <input type="checkbox" id="setite-sunlight-toggle" class="accent-orange-500 w-3 h-3 cursor-pointer pointer-events-auto">
+                    <label for="setite-sunlight-toggle" class="text-[9px] text-orange-400 font-bold uppercase cursor-pointer select-none">Sunlight Exposure (+2 Dmg)</label>
+                `;
+                dmgInput.parentNode.appendChild(sunWrapper);
             }
-            else if (curName && curName !== newVal) { 
-                const dots = window.state.dots[type][curName]; delete window.state.dots[type][curName]; 
-                if (window.state.customAbilityCategories && window.state.customAbilityCategories[curName]) delete window.state.customAbilityCategories[curName];
-                if (newVal) window.state.dots[type][newVal] = dots || 0; 
-                if(window.state.specialties[curName]) { window.state.specialties[newVal] = window.state.specialties[curName]; delete window.state.specialties[curName]; }
-            } else if (!curName && newVal && !window.state.xpMode) {
-                 window.state.dots[type][newVal] = 0; 
+            sunWrapper.style.display = 'flex';
+        } else {
+            if (sunWrapper) sunWrapper.style.display = 'none';
+        }
+    }
+
+    // --- 2. FOLLOWERS OF SET: BRIGHT LIGHT PENALTY (Dice Tray) ---
+    const tray = document.getElementById('dice-tray');
+    if (tray) {
+        let lightWrapper = document.getElementById('setite-light-wrapper');
+        
+        if (clan === "Followers of Set") {
+            if (!lightWrapper) {
+                lightWrapper = document.createElement('div');
+                lightWrapper.id = 'setite-light-wrapper';
+                lightWrapper.className = "flex items-center gap-2 mb-2 px-3 py-2 bg-yellow-900/60 border border-yellow-500/50 rounded flex animate-in fade-in relative z-20 shadow-sm";
+                lightWrapper.innerHTML = `
+                    <input type="checkbox" id="setite-light-toggle" class="accent-yellow-500 w-4 h-4 cursor-pointer pointer-events-auto ring-1 ring-yellow-500/50">
+                    <label for="setite-light-toggle" class="text-[10px] text-yellow-300 font-bold uppercase cursor-pointer select-none tracking-tight hover:text-white">Bright Light (-1 Die)</label>
+                `;
+                
+                const rollBtn = document.getElementById('roll-btn');
+                if (rollBtn) {
+                     const row = rollBtn.closest('.flex'); 
+                     if(row) tray.insertBefore(lightWrapper, row);
+                     else tray.appendChild(lightWrapper);
+                } else {
+                    tray.appendChild(lightWrapper);
+                }
             }
+            lightWrapper.style.display = 'flex';
+        } else {
+            if (lightWrapper) lightWrapper.style.display = 'none';
+        }
+    }
+
+    // --- 3. GANGREL: BEAST TRAITS PANEL ---
+    let gangrelPanel = document.getElementById('gangrel-beast-panel');
+    const healthCont = document.getElementById('health-chart-play');
+
+    if (clan === "Gangrel") {
+        if (!gangrelPanel) {
+            gangrelPanel = document.createElement('div');
+            gangrelPanel.id = 'gangrel-beast-panel';
+            gangrelPanel.className = "mt-4 p-3 bg-[#1a1a1a] border border-[#8b0000] rounded shadow-lg animate-in fade-in";
             
-            curName = newVal;
-            if (newVal) { 
-                if (window.state.dots[type][newVal] === undefined) window.state.dots[type][newVal] = window.state.xpMode ? 1 : 0;
-
-                dotCont.innerHTML = renderDots(window.state.dots[type][newVal], 5);
-                dotCont.dataset.n = newVal; dotCont.dataset.t = type;
-                if (category) { if (!window.state.customAbilityCategories) window.state.customAbilityCategories = {}; window.state.customAbilityCategories[newVal] = category; }
-                
-                if (row === container.lastElementChild) { 
-                    removeBtn.style.visibility = window.state.xpMode ? 'hidden' : 'visible'; 
-                    buildRow(); 
-                }
+            if(healthCont && healthCont.parentNode) {
+                healthCont.parentNode.appendChild(gangrelPanel);
+            } else if (tray && tray.parentNode) {
+                tray.parentNode.appendChild(gangrelPanel);
             }
-            updatePools();
-            renderPrintSheet();
-        };
-        
-        if (isAbil) inputField.onblur = (e) => onUpdate(e.target.value); else inputField.onchange = (e) => onUpdate(e.target.value);
-        removeBtn.onclick = () => { if (curName) { delete window.state.dots[type][curName]; if (window.state.customAbilityCategories && window.state.customAbilityCategories[curName]) delete window.state.customAbilityCategories[curName]; } row.remove(); updatePools(); if(type==='back') renderSocialProfile(); renderPrintSheet(); };
-        
-        dotCont.onclick = (e) => { 
-            if (!curName || !e.target.dataset.v) return; 
-            setDots(curName, type, parseInt(e.target.dataset.v), 0, 5);
-        };
+        }
+        gangrelPanel.style.display = 'block';
+        renderGangrelPanel(gangrelPanel);
+    } else {
+        if (gangrelPanel) gangrelPanel.style.display = 'none';
+    }
 
-        row.appendChild(inputField);
-        row.appendChild(specWrapper);
-        row.appendChild(dotCont);
-        row.appendChild(removeBtn);
-        container.appendChild(row);
-    };
-    existingItems.forEach(item => buildRow(item));
-    buildRow(); 
+    // --- 4. NOSFERATU: APPEARANCE ENFORCEMENT & VISUALS ---
+    // Always refresh Appearance row to ensure styles (strikethrough) and dots (0 vs 1) match current clan
+    refreshTraitRow("Appearance", "attr");
+
+    // Force data consistency
+    if (clan === "Nosferatu") {
+        if (window.state.dots.attr["Appearance"] > 0) {
+            window.state.dots.attr["Appearance"] = 0;
+            refreshTraitRow("Appearance", "attr");
+        }
+    }
 }
-window.renderDynamicAdvantageRow = renderDynamicAdvantageRow;
 
-export function renderDynamicTraitRow(containerId, type, list) {
-    const container = document.getElementById(containerId);
-    if (!container) return;
-    const stateArray = type === 'Merit' ? (window.state.merits || []) : (window.state.flaws || []);
-    container.innerHTML = '';
+// --- GANGREL HELPER FUNCTIONS ---
+function renderGangrelPanel(container) {
+    if (!window.state.beastTraits) window.state.beastTraits = [];
     
-    const appendRow = (data = null) => {
-        const row = document.createElement('div'); row.className = 'flex gap-2 items-center mb-2 trait-row';
-        let options = `<option value="">-- Select ${type} --</option>`;
-        list.forEach(item => { options += `<option value="${item.n}" data-val="${item.v}" data-var="${item.variable||false}">${item.n} (${item.range ? item.range + 'pt' : item.v + 'pt'})</option>`; });
-        options += '<option value="Custom">-- Custom / Write-in --</option>';
-        row.innerHTML = `<div class="flex-1 relative"><select class="w-full text-[11px] font-bold uppercase bg-[#111] text-white border-b border-[#444]">${options}</select><input type="text" placeholder="Custom Name..." class="hidden w-full text-[11px] font-bold uppercase border-b border-[#444] bg-transparent text-white"></div><input type="number" class="w-10 text-center text-[11px] !border !border-[#444] font-bold" min="1"><div class="remove-btn">&times;</div>`;
-        container.appendChild(row);
-        
-        const selectEl = row.querySelector('select');
-        const textEl = row.querySelector('input[type="text"]');
-        const numEl = row.querySelector('input[type="number"]');
-        const removeBtn = row.querySelector('.remove-btn');
-        const isLocked = !window.state.freebieMode;
-        
-        selectEl.disabled = isLocked; textEl.disabled = isLocked; numEl.disabled = isLocked;
-        if(isLocked) { selectEl.classList.add('opacity-50'); textEl.classList.add('opacity-50'); numEl.classList.add('opacity-50'); }
-        
-        if (data) {
-            const exists = list.some(l => l.n === data.name);
-            if (exists) {
-                selectEl.value = data.name; numEl.value = data.val;
-                const itemData = list.find(l => l.n === data.name);
-                if (itemData && !itemData.variable) { numEl.disabled = true; numEl.classList.add('opacity-50'); }
-            } else { selectEl.value = "Custom"; selectEl.classList.add('hidden'); textEl.classList.remove('hidden'); textEl.value = data.name; numEl.value = data.val; }
-        } else { numEl.value = ""; removeBtn.style.visibility = 'hidden'; }
-        
-        const syncState = () => {
-            const allRows = container.querySelectorAll('.trait-row');
-            const newState = [];
-            allRows.forEach(r => {
-                const s = r.querySelector('select');
-                const t = r.querySelector('input[type="text"]');
-                const n = r.querySelector('input[type="number"]');
-                let name = s.value === 'Custom' ? t.value : s.value;
-                let val = parseInt(n.value) || 0;
-                // Preserve description if it exists in current state
-                let desc = "";
-                const existing = (type === 'Merit' ? window.state.merits : window.state.flaws).find(i => i.name === name);
-                if (existing) desc = existing.desc || "";
-
-                if (name && name !== 'Custom') newState.push({ name, val, desc });
-            });
-            if (type === 'Merit') window.state.merits = newState; else window.state.flaws = newState;
-            updatePools();
-            renderPrintSheet();
-        };
-        
-        selectEl.addEventListener('change', () => {
-            if (selectEl.value === 'Custom') { selectEl.classList.add('hidden'); textEl.classList.remove('hidden'); textEl.focus(); numEl.value = 1; numEl.disabled = false; numEl.classList.remove('opacity-50'); } 
-            else if (selectEl.value) {
-                const opt = selectEl.options[selectEl.selectedIndex];
-                numEl.value = opt.dataset.val;
-                if (opt.dataset.var !== "true") { numEl.disabled = true; numEl.classList.add('opacity-50'); } else { numEl.disabled = false; numEl.classList.remove('opacity-50'); }
-                if (row === container.lastElementChild) { removeBtn.style.visibility = 'visible'; appendRow(); }
-            }
-            syncState();
+    const traits = window.state.beastTraits;
+    
+    let listHTML = `<div class="text-[#d4af37] font-bold text-xs uppercase mb-2 border-b border-[#333] pb-1 flex justify-between items-center">
+        <span>Gangrel Beast Traits</span>
+        <span class="text-[9px] text-gray-400">Weakness</span>
+    </div>`;
+    
+    if (traits.length === 0) {
+        listHTML += `<div class="text-gray-500 text-[10px] italic text-center py-2">No animal traits acquired... yet.</div>`;
+    } else {
+        listHTML += `<div class="space-y-2 mb-3">`;
+        traits.forEach((t, idx) => {
+            const isPerm = t.type === 'Permanent';
+            listHTML += `
+            <div class="bg-black/40 p-2 rounded border ${isPerm ? 'border-red-900' : 'border-gray-700'} relative group">
+                <div class="flex justify-between items-start">
+                    <span class="text-[#d4af37] font-bold text-[11px]">${t.name}</span>
+                    <span class="text-[9px] ${isPerm ? 'text-red-500 font-bold' : 'text-gray-400'} uppercase">${t.type}</span>
+                </div>
+                <div class="text-gray-300 text-[10px] mt-1 italic">${t.effect}</div>
+                <button onclick="window.removeBeastTrait(${idx})" class="absolute top-1 right-1 text-gray-600 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>`;
         });
-        textEl.addEventListener('blur', () => { if (textEl.value === "") { textEl.classList.add('hidden'); selectEl.classList.remove('hidden'); selectEl.value = ""; } else { if (row === container.lastElementChild) { removeBtn.style.visibility = 'visible'; appendRow(); } } syncState(); });
-        numEl.addEventListener('change', syncState);
-        removeBtn.addEventListener('click', () => { row.remove(); syncState(); });
-    };
-    if (stateArray.length > 0) stateArray.forEach(d => appendRow(d));
-    appendRow();
-}
-window.renderDynamicTraitRow = renderDynamicTraitRow;
-
-export function renderBloodBondRow() {
-    const cont = document.getElementById('blood-bond-list'); 
-    if (!cont) return;
-    
-    // Clear list to prevent dupes on reload
-    cont.innerHTML = ''; 
-
-    // --- TREMERE WARNING (Edit Mode) ---
-    const clan = window.state.textFields['c-clan'] || document.getElementById('c-clan')?.value || "None";
-    if (clan === "Tremere") {
-        const wDiv = document.createElement('div');
-        wDiv.className = "text-[#a855f7] text-[9px] font-bold mb-2 uppercase border border-[#a855f7]/50 p-1 rounded bg-[#a855f7]/10 text-center";
-        wDiv.innerHTML = "<i class='fas fa-flask mr-1'></i> Weakness: 1st Drink = Step 2 Bond";
-        cont.appendChild(wDiv);
+        listHTML += `</div>`;
     }
-
-    // Define Builder
-    const buildRow = (data = null) => {
-        const row = document.createElement('div'); 
-        row.className = 'flex gap-2 items-center border-b border-[#222] pb-2 advantage-row';
-        
-        const typeVal = data ? data.type : "Bond";
-        const nameVal = data ? data.name : "";
-        const ratVal = data ? data.rating : "";
-
-        row.innerHTML = `
-            <select class="w-24 text-[10px] uppercase font-bold mr-2 border-b border-[#333] bg-transparent">
-                <option value="Bond" ${typeVal === 'Bond' ? 'selected' : ''}>Bond</option>
-                <option value="Vinculum" ${typeVal === 'Vinculum' ? 'selected' : ''}>Vinculum</option>
-            </select>
-            <input type="text" placeholder="Bound to..." class="flex-1 text-xs" value="${nameVal}">
-            <input type="number" placeholder="Lvl" class="w-10 text-center text-xs" min="1" max="3" value="${ratVal}">
-            <div class="remove-btn">&times;</div>
-        `;
-        
-        const typeSel = row.querySelector('select'); 
-        const nI = row.querySelector('input[type="text"]'); 
-        const rI = row.querySelector('input[type="number"]'); 
-        const del = row.querySelector('.remove-btn');
-        
-        // Hide delete on empty row until used
-        if (!data) del.style.visibility = 'hidden';
-
-        const onUpd = () => {
-            if (typeSel.value === 'Bond') { rI.max = 3; if(parseInt(rI.value) > 3) rI.value = 3; }
-            if (typeSel.value === 'Vinculum') { rI.max = 10; if(parseInt(rI.value) > 10) rI.value = 10; }
-            
-            window.state.bloodBonds = Array.from(cont.querySelectorAll('.advantage-row')).map(r => ({ 
-                type: r.querySelector('select').value, 
-                name: r.querySelector('input[type="text"]').value, 
-                rating: r.querySelector('input[type="number"]').value 
-            })).filter(b => b.name);
-            
-            if (cont.lastElementChild === row && nI.value !== "") {
-                del.style.visibility = 'visible';
-                buildRow();
-            }
-            
-            updatePools(); 
-            renderPrintSheet();
-        };
-        
-        typeSel.onchange = onUpd; 
-        nI.onblur = onUpd; 
-        rI.onblur = onUpd; 
-        
-        del.onclick = () => { 
-            row.remove(); 
-            if(cont.children.length === 0) buildRow();
-            onUpd(); 
-        };
-        
-        cont.appendChild(row);
-    };
-
-    // Initialize from State
-    if(window.state.bloodBonds && Array.isArray(window.state.bloodBonds)) {
-        window.state.bloodBonds.forEach(b => buildRow(b));
-    }
-    // Add trailing empty row
-    buildRow();
-}
-window.renderBloodBondRow = renderBloodBondRow;
-
-export function renderDerangementsList() {
-    const cont = document.getElementById('derangements-list'); if (!cont) return;
-    cont.innerHTML = '';
     
-    // --- MALKAVIAN CHECK ---
-    const clan = window.state.textFields['c-clan'] || document.getElementById('c-clan')?.value || "None";
-    const isMalk = clan === "Malkavian";
-
-    window.state.derangements.forEach((d, idx) => {
-        const row = document.createElement('div'); row.className = "flex justify-between items-center text-xs text-white border-b border-[#333] py-1";
-        
-        let labelHTML = `<span>${d}</span>`;
-        let deleteBtnHTML = `<span class="remove-btn text-red-500" onclick="window.state.derangements.splice(${idx}, 1); renderDerangementsList(); window.updatePools(); renderPrintSheet();">&times;</span>`;
-        
-        // Lock 1st Derangement for Malkavians
-        if (isMalk && idx === 0) {
-            labelHTML = `<span class="text-[#a855f7] font-bold" title="Incurable Weakness">${d}</span>`;
-            deleteBtnHTML = `<span class="text-[#a855f7] text-[10px]"><i class="fas fa-lock"></i></span>`;
-        }
-
-        row.innerHTML = `${labelHTML}${deleteBtnHTML}`;
-        cont.appendChild(row);
-    });
-    
-    const addRow = document.createElement('div'); addRow.className = "flex gap-2 mt-2";
-    let options = `<option value="">+ Add Derangement</option>` + DERANGEMENTS.map(d => `<option value="${d}">${d}</option>`).join('');
-    addRow.innerHTML = `<select id="derangement-select" class="flex-1 text-[10px] uppercase font-bold bg-black/40 border border-[#444] text-white p-1">${options}<option value="Custom">Custom...</option></select><input type="text" id="derangement-custom" class="hidden flex-1 text-[10px] bg-black/40 border border-[#444] text-white p-1" placeholder="Type name..."><button id="add-derangement-btn" class="bg-[#8b0000] text-white px-2 py-1 text-[10px] font-bold hover:bg-red-700">ADD</button>`;
-    cont.appendChild(addRow);
-    const sel = document.getElementById('derangement-select'); const inp = document.getElementById('derangement-custom'); const btn = document.getElementById('add-derangement-btn');
-    sel.onchange = () => { if (sel.value === 'Custom') { sel.classList.add('hidden'); inp.classList.remove('hidden'); inp.focus(); } };
-    btn.onclick = () => {
-        let val = sel.value === 'Custom' ? inp.value : sel.value;
-        if (val && val !== 'Custom') { window.state.derangements.push(val); renderDerangementsList(); updatePools(); renderPrintSheet(); }
-    };
-}
-window.renderDerangementsList = renderDerangementsList;
-
-export function renderDynamicHavenRow() {
-    const container = document.getElementById('multi-haven-list'); 
-    if (!container) return;
-    
-    // Clear to prevent duplicate rows on load
-    container.innerHTML = ''; 
-
-    const buildRow = (data = null) => {
-        const row = document.createElement('div'); 
-        row.className = 'border-b border-[#222] pb-4 advantage-row';
-        
-        const nameVal = data ? data.name : "";
-        const locVal = data ? data.loc : "";
-        const descVal = data ? data.desc : "";
-
-        row.innerHTML = `
-            <div class="flex justify-between items-center mb-2">
-                <input type="text" placeholder="Haven Title..." class="flex-1 text-[10px] font-bold text-gold uppercase !border-b !border-[#333]" value="${nameVal}">
-                <div class="remove-btn">&times;</div>
+    listHTML += `
+    <div class="mt-2 pt-2 border-t border-[#333]">
+        <div class="text-[9px] text-gray-400 mb-1">Add New Trait (Frenzy Result)</div>
+        <div class="grid grid-cols-1 gap-2">
+            <input type="text" id="gt-name" placeholder="Trait (e.g. Wolf Ears)" class="w-full bg-black/50 border border-gray-700 text-gray-300 text-[10px] px-2 py-1 rounded focus:border-[#d4af37] outline-none">
+            <input type="text" id="gt-effect" placeholder="Effect (e.g. -1 Social)" class="w-full bg-black/50 border border-gray-700 text-gray-300 text-[10px] px-2 py-1 rounded focus:border-[#d4af37] outline-none">
+            <div class="flex gap-2">
+                <select id="gt-type" class="bg-black/50 border border-gray-700 text-gray-300 text-[10px] px-2 py-1 rounded focus:border-[#d4af37] outline-none flex-1">
+                    <option value="Temporary">Temporary</option>
+                    <option value="Permanent">Permanent</option>
+                </select>
+                <button onclick="window.addBeastTrait()" class="bg-[#8b0000] hover:bg-[#a00000] text-white text-[10px] font-bold px-3 py-1 rounded transition-colors">ADD</button>
             </div>
-            <input type="text" placeholder="Location..." class="text-xs mb-2 !border-b !border-[#333]" value="${locVal}">
-            <textarea class="h-16 text-xs" placeholder="Details...">${descVal}</textarea>
-        `;
-        
-        const nameIn = row.querySelectorAll('input')[0]; 
-        const locIn = row.querySelectorAll('input')[1]; 
-        const descIn = row.querySelector('textarea'); 
-        const del = row.querySelector('.remove-btn');
-        
-        if (!data) del.style.visibility = 'hidden';
-
-        const onUpd = () => {
-            window.state.havens = Array.from(container.querySelectorAll('.advantage-row')).map(r => ({ 
-                name: r.querySelectorAll('input')[0].value, 
-                loc: r.querySelectorAll('input')[1].value, 
-                desc: r.querySelector('textarea').value 
-            })).filter(h => h.name || h.loc);
-            
-            if (container.lastElementChild === row && nameIn.value !== "") {
-                del.style.visibility = 'visible';
-                renderDynamicHavenRow(); 
-            }
-            
-            updatePools(); 
-            renderPrintSheet();
-        };
-        
-        [nameIn, locIn, descIn].forEach(el => el.onblur = onUpd); 
-        
-        del.onclick = () => { 
-            row.remove(); 
-            if(container.children.length === 0) buildRow();
-            onUpd(); 
-        };
-        
-        container.appendChild(row);
-    };
-
-    // 1. Rebuild from state
-    if (window.state.havens && Array.isArray(window.state.havens)) {
-        window.state.havens.forEach(h => buildRow(h));
-    }
+        </div>
+    </div>`;
     
-    // 2. Append trailing blank row
-    buildRow();
+    container.innerHTML = listHTML;
 }
-window.renderDynamicHavenRow = renderDynamicHavenRow;
 
-// --- NAVIGATION & MODES ---
-
-export function toggleXpMode() {
-    window.state.xpMode = !window.state.xpMode;
-    document.body.classList.toggle('xp-mode', window.state.xpMode);
+window.addBeastTrait = function() {
+    const name = document.getElementById('gt-name')?.value;
+    const effect = document.getElementById('gt-effect')?.value;
+    const type = document.getElementById('gt-type')?.value;
     
-    // Toggle Button Visuals
-    const btn = document.getElementById('toggle-xp-btn');
-    if(btn) {
-        btn.classList.toggle('bg-purple-900/40', window.state.xpMode);
-        btn.classList.toggle('border-purple-500', window.state.xpMode);
-        btn.classList.toggle('text-purple-200', window.state.xpMode);
-        const txt = document.getElementById('xp-btn-text');
-        if(txt) txt.innerText = window.state.xpMode ? "Exit Experience" : "Experience";
+    if(!name || !effect) {
+        showNotification("Please enter Name and Effect.");
+        return;
+    }
+    
+    window.state.beastTraits.push({ name, effect, type });
+    showNotification("Beast Trait Added.");
+    
+    const panel = document.getElementById('gangrel-beast-panel');
+    if(panel) renderGangrelPanel(panel);
+    if(window.renderPrintSheet) window.renderPrintSheet();
+};
+
+window.removeBeastTrait = function(idx) {
+    if(confirm("Remove this Beast Trait?")) {
+        window.state.beastTraits.splice(idx, 1);
+        const panel = document.getElementById('gangrel-beast-panel');
+        if(panel) renderGangrelPanel(panel);
+        if(window.renderPrintSheet) window.renderPrintSheet();
+    }
+};
+
+// --- DERANGEMENT MANAGEMENT (Shared + Malkavian Logic) ---
+
+window.addDerangement = function() {
+    // Attempt to find input from various possible IDs depending on where it's rendered
+    const input = document.getElementById('derangement-input') || document.getElementById('malk-new-d');
+    const val = input?.value;
+    if (!val) {
+        showNotification("Enter a Derangement name.");
+        return;
+    }
+    
+    if (!window.state.derangements) window.state.derangements = [];
+    window.state.derangements.push(val);
+    
+    const clan = window.state.textFields['c-clan'] || document.getElementById('c-clan')?.value || "None";
+    if (clan === "Malkavian" && window.state.derangements.length === 1) {
+        showNotification("Primary Incurable Derangement Set.");
+    } else {
+        showNotification("Derangement Added.");
+    }
+    
+    if(input) input.value = '';
+    
+    // Refresh relevant views
+    if(window.renderSocialProfile) window.renderSocialProfile(); 
+    if(window.renderPrintSheet) window.renderPrintSheet();
+    if(window.renderBioTab) window.renderBioTab();
+};
+
+window.removeDerangement = function(idx) {
+    const clan = window.state.textFields['c-clan'] || document.getElementById('c-clan')?.value || "None";
+    
+    // Malkavian Weakness: Cannot remove the first derangement
+    if (clan === "Malkavian" && idx === 0) {
+        showNotification("Malkavian Weakness: Cannot remove the original Incurable Derangement!");
+        return;
+    }
+    
+    if(confirm("Remove this Derangement?")) {
+        window.state.derangements.splice(idx, 1);
+        if(window.renderSocialProfile) window.renderSocialProfile();
+        if(window.renderPrintSheet) window.renderPrintSheet();
+        if(window.renderBioTab) window.renderBioTab();
+    }
+};
+
+window.suppressDerangement = function() {
+    if ((window.state.status.tempWillpower || 0) > 0) {
+        window.state.status.tempWillpower--;
+        updatePools(); // Update WP dots/boxes
+        showNotification("Spent 1 WP: Derangements suppressed for 1 Scene.");
+    } else {
+        showNotification("Not enough Willpower!");
+    }
+};
+
+
+// --- DICE & POOL MECHANICS ---
+
+export function clearPool() {
+    window.state.activePool = [];
+    document.querySelectorAll('.trait-label').forEach(el => el.classList.remove('selected'));
+    setSafeText('pool-display', "Select traits to build pool...");
+    
+    const hint = document.getElementById('specialty-hint'); 
+    if(hint) hint.innerHTML = '';
+    
+    const cb = document.getElementById('use-specialty'); 
+    if(cb) cb.checked = false;
+    
+    // Clear Custom Dice Slider
+    const slider = document.getElementById('custom-dice-input');
+    if(slider) {
+        slider.value = 0;
+        const valDisplay = document.getElementById('bonus-dice-val');
+        if(valDisplay) valDisplay.innerText = "0";
+    }
+    
+    // --- RESET DICE TRAY UI (Standard Mode) ---
+    // Show Willpower & Reset State (Fix for Brujah Curse persistence)
+    const wpCont = document.getElementById('willpower-spend-container');
+    if(wpCont) {
+        wpCont.style.display = 'flex';
+        const wpCheck = document.getElementById('spend-willpower');
+        if(wpCheck) {
+            wpCheck.checked = false;
+            wpCheck.disabled = false;
+        }
+        const wpLabel = document.querySelector('label[for="spend-willpower"]');
+        if(wpLabel) wpLabel.innerText = "Spend Willpower (Auto Success)";
+    }
+    
+    // Hide Tray Armor Toggle if it exists
+    const armorCont = document.getElementById('tray-armor-toggle-container');
+    if(armorCont) armorCont.style.display = 'none';
+
+    // Reset Setite Light Toggle if exists
+    const lightToggle = document.getElementById('setite-light-toggle');
+    if (lightToggle) lightToggle.checked = false;
+
+    // Refresh Clan UI Elements
+    updateClanMechanicsUI();
+
+    document.getElementById('dice-tray').classList.remove('open');
+}
+window.clearPool = clearPool;
+
+
+export function handleTraitClick(name, type) {
+    // If we were in a special mode (Soak), clear first to reset UI
+    const armorCont = document.getElementById('tray-armor-toggle-container');
+    if(armorCont && armorCont.style.display !== 'none') {
+        window.clearPool();
     }
 
-    // Ensure Freebie Mode is OFF
-    if (window.state.xpMode && window.state.freebieMode) toggleFreebieMode();
+    const val = window.state.dots[type][name] || 0;
+    const existingIdx = window.state.activePool.findIndex(p => p.name === name);
+    
+    if (existingIdx > -1) {
+        window.state.activePool.splice(existingIdx, 1);
+    } else { 
+        if (window.state.activePool.length >= 2) window.state.activePool.shift(); 
+        window.state.activePool.push({name, val}); 
+    }
+    
+    document.querySelectorAll('.trait-label').forEach(el => el.classList.toggle('selected', window.state.activePool.some(p => p.name === el.innerText)));
+    
+    const display = document.getElementById('pool-display');
+    const hint = document.getElementById('specialty-hint');
+    
+    if (!hint && display) {
+        const hDiv = document.createElement('div'); 
+        hDiv.id = 'specialty-hint'; 
+        hDiv.className = 'text-[9px] text-[#4ade80] mt-1 h-4 flex items-center';
+        display.parentNode.insertBefore(hDiv, display.nextSibling);
+    }
+    
+    if (window.state.activePool.length > 0) {
+        setSafeText('pool-display', window.state.activePool.map(p => `${p.name} (${p.val})`).join(' + '));
+        
+        const specs = window.state.activePool.map(p => window.state.specialties[p.name]).filter(s => s); 
+        const hintEl = document.getElementById('specialty-hint');
+        
+        if (hintEl) {
+            if (specs.length > 0) {
+                 const isApplied = document.getElementById('use-specialty')?.checked;
+                 if(isApplied) {
+                     hintEl.innerHTML = `<span class="text-[#d4af37] font-bold">Specialty Active! (10s = 2 Successes)</span>`;
+                 } else {
+                     hintEl.innerHTML = `<span>Possible Specialty: ${specs.join(', ')}</span><button id="apply-spec-btn" class="ml-2 bg-[#d4af37] text-black px-1 rounded hover:bg-white pointer-events-auto text-[9px] font-bold uppercase">APPLY</button>`;
+                     const btn = document.getElementById('apply-spec-btn');
+                     if(btn) btn.onclick = (e) => { 
+                         e.stopPropagation(); 
+                         const cb = document.getElementById('use-specialty'); 
+                         if(cb) { 
+                             cb.checked = true; 
+                             window.showNotification(`Applied: ${specs.join(', ')}`); 
+                             hintEl.innerHTML = `<span class="text-[#d4af37] font-bold">Specialty Active! (10s = 2 Successes)</span>`; 
+                         } 
+                     };
+                 }
+            } else {
+                hintEl.innerHTML = '';
+            }
+        }
+        document.getElementById('dice-tray').classList.add('open');
+        updateClanMechanicsUI(); // Ensure toggle is visible and updated
+    } else {
+        window.clearPool();
+    }
+}
+window.handleTraitClick = handleTraitClick;
 
-    // Show/Hide Sidebar
-    const sb = document.getElementById('xp-sidebar');
-    if(sb) {
-        if(window.state.xpMode) {
-            sb.classList.remove('hidden');
-            setTimeout(() => sb.classList.add('open'), 10);
-            renderXpSidebar();
+
+export function rollPool() {
+    const spendWP = document.getElementById('spend-willpower')?.checked;
+    let autoSuccesses = 0;
+    
+    // Willpower Spending Logic
+    if (spendWP) {
+        if ((window.state.status.tempWillpower || 0) > 0) {
+             window.state.status.tempWillpower--;
+             autoSuccesses = 1;
+             window.updatePools(); // Update UI to show spent point
+             window.showNotification("Willpower spent: +1 Auto Success");
+             document.getElementById('spend-willpower').checked = false; // Reset checkbox
         } else {
-            sb.classList.remove('open');
-            setTimeout(() => sb.classList.add('hidden'), 300);
+            window.showNotification("Cannot spend Willpower: Pool is empty!");
+            document.getElementById('spend-willpower').checked = false;
+            return; // Abort roll
+        }
+    }
+
+    const custom = parseInt(document.getElementById('custom-dice-input')?.value) || 0;
+    let poolSize = window.state.activePool.reduce((a,b) => a + b.val, 0) + custom;
+    
+    // --- CLAN WEAKNESS: FOLLOWERS OF SET (Bright Light) ---
+    const clan = window.state.textFields['c-clan'] || "None";
+    const lightToggle = document.getElementById('setite-light-toggle');
+    if (clan === "Followers of Set" && lightToggle && lightToggle.checked) {
+        poolSize -= 1;
+        // Do not return here, we proceed with reduced pool
+    }
+
+    if (poolSize <= 0 && autoSuccesses === 0) { 
+        window.showNotification("Pool Empty (or reduced to 0)"); 
+        return; 
+    }
+    
+    const diff = parseInt(document.getElementById('roll-diff').value) || 6;
+    const isSpec = document.getElementById('use-specialty').checked;
+    
+    let results = [], ones = 0, rawSuccesses = 0;
+    for(let i=0; i<poolSize; i++) {
+        const die = Math.floor(Math.random() * 10) + 1;
+        results.push(die);
+        if (die === 1) ones++;
+        if (die >= diff) { 
+            if (isSpec && die === 10) rawSuccesses += 2; 
+            else rawSuccesses += 1; 
         }
     }
     
-    if(window.fullRefresh) window.fullRefresh();
-}
-window.toggleXpMode = toggleXpMode;
+    // Net Calculation:
+    // 1. Raw Successes - Ones (min 0)
+    let net = Math.max(0, rawSuccesses - ones);
+    
+    // 2. Add Auto Successes (cannot be cancelled)
+    net += autoSuccesses;
 
-export function renderXpSidebar() {
-    if (!window.state.xpMode) return;
+    let outcome = "", outcomeClass = "";
     
-    const log = window.state.xpLog || [];
-    let spentAttr = 0, spentAbil = 0, spentDisc = 0, spentVirt = 0, spentHuman = 0, spentWill = 0;
+    // Botch: No successes (raw or auto), and ones rolled.
+    if (rawSuccesses === 0 && autoSuccesses === 0 && ones > 0) { 
+        outcome = "BOTCH"; outcomeClass = "dice-botch"; 
+    } 
+    else if (net <= 0) { 
+        outcome = "FAILURE"; outcomeClass = "text-gray-400"; 
+    } 
+    else { 
+        outcome = `${net} SUCCESS${net > 1 ? 'ES' : ''}`; outcomeClass = "dice-success"; 
+    }
     
-    log.forEach(entry => {
-        if (entry.type === 'attr') spentAttr += entry.cost;
-        else if (entry.type === 'abil') spentAbil += entry.cost;
-        else if (entry.type === 'disc') spentDisc += entry.cost;
-        else if (entry.type === 'virt') spentVirt += entry.cost;
-        else if (entry.type === 'humanity' || (entry.type === 'status' && entry.trait === 'Humanity')) spentHuman += entry.cost;
-        else if (entry.type === 'willpower' || (entry.type === 'status' && entry.trait === 'Willpower')) spentWill += entry.cost;
+    const tray = document.getElementById('roll-results');
+    const row = document.createElement('div');
+    row.className = 'bg-black/60 p-2 border border-[#333] text-[10px] mb-2 animate-in fade-in slide-in-from-right-4 duration-300';
+    
+    const diceRender = results.map(d => {
+        let c = 'text-gray-500';
+        if (d === 1) c = 'text-[#ff0000] font-bold';
+        else if (d >= diff) { 
+            c = 'text-[#d4af37] font-bold'; 
+            if (d === 10 && isSpec) c = 'text-[#4ade80] font-black'; 
+        }
+        return `<span class="${c} text-3xl mx-1">${d}</span>`;
+    }).join(' ');
+
+    let extras = "";
+    if (autoSuccesses > 0) extras += `<div class="text-[9px] text-blue-300 font-bold mt-1 text-center border-t border-[#333] pt-1 uppercase">Willpower Applied (+1 Success)</div>`;
+    
+    if (clan === "Followers of Set" && lightToggle && lightToggle.checked) {
+        extras += `<div class="text-[9px] text-yellow-500 font-bold mt-1 text-center border-t border-[#333] pt-1 uppercase">Bright Light Penalty (-1 Die)</div>`;
+    }
+
+    row.innerHTML = `<div class="flex justify-between border-b border-[#444] pb-1 mb-1"><span class="text-gray-400">Diff ${diff}${isSpec ? '*' : ''}</span><span class="${outcomeClass} font-black text-sm">${outcome}</span></div><div class="tracking-widest flex flex-wrap justify-center py-2">${diceRender}</div>${extras}`;
+    tray.insertBefore(row, tray.firstChild);
+}
+window.rollPool = rollPool;
+
+
+export function rollCombat(name, diff, attr, ability) {
+    window.clearPool();
+    const attrVal = window.state.dots.attr[attr] || 1;
+    window.state.activePool.push({name: attr, val: attrVal});
+    
+    const abilVal = window.state.dots.abil[ability] || 0;
+    window.state.activePool.push({name: ability, val: abilVal});
+    
+    document.querySelectorAll('.trait-label').forEach(el => {
+        if (el.innerText === attr || el.innerText === ability) el.classList.add('selected');
+        else el.classList.remove('selected');
     });
     
-    setSafeText('sb-xp-attr', spentAttr);
-    setSafeText('sb-xp-abil', spentAbil);
-    setSafeText('sb-xp-disc', spentDisc);
-    setSafeText('sb-xp-virt', spentVirt);
-    setSafeText('sb-xp-human', spentHuman);
-    setSafeText('sb-xp-will', spentWill);
+    const diffInput = document.getElementById('roll-diff');
+    if (diffInput) diffInput.value = diff;
     
-    const totalSpent = spentAttr + spentAbil + spentDisc + spentVirt + spentHuman + spentWill;
-    setSafeText('sb-xp-spent', totalSpent);
-    setSafeText('x-total-spent', totalSpent);
+    const display = document.getElementById('pool-display');
+    if (display) setSafeText('pool-display', `${attr} (${attrVal}) + ${ability} (${abilVal})`);
     
-    const totalEarned = parseInt(document.getElementById('c-xp-total')?.value) || 0;
-    setSafeText('sb-xp-remaining', totalEarned - totalSpent);
-    
-    const logDiv = document.getElementById('xp-log-recent');
-    if(logDiv) {
-        logDiv.innerHTML = log.slice().reverse().map(l => {
-            const d = new Date(l.date).toLocaleDateString();
-            return `<div>[${d}] ${l.trait} -> ${l.new} (${l.cost}xp)</div>`;
-        }).join('');
+    const tray = document.getElementById('dice-tray');
+    if (tray) tray.classList.add('open');
+}
+window.rollCombat = rollCombat;
+
+
+export function toggleDiceTray() {
+    const tray = document.getElementById('dice-tray');
+    if (tray) tray.classList.toggle('open');
+    if (tray.classList.contains('open')) {
+        updateClanMechanicsUI();
     }
 }
-window.renderXpSidebar = renderXpSidebar;
+window.toggleDiceTray = toggleDiceTray;
 
-export function toggleXpSidebarLedger() {
-    document.getElementById('xp-sidebar').classList.toggle('open');
-}
-window.toggleXpSidebarLedger = toggleXpSidebarLedger;
 
-// --- WALKTHROUGH & STEPS ---
+// --- FRENZY & RÖTSCHRECK ---
 
-export function updateWalkthrough() {
-    if (!window.state) return;
+export function rollFrenzy() {
+    window.clearPool();
+    const traitName = window.state.dots.virt["Instincts"] ? "Instincts" : "Self-Control";
+    const traitVal = window.state.dots.virt[traitName] || 1;
     
-    const nav = document.getElementById('sheet-nav');
-    if (nav && !window.state.isPlayMode) {
-         const current = window.state.currentPhase;
-         const furthest = window.state.furthestPhase || 1;
-         
-         if (checkStepComplete(current, window.state)) {
-             if (current === furthest && current < 8) {
-                 window.state.furthestPhase = current + 1;
-                 changeStep(current);
-             }
-         }
-         
-         const guideMsg = document.getElementById('guide-message');
-         const guideIcon = document.getElementById('guide-icon');
-         if (guideMsg && guideIcon) {
-             const isComplete = checkStepComplete(current, window.state);
-             if (isComplete) {
-                 guideMsg.innerText = "Step Complete! Proceed...";
-                 guideMsg.classList.add('text-green-400');
-                 guideIcon.classList.add('ready');
-             } else {
-                 guideMsg.classList.remove('text-green-400');
-                 guideIcon.classList.remove('ready');
-                 if (current === 1) guideMsg.innerText = "Enter Name & Clan...";
-                 else if (current === 2) guideMsg.innerText = "Select Attributes...";
-                 else guideMsg.innerText = "Complete Requirements...";
-             }
-         }
+    window.state.activePool.push({name: traitName, val: traitVal});
+
+    const clan = window.state.textFields['c-clan'] || document.getElementById('c-clan')?.value || "None";
+    
+    // 1. Determine Base Difficulty
+    let difficulty = 6; 
+    let diffMsg = "";
+
+    const diffInputOverride = document.getElementById('frenzy-diff');
+    if (diffInputOverride && diffInputOverride.value) {
+        difficulty = parseInt(diffInputOverride.value) || 6;
+        diffMsg = " (Custom)";
     }
-    renderPrintSheet();
-}
-window.updateWalkthrough = updateWalkthrough;
 
-export function nextStep() {
-    const current = window.state.currentPhase;
-    const furthest = window.state.furthestPhase || 1;
-    if (current < furthest) changeStep(furthest);
-    else if (checkStepComplete(current, window.state)) { if (current < 8) changeStep(current + 1); else showNotification("Character Ready!"); } 
-    else showNotification("Complete current step first!");
-}
-window.nextStep = nextStep;
-
-export function changeStep(s) {
-    if (!window.state.furthestPhase || s > window.state.furthestPhase) { if (s > (window.state.furthestPhase || 0)) window.state.furthestPhase = s; }
-    document.querySelectorAll('.step-container').forEach(c => c.classList.remove('active'));
-    const prefix = window.state.isPlayMode ? 'play-mode-' : 'phase-';
-    const target = document.getElementById(prefix + s);
-    if (target) { target.classList.add('active'); window.state.currentPhase = s; }
+    // 2. Apply Brujah Weakness regardless of custom input
+    if (clan === "Brujah") {
+        difficulty += 2;
+        diffMsg += " (Brujah Curse)";
+        
+        // --- BRUJAH CURSE IMPLEMENTATION: NO WP TO AVOID FRENZY ---
+        const wpCheck = document.getElementById('spend-willpower');
+        if (wpCheck) {
+            wpCheck.checked = false;
+            wpCheck.disabled = true;
+        }
+        const wpLabel = document.querySelector('label[for="spend-willpower"]');
+        if (wpLabel) {
+            wpLabel.innerHTML = `<span class="text-red-500 font-black animate-pulse">BRUJAH: CANNOT SPEND WP</span>`;
+        }
+        window.showNotification("Brujah: +2 Diff, No Willpower");
+    }
     
-    // Update Nav
-    const nav = document.getElementById('sheet-nav');
-    if (nav) {
-        nav.innerHTML = '';
-        if (window.state.isPlayMode) {
-             const steps = ["Sheet", "Traits", "Social", "Biography"];
-             steps.forEach((text, i) => {
-                 const it = document.createElement('div'); it.className = `nav-item ${window.state.currentPhase === (i+1) ? 'active' : ''}`;
-                 it.innerHTML = `<i class="fas fa-scroll"></i><span style="display:block; font-size:9px; margin-top:2px;">${text}</span>`;
-                 it.onclick = () => changeStep(i+1); nav.appendChild(it);
-             });
+    // 3. Gangrel Frenzy Notification
+    if (clan === "Gangrel") {
+        window.showNotification("GANGREL: If Frenzy occurs, you gain a Beast Trait!");
+        diffMsg += " (Gangrel: Beast Trait Risk)";
+    }
+
+    const diffInput = document.getElementById('roll-diff');
+    if (diffInput) diffInput.value = difficulty;
+
+    const display = document.getElementById('pool-display');
+    if (display) {
+        setSafeText('pool-display', `Frenzy Check: ${traitName} (${traitVal})`);
+        display.classList.add('text-red-500');
+    }
+
+    const tray = document.getElementById('dice-tray');
+    if (tray) tray.classList.add('open');
+
+    showNotification(`Frenzy Pool Ready (Diff ${difficulty}${diffMsg}). Roll when ready.`);
+}
+window.rollFrenzy = rollFrenzy;
+
+
+export function rollRotschreck() {
+    window.clearPool();
+    const traitName = "Courage";
+    const traitVal = window.state.dots.virt[traitName] || 1;
+    
+    window.state.activePool.push({name: traitName, val: traitVal});
+    
+    let difficulty = 6;
+    const diffInputOverride = document.getElementById('rotschreck-diff');
+    if (diffInputOverride && diffInputOverride.value) {
+        difficulty = parseInt(diffInputOverride.value) || 6;
+    }
+
+    const diffInput = document.getElementById('roll-diff');
+    if (diffInput) diffInput.value = difficulty;
+    
+    const display = document.getElementById('pool-display');
+    if (display) {
+        setSafeText('pool-display', `Rötschreck Check: ${traitName} (${traitVal})`);
+        display.classList.add('text-orange-500');
+    }
+
+    const tray = document.getElementById('dice-tray');
+    if (tray) tray.classList.add('open');
+
+    showNotification(`Fear Pool Ready (Diff ${difficulty}). Roll when ready.`);
+}
+window.rollRotschreck = rollRotschreck;
+
+
+// --- DAMAGE HANDLING & SOAK ---
+
+export function applyDamage(typeStr) {
+    const typeMap = { 'Bashing': 1, 'Lethal': 2, 'Aggravated': 3 };
+    const val = typeMap[typeStr];
+    if(!val) return;
+
+    let amount = parseInt(document.getElementById('dmg-input-val')?.value) || 1;
+    
+    // --- CLAN WEAKNESS: FOLLOWERS OF SET (Sunlight) ---
+    const clan = window.state.textFields['c-clan'] || "None";
+    const sunlightToggle = document.getElementById('setite-sunlight-toggle');
+    if (clan === "Followers of Set" && sunlightToggle && sunlightToggle.checked) {
+        amount += 2;
+        window.showNotification("Sunlight: +2 Health Levels (Setite Weakness)");
+    }
+
+    // Ensure health_states exists
+    let currentHealth = (window.state.status.health_states && Array.isArray(window.state.status.health_states)) 
+        ? [...window.state.status.health_states] 
+        : [0,0,0,0,0,0,0];
+    
+    // 1. Flatten existing damage to list
+    let damageList = currentHealth.filter(x => x > 0);
+    
+    // 2. Add new damage
+    for(let i=0; i<amount; i++) {
+        damageList.push(val);
+    }
+    
+    // 3. Sort: Agg (3) > Lethal (2) > Bash (1)
+    damageList.sort((a,b) => b - a);
+    
+    // 4. Handle Overflow (Limit to 7)
+    while(damageList.length > 7) {
+        damageList.pop();
+        window.showNotification("Health Track Full! Check Torpor/Death rules.");
+    }
+
+    // 5. Re-fill array
+    let newStates = [0,0,0,0,0,0,0];
+    for(let i=0; i<7; i++) {
+        if(i < damageList.length) newStates[i] = damageList[i];
+        else newStates[i] = 0;
+    }
+    
+    window.state.status.health_states = newStates;
+    
+    // Update UI
+    if(window.renderPrintSheet) window.renderPrintSheet();
+    updatePools(); // Refresh health boxes
+}
+window.applyDamage = applyDamage;
+
+export function setupSoak() {
+    // 1. Manipulate UI: Hide Willpower, Show Armor Toggle in Dice Tray
+    const wpCont = document.getElementById('willpower-spend-container');
+    if(wpCont) wpCont.style.display = 'none';
+
+    let trayArmorContainer = document.getElementById('tray-armor-toggle-container');
+    if (!trayArmorContainer) {
+        const tray = document.getElementById('dice-tray');
+        trayArmorContainer = document.createElement('div');
+        trayArmorContainer.id = 'tray-armor-toggle-container';
+        trayArmorContainer.className = "items-center gap-2 mb-4 px-3 py-2 bg-gray-800/50 border border-gray-600 rounded flex animate-in fade-in";
+        trayArmorContainer.innerHTML = `
+            <input type="checkbox" id="tray-use-armor" class="w-4 h-4 cursor-pointer accent-gray-500">
+            <label for="tray-use-armor" class="text-[10px] uppercase font-black text-gray-300 cursor-pointer tracking-tight">Add Armor to Soak</label>
+        `;
+        // Insert before Roll Button wrapper (or roll btn itself)
+        const rollBtn = document.getElementById('roll-btn');
+        if(rollBtn && rollBtn.parentNode) {
+            // Find the flex container wrapping diff and roll btn
+            const rollRow = rollBtn.parentNode;
+            tray.insertBefore(trayArmorContainer, rollRow);
         } else {
-            const furthest = window.state.furthestPhase || 1;
-            STEPS_CONFIG.forEach(step => {
-                const it = document.createElement('div'); let statusClass = '';
-                if (step.id === s) statusClass = 'active'; else if (step.id < s) statusClass = 'completed'; else if (step.id <= furthest) statusClass = 'unlocked'; else statusClass = 'locked';
-                it.className = `nav-item ${statusClass}`;
-                it.innerHTML = `<div class="flex flex-col items-center justify-center w-full h-full"><i class="fas ${step.icon}"></i><span style="display:block !important; font-size:7px; text-transform:uppercase; margin-top:2px; opacity:1;">${step.label}</span></div>`;
-                it.onclick = () => { if (step.id <= furthest) changeStep(step.id); };
-                nav.appendChild(it);
-            });
+            tray.appendChild(trayArmorContainer);
+        }
+        
+        // Add Listener
+        const trayToggle = trayArmorContainer.querySelector('input');
+        trayToggle.onchange = () => window.setupSoak();
+    }
+    trayArmorContainer.style.display = 'flex';
+
+    // 2. Sync Logic between Health Toggle and Tray Toggle
+    const healthToggle = document.getElementById('soak-armor-toggle');
+    const trayToggle = document.getElementById('tray-use-armor');
+    
+    // If Health Toggle triggered this, update Tray Toggle
+    if (healthToggle && document.activeElement === healthToggle) {
+        if(trayToggle) trayToggle.checked = healthToggle.checked;
+    }
+    // If Tray Toggle triggered this, update Health Toggle
+    else if (trayToggle && document.activeElement === trayToggle) {
+        if(healthToggle) healthToggle.checked = trayToggle.checked;
+    }
+    // Initial / Default
+    else if (healthToggle && trayToggle) {
+        trayToggle.checked = healthToggle.checked;
+    }
+
+    // 3. Clear Active Pool (but don't trigger UI reset via clearPool() standard)
+    window.state.activePool = [];
+    
+    // 4. Calculate Values
+    const stam = window.state.dots.attr['Stamina'] || 1;
+    const fort = window.state.dots.disc['Fortitude'] || 0;
+    
+    let armorRating = 0;
+    const isArmorActive = trayToggle ? trayToggle.checked : false;
+    
+    if (isArmorActive && window.state.inventory && Array.isArray(window.state.inventory)) {
+        const armors = window.state.inventory.filter(i => i.type === 'Armor' && i.status === 'carried');
+        armors.forEach(a => {
+            // Robust parsing
+            let r = 0;
+            if (a.stats && a.stats.rating) r = parseInt(a.stats.rating);
+            if (!isNaN(r)) armorRating += r;
+        });
+    }
+    
+    // 5. Build Pool
+    window.state.activePool.push({name: 'Stamina', val: stam});
+    if(fort > 0) window.state.activePool.push({name: 'Fortitude', val: fort});
+    if(armorRating > 0) window.state.activePool.push({name: 'Armor', val: armorRating});
+    
+    // 6. Update Text
+    const armorText = armorRating > 0 ? ` + Armor (${armorRating})` : '';
+    setSafeText('pool-display', `Soak Roll: Stamina (${stam}) ${fort>0 ? `+ Fortitude (${fort})` : ''}${armorText}`);
+    
+    // 7. Open Tray
+    document.getElementById('dice-tray').classList.add('open');
+    showNotification("Soak Pool Ready.");
+}
+window.setupSoak = setupSoak;
+
+export function healOneLevel() {
+    let currentHealth = (window.state.status.health_states && Array.isArray(window.state.status.health_states)) 
+        ? [...window.state.status.health_states] 
+        : [0,0,0,0,0,0,0];
+        
+    let damageList = currentHealth.filter(x => x > 0);
+    
+    if(damageList.length === 0) {
+        showNotification("No damage to heal.");
+        return;
+    }
+    
+    // Get the "least severe" or "last marked" wound
+    const lastWound = damageList[damageList.length - 1];
+    
+    if(lastWound === 3) {
+        showNotification("Aggravated damage requires 5 BP + Rest.");
+        return;
+    }
+    
+    // Check Blood
+    const curBlood = window.state.status.blood || 0;
+    if(curBlood < 1) {
+        showNotification("Not enough Blood (Need 1 BP).");
+        return;
+    }
+    
+    // Spend Blood
+    window.state.status.blood = curBlood - 1;
+    
+    // Heal (Remove last item)
+    damageList.pop();
+    
+    // Rebuild State
+    let newStates = [0,0,0,0,0,0,0];
+    for(let i=0; i<7; i++) {
+        if(i < damageList.length) newStates[i] = damageList[i];
+        else newStates[i] = 0;
+    }
+    window.state.status.health_states = newStates;
+    
+    if(window.renderPrintSheet) window.renderPrintSheet();
+    updatePools();
+    showNotification("Healed 1 wound level (1 BP).");
+}
+window.healOneLevel = healOneLevel;
+
+
+// --- STATE MANAGEMENT & POOL UPDATES ---
+
+export function updatePools() {
+    if (!window.state.status) window.state.status = { humanity: 7, willpower: 5, tempWillpower: 5, health_states: [0,0,0,0,0,0,0], blood: 0 };
+    if (window.state.status.tempWillpower === undefined) window.state.status.tempWillpower = window.state.status.willpower || 5;
+    if (window.state.status.health_states === undefined || !Array.isArray(window.state.status.health_states)) window.state.status.health_states = [0,0,0,0,0,0,0];
+
+    const bH = (window.state.dots.virt?.Conscience || 1) + (window.state.dots.virt?.["Self-Control"] || 1);
+    const bW = (window.state.dots.virt?.Courage || 1);
+
+    if (!window.state.freebieMode && !window.state.xpMode && !window.state.isPlayMode) {
+         if (window.state.status.humanity === 7 && bH === 2) window.state.status.humanity = 2;
+         if (window.state.status.willpower === 5 && bW === 1) { window.state.status.willpower = 1; window.state.status.tempWillpower = 1; }
+    }
+
+    const curH = window.state.status.humanity;
+    const curW = window.state.status.willpower;
+    const tempW = window.state.status.tempWillpower;
+    const gen = parseInt(document.getElementById('c-gen')?.value) || 13;
+    const lim = GEN_LIMITS[gen] || GEN_LIMITS[13];
+
+    // Priority Counts
+    Object.keys(ATTRIBUTES).forEach(cat => {
+        let cs = 0; 
+        ATTRIBUTES[cat].forEach(a => cs += ((window.state.dots.attr[a] || 1) - 1));
+        const targetId = (cat === 'Social') ? 'p-social' : (cat === 'Mental') ? 'p-mental' : 'p-phys';
+        setSafeText(targetId, `[${Math.max(0, (window.state.prios.attr[cat] || 0) - cs)}]`);
+    });
+    
+    Object.keys(ABILITIES).forEach(cat => {
+        let cs = 0; 
+        ABILITIES[cat].forEach(a => cs += (window.state.dots.abil[a] || 0));
+        if (window.state.customAbilityCategories) { 
+            Object.entries(window.state.customAbilityCategories).forEach(([name, c]) => { 
+                if (c === cat && window.state.dots.abil[name]) cs += window.state.dots.abil[name]; 
+            }); 
+        }
+        setSafeText('p-' + cat.toLowerCase().slice(0,3), `[${Math.max(0, (window.state.prios.abil[cat] || 0) - cs)}]`);
+    });
+    
+    const discSpent = Object.values(window.state.dots.disc || {}).reduce((a, b) => a + b, 0);
+    setSafeText('p-disc', `[${Math.max(0, 3 - discSpent)}]`);
+    
+    const backSpent = Object.values(window.state.dots.back || {}).reduce((a, b) => a + b, 0);
+    setSafeText('p-back', `[${Math.max(0, 5 - backSpent)}]`);
+    
+    const virtTotalDots = VIRTUES.reduce((a, v) => a + (window.state.dots.virt[v] || 1), 0);
+    setSafeText('p-virt', `[${Math.max(0, 7 - (virtTotalDots - 3))}]`);
+
+    // FREEBIE MODE SIDEBAR & LOGGING
+    if (window.state.freebieMode) {
+         const logEntries = [];
+         let totalFreebieCost = 0;
+         let totalFlawBonus = 0;
+
+         // 1. Attributes (5/dot)
+         const attrCats = { Physical: 0, Social: 0, Mental: 0 };
+         let attrCost = 0;
+         Object.keys(ATTRIBUTES).forEach(cat => {
+             ATTRIBUTES[cat].forEach(a => attrCats[cat] += Math.max(0, (window.state.dots.attr[a] || 1) - 1));
+             const limit = window.state.prios.attr[cat] || 0;
+             if (attrCats[cat] > limit) {
+                 const diff = attrCats[cat] - limit;
+                 const c = diff * 5;
+                 attrCost += c;
+                 logEntries.push(`${cat} Attr (+${diff}): ${c} pts`);
+             }
+         });
+         setSafeText('sb-attr', attrCost);
+         totalFreebieCost += attrCost;
+
+         // 2. Abilities (2/dot)
+         const abilCats = { Talents: 0, Skills: 0, Knowledges: 0 };
+         let abilCost = 0;
+         Object.keys(ABILITIES).forEach(cat => {
+             ABILITIES[cat].forEach(a => abilCats[cat] += (window.state.dots.abil[a] || 0));
+             if (window.state.customAbilityCategories) {
+                 Object.entries(window.state.customAbilityCategories).forEach(([name, c]) => {
+                     if (c === cat && window.state.dots.abil[name]) abilCats[cat] += window.state.dots.abil[name];
+                 });
+             }
+             const limit = window.state.prios.abil[cat] || 0;
+             if (abilCats[cat] > limit) {
+                 const diff = abilCats[cat] - limit;
+                 const c = diff * 2;
+                 abilCost += c;
+                 logEntries.push(`${cat} Abil (+${diff}): ${c} pts`);
+             }
+         });
+         setSafeText('sb-abil', abilCost);
+         totalFreebieCost += abilCost;
+
+         // 3. Disciplines (7/dot, Limit 3)
+         const dDiff = Math.max(0, discSpent - 3);
+         const dCost = dDiff * 7;
+         setSafeText('sb-disc', dCost);
+         totalFreebieCost += dCost;
+         if(dCost > 0) logEntries.push(`Disciplines (+${dDiff}): ${dCost} pts`);
+
+         // 4. Backgrounds (1/dot, Limit 5)
+         const bgDiff = Math.max(0, backSpent - 5);
+         const bgCost = bgDiff * 1;
+         setSafeText('sb-back', bgCost);
+         totalFreebieCost += bgCost;
+         if(bgCost > 0) logEntries.push(`Backgrounds (+${bgDiff}): ${bgCost} pts`);
+
+         // 5. Virtues (2/dot, Limit 7)
+         const vDiff = Math.max(0, virtTotalDots - 10);
+         const vCost = vDiff * 2;
+         setSafeText('sb-virt', vCost);
+         totalFreebieCost += vCost;
+         if(vCost > 0) logEntries.push(`Virtues (+${vDiff}): ${vCost} pts`);
+
+         // 6. Humanity (1/dot)
+         const hDiff = Math.max(0, curH - bH); 
+         const hCost = hDiff * 1;
+         setSafeText('sb-human', hCost);
+         totalFreebieCost += hCost;
+         if(hCost > 0) logEntries.push(`Humanity (+${hDiff}): ${hCost} pts`);
+
+         // 7. Willpower (1/dot)
+         const wDiff = Math.max(0, curW - bW); 
+         const wCost = wDiff * 1;
+         setSafeText('sb-will', wCost);
+         totalFreebieCost += wCost;
+         if(wCost > 0) logEntries.push(`Willpower (+${wDiff}): ${wCost} pts`);
+
+         // 8. Merits / Flaws
+         let mCost = 0;
+         if (window.state.merits) window.state.merits.forEach(m => { 
+             const v = parseInt(m.val) || 0; 
+             mCost += v; 
+             logEntries.push(`Merit: ${m.name} (${v})`);
+         });
+         setSafeText('sb-merit', mCost);
+         totalFreebieCost += mCost;
+
+         if (window.state.flaws) window.state.flaws.forEach(f => {
+             const v = parseInt(f.val) || 0;
+             totalFlawBonus += v;
+             logEntries.push(`Flaw: ${f.name} (+${v})`);
+         });
+         const cappedBonus = Math.min(totalFlawBonus, 7);
+         setSafeText('sb-flaw', `+${cappedBonus}`);
+
+         // Final Totals
+         const limit = parseInt(document.getElementById('c-freebie-total')?.value) || 15;
+         const available = limit + cappedBonus;
+         const remaining = available - totalFreebieCost;
+         
+         setSafeText('f-total-top', remaining);
+         setSafeText('sb-total', remaining);
+         const totalEl = document.getElementById('sb-total');
+         if(totalEl) totalEl.className = remaining >= 0 ? "text-green-400 font-bold" : "text-red-500 font-bold animate-pulse";
+         if(remaining < 0) document.getElementById('f-total-top').classList.add('text-red-500'); 
+         else document.getElementById('f-total-top').classList.remove('text-red-500');
+
+         // Populate Log
+         const logContainer = document.getElementById('freebie-log-recent');
+         if(logContainer) {
+             if (logEntries.length === 0) logContainer.innerHTML = '<span class="text-gray-600 italic">No freebies spent...</span>';
+             else logContainer.innerHTML = logEntries.map(e => `<div class="border-b border-[#333] py-1 text-gray-300 text-[9px]">${e}</div>`).join('');
+         }
+
+         document.getElementById('freebie-sidebar').classList.add('active'); 
+    } else {
+         document.getElementById('freebie-sidebar').classList.remove('active');
+    }
+
+    // EXPERIENCE MODE SIDEBAR
+    if (window.state.xpMode) {
+        if(window.renderXpSidebar) window.renderXpSidebar();
+        document.getElementById('xp-sidebar').classList.add('active');
+        document.getElementById('xp-sidebar').classList.add('open');
+    } else {
+        document.getElementById('xp-sidebar').classList.remove('active');
+        document.getElementById('xp-sidebar').classList.remove('open');
+    }
+
+    const fbBtn = document.getElementById('toggle-freebie-btn');
+    if (fbBtn) {
+        if (window.state.isPlayMode) {
+            fbBtn.disabled = true;
+        } else {
+            fbBtn.disabled = false;
         }
     }
-    updatePools();
-}
-window.changeStep = changeStep;
 
-export function toggleFreebieMode() {
-     window.state.freebieMode = !window.state.freebieMode;
-     
-     if (window.state.freebieMode && window.state.xpMode) toggleXpMode();
-     
-     document.body.classList.toggle('freebie-mode', window.state.freebieMode);
-     const fbBtn = document.getElementById('toggle-freebie-btn');
-     const fbBtnText = document.getElementById('freebie-btn-text');
-     if (fbBtnText) fbBtnText.innerText = window.state.freebieMode ? "Exit Freebies" : "Freebies";
-     if (fbBtn) { fbBtn.classList.toggle('bg-blue-900/40', window.state.freebieMode); fbBtn.classList.toggle('border-blue-500', window.state.freebieMode); fbBtn.classList.toggle('text-blue-200', window.state.freebieMode); }
-     const mMsg = document.getElementById('merit-locked-msg'); const fMsg = document.getElementById('flaw-locked-msg');
-     if(mMsg) mMsg.style.display = window.state.freebieMode ? 'none' : 'block';
-     if(fMsg) fMsg.style.display = window.state.freebieMode ? 'none' : 'block';
-     
-     if(window.fullRefresh) window.fullRefresh();
-}
-window.toggleFreebieMode = toggleFreebieMode;
+    document.querySelectorAll('.dot-row').forEach(el => {
+        const name = el.dataset.n;
+        const type = el.dataset.t;
+        if (name && type && window.state.dots[type]) {
+            const val = window.state.dots[type][name] || 0; 
+            el.innerHTML = renderDots(val, 5);
+        }
+    });
 
-export function toggleSidebarLedger() { document.getElementById('freebie-sidebar').classList.toggle('open'); }
-window.toggleSidebarLedger = toggleSidebarLedger;
+    const p8h = document.getElementById('phase8-humanity-dots');
+    if(p8h) {
+        p8h.innerHTML = renderDots(curH, 10);
+        p8h.onclick = (e) => { 
+            if (window.state.freebieMode && e.target.dataset.v) setDots('Humanity', 'status', parseInt(e.target.dataset.v), 1, 10); 
+            if (window.state.xpMode && e.target.dataset.v) setDots('Humanity', 'status', parseInt(e.target.dataset.v), 1, 10);
+        };
+    }
+    const p8w = document.getElementById('phase8-willpower-dots');
+    if(p8w) {
+        p8w.innerHTML = renderDots(curW, 10);
+        p8w.onclick = (e) => { 
+            if (window.state.freebieMode && e.target.dataset.v) setDots('Willpower', 'status', parseInt(e.target.dataset.v), 1, 10); 
+            if (window.state.xpMode && e.target.dataset.v) setDots('Willpower', 'status', parseInt(e.target.dataset.v), 1, 10);
+        };
+    }
 
-// --- PLAY MODE ---
-
-export function togglePlayMode() {
-    window.state.isPlayMode = !window.state.isPlayMode;
-    document.body.classList.toggle('play-mode', window.state.isPlayMode);
+    document.querySelectorAll('#humanity-dots-play').forEach(el => el.innerHTML = renderDots(curH, 10));
+    document.querySelectorAll('#willpower-dots-play').forEach(el => el.innerHTML = renderDots(curW, 10));
+    document.querySelectorAll('#willpower-boxes-play').forEach(el => el.innerHTML = renderBoxes(curW, tempW, 'wp'));
     
-    // Disable Edit Modes
-    if (window.state.isPlayMode) {
-        if (window.state.freebieMode) toggleFreebieMode();
-        if (window.state.xpMode) toggleXpMode();
+    const bpContainer = document.querySelectorAll('#blood-boxes-play');
+    bpContainer.forEach(el => {
+        let h = '';
+        const currentBlood = window.state.status.blood || 0;
+        const maxBloodForGen = lim.m;
+        for (let i = 1; i <= 20; i++) {
+            let classes = "box";
+            if (i <= currentBlood) classes += " checked";
+            if (i > maxBloodForGen) classes += " cursor-not-allowed opacity-50 bg-[#1a1a1a]"; else classes += " cursor-pointer";
+            if (i > maxBloodForGen) classes += " pointer-events-none";
+            h += `<span class="${classes}" data-v="${i}" data-type="blood"></span>`;
+        }
+        el.innerHTML = h;
+    });
+
+    const bptContainer = document.querySelector('#blood-boxes-play + .text-center');
+    if (bptContainer) {
+        bptContainer.innerHTML = `Blood Per Turn: <span class="text-white">${lim.pt}</span>`;
+    }
+
+    const healthCont = document.getElementById('health-chart-play');
+    if(healthCont && healthCont.children.length === 0) {
+         HEALTH_STATES.forEach((h, i) => {
+            const d = document.createElement('div'); 
+            d.className = 'flex justify-between items-center text-[10px] uppercase border-b border-[#333] py-2 font-bold';
+            const penaltyText = h.p !== 0 ? h.p : '';
+            d.innerHTML = `<span>${h.l}</span><div class="flex gap-3"><span class="text-red-500">${penaltyText}</span><div class="box" data-v="${i+1}" data-type="health"></div></div>`;
+            healthCont.appendChild(d);
+        });
+    }
+
+    const healthStates = window.state.status.health_states || [0,0,0,0,0,0,0];
+    document.querySelectorAll('#health-chart-play .box').forEach((box, i) => {
+        box.classList.remove('checked'); 
+        box.dataset.state = healthStates[i] || 0;
+    });
+    
+    renderSocialProfile();
+    if(window.updateWalkthrough) window.updateWalkthrough();
+
+    // --- Ensure Dice Button Exists & Update State ---
+    let diceBtn = document.getElementById('dice-toggle-btn');
+    if (!diceBtn) {
+        diceBtn = document.createElement('button');
+        diceBtn.id = 'dice-toggle-btn';
+        diceBtn.className = 'fixed bottom-6 right-6 z-[100] bg-[#8b0000] text-white w-12 h-12 rounded-full shadow-[0_0_15px_rgba(212,175,55,0.4)] border border-[#d4af37] hover:bg-[#a00000] flex items-center justify-center transition-all hidden transform hover:scale-110 active:scale-95'; 
+        diceBtn.innerHTML = '<i class="fas fa-dice text-xl"></i>';
+        diceBtn.title = "Open Dice Roller";
+        diceBtn.onclick = window.toggleDiceTray;
+        document.body.appendChild(diceBtn);
     }
     
-    const pBtn = document.getElementById('play-mode-btn'); const pBtnText = document.getElementById('play-btn-text');
-    if(pBtnText) pBtnText.innerText = window.state.isPlayMode ? "Edit" : "Play";
+    if (window.state.isPlayMode) diceBtn.classList.remove('hidden');
+    else diceBtn.classList.add('hidden');
+
+    // --- ATTACH CLICK LISTENERS FOR PLAY MODE BOXES ---
+    // Willpower, Blood, Health
+    document.querySelectorAll('.box').forEach(b => {
+        b.onclick = (e) => {
+            e.stopPropagation(); // Prevent bubbling issues
+            const t = b.dataset.type;
+            const v = parseInt(b.dataset.v);
+            if(window.handleBoxClick) window.handleBoxClick(t, v, b);
+        };
+    });
+
+    // --- CLAN MECHANICS UPDATE ---
+    updateClanMechanicsUI();
+}
+window.updatePools = updatePools;
+
+export function refreshTraitRow(label, type, targetEl) {
+    let rowDiv = targetEl;
+    if (!rowDiv) {
+        const safeId = 'trait-row-' + type + '-' + label.replace(/[^a-zA-Z0-9]/g, '');
+        rowDiv = document.getElementById(safeId);
+    }
     
-    document.querySelectorAll('input, select, textarea').forEach(el => {
-        if (['save-filename', 'char-select', 'roll-diff', 'use-specialty', 'c-path-name', 'c-path-name-create', 'c-bearing-name', 'c-bearing-value', 'custom-weakness-input', 'xp-points-input', 'blood-per-turn-input', 'custom-dice-input', 'spend-willpower', 'c-xp-total', 'frenzy-diff', 'rotschreck-diff', 'play-merit-notes', 'dmg-input-val', 'tray-use-armor'].includes(el.id) || el.classList.contains('merit-flaw-desc')) {
-            el.disabled = false;
+    if(!rowDiv) return;
+
+    // --- UPDATED MIN VALUE LOGIC ---
+    const clan = window.state.textFields['c-clan'] || document.getElementById('c-clan')?.value || "None";
+    let min = (type === 'attr') ? 1 : 0;
+    
+    // Override min for Nosferatu Appearance
+    if (clan === "Nosferatu" && label === "Appearance") min = 0;
+
+    let val = window.state.dots[type][label];
+    if (val === undefined) val = min;
+    
+    // Ensure value respects min (e.g. switching away from Nosferatu 0 -> 1)
+    if (val < min) {
+        val = min;
+        window.state.dots[type][label] = val; // Sync state
+    }
+
+    const max = 5;
+
+    let showSpecialty = false;
+    let warningMsg = "";
+
+    if (type !== 'virt') {
+        if (type === 'attr') {
+            if (val >= 4) showSpecialty = true;
+        } else if (type === 'abil') {
+            if (val >= 1) {
+                showSpecialty = true;
+                if (!BROAD_ABILITIES.includes(label) && val < 4) warningMsg = "Rule Note: Standard V20 requires 4 dots for specialties, but you may override.";
+                else if (BROAD_ABILITIES.includes(label)) warningMsg = "Rule Note: This ability is too broad to be used without a specialty.";
+            }
+        }
+    }
+
+    let specInputHTML = '';
+    if (showSpecialty) {
+        const specVal = window.state.specialties[label] || "";
+        if (window.state.isPlayMode && !specVal) specInputHTML = '<div class="flex-1"></div>'; 
+        else {
+            const listId = `list-${label.replace(/[^a-zA-Z0-9]/g, '')}`;
+            let optionsHTML = '';
+            if (SPECIALTY_EXAMPLES[label]) optionsHTML = SPECIALTY_EXAMPLES[label].map(s => `<option value="${s}">`).join('');
+            specInputHTML = `<div class="flex-1 mx-2 relative"><input type="text" list="${listId}" class="specialty-input w-full text-[10px] italic bg-transparent border-b border-gray-700 text-[#d4af37] text-center" placeholder="Specialty..." value="${specVal}"><datalist id="${listId}">${optionsHTML}</datalist></div>`;
+        }
+    } else { specInputHTML = '<div class="flex-1"></div>'; }
+
+    let styleOverride = "";
+    let pointerEvents = "auto";
+    let titleMsg = "";
+    
+    // --- NOSFERATU VISUAL STYLING ---
+    if (clan === "Nosferatu" && label === "Appearance") {
+        styleOverride = "text-decoration: line-through; color: #666; cursor: not-allowed; opacity: 0.5;";
+        pointerEvents = "none"; // Disable dots
+        titleMsg = "Nosferatu Weakness: Appearance 0";
+    }
+
+    rowDiv.innerHTML = `
+        <span class="trait-label font-bold uppercase text-[11px] whitespace-nowrap cursor-pointer hover:text-gold" style="${styleOverride}" title="${titleMsg}">
+            ${label}
+        </span>
+        ${specInputHTML}
+        <div class="dot-row flex-shrink-0" data-n="${label}" data-t="${type}" style="pointer-events: ${pointerEvents}; opacity: ${clan === "Nosferatu" && label === "Appearance" ? '0.3' : '1'}">
+            ${renderDots(val, max)}
+        </div>`;
+
+    rowDiv.querySelector('.trait-label').onclick = () => { if(window.state.isPlayMode && !(clan === "Nosferatu" && label === "Appearance")) window.handleTraitClick(label, type); };
+    rowDiv.querySelector('.dot-row').onclick = (e) => { if (e.target.dataset.v) setDots(label, type, parseInt(e.target.dataset.v), min, max); };
+    
+    if(showSpecialty && (!window.state.isPlayMode || (window.state.isPlayMode && window.state.specialties[label]))) {
+        const input = rowDiv.querySelector('input');
+        if(input) {
+            input.onblur = (e) => { window.state.specialties[label] = e.target.value; if(window.renderPrintSheet) window.renderPrintSheet(); };
+            if (warningMsg) { input.onfocus = () => window.showNotification(warningMsg); }
+            input.disabled = window.state.isPlayMode;
+        }
+    }
+}
+window.refreshTraitRow = refreshTraitRow;
+
+export function renderRow(contId, label, type, min, max = 5) {
+    const cont = typeof contId === 'string' ? document.getElementById(contId) : contId;
+    if (!cont) return;
+    const div = document.createElement('div'); 
+    div.id = 'trait-row-' + type + '-' + label.replace(/[^a-zA-Z0-9]/g, '');
+    div.className = 'flex items-center justify-between w-full py-1';
+    cont.appendChild(div);
+    refreshTraitRow(label, type, div); 
+}
+window.renderRow = renderRow;
+
+// --- UPDATED setDots with Experience Mode ---
+export function setDots(name, type, val, min, max = 5) {
+    if (window.state.isPlayMode) return;
+
+    // --- NOSFERATU BLOCK ---
+    const clan = window.state.textFields['c-clan'] || document.getElementById('c-clan')?.value || "None";
+    if (clan === "Nosferatu" && name === "Appearance") {
+        window.showNotification("Nosferatu Weakness: Appearance is 0.");
+        return;
+    }
+
+    // --- EXPERIENCE MODE LOGIC ---
+    if (window.state.xpMode) {
+        if (!window.state.xpLog) window.state.xpLog = [];
+
+        let currentVal = 0;
+        // Determine current value
+        if (type === 'status') {
+            if (name === 'Humanity') currentVal = window.state.status.humanity || 1;
+            else if (name === 'Willpower') currentVal = window.state.status.willpower || 1;
+        } else {
+            currentVal = window.state.dots[type][name] || min;
+        }
+
+        // Only handle INCREASES in XP mode (cannot remove dots to refund XP usually, standard is permanent)
+        // If user clicks same or lower, do nothing or show info
+        if (val <= currentVal) {
+            window.showNotification("Cannot lower traits in XP Mode.");
             return;
         }
-        el.disabled = window.state.isPlayMode;
-    });
 
-    const playSheet = document.getElementById('play-mode-sheet');
-    const phases = document.querySelectorAll('.step-container');
-
-    if (window.state.isPlayMode) {
-        phases.forEach(el => el.classList.add('hidden'));
-        phases.forEach(el => el.classList.remove('active')); 
-
-        if (playSheet) {
-            playSheet.classList.remove('hidden');
-            playSheet.style.display = 'block'; 
-        }
-
-        const row = document.getElementById('play-concept-row');
-        if (row) {
-            const getVal = (id) => document.getElementById(id)?.value || '';
-            row.innerHTML = `
-                <div><span class="label-text">Name:</span> <span class="text-white font-bold">${getVal('c-name')}</span></div>
-                <div><span class="label-text">Player:</span> <span class="text-white font-bold">${getVal('c-player')}</span></div>
-                <div><span class="label-text">Chronicle:</span> <span class="text-white font-bold">${getVal('c-chronicle')}</span></div>
-                <div><span class="label-text">Nature:</span> <span class="text-white font-bold">${getVal('c-nature')}</span></div>
-                <div><span class="label-text">Demeanor:</span> <span class="text-white font-bold">${getVal('c-demeanor')}</span></div>
-                <div><span class="label-text">Concept:</span> <span class="text-white font-bold">${getVal('c-concept')}</span></div>
-                <div><span class="label-text">Clan:</span> <span class="text-white font-bold">${getVal('c-clan')}</span></div>
-                <div><span class="label-text">Generation:</span> <span class="text-white font-bold">${getVal('c-gen')}</span></div>
-                <div><span class="label-text">Sire:</span> <span class="text-white font-bold">${getVal('c-sire')}</span></div>
-            `;
+        // Only allow buying 1 dot at a time for safety/rules adherence
+        if (val > currentVal + 1) {
+            window.showNotification("Purchase 1 dot at a time.");
+            return;
         }
         
-        const ra = document.getElementById('play-row-attr'); 
-        if (ra) {
-            ra.innerHTML = '';
-            Object.entries(ATTRIBUTES).forEach(([c,l]) => { 
-                const s = document.createElement('div'); 
-                s.className='sheet-section !mt-0'; 
-                s.innerHTML=`<div class="column-title">${c}</div>`; 
-                ra.appendChild(s); 
-                l.forEach(a=>renderRow(s,a,'attr',1)); 
-            });
+        // Calculate Cost
+        const isClan = window.state.dots.disc && CLAN_DISCIPLINES[window.state.textFields['c-clan']]?.includes(name);
+        const isCaitiff = window.state.textFields['c-clan'] === "Caitiff";
+        
+        let xpType = type;
+        if (type === 'status') {
+             if (name === 'Humanity') xpType = 'humanity';
+             if (name === 'Willpower') xpType = 'willpower';
         }
         
-        const rb = document.getElementById('play-row-abil'); 
-        if (rb) {
-            rb.innerHTML = '';
-            Object.entries(ABILITIES).forEach(([c,l]) => { 
-                const s = document.createElement('div'); 
-                s.className='sheet-section !mt-0'; 
-                s.innerHTML=`<div class="column-title">${c}</div>`; 
-                rb.appendChild(s);
-                l.forEach(a=>renderRow(s,a,'abil',0)); 
-            });
-        }
+        const cost = getXpCost(currentVal, xpType, isClan, isCaitiff);
         
-        const rc = document.getElementById('play-row-adv'); 
-        if (rc) {
-            rc.innerHTML = '';
-            const ds = document.createElement('div'); ds.className='sheet-section !mt-0'; ds.innerHTML='<div class="column-title">Disciplines</div>';
-            rc.appendChild(ds);
-            Object.entries(window.state.dots.disc).forEach(([n,v]) => { if(v>0) renderRow(ds,n,'disc',0); }); 
-            
-            const bs = document.createElement('div'); bs.className='sheet-section !mt-0'; bs.innerHTML='<div class="column-title">Backgrounds</div>';
-            rc.appendChild(bs);
-            Object.entries(window.state.dots.back).forEach(([n,v]) => { if(v>0) renderRow(bs,n,'back',0); }); 
-            
-            const vs = document.createElement('div'); vs.className='sheet-section !mt-0'; vs.innerHTML='<div class="column-title">Virtues</div>';
-            rc.appendChild(vs);
-            VIRTUES.forEach(v => renderRow(vs, v, 'virt', 1)); 
-        }
+        // Calculate Budget
+        const totalXP = parseInt(document.getElementById('c-xp-total')?.value) || 0;
+        let spentXP = window.state.xpLog.reduce((acc, log) => acc + log.cost, 0);
+        const remaining = totalXP - spentXP;
         
-        const pg = document.getElementById('play-social-grid'); if(pg) {
-            pg.innerHTML = ''; BACKGROUNDS.forEach(s => { const dots = window.state.dots.back[s] || 0; const safeId = 'desc-' + s.toLowerCase().replace(/[^a-z0-9]/g, '-'); const el = document.getElementById(safeId); const txt = el ? el.value : ""; if(dots || txt) pg.innerHTML += `<div class="border-l-2 border-[#333] pl-4 mb-4"><div class="flex justify-between items-center"><label class="label-text text-gold">${s}</label><div class="text-[8px] font-bold text-white">${renderDots(dots,5)}</div></div><div class="text-xs text-gray-200 mt-1">${txt || "No description."}</div></div>`; });
+        if (cost > remaining) {
+            window.showNotification(`Need ${cost} XP. Have ${remaining}.`);
+            return;
         }
 
-        const pb = document.getElementById('play-blood-bonds'); if(pb) {
-            pb.innerHTML = ''; 
-            
-            // --- TREMERE WEAKNESS NOTE (PLAY MODE) ---
-            const clan = window.state.textFields['c-clan'] || "None";
-            const isTremere = clan === "Tremere";
-
-            if (isTremere) {
-                pb.innerHTML += `<div class="text-[#a855f7] text-[9px] font-bold mb-2 uppercase border-b border-[#a855f7]/30 pb-1 italic"><i class="fas fa-flask mr-1"></i> Weakness: 1st Drink = 2 Steps</div>`;
-            }
-
-            window.state.bloodBonds.forEach(b => { 
-                let label = "";
-                if (b.type === 'Bond') {
-                    let r = parseInt(b.rating) || 0;
-                    
-                    // Apply Tremere Weakness Logic
-                    if (isTremere) {
-                        if (r === 1) {
-                            label = `<span class="text-[#a855f7]">Step 2</span> (1 Drink)`;
-                        } else if (r >= 2) {
-                            label = `<span class="text-[#a855f7] font-black">Full Bond</span>`; 
-                        } else {
-                            label = `Step ${r}`; // Should effectively be 0
-                        }
-                    } else {
-                        // Standard
-                        if (r >= 3) label = 'Full Bond';
-                        else label = `Drink ${r}`;
-                    }
-                } else {
-                    label = `Vinculum ${b.rating}`;
+        if (confirm(`Spend ${cost} XP to raise ${name} to ${val}?`)) {
+            // APPLY CHANGE
+            if (type === 'status') {
+                if (name === 'Humanity') window.state.status.humanity = val;
+                if (name === 'Willpower') {
+                    window.state.status.willpower = val;
+                    window.state.status.tempWillpower = val; // Max increases temp
                 }
-                
-                pb.innerHTML += `<div class="flex justify-between border-b border-[#222] py-1 text-xs"><span>${b.name}</span><span class="text-gold font-bold">${label}</span></div>`; 
-            });
-        }
-
-        // --- UPDATED MERITS & FLAWS (Name | Value | Editable Description) ---
-        const mf = document.getElementById('merit-flaw-rows-play'); 
-        if(mf) {
-            mf.innerHTML = ''; 
-            
-            // Helper to render editable row
-            const renderMFRow = (item, type, index) => {
-                const row = document.createElement('div');
-                row.className = "flex flex-col border-b border-[#222] py-2 mb-1";
-                const valueColor = type === 'Merit' ? 'text-red-400' : 'text-green-400'; // Cost vs Bonus logic
-                
-                row.innerHTML = `
-                    <div class="flex justify-between text-xs mb-1">
-                        <span class="font-bold text-white">${item.name}</span>
-                        <span class="${valueColor} font-bold text-[10px]">${item.val} pts</span>
-                    </div>
-                    <textarea class="merit-flaw-desc bg-transparent border-none text-[10px] text-gray-400 w-full italic focus:text-white focus:not-italic resize-none overflow-hidden" 
-                            placeholder="Description / Note..." rows="1" style="min-height: 20px;">${item.desc || ''}</textarea>
-                `;
-                
-                // Bind Listener
-                const input = row.querySelector('textarea');
-                // Auto-resize function
-                const resize = () => {
-                    input.style.height = 'auto';
-                    input.style.height = (input.scrollHeight) + 'px';
-                };
-                // Initial resize
-                requestAnimationFrame(resize);
-                
-                input.oninput = resize;
-                input.onblur = (e) => {
-                    const arr = type === 'Merit' ? window.state.merits : window.state.flaws;
-                    if(arr[index]) {
-                        arr[index].desc = e.target.value;
-                    }
-                };
-                
-                mf.appendChild(row);
-            };
-
-            if(window.state.merits) window.state.merits.forEach((m, i) => renderMFRow(m, 'Merit', i));
-            if(window.state.flaws) window.state.flaws.forEach((f, i) => renderMFRow(f, 'Flaw', i));
-            
-            if (!window.state.merits?.length && !window.state.flaws?.length) {
-                mf.innerHTML = '<div class="text-[10px] text-gray-600 italic text-center">No Merits or Flaws selected.</div>';
+            } else {
+                window.state.dots[type][name] = val;
             }
-        }
-
-        const ot = document.getElementById('other-traits-rows-play'); if(ot) {
-            ot.innerHTML = ''; Object.entries(window.state.dots.other).forEach(([n,v]) => { if(v>0) renderRow(ot, n, 'other', 0); });
-        }
-        
-        const plv = document.getElementById('play-vitals-list'); if(plv) {
-            plv.innerHTML = ''; VIT.forEach(v => { const val = document.getElementById('bio-' + v)?.value; if(val) plv.innerHTML += `<div class="flex justify-between border-b border-[#222] py-1 font-bold"><span class="text-gray-400">${v.replace('-',' ')}:</span> <span>${val}</span></div>`; });
-        }
-
-        const cp = document.getElementById('combat-rows-play'); 
-        if(cp) {
-            cp.innerHTML = ''; 
-            const standards = [
-                {n:'Bite', diff:6, dmg:'Str+1(A)', attr:'Dexterity', abil:'Brawl'},
-                {n:'Block', diff:6, dmg:'None (R)', attr:'Dexterity', abil:'Brawl'},
-                {n:'Claw', diff:6, dmg:'Str+1(A)', attr:'Dexterity', abil:'Brawl'},
-                {n:'Clinch', diff:6, dmg:'Str(C)', attr:'Strength', abil:'Brawl'},
-                {n:'Disarm', diff:7, dmg:'Special', attr:'Dexterity', abil:'Melee'},
-                {n:'Dodge', diff:6, dmg:'None (R)', attr:'Dexterity', abil:'Athletics'},
-                {n:'Hold', diff:6, dmg:'None (C)', attr:'Strength', abil:'Brawl'},
-                {n:'Kick', diff:7, dmg:'Str+1', attr:'Dexterity', abil:'Brawl'},
-                {n:'Parry', diff:6, dmg:'None (R)', attr:'Dexterity', abil:'Melee'},
-                {n:'Strike', diff:6, dmg:'Str', attr:'Dexterity', abil:'Brawl'},
-                {n:'Sweep', diff:7, dmg:'Str(K)', attr:'Dexterity', abil:'Brawl'},
-                {n:'Tackle', diff:7, dmg:'Str+1(K)', attr:'Strength', abil:'Brawl'},
-                {n:'Weapon Strike', diff:6, dmg:'Weapon', attr:'Dexterity', abil:'Melee'},
-                {n:'Auto Fire', diff:8, dmg:'Special', attr:'Dexterity', abil:'Firearms'},
-                {n:'Multi Shot', diff:6, dmg:'Weapon', attr:'Dexterity', abil:'Firearms'},
-                {n:'Strafing', diff:8, dmg:'Special', attr:'Dexterity', abil:'Firearms'},
-                {n:'3-Rnd Burst', diff:7, dmg:'Weapon', attr:'Dexterity', abil:'Firearms'},
-                {n:'Two Weapons', diff:7, dmg:'Weapon', attr:'Dexterity', abil:'Firearms'}
-            ];
             
-             standards.forEach(s => { 
-                const r = document.createElement('tr'); 
-                r.className='border-b border-[#222] text-[10px] text-gray-500 hover:bg-[#1a1a1a]'; 
-                r.innerHTML = `
-                    <td class="p-2 font-bold text-white flex items-center gap-2">
-                        <button class="bg-[#8b0000] hover:bg-red-600 text-white rounded px-1.5 py-0.5 text-[9px] font-bold" onclick="window.rollCombat('${s.n}', ${s.diff}, '${s.attr}', '${s.abil}')" title="Roll ${s.n}">
-                            <i class="fas fa-dice-d10"></i>
-                        </button>
-                        ${s.n}
-                    </td>
-                    <td class="p-2">${s.diff}</td>
-                    <td class="p-2">${s.dmg}</td>
-                    <td class="p-2 text-center">-</td>
-                    <td class="p-2 text-center">-</td>
-                    <td class="p-2 text-center">-</td>
-                `; 
-                cp.appendChild(r); 
+            // LOG IT
+            window.state.xpLog.push({
+                trait: name,
+                old: currentVal,
+                new: val,
+                cost: cost,
+                type: type,
+                date: new Date().toISOString()
             });
 
-            // Update Inventory Weapons to use rollCombat
-            const firearms = ['Pistol', 'Revolver', 'Rifle', 'SMG', 'Shotgun', 'Crossbow'];
-            if(window.state.inventory) { 
-                window.state.inventory.filter(i => i.type === 'Weapon' && i.status === 'carried').forEach(w => { 
-                    let display = w.displayName || w.name;
-                    const isFirearm = firearms.some(f => (w.name && w.name.includes(f)) || (w.baseType && w.baseType.includes(f)));
-                    const ability = isFirearm ? 'Firearms' : 'Melee';
-                    const r = document.createElement('tr'); 
-                    r.className='border-b border-[#222] text-[10px] hover:bg-[#1a1a1a]'; 
-                    r.innerHTML = `
-                        <td class="p-2 font-bold text-gold flex items-center gap-2">
-                             <button class="bg-[#8b0000] hover:bg-red-600 text-white rounded px-1.5 py-0.5 text-[9px] font-bold" onclick="window.rollCombat('${display}', ${w.stats.diff}, 'Dexterity', '${ability}')" title="Roll ${display}">
-                                <i class="fas fa-dice-d10"></i>
-                            </button>
-                            ${display}
-                        </td>
-                        <td class="p-2 text-white">${w.stats.diff}</td>
-                        <td class="p-2 text-white">${w.stats.dmg}</td>
-                        <td class="p-2 text-center">${w.stats.range}</td>
-                        <td class="p-2 text-center">${w.stats.rate}</td>
-                        <td class="p-2 text-center">${w.stats.clip}</td>
-                    `; 
-                    cp.appendChild(r); 
-                }); 
-            }
+            window.showNotification(`Purchased ${name} ${val} (${cost} XP)`);
+            updatePools(); // Refresh UI including sidebar
+            if(window.renderPrintSheet) window.renderPrintSheet();
         }
+        return;
+    }
+    // --- END EXPERIENCE MODE LOGIC ---
+    
+    // --- STANDARD CREATION LOGIC ---
+    if (type === 'status') {
+        if (!window.state.freebieMode) return;
+        if (name === 'Humanity') {
+             const baseH = (window.state.dots.virt?.Conscience || 1) + (window.state.dots.virt?.["Self-Control"] || 1);
+             if (val < baseH) val = baseH;
+             window.state.status.humanity = val;
+        }
+        else if (name === 'Willpower') {
+            const baseW = window.state.dots.virt?.Courage || 1;
+            if (val < baseW) val = baseW;
+            window.state.status.willpower = val;
+            window.state.status.tempWillpower = val;
+        }
+        updatePools(); 
+        if(window.renderPrintSheet) window.renderPrintSheet();
+        return;
+    }
 
-        if(document.getElementById('rituals-list-play')) document.getElementById('rituals-list-play').innerText = document.getElementById('rituals-list-create-ta').value;
-        let carried = []; let owned = []; if(window.state.inventory) { window.state.inventory.forEach(i => { const str = `${i.displayName || i.name} ${i.type === 'Armor' ? `(R:${i.stats.rating} P:${i.stats.penalty})` : ''}`; if(i.status === 'carried') carried.push(str); else owned.push(str); }); }
-        setSafeText('play-gear-carried', carried.join(', ')); setSafeText('play-gear-owned', owned.join(', '));
-        if(document.getElementById('play-bio-desc')) document.getElementById('play-bio-desc').innerText = document.getElementById('bio-desc').value;
-        
-        // --- UPDATED MALKAVIAN LOGIC FOR PLAY MODE ---
-        if(document.getElementById('play-derangements')) { 
-            const pd = document.getElementById('play-derangements'); 
-            const clan = window.state.textFields['c-clan'] || "None";
-            const isMalk = clan === "Malkavian";
-            
-            let contentHtml = window.state.derangements.length > 0 
-                ? window.state.derangements.map((d, i) => {
-                    if (isMalk && i === 0) return `<div class="text-[#a855f7] font-bold"><i class="fas fa-lock text-[8px] mr-1"></i>${d} (Incurable)</div>`;
-                    return `<div>• ${d}</div>`;
-                }).join('') 
-                : '<span class="text-gray-500 italic">None</span>';
-                
-            if (isMalk) {
-                contentHtml += `
-                    <div class="mt-2 pt-2 border-t border-[#333] flex items-center justify-between">
-                        <span class="text-[9px] text-[#a855f7] uppercase font-bold">Weakness</span>
-                        <button onclick="window.suppressDerangement()" class="bg-[#a855f7] hover:bg-[#c084fc] text-white text-[9px] font-bold px-2 py-1 rounded flex items-center gap-1">
-                            <i class="fas fa-power-off"></i> Suppress (1 WP)
-                        </button>
-                    </div>
-                `;
-            }
-            pd.innerHTML = contentHtml; 
-        }
-        
-        if(document.getElementById('play-languages')) document.getElementById('play-languages').innerText = document.getElementById('bio-languages').value;
-        if(document.getElementById('play-goals-st')) document.getElementById('play-goals-st').innerText = document.getElementById('bio-goals-st').value;
-        if(document.getElementById('play-goals-lt')) document.getElementById('play-goals-lt').innerText = document.getElementById('bio-goals-lt').value;
-        if(document.getElementById('play-history')) document.getElementById('play-history').innerText = document.getElementById('char-history').value;
-        const feedSrc = document.getElementById('inv-feeding-grounds'); if (feedSrc) setSafeText('play-feeding-grounds', feedSrc.value);
-        if(document.getElementById('armor-rating-play')) { let totalA = 0; let totalP = 0; let names = []; if(window.state.inventory) { window.state.inventory.filter(i => i.type === 'Armor' && i.status === 'carried').forEach(a => { totalA += parseInt(a.stats?.rating)||0; totalP += parseInt(a.stats?.penalty)||0; names.push(a.displayName || a.name); }); } setSafeText('armor-rating-play', totalA); setSafeText('armor-penalty-play', totalP); setSafeText('armor-desc-play', names.join(', ')); }
-        if (document.getElementById('play-vehicles')) { const pv = document.getElementById('play-vehicles'); pv.innerHTML = ''; if (window.state.inventory) { window.state.inventory.filter(i => i.type === 'Vehicle').forEach(v => { let display = v.displayName || v.name; pv.innerHTML += `<div class="mb-2 border-b border-[#333] pb-1"><div class="font-bold text-white uppercase text-[10px]">${display}</div><div class="text-[9px] text-gray-400">Safe:${v.stats.safe} | Max:${v.stats.max} | Man:${v.stats.man}</div></div>`; }); } }
-        if (document.getElementById('play-havens-list')) { const ph = document.getElementById('play-havens-list'); ph.innerHTML = ''; window.state.havens.forEach(h => { ph.innerHTML += `<div class="border-l-2 border-gold pl-4 mb-4"><div class="flex justify-between"><div><div class="font-bold text-white uppercase text-[10px]">${h.name}</div><div class="text-[9px] text-gold italic">${h.loc}</div></div></div><div class="text-xs text-gray-400 mt-1">${h.desc}</div></div>`; }); }
-        
-        // --- CLAN SPECIFIC WEAKNESS & FRENZY ---
-        const weaknessCont = document.getElementById('weakness-play-container');
-        if (weaknessCont) {
-            weaknessCont.innerHTML = '';
-            const clan = window.state.textFields['c-clan'] || document.getElementById('c-clan')?.value || "None";
-            const weaknessText = CLAN_WEAKNESSES[clan] || "Select a Clan to see weakness.";
-            const customNote = window.state.textFields['custom-weakness'] || "";
-            
-            // REMOVED FRENZY BUTTON FROM HERE
-            weaknessCont.innerHTML = `
-                <div class="section-title">Weakness</div>
-                <div class="bg-[#111] p-3 border border-[#333] h-full flex flex-col mt-2">
-                    <div class="text-[11px] text-gray-300 italic mb-3 leading-snug flex-1">${weaknessText}</div>
-                    <div class="text-[9px] font-bold text-gray-500 mb-1 uppercase">Specifics / Notes</div>
-                    <textarea id="custom-weakness-input" class="w-full h-16 bg-black border border-[#444] text-[10px] text-white p-2 focus:border-gold outline-none resize-none" placeholder="e.g. 'Only Brunettes'">${customNote}</textarea>
-                </div>
-            `;
-            const ta = document.getElementById('custom-weakness-input');
-            if(ta) {
-                ta.addEventListener('blur', (e) => {
-                    if(!window.state.textFields) window.state.textFields = {};
-                    window.state.textFields['custom-weakness'] = e.target.value;
-                });
-            }
-        }
-        
-        // --- THE BEAST (FRENZY / RÖTSCHRECK) ---
-        if (weaknessCont && weaknessCont.parentNode) {
-            let beastCont = document.getElementById('beast-play-container');
-            if (!beastCont) {
-                beastCont = document.createElement('div');
-                beastCont.id = 'beast-play-container';
-                beastCont.className = 'sheet-section';
-                weaknessCont.parentNode.insertBefore(beastCont, weaknessCont);
-            }
-            
-            beastCont.innerHTML = `
-                <div class="section-title">The Beast</div>
-                <div class="bg-[#111] p-3 border border-[#333] mt-2 space-y-4">
-                    <!-- Frenzy -->
-                    <div>
-                        <div class="flex justify-between items-center text-[10px] uppercase font-bold text-gray-400 mb-1">
-                            <span>Frenzy Check</span>
-                            <input type="number" id="frenzy-diff" placeholder="Diff (Auto)" class="w-16 bg-black border border-[#444] text-center text-white p-1 text-[10px]">
-                        </div>
-                        <button onclick="window.rollFrenzy()" class="w-full bg-[#8b0000] hover:bg-red-700 text-white font-bold py-1 text-[10px] uppercase transition-colors flex items-center justify-center">
-                            <i class="fas fa-bolt mr-1"></i> Check Frenzy
-                        </button>
-                    </div>
-                    <!-- Rötschreck -->
-                    <div class="border-t border-[#333] pt-2">
-                        <div class="flex justify-between items-center text-[10px] uppercase font-bold text-gray-400 mb-1">
-                            <span>Rötschreck (Fire/Sun)</span>
-                            <input type="number" id="rotschreck-diff" placeholder="Diff (6)" value="6" class="w-16 bg-black border border-[#444] text-center text-white p-1 text-[10px]">
-                        </div>
-                        <button onclick="window.rollRotschreck()" class="w-full bg-[#d97706] hover:bg-orange-600 text-white font-bold py-1 text-[10px] uppercase transition-colors flex items-center justify-center">
-                            <i class="fas fa-fire mr-1"></i> Check Fear
-                        </button>
-                    </div>
-                </div>
-            `;
-        }
+    const currentVal = window.state.dots[type][name] || min;
+    let newVal = val;
+    if (val === currentVal) newVal = val - 1;
+    if (newVal < min) newVal = min;
 
-        const xpCont = document.getElementById('experience-play-container');
-        if (xpCont) {
-            xpCont.innerHTML = '';
-            const xpVal = document.getElementById('c-xp-total')?.value || 0;
-            const log = window.state.xpLog || [];
-            const spent = log.reduce((a,b)=>a+b.cost,0);
-            
-            // Reduced padding and font size to prevent overflow
-            xpCont.innerHTML = `
-                <div class="section-title mt-6">Experience</div>
-                <div class="bg-[#111] p-2 border border-[#333] mt-2">
-                    <div class="flex justify-between text-[10px] mb-1"><span>Earned:</span> <span class="text-purple-400 font-bold">${xpVal}</span></div>
-                    <div class="flex justify-between text-[10px] mb-1"><span>Spent:</span> <span class="text-gray-400 font-bold">${spent}</span></div>
-                    <div class="flex justify-between text-[10px] border-t border-[#333] pt-1 mt-1"><span>Remain:</span> <span class="text-white font-bold">${xpVal - spent}</span></div>
-                </div>
-            `;
-        }
-        
-        const bptInput = document.getElementById('blood-per-turn-input');
-        if (bptInput) {
-            const savedBPT = window.state.status.blood_per_turn || 1;
-            bptInput.value = savedBPT;
-            bptInput.onchange = (e) => {
-                window.state.status.blood_per_turn = parseInt(e.target.value) || 1;
-            };
-        }
-
-        changeStep(1); 
+    if (window.state.freebieMode) {
+        // Freebie mode allows unlimited editing, the ledger just tracks the cost.
     } else {
-        if (playSheet) {
-            playSheet.classList.add('hidden');
-            playSheet.style.display = 'none'; 
-        }
-        const current = window.state.currentPhase || 1;
-        const currentPhaseEl = document.getElementById(`phase-${current}`);
-        if (currentPhaseEl) {
-            currentPhaseEl.classList.remove('hidden');
-            currentPhaseEl.classList.add('active');
-        }
-        changeStep(window.state.furthestPhase || 1);
-    }
-}
-window.togglePlayMode = togglePlayMode;
-
-// --- PRINT SHEET RENDERER ---
-
-export function renderPrintSheet() {
-    if (!window.state) return;
-
-    // 1. Header Fields
-    const map = {
-        'c-name': 'pr-name', 'c-nature': 'pr-nature', 'c-clan': 'pr-clan',
-        'c-player': 'pr-player', 'c-demeanor': 'pr-demeanor', 'c-gen': 'pr-gen',
-        'c-chronicle': 'pr-chronicle', 'c-concept': 'pr-concept', 'c-sire': 'pr-sire'
-    };
-    for (const [src, dest] of Object.entries(map)) {
-        const val = window.state.textFields[src] || "";
-        const el = document.getElementById(dest);
-        if (el) el.innerText = val;
-    }
-
-    // 2. Attributes
-    ['Physical', 'Social', 'Mental'].forEach(cat => {
-        let destId = "";
-        if(cat === 'Physical') destId = 'pr-attr-phys';
-        if(cat === 'Social') destId = 'pr-attr-soc';
-        if(cat === 'Mental') destId = 'pr-attr-men';
-        
-        const container = document.getElementById(destId);
-        if (container) {
-            // Preserve Header (h4), clear rows
-            const header = container.querySelector('h4');
-            container.innerHTML = '';
-            if(header) container.appendChild(header);
-
-            ATTRIBUTES[cat].forEach(attr => {
-                const val = window.state.dots.attr[attr] || 1;
-                const row = document.createElement('div');
-                row.className = "flex justify-between border-b border-black text-xs mb-1";
-                row.innerHTML = `<span class="font-bold uppercase">${attr}</span><span>${renderDots(val, 5)}</span>`; 
-                container.appendChild(row);
-            });
-        }
-    });
-
-    // 3. Abilities
-    ['Talents', 'Skills', 'Knowledges'].forEach(cat => {
-        let destId = "";
-        if(cat === 'Talents') destId = 'pr-abil-tal';
-        if(cat === 'Skills') destId = 'pr-abil-ski';
-        if(cat === 'Knowledges') destId = 'pr-abil-kno';
-
-        const container = document.getElementById(destId);
-        if (container) {
-            const header = container.querySelector('h4');
-            container.innerHTML = '';
-            if(header) container.appendChild(header);
-
-            ABILITIES[cat].forEach(abil => {
-                const val = window.state.dots.abil[abil] || 0;
-                const row = document.createElement('div');
-                row.className = "flex justify-between border-b border-black text-xs mb-1";
-                row.innerHTML = `<span class="font-bold uppercase">${abil}</span><span>${renderDots(val, 5)}</span>`;
-                container.appendChild(row);
-            });
-            
-            // Custom Abilities
-            if(window.state.customAbilityCategories) {
-                Object.entries(window.state.customAbilityCategories).forEach(([name, c]) => {
-                    if (c === cat) {
-                        const val = window.state.dots.abil[name] || 0;
-                        const row = document.createElement('div');
-                        row.className = "flex justify-between border-b border-black text-xs mb-1";
-                        row.innerHTML = `<span class="font-bold uppercase text-gray-700">${name}</span><span>${renderDots(val, 5)}</span>`;
-                        container.appendChild(row);
-                    }
-                });
+        // ... [Standard Priority Checks for Phases 2,3,4] ...
+        if (type === 'attr') {
+            let group = null; Object.keys(ATTRIBUTES).forEach(k => { if(ATTRIBUTES[k].includes(name)) group = k; });
+            if (group) {
+                 const limit = window.state.prios.attr[group];
+                 if (limit === undefined) { window.showNotification(`Select priority for ${group}!`); return; }
+                 let currentSpent = 0;
+                 ATTRIBUTES[group].forEach(a => { if (a !== name) { const v = window.state.dots.attr[a] || 1; currentSpent += (v - 1); } });
+                 if (currentSpent + (newVal - 1) > limit) { window.showNotification("Limit Exceeded!"); return; }
             }
-        }
-    });
-
-    // 4. Advantages (Disciplines, Backgrounds)
-    const renderAdvSection = (src, destId, max = 5) => {
-        const container = document.getElementById(destId);
-        if (container) {
-            container.innerHTML = '';
-            Object.entries(src).forEach(([name, val]) => {
-                if(val > 0) { // Only print dots > 0
-                    const row = document.createElement('div');
-                    row.className = "flex justify-between border-b border-black text-xs mb-1";
-                    row.innerHTML = `<span class="font-bold uppercase">${name}</span><span>${renderDots(val, max)}</span>`;
-                    container.appendChild(row);
-                }
-            });
-        }
-    };
-    renderAdvSection(window.state.dots.disc, 'pr-disc-list');
-    renderAdvSection(window.state.dots.back, 'pr-back-list');
-
-    // Virtues
-    const vCont = document.getElementById('pr-virt-list');
-    if(vCont) {
-        vCont.innerHTML = '';
-        VIRTUES.forEach(v => {
-            const val = window.state.dots.virt[v] || 1;
-            const row = document.createElement('div');
-            row.className = "flex justify-between border-b border-black text-xs mb-1";
-            row.innerHTML = `<span class="font-bold uppercase">${v}</span><span>${renderDots(val, 5)}</span>`;
-            vCont.appendChild(row);
-        });
-    }
-
-    // 5. Merits / Flaws / Other Traits
-    const mfCont = document.getElementById('pr-merits-flaws');
-    if(mfCont) {
-        mfCont.innerHTML = '';
-        
-        const renderItem = (item, type) => {
-            const div = document.createElement('div');
-            div.className = "mb-1";
-            // Format: Name (Val pt Type): Description
-            const header = document.createElement('span');
-            header.className = "font-bold";
-            header.innerText = `${item.name} (${item.val} pt ${type})`;
-            
-            div.appendChild(header);
-            
-            if (item.desc) {
-                const descSpan = document.createElement('span');
-                descSpan.className = "italic ml-1";
-                descSpan.innerText = `- ${item.desc}`;
-                div.appendChild(descSpan);
+        } else if (type === 'abil') {
+            if (newVal > 3) { window.showNotification("Max 3 dots in Abilities during creation!"); return; }
+            let group = null; Object.keys(ABILITIES).forEach(k => { if(ABILITIES[k].includes(name)) group = k; });
+            if (!group && window.state.customAbilityCategories && window.state.customAbilityCategories[name]) group = window.state.customAbilityCategories[name];
+            if (group) {
+                const limit = window.state.prios.abil[group];
+                if (limit === undefined) { window.showNotification(`Select priority for ${group}!`); return; }
+                let currentSpent = 0; ABILITIES[group].forEach(a => { if (a !== name) currentSpent += (window.state.dots.abil[a] || 0); });
+                if (window.state.customAbilityCategories) { Object.keys(window.state.dots.abil).forEach(k => { if (k !== name && window.state.customAbilityCategories[k] === group) currentSpent += (window.state.dots.abil[k] || 0); }); }
+                if (currentSpent + newVal > limit) { window.showNotification("Limit Exceeded!"); return; }
             }
-            mfCont.appendChild(div);
-        };
-
-        (window.state.merits || []).forEach(m => renderItem(m, 'Merit'));
-        (window.state.flaws || []).forEach(f => renderItem(f, 'Flaw'));
+        } else if (type === 'disc') {
+            let currentSpent = 0; Object.keys(window.state.dots.disc).forEach(d => { if (d !== name) currentSpent += (window.state.dots.disc[d] || 0); });
+            if (currentSpent + newVal > 3) { window.showNotification("Max 3 Creation Dots!"); return; }
+        } else if (type === 'back') {
+            let currentSpent = 0; Object.keys(window.state.dots.back).forEach(b => { if (b !== name) currentSpent += (window.state.dots.back[b] || 0); });
+            if (currentSpent + newVal > 5) { window.showNotification("Max 5 Creation Dots!"); return; }
+        } else if (type === 'virt') {
+            let currentSpent = 0; VIRTUES.forEach(v => { if (v !== name) currentSpent += (window.state.dots.virt[v] || 1); });
+            if ((currentSpent + newVal) > 10) { window.showNotification("Max 7 Creation Dots!"); return; }
+        }
     }
+
+    window.state.dots[type][name] = newVal;
     
-    const otCont = document.getElementById('pr-other-traits');
-    if(otCont) {
-        otCont.innerHTML = '';
-        Object.entries(window.state.dots.other || {}).forEach(([k,v]) => {
-            if(v > 0) {
-                 const row = document.createElement('div');
-                 row.className = "flex justify-between border-b border-black text-xs mb-1";
-                 row.innerHTML = `<span>${k}</span><span>${renderDots(v,5)}</span>`;
-                 otCont.appendChild(row);
-            }
-        });
+    if (type === 'back' && name === 'Generation') {
+        const newGen = 13 - newVal;
+        if (!window.state.textFields) window.state.textFields = {};
+        window.state.textFields['c-gen'] = newGen.toString();
+        const genInput = document.getElementById('c-gen');
+        if (genInput) genInput.value = newGen;
     }
 
-    // 6. Humanity / Willpower / Blood
-    const hCont = document.getElementById('pr-humanity');
-    const bName = document.getElementById('pr-bearing');
-    if(hCont) {
-        // Calculate humanity if not set, or use stored
-        const baseH = (window.state.dots.virt?.Conscience || 1) + (window.state.dots.virt?.["Self-Control"] || 1);
-        const currentH = window.state.status.humanity !== undefined ? window.state.status.humanity : baseH;
-        hCont.innerHTML = renderDots(currentH, 10);
-    }
-    if(bName) bName.innerText = `${window.state.textFields['c-bearing-name']||''} (${window.state.textFields['c-bearing-value']||''})`;
-
-    const wDots = document.getElementById('pr-willpower-dots');
-    const wBox = document.getElementById('pr-willpower-boxes');
-    if(wDots) {
-        const baseW = window.state.dots.virt?.Courage || 1;
-        const currentW = window.state.status.willpower !== undefined ? window.state.status.willpower : baseW;
-        wDots.innerHTML = renderDots(currentW, 10);
-    }
-    if(wBox) {
-        let html = '';
-        // Temp willpower boxes
-        const temp = window.state.status.tempWillpower !== undefined ? window.state.status.tempWillpower : 5;
-        for(let i=0; i<10; i++) {
-             html += `<span class="box ${i < temp ? 'checked' : ''}"></span>`;
-        }
-        wBox.innerHTML = html;
+    // Auto-update Status from Virtues in Creation Mode
+    if (type === 'virt' && !window.state.isPlayMode && !window.state.freebieMode && !window.state.xpMode) {
+         const delta = newVal - currentVal;
+         if (delta !== 0) {
+             if (name === 'Conscience' || name === 'Self-Control') {
+                 if (window.state.status.humanity === undefined) window.state.status.humanity = 2; // Initial Min
+                 window.state.status.humanity += delta;
+                 if (window.state.status.humanity < 0) window.state.status.humanity = 0;
+             }
+             if (name === 'Courage') {
+                 if (window.state.status.willpower === undefined) window.state.status.willpower = 1;
+                 window.state.status.willpower += delta;
+                 window.state.status.tempWillpower = window.state.status.willpower; // Sync temp in creation
+                 if (window.state.status.willpower < 0) window.state.status.willpower = 0;
+             }
+         }
     }
 
-    const bBox = document.getElementById('pr-blood-boxes');
-    if(bBox) {
-        // Max blood based on Gen
-        const gen = 13 - (window.state.dots.back['Generation']||0);
-        // Simple approximation or use Rules
-        let html = '';
-        const currentB = window.state.status.blood || 0;
-        for(let i=0; i<20; i++) { // Max 20 boxes on sheet usually
-             html += `<span class="box ${i < currentB ? 'checked' : ''}"></span>`;
-        }
-        bBox.innerHTML = html;
+    if (type === 'attr' || type === 'abil') {
+        refreshTraitRow(name, type);
+    } else {
+        document.querySelectorAll(`.dot-row[data-n="${name}"][data-t="${type}"]`).forEach(el => el.innerHTML = renderDots(newVal, max));
     }
-
-    // 7. Health
-    const healthCont = document.getElementById('pr-health');
-    if(healthCont) {
-        healthCont.innerHTML = '';
-        const levels = ['Bruised', 'Hurt -1', 'Injured -1', 'Wounded -2', 'Mauled -2', 'Crippled -5', 'Incapacitated'];
-        levels.forEach((l, i) => {
-            const state = (window.state.status.health_states && window.state.status.health_states[i]) || 0;
-            const row = document.createElement('div');
-            row.className = "flex justify-between items-center border-b border-black";
-            row.innerHTML = `<span>${l}</span><span class="box" data-state="${state}"></span>`;
-            healthCont.appendChild(row);
-        });
-    }
-
-    // 8. Combat & Inventory
-    const combatTbl = document.getElementById('pr-combat-table');
-    if (combatTbl) {
-        // Use a single string buffer to construct the innerHTML
-        let tblHTML = '';
-        
-        // Add Maneuvers (Extended V20 List)
-        const manuevers = [
-            {n: 'Bite', d: 6, dmg: 'Str+1 (A)'},
-            {n: 'Block', d: 6, dmg: 'None (R)'},
-            {n: 'Claw', d: 6, dmg: 'Str+1 (A)'},
-            {n: 'Clinch', d: 6, dmg: 'Str (B)'},
-            {n: 'Disarm', d: 7, dmg: 'Special'},
-            {n: 'Dodge', d: 6, dmg: 'None (R)'},
-            {n: 'Hold', d: 6, dmg: 'None (C)'},
-            {n: 'Kick', d: 7, dmg: 'Str+1 (B)'},
-            {n: 'Parry', d: 6, dmg: 'None (R)'},
-            {n: 'Strike', d: 6, dmg: 'Str (B)'},
-            {n: 'Sweep', d: 7, dmg: 'Str (K)'},
-            {n: 'Tackle', d: 7, dmg: 'Str+1 (K)'},
-            {n: 'Weapon Str.', d: 6, dmg: 'Weapon'}
-        ];
-        manuevers.forEach(m => {
-            tblHTML += `<tr><td class="py-1 border-b border-gray-300 font-bold">${m.n}</td><td class="border-b border-gray-300">${m.d}</td><td class="border-b border-gray-300">${m.dmg}</td></tr>`;
-        });
-        
-        // Add Weapons from Inventory
-        if(window.state.inventory && Array.isArray(window.state.inventory)) {
-            window.state.inventory.filter(i => i.type === 'Weapon' && i.status === 'carried').forEach(w => {
-                const name = w.displayName || w.name;
-                const stats = w.stats || {};
-                tblHTML += `<tr><td class="py-1 border-b border-gray-300 font-bold italic">${name}</td><td class="border-b border-gray-300">${stats.diff||6}</td><td class="border-b border-gray-300">${stats.dmg||'-'}</td></tr>`;
-            });
-        }
-        
-        combatTbl.innerHTML = tblHTML;
-    }
-
-    // Armor Info
-    const armorInfo = document.getElementById('pr-armor-info');
-    if (armorInfo) {
-        let armorHTML = "None";
-        if (window.state.inventory && Array.isArray(window.state.inventory)) {
-            const armors = window.state.inventory.filter(i => i.type === 'Armor' && i.status === 'carried');
-            if (armors.length > 0) {
-                const names = armors.map(a => a.name).join(', ');
-                const rating = armors.reduce((a, b) => a + (parseInt(b.stats?.rating)||0), 0);
-                const penalty = armors.reduce((a, b) => a + (parseInt(b.stats?.penalty)||0), 0);
-                armorHTML = `<strong>Worn:</strong> ${names}<br><strong>Rating:</strong> ${rating} | <strong>Penalty:</strong> ${penalty}`;
-            }
-        }
-        armorInfo.innerHTML = armorHTML;
-    }
-
-    // Gear Lists
-    const gearCarried = document.getElementById('pr-gear-carried');
-    const gearOwned = document.getElementById('pr-gear-owned');
-    const vehicles = document.getElementById('pr-vehicles');
-    
-    if (window.state.inventory && Array.isArray(window.state.inventory)) {
-        if (gearCarried) gearCarried.innerHTML = window.state.inventory.filter(i => i.status === 'carried' && i.type !== 'Vehicle' && i.type !== 'Armor' && i.type !== 'Weapon').map(i => i.name).join(', ');
-        if (gearOwned) gearOwned.innerHTML = window.state.inventory.filter(i => i.status === 'owned' && i.type !== 'Vehicle').map(i => i.name).join(', ');
-        if (vehicles) vehicles.innerHTML = window.state.inventory.filter(i => i.type === 'Vehicle').map(i => `${i.name} (Safe:${i.stats?.safe} Max:${i.stats?.max})`).join('<br>');
-    }
-
-    // --- NEW: Update Edit Mode (Phase 6) Combat/Armor ---
-    const armorRatingEl = document.getElementById('total-armor-rating');
-    const armorPenaltyEl = document.getElementById('total-armor-penalty');
-    const armorNamesEl = document.getElementById('active-armor-names');
-    const combatListEl = document.getElementById('combat-list-create');
-
-    // 1. Calculate Armor for Edit Mode
-    if (window.state.inventory && Array.isArray(window.state.inventory)) {
-        const armors = window.state.inventory.filter(i => i.type === 'Armor' && i.status === 'carried');
-        let totalR = 0, totalP = 0, names = [];
-        armors.forEach(a => {
-            totalR += parseInt(a.stats?.rating) || 0;
-            totalP += parseInt(a.stats?.penalty) || 0;
-            names.push(a.displayName || a.name);
-        });
-        if (armorRatingEl) armorRatingEl.innerText = totalR;
-        if (armorPenaltyEl) armorPenaltyEl.innerText = totalP;
-        if (armorNamesEl) armorNamesEl.innerText = names.length > 0 ? names.join(', ') : "None";
-    }
-
-    // 2. Full Update of Edit Mode Combat List
-    if (combatListEl) {
-        // Get the parent container (the column flex container)
-        const combatContainer = combatListEl.parentElement;
-        if (combatContainer) {
-            // Rebuild the ENTIRE content of the parent to replace hardcoded items
-            let html = `
-                <div class="grid grid-cols-7 gap-1 text-[9px] uppercase text-gray-400 font-bold border-b border-[#555] pb-1 mb-2 text-center">
-                    <div class="col-span-2 text-left pl-2">Attack</div>
-                    <div>Diff</div>
-                    <div>Dmg</div>
-                    <div>Rng</div>
-                    <div>Rate</div>
-                    <div>Clip</div>
-                </div>
-            `;
-
-            // Standard V20 Maneuvers (Same list as Play Mode)
-            const standards = [
-                {n:'Bite', diff:6, dmg:'Str+1(A)', rng:'-', rate:'-', clip:'-'},
-                {n:'Block', diff:6, dmg:'None (R)', rng:'-', rate:'-', clip:'-'},
-                {n:'Claw', diff:6, dmg:'Str+1(A)', rng:'-', rate:'-', clip:'-'},
-                {n:'Clinch', diff:6, dmg:'Str(C)', rng:'-', rate:'-', clip:'-'},
-                {n:'Disarm', diff:7, dmg:'Special', rng:'-', rate:'-', clip:'-'},
-                {n:'Dodge', diff:6, dmg:'None (R)', rng:'-', rate:'-', clip:'-'},
-                {n:'Hold', diff:6, dmg:'None (C)', rng:'-', rate:'-', clip:'-'},
-                {n:'Kick', diff:7, dmg:'Str+1', rng:'-', rate:'-', clip:'-'},
-                {n:'Parry', diff:6, dmg:'None (R)', rng:'-', rate:'-', clip:'-'},
-                {n:'Strike', diff:6, dmg:'Str', rng:'-', rate:'-', clip:'-'},
-                {n:'Sweep', diff:7, dmg:'Str(K)', rng:'-', rate:'-', clip:'-'},
-                {n:'Tackle', diff:7, dmg:'Str+1(K)', rng:'-', rate:'-', clip:'-'},
-                {n:'Weapon Strike', diff:6, dmg:'Weapon', rng:'-', rate:'-', clip:'-'},
-                {n:'Auto Fire', diff:8, dmg:'Special', rng:'-', rate:'-', clip:'-'},
-                {n:'Multi Shot', diff:6, dmg:'Weapon', rng:'-', rate:'-', clip:'-'},
-                {n:'Strafing', diff:8, dmg:'Special', rng:'-', rate:'-', clip:'-'},
-                {n:'3-Rnd Burst', diff:7, dmg:'Weapon', rng:'-', rate:'-', clip:'-'},
-                {n:'Two Weapons', diff:7, dmg:'Weapon', rng:'-', rate:'-', clip:'-'}
-            ];
-
-            standards.forEach(s => {
-                html += `
-                    <div class="grid grid-cols-7 gap-1 text-[9px] border-b border-[#222] py-1 text-center text-gray-500 hover:bg-[#1a1a1a]">
-                        <div class="col-span-2 text-left pl-2 font-bold text-white">${s.n}</div>
-                        <div>${s.diff}</div>
-                        <div>${s.dmg}</div>
-                        <div>${s.rng}</div>
-                        <div>${s.rate}</div>
-                        <div>${s.clip}</div>
-                    </div>
-                `;
-            });
-
-            // Add Equipped Weapons
-            if (window.state.inventory && Array.isArray(window.state.inventory)) {
-                window.state.inventory.filter(i => i.type === 'Weapon' && i.status === 'carried').forEach(w => {
-                    const name = w.displayName || w.name;
-                    html += `
-                        <div class="grid grid-cols-7 gap-1 text-[9px] border-b border-[#222] py-1 text-center text-gray-500 hover:bg-[#1a1a1a]">
-                            <div class="col-span-2 text-left pl-2 font-bold text-gold truncate" title="${name}">${name}</div>
-                            <div>${w.stats.diff || 6}</div>
-                            <div>${w.stats.dmg || '-'}</div>
-                            <div>${w.stats.range || '-'}</div>
-                            <div>${w.stats.rate || '-'}</div>
-                            <div>${w.stats.clip || '-'}</div>
-                        </div>
-                    `;
-                });
-            }
-
-            // Restore the empty container div for future use (though we are overwriting parent)
-            html += '<div id="combat-list-create" class="space-y-1 mt-2"></div>';
-            
-            combatContainer.innerHTML = html;
-        }
-    }
-
-    // 9. Expanded Backgrounds & Havens
-    const bgDetails = document.getElementById('pr-background-details');
-    if (bgDetails) {
-        bgDetails.innerHTML = '';
-        Object.keys(window.state.dots.back).forEach(bgName => {
-            if(window.state.dots.back[bgName] > 0) {
-                const safeId = 'desc-' + bgName.toLowerCase().replace(/[^a-z0-9]/g, '-');
-                const txt = window.state.textFields[safeId] || "";
-                if(txt) {
-                    bgDetails.innerHTML += `<div><strong>${bgName}:</strong> ${txt}</div>`;
-                }
-            }
-        });
-    }
-
-    const havens = document.getElementById('pr-havens');
-    if(havens && window.state.havens) {
-        havens.innerHTML = window.state.havens.map(h => `<div><strong>${h.name}</strong> (${h.loc}): ${h.desc}</div>`).join('');
-    }
-
-    const bonds = document.getElementById('pr-blood-bonds');
-    if(bonds && window.state.bloodBonds) {
-        bonds.innerHTML = window.state.bloodBonds.map(b => `<div><strong>${b.type}:</strong> ${b.name} (${b.rating})</div>`).join('');
-    }
-
-    // 10. Bio / Psychology
-    const appearance = document.getElementById('pr-appearance');
-    if(appearance) appearance.innerText = document.getElementById('bio-desc')?.value || "";
-
-    const derangements = document.getElementById('pr-derangements');
-    if(derangements && window.state.derangements) derangements.innerText = window.state.derangements.join(', ');
-
-    const langs = document.getElementById('pr-languages');
-    if(langs) langs.innerText = document.getElementById('bio-languages')?.value || "";
-
-    const gst = document.getElementById('pr-goals-st');
-    if(gst) gst.innerText = document.getElementById('bio-goals-st')?.value || "";
-
-    const glt = document.getElementById('pr-goals-lt');
-    if(glt) glt.innerText = document.getElementById('bio-goals-lt')?.value || "";
-
-    const hist = document.getElementById('pr-history');
-    if(hist) hist.innerText = document.getElementById('char-history')?.value || "";
+    updatePools();
+    if(type === 'back') renderSocialProfile();
+    if(window.renderPrintSheet) window.renderPrintSheet();
 }
-window.renderPrintSheet = renderPrintSheet;
+window.setDots = setDots;
