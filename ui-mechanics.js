@@ -40,9 +40,10 @@ function updateClanMechanicsUI() {
         }
     }
 
-    // --- 2. FOLLOWERS OF SET: BRIGHT LIGHT PENALTY (Dice Tray) ---
+    // --- 2. CLAN DICE TRAY MODIFIERS ---
     const tray = document.getElementById('dice-tray');
     if (tray) {
+        // A. FOLLOWERS OF SET: BRIGHT LIGHT PENALTY
         let lightWrapper = document.getElementById('setite-light-wrapper');
         
         if (clan === "Followers of Set") {
@@ -67,6 +68,34 @@ function updateClanMechanicsUI() {
             lightWrapper.style.display = 'flex';
         } else {
             if (lightWrapper) lightWrapper.style.display = 'none';
+        }
+
+        // B. TZIMISCE: NATIVE SOIL WEAKNESS
+        let tzimisceWrapper = document.getElementById('tzimisce-soil-wrapper');
+        
+        if (clan === "Tzimisce") {
+            if (!tzimisceWrapper) {
+                tzimisceWrapper = document.createElement('div');
+                tzimisceWrapper.id = 'tzimisce-soil-wrapper';
+                // Purple styling for Tzimisce
+                tzimisceWrapper.className = "flex items-center justify-between gap-2 mb-2 px-3 py-2 bg-[#2d1b3e] border border-[#a855f7]/50 rounded flex animate-in fade-in relative z-20 shadow-sm";
+                tzimisceWrapper.innerHTML = `
+                    <label for="tzimisce-soil-days" class="text-[10px] text-[#e9d5ff] font-bold uppercase cursor-pointer select-none tracking-tight">Days Away from Native Soil</label>
+                    <input type="number" id="tzimisce-soil-days" min="0" value="0" class="w-12 text-center bg-black/50 border border-[#a855f7]/50 text-white text-[10px] font-bold rounded p-1 focus:outline-none focus:border-[#a855f7]">
+                `;
+                
+                const rollBtn = document.getElementById('roll-btn');
+                if (rollBtn) {
+                     const row = rollBtn.closest('.flex'); 
+                     if(row) tray.insertBefore(tzimisceWrapper, row);
+                     else tray.appendChild(tzimisceWrapper);
+                } else {
+                    tray.appendChild(tzimisceWrapper);
+                }
+            }
+            tzimisceWrapper.style.display = 'flex';
+        } else {
+            if (tzimisceWrapper) tzimisceWrapper.style.display = 'none';
         }
     }
 
@@ -283,7 +312,7 @@ export function clearPool() {
     const lightToggle = document.getElementById('setite-light-toggle');
     if (lightToggle) lightToggle.checked = false;
 
-    // Refresh Clan UI Elements
+    // Refresh Clan UI Elements (This ensures Tzimisce/Setite/Gangrel inputs persist correctly)
     updateClanMechanicsUI();
 
     document.getElementById('dice-tray').classList.remove('open');
@@ -379,12 +408,28 @@ export function rollPool() {
     const custom = parseInt(document.getElementById('custom-dice-input')?.value) || 0;
     let poolSize = window.state.activePool.reduce((a,b) => a + b.val, 0) + custom;
     
-    // --- CLAN WEAKNESS: FOLLOWERS OF SET (Bright Light) ---
+    // --- CLAN WEAKNESSES: POOL MODIFIERS ---
     const clan = window.state.textFields['c-clan'] || "None";
+    
+    // 1. FOLLOWERS OF SET (Bright Light)
     const lightToggle = document.getElementById('setite-light-toggle');
     if (clan === "Followers of Set" && lightToggle && lightToggle.checked) {
         poolSize -= 1;
-        // Do not return here, we proceed with reduced pool
+    }
+
+    // 2. TZIMISCE (Native Soil)
+    // "limit all of the Tzimisce’s dice pools to one-half, cumulatively, until she has only a single die"
+    const soilDaysInput = document.getElementById('tzimisce-soil-days');
+    if (clan === "Tzimisce" && soilDaysInput) {
+        const daysAway = parseInt(soilDaysInput.value) || 0;
+        if (daysAway > 0) {
+            for(let i=0; i<daysAway; i++) {
+                // Halve the pool, rounding down
+                poolSize = Math.floor(poolSize / 2);
+            }
+            // Minimum of 1 die per V20 rules for this specific weakness
+            if(poolSize < 1) poolSize = 1;
+        }
     }
 
     if (poolSize <= 0 && autoSuccesses === 0) { 
@@ -443,8 +488,13 @@ export function rollPool() {
     let extras = "";
     if (autoSuccesses > 0) extras += `<div class="text-[9px] text-blue-300 font-bold mt-1 text-center border-t border-[#333] pt-1 uppercase">Willpower Applied (+1 Success)</div>`;
     
+    // Log Weakness Applications in Result
     if (clan === "Followers of Set" && lightToggle && lightToggle.checked) {
         extras += `<div class="text-[9px] text-yellow-500 font-bold mt-1 text-center border-t border-[#333] pt-1 uppercase">Bright Light Penalty (-1 Die)</div>`;
+    }
+    if (clan === "Tzimisce" && soilDaysInput && parseInt(soilDaysInput.value) > 0) {
+        const days = parseInt(soilDaysInput.value);
+        extras += `<div class="text-[9px] text-[#a855f7] font-bold mt-1 text-center border-t border-[#333] pt-1 uppercase">Away From Soil (${days} days): Pool Halved</div>`;
     }
 
     row.innerHTML = `<div class="flex justify-between border-b border-[#444] pb-1 mb-1"><span class="text-gray-400">Diff ${diff}${isSpec ? '*' : ''}</span><span class="${outcomeClass} font-black text-sm">${outcome}</span></div><div class="tracking-widest flex flex-wrap justify-center py-2">${diceRender}</div>${extras}`;
