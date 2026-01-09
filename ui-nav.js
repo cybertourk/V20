@@ -1695,3 +1695,14 @@ export function renderPrintSheet() {
     if(hist) hist.innerText = document.getElementById('char-history')?.value || "";
 }
 window.renderPrintSheet = renderPrintSheet;
+
+// --- UNSAVED CHANGES PROTECTION ---
+window.addEventListener('beforeunload', (e) => {
+    // Only warn if a character name exists (implies work has been done)
+    const name = window.state?.textFields?.['c-name'];
+    if (name) {
+        e.preventDefault();
+        e.returnValue = ''; // Legacy support for Chrome
+        return "Unsaved changes may be lost.";
+    }
+});
