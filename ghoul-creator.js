@@ -1,5 +1,12 @@
-import { ATTRIBUTES, ABILITIES, DISCIPLINES, VIRTUES, BACKGROUNDS, ARCHETYPES, SPECIALTY_EXAMPLES as SPECIALTIES } from "./data.js";
+import { 
+    ATTRIBUTES, ABILITIES, DISCIPLINES, VIRTUES, BACKGROUNDS, ARCHETYPES, CLANS, 
+    SPECIALTY_EXAMPLES as SPECIALTIES, 
+    V20_MERITS_LIST, V20_FLAWS_LIST, CLAN_WEAKNESSES 
+} from "./data.js";
 import { renderDots, showNotification } from "./ui-common.js";
+
+// Revenant Families (Not currently in data.js, so kept local)
+const REVENANT_FAMILIES = ["Bratovitch", "Grimaldi", "Obertus", "Zantosa"];
 
 // --- STATE ---
 let activeGhoul = null;
@@ -41,14 +48,13 @@ export function openGhoulCreator(dataOrEvent = null, index = null) {
     if (incomingData) {
         activeGhoul = JSON.parse(JSON.stringify(incomingData));
         // Patch missing objects
-        ['attributes', 'abilities', 'disciplines', 'backgrounds', 'specialties'].forEach(k => { if (!activeGhoul[k]) activeGhoul[k] = {}; });
+        ['attributes', 'abilities', 'disciplines', 'backgrounds', 'specialties', 'merits', 'flaws'].forEach(k => { if (!activeGhoul[k]) activeGhoul[k] = {}; });
         if (!activeGhoul.virtues) activeGhoul.virtues = { Conscience: 1, "Self-Control": 1, Courage: 1 };
         
         if (!activeGhoul.disciplines.Potence) activeGhoul.disciplines.Potence = 1;
 
         initBaseDots(activeGhoul);
         
-        // RECOVER PRIORITIES
         if (activeGhoul.priorities) {
             localPriorities = JSON.parse(JSON.stringify(activeGhoul.priorities));
         } else {
@@ -56,17 +62,18 @@ export function openGhoulCreator(dataOrEvent = null, index = null) {
         }
 
     } else {
-        // New Ghoul Template
         const defaultChronicle = (window.character && window.character.chronicle) ? window.character.chronicle : "";
 
         activeGhoul = {
-            name: "", player: "", chronicle: defaultChronicle, type: "Vassal", concept: "", domitor: "",
+            name: "", player: "", chronicle: defaultChronicle, type: "Vassal", concept: "", 
+            domitor: "", domitorClan: "", family: "",
             nature: "", demeanor: "",
             attributes: {}, abilities: {}, 
             disciplines: { Potence: 1 }, 
             backgrounds: {}, 
             virtues: { Conscience: 1, "Self-Control": 1, Courage: 1 },
             specialties: {},
+            merits: {}, flaws: {},
             priorities: {
                 attr: { Physical: null, Social: null, Mental: null },
                 abil: { Talents: null, Skills: null, Knowledges: null }
@@ -87,7 +94,6 @@ function initBaseDots(ghoul) {
 }
 
 function autoDetectPriorities() {
-    // Helper to sum points
     const sumGroup = (cat, groupList, isAttr) => {
         let sum = 0;
         groupList.forEach(k => {
@@ -97,19 +103,16 @@ function autoDetectPriorities() {
         return sum;
     };
 
-    // 1. Detect Attributes
     const attrSums = [
         { grp: 'Physical', val: sumGroup('attr', ATTRIBUTES.Physical, true) },
         { grp: 'Social', val: sumGroup('attr', ATTRIBUTES.Social, true) },
         { grp: 'Mental', val: sumGroup('attr', ATTRIBUTES.Mental, true) }
     ].sort((a, b) => b.val - a.val);
 
-    // Assign strictly descending (approximate)
     if(attrSums[0]) localPriorities.attr[attrSums[0].grp] = 6;
     if(attrSums[1]) localPriorities.attr[attrSums[1].grp] = 4;
     if(attrSums[2]) localPriorities.attr[attrSums[2].grp] = 3;
 
-    // 2. Detect Abilities
     const abilSums = [
         { grp: 'Talents', val: sumGroup('abil', ABILITIES.Talents, false) },
         { grp: 'Skills', val: sumGroup('abil', ABILITIES.Skills, false) },
@@ -140,6 +143,12 @@ function renderEditorModal() {
     const discOptions = (DISCIPLINES || []).map(d => `<option value="${d}">${d}</option>`).join('');
     const archList = (ARCHETYPES || []).sort();
     const archOptions = archList.map(a => `<option value="${a}">${a}</option>`).join('');
+    const clanOptions = (CLANS || []).sort().map(c => `<option value="${c}">${c}</option>`).join('');
+    const revOptions = (REVENANT_FAMILIES || []).map(r => `<option value="${r}">${r}</option>`).join('');
+
+    // Merit/Flaw Options
+    const meritOpts = (V20_MERITS_LIST || []).map(m => `<option value="${m.n}|${m.v}">${m.n} (${m.v} pts)</option>`).join('');
+    const flawOpts = (V20_FLAWS_LIST || []).map(f => `<option value="${f.n}|${f.v}">${f.n} (${f.v} pts)</option>`).join('');
 
     modal.innerHTML = `
         <div class="w-[95%] max-w-7xl h-[95%] bg-[#0a0a0a] border-2 border-[#8b0000] shadow-[0_0_50px_rgba(139,0,0,0.5)] flex flex-col relative font-serif">
@@ -170,11 +179,11 @@ function renderEditorModal() {
                 <div id="step1" class="ghoul-step hidden">
                     <div class="sheet-section !mt-0">
                         <div class="section-title">Character Concept</div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
                             <div class="space-y-6">
                                 <div><label class="label-text text-[#d4af37]">Name</label><input type="text" id="g-name" value="${activeGhoul.name || ''}" class="w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] focus:outline-none transition-colors"></div>
                                 <div><label class="label-text text-[#d4af37]">Player</label><input type="text" id="g-player" value="${activeGhoul.player || ''}" class="w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] focus:outline-none transition-colors"></div>
-                                <div><label class="label-text text-[#d4af37]">Domitor (Master)</label><input type="text" id="g-domitor" value="${activeGhoul.domitor || ''}" class="w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] focus:outline-none transition-colors"></div>
+                                <div><label class="label-text text-[#d4af37]">Domitor Name</label><input type="text" id="g-domitor" value="${activeGhoul.domitor || ''}" class="w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] focus:outline-none transition-colors"></div>
                             </div>
                             <div class="space-y-6">
                                 <div>
@@ -192,6 +201,8 @@ function renderEditorModal() {
                                     </select>
                                 </div>
                                 <div><label class="label-text text-[#d4af37]">Concept</label><input type="text" id="g-concept" value="${activeGhoul.concept || ''}" class="w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] focus:outline-none transition-colors"></div>
+                            </div>
+                            <div class="space-y-6">
                                 <div>
                                     <label class="label-text text-[#d4af37]">Ghoul Type</label>
                                     <select id="g-type" class="w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] focus:outline-none transition-colors">
@@ -200,7 +211,27 @@ function renderEditorModal() {
                                         <option value="Revenant" ${activeGhoul.type === 'Revenant' ? 'selected' : ''} class="bg-black">Revenant (5 Virtue Dots)</option>
                                     </select>
                                 </div>
+                                <!-- Conditional Fields -->
+                                <div id="div-domitor-clan" class="${activeGhoul.type === 'Revenant' ? 'hidden' : 'block'}">
+                                    <label class="label-text text-[#d4af37]">Domitor Clan (Weakness Source)</label>
+                                    <select id="g-domitor-clan" class="w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] focus:outline-none transition-colors">
+                                        <option value="" class="bg-black">Unknown/None</option>
+                                        ${clanOptions}
+                                    </select>
+                                </div>
+                                <div id="div-family" class="${activeGhoul.type === 'Revenant' ? 'block' : 'hidden'}">
+                                    <label class="label-text text-[#d4af37]">Revenant Family</label>
+                                    <select id="g-family" class="w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] focus:outline-none transition-colors">
+                                        <option value="" class="bg-black">Select Family...</option>
+                                        ${revOptions}
+                                    </select>
+                                </div>
                             </div>
+                        </div>
+                        <!-- Weakness Display -->
+                        <div class="mt-6 p-4 bg-red-900/10 border border-red-900/30 rounded">
+                            <label class="label-text text-red-400">Domitor/Clan Weakness Reference (Ghouls suffer a lesser form)</label>
+                            <div id="g-weakness-display" class="text-xs text-gray-400 mt-1 italic min-h-[40px]">Select a Domitor Clan to view weakness details...</div>
                         </div>
                     </div>
                 </div>
@@ -307,6 +338,28 @@ function renderEditorModal() {
                         <div class="flex flex-col md:flex-row gap-6 h-full">
                             <!-- LEFT: UPGRADE PANEL -->
                             <div class="flex-1 space-y-8 overflow-y-auto pr-2 max-h-[60vh]">
+                                
+                                <!-- Merits & Flaws Block -->
+                                <div class="border border-[#333] bg-black/40 p-4">
+                                    <h3 class="column-title mb-4">Merits & Flaws (Max 7 Flaw Points)</h3>
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <select id="g-merit-select" class="w-full bg-transparent border-b border-[#444] text-[10px] text-gray-300 p-1 mb-2">
+                                                <option value="" class="bg-black">Add Merit...</option>
+                                                ${meritOpts}
+                                            </select>
+                                            <div id="g-merits-list" class="space-y-1"></div>
+                                        </div>
+                                        <div>
+                                            <select id="g-flaw-select" class="w-full bg-transparent border-b border-[#444] text-[10px] text-gray-300 p-1 mb-2">
+                                                <option value="" class="bg-black">Add Flaw...</option>
+                                                ${flawOpts}
+                                            </select>
+                                            <div id="g-flaws-list" class="space-y-1"></div>
+                                        </div>
+                                    </div>
+                                </div>
+
                                 <!-- Status Block -->
                                 <div class="border border-[#333] bg-black/40 p-4 grid grid-cols-2 gap-4">
                                     <div class="flex justify-between items-center text-xs">
@@ -318,7 +371,7 @@ function renderEditorModal() {
                                         <div class="dot-row cursor-pointer" id="g-willpower-row">${renderDots(activeGhoul.willpower, 10)}</div>
                                     </div>
                                     <div class="flex justify-between items-center text-xs col-span-2 border-t border-[#333] pt-2">
-                                        <span class="font-bold text-[#d4af37] uppercase">Blood Pool</span>
+                                        <span class="font-bold text-[#d4af37] uppercase">Blood Pool (Vitae)</span>
                                         <input type="number" id="g-blood" value="${activeGhoul.bloodPool}" class="w-12 bg-transparent border-b border-[#444] text-center text-white p-1 font-bold text-lg focus:border-[#d4af37] outline-none">
                                     </div>
                                 </div>
@@ -369,6 +422,8 @@ function renderEditorModal() {
                                         <div class="flex justify-between border-b border-[#222] pb-1"><span>Virtues (2):</span> <span id="fb-cost-virt" class="text-white">0</span></div>
                                         <div class="flex justify-between border-b border-[#222] pb-1"><span>Humanity (1):</span> <span id="fb-cost-hum" class="text-white">0</span></div>
                                         <div class="flex justify-between border-b border-[#222] pb-1"><span>Willpower (1):</span> <span id="fb-cost-will" class="text-white">0</span></div>
+                                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Merits (Cost):</span> <span id="fb-cost-merit" class="text-white">0</span></div>
+                                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Flaws (Bonus):</span> <span id="fb-cost-flaw" class="text-green-400">0</span></div>
                                     </div>
                                     <div class="p-4 border border-[#d4af37]/30 bg-[#d4af37]/10 rounded text-center shadow-[0_0_15px_rgba(212,175,55,0.1)]">
                                         <div class="uppercase text-[9px] font-bold text-[#d4af37] tracking-widest">Freebies Remaining</div>
@@ -402,12 +457,16 @@ function renderEditorModal() {
 
     if(activeGhoul.nature) document.getElementById('g-nature').value = activeGhoul.nature;
     if(activeGhoul.demeanor) document.getElementById('g-demeanor').value = activeGhoul.demeanor;
+    if(activeGhoul.domitorClan) document.getElementById('g-domitor-clan').value = activeGhoul.domitorClan;
+    if(activeGhoul.family) document.getElementById('g-family').value = activeGhoul.family;
+
+    updateWeaknessDisplay(activeGhoul.domitorClan);
 
     renderDotGroups();
     renderDynamicLists();
+    renderMeritsFlaws(); 
     updatePriorityUI(); 
     
-    // Render Step 5 Lists initially (hidden but ready)
     renderFreebieLists();
 
     setupNavListeners(modal);
@@ -415,6 +474,16 @@ function renderEditorModal() {
     bindDotClicks(modal);
     updateTracker();
     updateVirtueHeader();
+}
+
+function updateWeaknessDisplay(clan) {
+    const el = document.getElementById('g-weakness-display');
+    if(!el) return;
+    if (clan && CLAN_WEAKNESSES[clan]) {
+        el.innerText = CLAN_WEAKNESSES[clan];
+    } else {
+        el.innerText = "Select a Domitor Clan to view weakness details...";
+    }
 }
 
 function renderFreebieLists() {
@@ -460,17 +529,35 @@ function renderDynamicListsForFreebies() {
     }
 }
 
+function renderMeritsFlaws() {
+    const mList = document.getElementById('g-merits-list');
+    const fList = document.getElementById('g-flaws-list');
+    
+    if(mList) {
+        mList.innerHTML = '';
+        if(activeGhoul.merits) {
+            Object.entries(activeGhoul.merits).forEach(([name, val]) => {
+                mList.innerHTML += `<div class="flex justify-between text-[9px] text-gray-300 bg-black/50 p-1 rounded"><span>${name}</span><span>${val} pts <i class="fas fa-times text-red-500 cursor-pointer ml-2" onclick="window.removeGhoulItem('merits', '${name}')"></i></span></div>`;
+            });
+        }
+    }
+    
+    if(fList) {
+        fList.innerHTML = '';
+        if(activeGhoul.flaws) {
+            Object.entries(activeGhoul.flaws).forEach(([name, val]) => {
+                fList.innerHTML += `<div class="flex justify-between text-[9px] text-red-300 bg-black/50 p-1 rounded"><span>${name}</span><span>${val} pts <i class="fas fa-times text-red-500 cursor-pointer ml-2" onclick="window.removeGhoulItem('flaws', '${name}')"></i></span></div>`;
+            });
+        }
+    }
+}
+
 function validateChange(type, key, newVal, currentVal) {
     const delta = newVal - currentVal;
 
-    // --- FREEBIE MODE VALIDATION (STEP 5) ---
     if (currentTab === 'step5') {
-        // Always allow adding dots (buying)
         if (delta > 0) return true;
 
-        // PREVENT SELLING BASE DOTS
-        // We calculate if the NEW value would drop the total "Creation Spend" below the Priority Limit
-        
         if (type === 'attributes') {
             let group = null;
             if (ATTRIBUTES.Physical.includes(key)) group = 'Physical';
@@ -480,7 +567,6 @@ function validateChange(type, key, newVal, currentVal) {
             if (group) {
                 const limit = localPriorities.attr[group] || 0;
                 let currentSpent = 0;
-                // Calculate spend EXCLUDING the current trait's old value, adding the NEW value
                 ATTRIBUTES[group].forEach(k => {
                     const val = (k === key) ? newVal : (activeGhoul.attributes[k] || 1);
                     currentSpent += Math.max(0, val - 1);
@@ -516,7 +602,6 @@ function validateChange(type, key, newVal, currentVal) {
         }
 
         if (type === 'disciplines') {
-            // Limit: Potence 1 + 1 Free = 2 Base
             let total = 0;
             Object.entries(activeGhoul.disciplines).forEach(([k, v]) => {
                 const val = (k === key) ? newVal : v;
@@ -529,7 +614,6 @@ function validateChange(type, key, newVal, currentVal) {
         }
 
         if (type === 'backgrounds') {
-            // Limit: 5 Free
             let total = 0;
             Object.entries(activeGhoul.backgrounds).forEach(([k, v]) => {
                 const val = (k === key) ? newVal : v;
@@ -542,7 +626,6 @@ function validateChange(type, key, newVal, currentVal) {
         }
 
         if (type === 'virtues') {
-            // Limit based on type
             const limit = activeGhoul.type === 'Revenant' ? 5 : 7;
             let total = 0;
             VIRTUES.forEach(k => {
@@ -555,8 +638,6 @@ function validateChange(type, key, newVal, currentVal) {
             }
         }
 
-        // Logic for Derived Traits (Humanity/Willpower)
-        // You cannot sell back the base derived from Virtues
         if (type === 'humanity') {
             const base = (activeGhoul.virtues.Conscience||1) + (activeGhoul.virtues["Self-Control"]||1);
             if (newVal < base) {
@@ -575,12 +656,8 @@ function validateChange(type, key, newVal, currentVal) {
         return true; 
     }
 
-    // --- CREATION MODE VALIDATION (STEPS 2-4) ---
-    // (Only runs if NOT in Step 5)
-    
-    if (delta <= 0) return true; // Removing dots is allowed in creation
+    if (delta <= 0) return true; 
 
-    // 1. Attributes
     if (type === 'attributes') {
         let group = null;
         if (ATTRIBUTES.Physical.includes(key)) group = 'Physical';
@@ -604,7 +681,6 @@ function validateChange(type, key, newVal, currentVal) {
         }
     }
 
-    // 2. Abilities
     if (type === 'abilities') {
         let group = null;
         if (ABILITIES.Talents.includes(key)) group = 'Talents';
@@ -634,18 +710,15 @@ function validateChange(type, key, newVal, currentVal) {
         }
     }
 
-    // 3. Disciplines
     if (type === 'disciplines') {
         let total = 0;
         Object.values(activeGhoul.disciplines).forEach(v => total += v);
-        // Limit: Potence 1 + 1 Free Dot = 2 Total
         if (total + delta > 2) {
              showNotification("Creation Limit: 1 Free Dot + Potence 1 (Total 2). Use Freebies for more.");
              return false;
         }
     }
 
-    // 4. Backgrounds
     if (type === 'backgrounds') {
         let total = 0;
         Object.values(activeGhoul.backgrounds).forEach(v => total += v);
@@ -655,7 +728,6 @@ function validateChange(type, key, newVal, currentVal) {
         }
     }
 
-    // 5. Virtues
     if (type === 'virtues') {
         let total = 0;
         VIRTUES.forEach(v => total += Math.max(0, (activeGhoul.virtues[v] || 1) - 1));
@@ -895,6 +967,20 @@ function renderBackgrounds() {
 
 window.removeGhoulItem = function(type, key) {
     if (type === 'disciplines' && key === 'Potence') return; 
+    
+    if (type === 'merits') {
+        delete activeGhoul.merits[key];
+        renderMeritsFlaws();
+        updateTracker();
+        return;
+    }
+    if (type === 'flaws') {
+        delete activeGhoul.flaws[key];
+        renderMeritsFlaws();
+        updateTracker();
+        return;
+    }
+
     if (activeGhoul[type] && activeGhoul[type][key] !== undefined) {
         delete activeGhoul[type][key];
         renderDynamicLists();
@@ -922,8 +1008,13 @@ function setupActionListeners(modal) {
         
         const natureEl = document.getElementById('g-nature');
         const demeanorEl = document.getElementById('g-demeanor');
+        const clanEl = document.getElementById('g-domitor-clan');
+        const famEl = document.getElementById('g-family');
+
         if(natureEl) activeGhoul.nature = natureEl.value;
         if(demeanorEl) activeGhoul.demeanor = demeanorEl.value;
+        if(clanEl) activeGhoul.domitorClan = clanEl.value;
+        if(famEl) activeGhoul.family = famEl.value;
 
         activeGhoul.bloodPool = parseInt(document.getElementById('g-blood').value) || 10;
         
@@ -948,9 +1039,52 @@ function setupActionListeners(modal) {
     const typeSelect = document.getElementById('g-type');
     if(typeSelect) {
         typeSelect.onchange = (e) => {
-            activeGhoul.type = e.target.value;
+            const val = e.target.value;
+            activeGhoul.type = val;
+            
+            // Toggle UI visibility
+            const isRevenant = val === 'Revenant';
+            document.getElementById('div-domitor-clan').className = isRevenant ? 'hidden' : 'block';
+            document.getElementById('div-family').className = isRevenant ? 'block' : 'hidden';
+
             updateVirtueHeader();
             updateCounters(); 
+        };
+    }
+
+    const clanSelect = document.getElementById('g-domitor-clan');
+    if(clanSelect) {
+        clanSelect.onchange = (e) => {
+            activeGhoul.domitorClan = e.target.value;
+            updateWeaknessDisplay(e.target.value);
+        };
+    }
+
+    const meritSel = document.getElementById('g-merit-select');
+    if(meritSel) {
+        meritSel.onchange = (e) => {
+            const val = e.target.value;
+            if(!val) return;
+            const [name, cost] = val.split('|');
+            if(!activeGhoul.merits) activeGhoul.merits = {};
+            activeGhoul.merits[name] = parseInt(cost);
+            renderMeritsFlaws();
+            updateTracker();
+            e.target.value = "";
+        };
+    }
+
+    const flawSel = document.getElementById('g-flaw-select');
+    if(flawSel) {
+        flawSel.onchange = (e) => {
+            const val = e.target.value;
+            if(!val) return;
+            const [name, bonus] = val.split('|');
+            if(!activeGhoul.flaws) activeGhoul.flaws = {};
+            activeGhoul.flaws[name] = parseInt(bonus);
+            renderMeritsFlaws();
+            updateTracker();
+            e.target.value = "";
         };
     }
 
@@ -1049,17 +1183,14 @@ function bindDotClicks(modal) {
             
             activeGhoul[type][key] = finalVal;
             
-            // Re-render ALL instances of this row (in step 2-4 AND step 5)
             renderDotGroups();
             renderDynamicLists();
             renderFreebieLists();
             
-            // Re-bind because we wiped HTML
             bindDotClicks(modal);
 
             if (type === 'virtues') {
                 recalcStatus();
-                // Status is in Step 5, update manually if we aren't re-rendering whole modal
                 const hDots = document.getElementById('g-humanity-row');
                 const wDots = document.getElementById('g-willpower-row');
                 if(hDots) hDots.innerHTML = renderDots(activeGhoul.humanity, 10);
@@ -1091,7 +1222,7 @@ function updateTracker() {
         ABILITIES.Knowledges.forEach(a => spent.abil.Knowledges += (activeGhoul.abilities[a]||0));
     }
 
-    let costs = { attr: 0, abil: 0, disc: 0, back: 0, virt: 0, hum: 0, will: 0 };
+    let costs = { attr: 0, abil: 0, disc: 0, back: 0, virt: 0, hum: 0, will: 0, merit: 0, flaw: 0 };
 
     ['attr', 'abil'].forEach(cat => {
         Object.entries(localPriorities[cat]).forEach(([group, limit]) => {
@@ -1143,6 +1274,18 @@ function updateTracker() {
         costs.will = (activeGhoul.willpower - baseWill) * 1;
     }
 
+    // Merits Cost
+    if (activeGhoul.merits) {
+        Object.values(activeGhoul.merits).forEach(v => costs.merit += v);
+    }
+
+    // Flaws Bonus (Capped at 7)
+    let flawTotal = 0;
+    if (activeGhoul.flaws) {
+        Object.values(activeGhoul.flaws).forEach(v => flawTotal += v);
+    }
+    costs.flaw = Math.min(7, flawTotal);
+
     const setCost = (id, val) => {
         const el = document.getElementById(id);
         if(el) {
@@ -1158,9 +1301,18 @@ function updateTracker() {
     setCost('fb-cost-virt', costs.virt);
     setCost('fb-cost-hum', costs.hum);
     setCost('fb-cost-will', costs.will);
+    setCost('fb-cost-merit', costs.merit);
+    
+    // Update Flaw Display
+    const flawEl = document.getElementById('fb-cost-flaw');
+    if(flawEl) {
+        flawEl.innerText = costs.flaw;
+        flawEl.className = costs.flaw > 0 ? "text-green-400 font-bold" : "text-gray-500";
+    }
 
-    const totalCost = Object.values(costs).reduce((a, b) => a + b, 0);
-    const remaining = 21 - totalCost;
+    const totalSpent = costs.attr + costs.abil + costs.disc + costs.back + costs.virt + costs.hum + costs.will + costs.merit;
+    const totalBonus = costs.flaw;
+    const remaining = (21 + totalBonus) - totalSpent;
     
     const fbEl = document.getElementById('final-freebie-disp');
     if(fbEl) {
