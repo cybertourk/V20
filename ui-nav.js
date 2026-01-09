@@ -1041,69 +1041,7 @@ export function togglePlayMode() {
         }
         
         // --- MOVEMENT SPEED SECTION (PLAY MODE 2) ---
-        const pm2 = document.getElementById('play-mode-2');
-        if (pm2) {
-            let moveSection = document.getElementById('play-movement-section');
-            if (!moveSection) {
-                moveSection = document.createElement('div');
-                moveSection.id = 'play-movement-section';
-                moveSection.className = 'sheet-section mt-6';
-                
-                // FIXED: Check parentNode before inserting
-                const combatSection = pm2.querySelector('.sheet-section:last-child');
-                if(combatSection && combatSection.parentNode === pm2) pm2.insertBefore(moveSection, combatSection);
-                else pm2.appendChild(moveSection);
-            }
-            
-            // Calculate Movement
-            const dex = window.state.dots.attr['Dexterity'] || 1;
-            const dmgBoxes = (window.state.status.health_states || []).filter(x => x > 0).length;
-            
-            let w = 7;
-            let j = 12 + dex;
-            let r = 20 + (3 * dex);
-            let note = "Normal Movement";
-            let noteColor = "text-gray-500";
-            
-            // Health Penalties (V20 p.282)
-            if (dmgBoxes === 4) { // Wounded
-                r = 0; 
-                note = "Wounded: Cannot Run"; 
-                noteColor = "text-orange-400";
-            } else if (dmgBoxes === 5) { // Mauled
-                j = 0; r = 0;
-                note = "Mauled: Walk Only";
-                noteColor = "text-red-400";
-            } else if (dmgBoxes === 6) { // Crippled
-                w = 1; j = 0; r = 0;
-                note = "Crippled: Crawl Only (1 yd/turn)";
-                noteColor = "text-red-600 font-bold";
-            } else if (dmgBoxes >= 7) { // Incapacitated
-                w = 0; j = 0; r = 0;
-                note = "Incapacitated: Immobile";
-                noteColor = "text-red-700 font-black";
-            }
-
-            // Render
-            moveSection.innerHTML = `
-                <div class="section-title">Movement (Yards/Turn)</div>
-                <div class="grid grid-cols-3 gap-4 text-center mt-2">
-                    <div>
-                        <div class="text-[10px] uppercase font-bold text-gray-400">Walk</div>
-                        <div class="text-xl font-bold text-white">${w > 0 ? w : '-'}</div>
-                    </div>
-                    <div>
-                        <div class="text-[10px] uppercase font-bold text-gray-400">Jog</div>
-                        <div class="text-xl font-bold text-gold">${j > 0 ? j : '-'}</div>
-                    </div>
-                    <div>
-                        <div class="text-[10px] uppercase font-bold text-gray-400">Run</div>
-                        <div class="text-xl font-bold text-red-500">${r > 0 ? r : '-'}</div>
-                    </div>
-                </div>
-                <div class="text-[10px] text-center mt-2 border-t border-[#333] pt-1 ${noteColor} font-bold uppercase">${note}</div>
-            `;
-        }
+        renderMovementSection();
 
         if(document.getElementById('rituals-list-play')) document.getElementById('rituals-list-play').innerText = document.getElementById('rituals-list-create-ta').value;
         let carried = []; let owned = []; if(window.state.inventory) { window.state.inventory.forEach(i => { const str = `${i.displayName || i.name} ${i.type === 'Armor' ? `(R:${i.stats.rating} P:${i.stats.penalty})` : ''}`; if(i.status === 'carried') carried.push(str); else owned.push(str); }); }
@@ -1252,10 +1190,84 @@ export function togglePlayMode() {
 }
 window.togglePlayMode = togglePlayMode;
 
+// --- DEDICATED MOVEMENT RENDERER ---
+
+export function renderMovementSection() {
+    if (!window.state.isPlayMode) return;
+    const pm2 = document.getElementById('play-mode-2');
+    if (!pm2) return;
+
+    let moveSection = document.getElementById('play-movement-section');
+    if (!moveSection) {
+        moveSection = document.createElement('div');
+        moveSection.id = 'play-movement-section';
+        moveSection.className = 'sheet-section mt-6';
+        
+        // Ensure inserted before combat maneuvers if possible
+        const combatSection = pm2.querySelector('.sheet-section:last-child');
+        if(combatSection && combatSection.parentNode === pm2) pm2.insertBefore(moveSection, combatSection);
+        else pm2.appendChild(moveSection);
+    }
+    
+    // Calculate Movement
+    const dex = window.state.dots.attr['Dexterity'] || 1;
+    const dmgBoxes = (window.state.status.health_states || []).filter(x => x > 0).length;
+    
+    let w = 7;
+    let j = 12 + dex;
+    let r = 20 + (3 * dex);
+    let note = "Normal Movement";
+    let noteColor = "text-gray-500";
+    
+    // Health Penalties (V20 p.282)
+    if (dmgBoxes === 4) { // Wounded
+        r = 0; 
+        note = "Wounded: Cannot Run"; 
+        noteColor = "text-orange-400";
+    } else if (dmgBoxes === 5) { // Mauled
+        j = 0; r = 0;
+        if(w > 3) w = 3;
+        note = "Mauled: Max 3 yds/turn";
+        noteColor = "text-red-400";
+    } else if (dmgBoxes === 6) { // Crippled
+        w = 1; j = 0; r = 0;
+        note = "Crippled: Crawl 1 yd/turn";
+        noteColor = "text-red-600 font-bold";
+    } else if (dmgBoxes >= 7) { // Incapacitated
+        w = 0; j = 0; r = 0;
+        note = "Incapacitated: Immobile";
+        noteColor = "text-red-700 font-black";
+    }
+
+    // Render with Units
+    moveSection.innerHTML = `
+        <div class="section-title">Movement (Yards/Turn)</div>
+        <div class="grid grid-cols-3 gap-4 text-center mt-2">
+            <div>
+                <div class="text-[10px] uppercase font-bold text-gray-400">Walk</div>
+                <div class="text-xl font-bold text-white">${w > 0 ? w : '-'} <span class="text-[9px] text-gray-500 font-normal">yds</span></div>
+            </div>
+            <div>
+                <div class="text-[10px] uppercase font-bold text-gray-400">Jog</div>
+                <div class="text-xl font-bold text-gold">${j > 0 ? j : '-'} <span class="text-[9px] text-gray-500 font-normal">yds</span></div>
+            </div>
+            <div>
+                <div class="text-[10px] uppercase font-bold text-gray-400">Run</div>
+                <div class="text-xl font-bold text-red-500">${r > 0 ? r : '-'} <span class="text-[9px] text-gray-500 font-normal">yds</span></div>
+            </div>
+        </div>
+        <div class="text-[10px] text-center mt-2 border-t border-[#333] pt-1 ${noteColor} font-bold uppercase">${note}</div>
+    `;
+}
+window.renderMovementSection = renderMovementSection;
+
 // --- PRINT SHEET RENDERER ---
 
 export function renderPrintSheet() {
     if (!window.state) return;
+    
+    // Refresh Movement if in Play Mode
+    if (window.state.isPlayMode) renderMovementSection();
 
     // 1. Header Fields
     const map = {
