@@ -1,4 +1,4 @@
-import { ATTRIBUTES, ABILITIES, DISCIPLINES, VIRTUES, BACKGROUNDS, ARCHETYPES, SPECIALTIES } from "./data.js";
+import { ATTRIBUTES, ABILITIES, DISCIPLINES, VIRTUES, BACKGROUNDS, ARCHETYPES, SPECIALTY_EXAMPLES as SPECIALTIES } from "./data.js";
 import { renderDots, showNotification } from "./ui-common.js";
 
 // --- STATE ---
