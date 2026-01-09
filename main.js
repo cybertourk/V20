@@ -30,6 +30,7 @@ import {
     setDots,
     renderPrintSheet 
 } from "./ui-renderer.js"; 
+import { openGhoulCreator } from "./ghoul-creator.js";
 
 // --- ERROR HANDLER ---
 window.onerror = function(msg, url, line) {
@@ -60,6 +61,7 @@ window.state = {
     textFields: { "c-gen": "13", "c-xp-total": "0" }, 
     havens: [], bloodBonds: [], vehicles: [], customAbilityCategories: {},
     derangements: [], merits: [], flaws: [], inventory: [],
+    retainers: [], // New Retainers Array
     meta: { filename: "", folder: "" } 
 };
 
@@ -71,6 +73,7 @@ window.handleSaveClick = FBManager.handleSaveClick;
 window.handleLoadClick = FBManager.handleLoadClick;
 window.performSave = FBManager.performSave;
 window.deleteCharacter = FBManager.deleteCharacter;
+window.openGhoulCreator = openGhoulCreator;
 
 // --- LOCAL IMPORT / EXPORT HANDLERS ---
 
@@ -120,6 +123,7 @@ function handleImport(event) {
             // Legacy Data Patches / Safety Checks (Mirrors Firebase Load logic)
             if(!window.state.meta) window.state.meta = { filename: file.name.replace('.json',''), folder: "" };
             if(!window.state.specialties) window.state.specialties = {}; 
+            if(!window.state.retainers) window.state.retainers = [];
             if (!window.state.furthestPhase) window.state.furthestPhase = 1;
             if (window.state.status && window.state.status.tempWillpower === undefined) {
                 window.state.status.tempWillpower = window.state.status.willpower || 5;
@@ -416,6 +420,8 @@ function initUI() {
         if(cmdSave) cmdSave.onclick = window.handleSaveClick;
         const cmdLoad = document.getElementById('cmd-load');
         if(cmdLoad) cmdLoad.onclick = window.handleLoadClick;
+        const cmdGhoul = document.getElementById('cmd-ghoul');
+        if(cmdGhoul) cmdGhoul.onclick = window.openGhoulCreator;
         const confirmSave = document.getElementById('confirm-save-btn');
         if(confirmSave) confirmSave.onclick = window.performSave;
         const topPlayBtn = document.getElementById('play-mode-btn');
