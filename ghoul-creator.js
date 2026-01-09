@@ -1,5 +1,5 @@
 import { ATTRIBUTES, ABILITIES, DISCIPLINES, VIRTUES, BACKGROUNDS } from "./data.js";
-import { renderDots } from "./ui-common.js";
+import { renderDots, showNotification } from "./ui-common.js";
 
 // --- STATE ---
 let activeGhoul = null;
@@ -262,7 +262,7 @@ function renderEditorModal() {
                 <div class="flex gap-4">
                     <button id="cancel-ghoul" class="border border-[#444] text-gray-300 px-6 py-2 uppercase font-bold text-xs hover:bg-[#222] transition">Cancel</button>
                     <button id="save-ghoul" class="bg-[#8b0000] text-white px-8 py-2 uppercase font-bold text-xs hover:bg-red-700 shadow-lg tracking-widest transition flex items-center gap-2">
-                        <i class="fas fa-save"></i> Save
+                        <i class="fas fa-check"></i> Add/Update
                     </button>
                 </div>
             </div>
@@ -493,6 +493,7 @@ function setupActionListeners(modal) {
     document.getElementById('cancel-ghoul').onclick = close;
     
     document.getElementById('save-ghoul').onclick = () => {
+        // Harvest Inputs
         activeGhoul.name = document.getElementById('g-name').value;
         activeGhoul.domitor = document.getElementById('g-domitor').value;
         activeGhoul.concept = document.getElementById('g-concept').value;
@@ -500,17 +501,19 @@ function setupActionListeners(modal) {
         activeGhoul.type = document.getElementById('g-type').value;
         activeGhoul.bloodPool = parseInt(document.getElementById('g-blood').value) || 10;
 
+        // Save to Local State
         if (!window.state.retainers) window.state.retainers = [];
         if (activeIndex !== null && activeIndex >= 0) window.state.retainers[activeIndex] = activeGhoul;
         else window.state.retainers.push(activeGhoul);
 
+        // Refresh UI
         if(window.renderRetainersTab) window.renderRetainersTab(document.getElementById('play-content'));
         
-        // FIXED: Only trigger auto-save if character exists/is named
-        if(window.performSave && window.state.textFields['c-name']) {
-            window.performSave(true);
+        // Notify user (DO NOT AUTO-SAVE)
+        if (showNotification) {
+            showNotification("Retainer Added. Please save your character.");
         } else if (window.showNotification) {
-            window.showNotification("Retainer added to current session.");
+            window.showNotification("Retainer Added. Please save your character.");
         }
         
         close();
