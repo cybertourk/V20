@@ -607,11 +607,18 @@
                 </div>
 
                 <div id="play-mode-4" class="step-container space-y-10"><div class="grid grid-cols-1 md:grid-cols-3 gap-8"><div class="sheet-section !mt-0"><div class="section-title">Vitals</div><div id="play-vitals-list" class="space-y-3 py-2 text-[11px] uppercase font-bold text-white"></div><div class="mt-6 border-t border-[#333] pt-4"><label class="label-text text-gold">Physical Description</label><div id="play-bio-desc" class="text-xs text-gray-300 whitespace-pre-wrap"></div></div></div><div class="md:col-span-2 space-y-6"><div class="grid grid-cols-2 gap-6"><div class="sheet-section !mt-0"><div class="section-title">Derangements</div><div id="play-derangements" class="text-xs text-white p-2"></div></div><div class="sheet-section !mt-0"><div class="section-title">Languages</div><div id="play-languages" class="text-xs text-white p-2"></div></div></div><div class="sheet-section"><div class="section-title">Goals</div><div class="grid grid-cols-2 gap-6 mt-2"><div class="border-l-2 border-gold pl-4"><label class="label-text text-gold">Short-Term</label><div id="play-goals-st" class="text-xs text-gray-200 mt-1"></div></div><div class="border-l-2 border-gold pl-4"><label class="label-text text-gold">Long-Term</label><div id="play-goals-lt" class="text-xs text-gray-200 mt-1"></div></div></div></div><div class="sheet-section"><div class="section-title">Full History</div><div id="play-history" class="text-sm text-gray-300 whitespace-pre-wrap p-4"></div></div></div></div></div>
+                
+                <!-- NEW CONTAINERS (Hardcoded for stability) -->
+                <div id="play-mode-5" class="step-container h-full hidden min-h-[600px]"></div>
+                <div id="play-mode-6" class="step-container hidden min-h-[500px]"></div>
             </div>
 
         </div>
     </div>
     
+    <!-- GHOUL CREATOR MODAL -->
+    <div id="ghoul-modal" class="fixed inset-0 bg-black/90 z-[100] flex items-center justify-center hidden"></div>
+
     <div id="save-modal" class="modal-overlay">
         <div class="modal-box">
             <h2 class="heading text-xl text-gold mb-4 border-b border-[#333] pb-2">Inscribe Character</h2>
