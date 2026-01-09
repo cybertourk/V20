@@ -6,13 +6,32 @@ let activeGhoul = null;
 let activeIndex = null;
 
 // --- INITIALIZER ---
-export function openGhoulCreator(existingGhoul = null, index = null) {
-    activeIndex = index;
+export function openGhoulCreator(dataOrEvent = null, index = null) {
+    // FIX: Detect if the first argument is a browser Event (click) or actual Data
+    // If it is an event (has .target or .type), treat it as null (New Creator)
+    let incomingData = null;
+    if (dataOrEvent && !dataOrEvent.target && !dataOrEvent.type && !dataOrEvent.bubbles) {
+        incomingData = dataOrEvent;
+    }
+
+    activeIndex = (typeof index === 'number') ? index : null;
     
     // Initialize or Clone Data
-    if (existingGhoul) {
-        activeGhoul = JSON.parse(JSON.stringify(existingGhoul));
+    if (incomingData) {
+        // Deep Clone existing data
+        activeGhoul = JSON.parse(JSON.stringify(incomingData));
+        
+        // Ensure structure is robust even on existing items (legacy patch)
+        if (!activeGhoul.attributes) activeGhoul.attributes = {};
+        if (!activeGhoul.abilities) activeGhoul.abilities = {};
+        if (!activeGhoul.disciplines) activeGhoul.disciplines = {};
+        if (!activeGhoul.virtues) activeGhoul.virtues = { Conscience: 1, "Self-Control": 1, Courage: 1 };
+        
+        // Re-run init to fill any missing holes
+        initBaseDots(activeGhoul);
+        
     } else {
+        // Create Fresh
         activeGhoul = {
             name: "New Retainer",
             player: "",
@@ -23,11 +42,11 @@ export function openGhoulCreator(existingGhoul = null, index = null) {
             attributes: {},
             abilities: {},
             disciplines: {},
-            backgrounds: {}, // Ghouls might have minimal backgrounds
+            backgrounds: {}, 
             virtues: { Conscience: 1, "Self-Control": 1, Courage: 1 },
             humanity: 6,
             willpower: 3,
-            bloodPool: 10 // Max for standard human/ghoul
+            bloodPool: 10 
         };
         // Init Base Dots
         initBaseDots(activeGhoul);
@@ -38,13 +57,15 @@ export function openGhoulCreator(existingGhoul = null, index = null) {
 
 // --- HELPER: INIT DOTS ---
 function initBaseDots(ghoul) {
+    if (!ghoul.attributes) ghoul.attributes = {};
+    if (!ghoul.abilities) ghoul.abilities = {};
+
     Object.values(ATTRIBUTES).flat().forEach(a => {
         if (ghoul.attributes[a] === undefined) ghoul.attributes[a] = 1;
     });
     Object.values(ABILITIES).flat().forEach(a => {
         if (ghoul.abilities[a] === undefined) ghoul.abilities[a] = 0;
     });
-    // Default Potence 1 for Ghouls is common, but we'll leave it 0 to be safe
 }
 
 // --- RENDER UI ---
@@ -59,7 +80,6 @@ function renderEditorModal() {
     }
 
     // 2. Build Mini-Sheet HTML
-    // We reuse the 'sheet-section' and grid classes to match main app
     modal.innerHTML = `
         <div class="w-[95%] max-w-6xl h-[90%] bg-[#0a0a0a] border-2 border-[#8b0000] shadow-[0_0_50px_rgba(139,0,0,0.5)] flex flex-col relative">
             
@@ -197,6 +217,9 @@ function renderGroup(containerId, title, list, type) {
     
     let html = title ? `<h3 class="column-title">${title}</h3>` : '';
     
+    // Safety check for data existence
+    if (!activeGhoul[type]) activeGhoul[type] = {};
+
     list.forEach(item => {
         const val = activeGhoul[type][item] || 0;
         // We add data-key and data-type to the row for the click handler
@@ -216,6 +239,8 @@ function renderDisciplines() {
     const el = document.getElementById('g-disc-list');
     if (!el) return;
     el.innerHTML = '';
+
+    if (!activeGhoul.disciplines) activeGhoul.disciplines = {};
 
     Object.entries(activeGhoul.disciplines).forEach(([name, val]) => {
         const row = document.createElement('div');
@@ -238,7 +263,7 @@ function renderDisciplines() {
 
 // --- GLOBAL HANDLER FOR REMOVING DISCIPLINES ---
 window.removeGhoulDisc = function(name) {
-    if (activeGhoul && activeGhoul.disciplines[name] !== undefined) {
+    if (activeGhoul && activeGhoul.disciplines && activeGhoul.disciplines[name] !== undefined) {
         delete activeGhoul.disciplines[name];
         renderDisciplines();
     }
@@ -281,6 +306,7 @@ function setupListeners(modal) {
     discSelect.onchange = (e) => {
         const val = e.target.value;
         if (val) {
+            if (!activeGhoul.disciplines) activeGhoul.disciplines = {};
             if (activeGhoul.disciplines[val] === undefined) {
                 activeGhoul.disciplines[val] = 1; // Start at 1
                 renderDisciplines();
@@ -291,14 +317,11 @@ function setupListeners(modal) {
         }
     };
 
-    // D. Global Dot Click Delegation (The Magic)
+    // D. Global Dot Click Delegation
     bindDotClicks(modal);
 }
 
 function bindDotClicks(modal) {
-    // We attach to the modal but filter for our specific dot rows
-    // Remove old listener if exists to prevent doubles (simplified here by re-rendering)
-    
     const rows = modal.querySelectorAll('.dot-row-interactive');
     rows.forEach(row => {
         // Prevent stacking listeners
@@ -311,8 +334,10 @@ function bindDotClicks(modal) {
             const key = row.dataset.key;
             const newVal = parseInt(e.target.dataset.v);
             
+            // Ensure object exists
+            if (!activeGhoul[type]) activeGhoul[type] = {};
+
             // Logic: Toggle off if clicking current value, otherwise set value
-            // Safe access
             let currentVal = 0;
             if (type === 'attributes' || type === 'abilities' || type === 'disciplines') {
                 currentVal = activeGhoul[type][key] || 0;
@@ -328,10 +353,8 @@ function bindDotClicks(modal) {
             if (type === 'virtues' && finalVal < 1) finalVal = 1;
             
             // Update Data
-            if (type === 'attributes') activeGhoul.attributes[key] = finalVal;
-            else if (type === 'abilities') activeGhoul.abilities[key] = finalVal;
-            else if (type === 'disciplines') activeGhoul.disciplines[key] = finalVal;
-            else if (type === 'virtues') activeGhoul.virtues[key] = finalVal;
+            if (type === 'virtues') activeGhoul.virtues[key] = finalVal;
+            else activeGhoul[type][key] = finalVal;
 
             // Re-render just this row's dots
             const dotContainer = row.querySelector('.dot-row');
