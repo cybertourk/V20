@@ -7,15 +7,11 @@ let activeIndex = null;
 let currentTab = 'step1';
 
 // Priority State Checkers
-// Attributes: 6 / 4 / 3 (V20 Ghouls)
-// Abilities: 11 / 7 / 4 (V20 Ghouls)
 const PRIO_CONFIG = {
     attr: [6, 4, 3],
     abil: [11, 7, 4]
 };
 
-// Tracks which value is assigned to which group
-// e.g. priorities.attr.Physical = 6
 let localPriorities = {
     attr: { Physical: null, Social: null, Mental: null },
     abil: { Talents: null, Skills: null, Knowledges: null }
@@ -25,7 +21,6 @@ let localPriorities = {
 export function openGhoulCreator(dataOrEvent = null, index = null) {
     console.log("Creating/Editing Ghoul...", dataOrEvent); 
 
-    // Handle Arguments
     let incomingData = null;
     const isEvent = dataOrEvent && (dataOrEvent instanceof Event || !!dataOrEvent.target || !!dataOrEvent.type);
     
@@ -36,26 +31,16 @@ export function openGhoulCreator(dataOrEvent = null, index = null) {
     activeIndex = (typeof index === 'number') ? index : null;
     currentTab = 'step1';
     
-    // Reset Priorities
     localPriorities = {
         attr: { Physical: null, Social: null, Mental: null },
         abil: { Talents: null, Skills: null, Knowledges: null }
     };
 
-    // Initialize Data
     if (incomingData) {
         activeGhoul = JSON.parse(JSON.stringify(incomingData));
-        // Patch missing
         ['attributes', 'abilities', 'disciplines', 'backgrounds'].forEach(k => { if (!activeGhoul[k]) activeGhoul[k] = {}; });
         if (!activeGhoul.virtues) activeGhoul.virtues = { Conscience: 1, "Self-Control": 1, Courage: 1 };
         initBaseDots(activeGhoul);
-        
-        // Attempt to reverse-engineer priorities from existing data?
-        // For simplicity in this version, we reset priorities on edit, 
-        // forcing user to re-select if they want to change base stats, 
-        // OR we just assume "Open" mode.
-        // Better UX: Allow free edit if existing, but enforce on new.
-        // We will enable "Free Mode" for existing to avoid locking them out.
     } else {
         activeGhoul = {
             name: "", player: "", chronicle: "", type: "Ghoul", concept: "", domitor: "",
@@ -70,7 +55,6 @@ export function openGhoulCreator(dataOrEvent = null, index = null) {
     switchTab('step1');
 }
 
-// --- HELPER: BASE DOTS ---
 function initBaseDots(ghoul) {
     if (ATTRIBUTES) Object.values(ATTRIBUTES).flat().forEach(a => { if (ghoul.attributes[a] === undefined) ghoul.attributes[a] = 1; });
     if (ABILITIES) Object.values(ABILITIES).flat().forEach(a => { if (ghoul.abilities[a] === undefined) ghoul.abilities[a] = 0; });
@@ -288,23 +272,18 @@ function renderEditorModal() {
     modal.style.display = 'flex';
     modal.classList.remove('hidden');
 
-    // Initialize Components
     renderDotGroups();
     renderDynamicLists();
-    updatePriorityUI(); // Sync buttons
+    updatePriorityUI(); 
     
-    // Listeners
     setupNavListeners(modal);
     setupActionListeners(modal);
-    
-    // Bind Clicks
     bindDotClicks(modal);
 }
 
-// --- PRIORITY SYSTEM HELPERS ---
-
+// --- PRIORITY HELPERS ---
 function renderPrioButtons(cat, group) {
-    const vals = PRIO_CONFIG[cat]; // e.g. [6, 4, 3]
+    const vals = PRIO_CONFIG[cat];
     return vals.map(v => `
         <button type="button" 
             class="w-6 h-6 rounded-full border border-gray-600 text-[9px] font-bold text-gray-400 hover:text-white hover:border-white transition-colors ghoul-prio-btn"
@@ -319,18 +298,13 @@ function handlePrioClick(e) {
     const { cat, group, val } = btn.dataset;
     const v = parseInt(val);
 
-    // 1. Check if this value is already taken in this Category
     const currentAssignment = Object.entries(localPriorities[cat]).find(([g, assignedVal]) => assignedVal === v);
     
-    // If another group has this value, clear that group
     if (currentAssignment) {
         const [otherGroup, otherVal] = currentAssignment;
         localPriorities[cat][otherGroup] = null;
-        // Optional: Reset dots for that group? For now, we just uncap it visually, logic handles limits
     }
 
-    // 2. Assign to this group
-    // Toggle off if clicking same
     if (localPriorities[cat][group] === v) {
         localPriorities[cat][group] = null;
     } else {
@@ -338,7 +312,7 @@ function handlePrioClick(e) {
     }
 
     updatePriorityUI();
-    updateCounters(); // Recalc displayed limits
+    updateCounters();
 }
 
 function updatePriorityUI() {
@@ -346,12 +320,10 @@ function updatePriorityUI() {
         const { cat, group, val } = btn.dataset;
         const v = parseInt(val);
         
-        // Is this button active?
         if (localPriorities[cat][group] === v) {
             btn.classList.add('bg-[#8b0000]', 'text-white', 'border-[#8b0000]');
             btn.classList.remove('border-gray-600', 'text-gray-400');
         } else {
-            // Is this value taken by someone else in the cat?
             const isTaken = Object.values(localPriorities[cat]).includes(v);
             
             btn.classList.remove('bg-[#8b0000]', 'text-white', 'border-[#8b0000]');
@@ -363,20 +335,16 @@ function updatePriorityUI() {
                 btn.classList.remove('opacity-20', 'cursor-not-allowed', 'border-gray-800');
             }
         }
-        
-        // Re-bind click (safe due to replace or fresh render)
         btn.onclick = handlePrioClick;
     });
 }
 
 function updateCounters() {
-    // Update the "X/Y" text next to headers
     ['attr', 'abil'].forEach(cat => {
         Object.entries(localPriorities[cat]).forEach(([group, limit]) => {
             const el = document.getElementById(`cnt-${cat}-${group}`);
             if(!el) return;
             
-            // Calculate current spent
             let spent = 0;
             let list = (cat === 'attr') ? ATTRIBUTES[group] : 
                        (group === 'Talents' ? ABILITIES.Talents : 
@@ -396,10 +364,10 @@ function updateCounters() {
             }
         });
     });
-    updateTracker(); // Freebie calc
+    updateTracker();
 }
 
-// --- TAB LOGIC ---
+// --- TABS ---
 function switchTab(tabId) {
     currentTab = tabId;
     document.querySelectorAll('.ghoul-step').forEach(el => el.classList.add('hidden'));
@@ -422,7 +390,7 @@ function setupNavListeners(modal) {
     tabs.forEach(t => t.onclick = () => switchTab(t.dataset.tab));
 }
 
-// --- RENDERING GROUPS ---
+// --- RENDER HELPERS ---
 function renderDotGroups() {
     if(ATTRIBUTES) {
         renderGroup('g-attr-phys', 'Physical', ATTRIBUTES.Physical, 'attributes');
@@ -440,7 +408,6 @@ function renderDotGroups() {
 function renderGroup(id, title, list, type) {
     const el = document.getElementById(id);
     if(!el) return;
-    // Don't render title here, handled by container now
     let html = ''; 
     if (list) {
         list.forEach(item => {
@@ -538,7 +505,14 @@ function setupActionListeners(modal) {
         else window.state.retainers.push(activeGhoul);
 
         if(window.renderRetainersTab) window.renderRetainersTab(document.getElementById('play-content'));
-        if(window.performSave) window.performSave(true);
+        
+        // FIXED: Only trigger auto-save if character exists/is named
+        if(window.performSave && window.state.textFields['c-name']) {
+            window.performSave(true);
+        } else if (window.showNotification) {
+            window.showNotification("Retainer added to current session.");
+        }
+        
         close();
     };
 
@@ -624,13 +598,8 @@ function updateTracker() {
         ABILITIES.Knowledges.forEach(a => spent.abil.Knowledges += (activeGhoul.abilities[a]||0));
     }
 
-    // Calculate Overflow (Freebie Cost)
     let freebieCost = 0;
 
-    // Attributes Overflow
-    // Logic: Look at priorities. If Physically assigned 6, check if spent > 6. Diff * 5 freebies.
-    // If no priority assigned, assume ALL spent dots are freebies (strict mode) or just ignore (lenient).
-    // Strict Mode:
     ['attr', 'abil'].forEach(cat => {
         Object.entries(localPriorities[cat]).forEach(([group, limit]) => {
             let s = 0;
@@ -646,23 +615,19 @@ function updateTracker() {
             
             const cap = limit || 0; 
             if (s > cap) {
-                // Cost varies: Attr=5, Abil=2
                 const multiplier = (cat === 'attr') ? 5 : 2;
                 freebieCost += (s - cap) * multiplier;
             }
         });
     });
 
-    // Disciplines
-    // 1 Free + Potence Free. 
-    // Count total dots. Subtract Potence level (or 1 if Potence > 0). Subtract 1.
     let discDots = 0;
     if(activeGhoul.disciplines) {
         Object.keys(activeGhoul.disciplines).forEach(k => {
             discDots += activeGhoul.disciplines[k];
         });
     }
-    // Subtract freebies (Potence 1 = 1 dot free + 1 Any Dot free = 2 dots free total if Potence exists)
+    
     let freeDiscDots = 1; 
     if (activeGhoul.disciplines['Potence']) freeDiscDots += 1;
     
@@ -670,12 +635,10 @@ function updateTracker() {
         freebieCost += (discDots - freeDiscDots) * 10;
     }
 
-    // Backgrounds (5 free)
     let backDots = 0;
     if(activeGhoul.backgrounds) Object.values(activeGhoul.backgrounds).forEach(v => backDots += v);
     if (backDots > 5) freebieCost += (backDots - 5) * 1;
 
-    // Virtues (7 free)
     let virtDots = 0;
     if(VIRTUES && activeGhoul.virtues) VIRTUES.forEach(v => virtDots += Math.max(0, (activeGhoul.virtues[v]||1)-1));
     if (virtDots > 7) freebieCost += (virtDots - 7) * 2;
