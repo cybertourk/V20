@@ -746,6 +746,18 @@ export function changeStep(s) {
         renderJournalTab();
     }
 
+    // --- NEW: SPECIAL RETAINERS INJECTION FOR PLAY MODE ---
+    if (window.state.isPlayMode && s === 6) {
+        let pm6 = document.getElementById('play-mode-6');
+        if (!pm6) {
+            pm6 = document.createElement('div');
+            pm6.id = 'play-mode-6';
+            pm6.className = 'step-container p-4 hidden';
+            document.getElementById('play-mode-sheet').appendChild(pm6);
+        }
+        renderRetainersTab();
+    }
+
     const target = document.getElementById(prefix + s);
     if (target) { target.classList.add('active'); window.state.currentPhase = s; }
     
@@ -754,8 +766,8 @@ export function changeStep(s) {
     if (nav) {
         nav.innerHTML = '';
         if (window.state.isPlayMode) {
-             // Added "Journal" to the navigation steps
-             const steps = ["Sheet", "Traits", "Social", "Biography", "Journal"];
+             // ADDED "Retainers" to the Play Mode navigation list
+             const steps = ["Sheet", "Traits", "Social", "Biography", "Journal", "Retainers"];
              steps.forEach((text, i) => {
                  const it = document.createElement('div'); it.className = `nav-item ${window.state.currentPhase === (i+1) ? 'active' : ''}`;
                  it.innerHTML = `<i class="fas fa-scroll"></i><span style="display:block; font-size:9px; margin-top:2px;">${text}</span>`;
@@ -1281,6 +1293,100 @@ export function renderMovementSection() {
     `;
 }
 window.renderMovementSection = renderMovementSection;
+
+// --- RETAINERS RENDERER (NEW) ---
+
+export function renderRetainersTab() {
+    const container = document.getElementById('play-mode-6');
+    if (!container) return;
+    
+    // Ensure data exists
+    const retainers = window.state.retainers || [];
+
+    let html = `
+        <div class="max-w-3xl mx-auto">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-serif text-red-500">Retainers & Ghouls</h2>
+                <button onclick="window.openGhoulCreator()" class="bg-red-900 hover:bg-red-800 text-white px-4 py-2 rounded text-sm flex items-center gap-2">
+                    <span>+</span> Create New
+                </button>
+            </div>
+    `;
+
+    if (retainers.length === 0) {
+        html += `
+            <div class="text-center p-8 border border-dashed border-gray-700 rounded bg-gray-900/50">
+                <p class="text-gray-400 mb-4">You have no recorded retainers.</p>
+                <button onclick="window.openGhoulCreator()" class="text-red-400 hover:text-red-300 underline">Add one now</button>
+            </div>
+        </div>`;
+        container.innerHTML = html;
+        return;
+    }
+
+    html += `<div class="grid grid-cols-1 gap-4">`;
+
+    retainers.forEach((ghoul, index) => {
+        // Safely handle potentially missing fields
+        const name = ghoul.name || "Unnamed";
+        const type = ghoul.type || "Ghoul";
+        const concept = ghoul.concept || "";
+        
+        // Quick stats for summary
+        const potence = ghoul.disciplines?.Potence || 0;
+        const celerity = ghoul.disciplines?.Celerity || 0;
+        const fortitude = ghoul.disciplines?.Fortitude || 0;
+
+        html += `
+            <div class="bg-gray-900 border border-gray-700 rounded p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 hover:border-red-900/50 transition-colors">
+                <div class="flex-grow">
+                    <h3 class="text-xl font-bold text-gray-200">${name} <span class="text-xs text-gray-500 font-normal ml-2 uppercase tracking-wider border border-gray-700 px-1 rounded">${type}</span></h3>
+                    <div class="text-sm text-gray-400 mt-1 flex flex-wrap gap-4">
+                        <span>Concept: <span class="text-gray-300">${concept || 'N/A'}</span></span>
+                        <span>Potence: ${potence}</span>
+                        <span>Celerity: ${celerity}</span>
+                        <span>Fortitude: ${fortitude}</span>
+                    </div>
+                </div>
+                
+                <div class="flex items-center gap-2 w-full md:w-auto mt-2 md:mt-0">
+                    <button onclick="window.editRetainer(${index})" 
+                        class="flex-1 md:flex-none bg-gray-700 hover:bg-gray-600 text-white px-3 py-1 rounded text-sm">
+                        Edit / View
+                    </button>
+                    <button onclick="window.deleteRetainer(${index})" 
+                        class="flex-1 md:flex-none bg-red-900/20 hover:bg-red-900/50 text-red-500 border border-red-900/30 px-3 py-1 rounded text-sm" title="Delete">
+                        &times;
+                    </button>
+                </div>
+            </div>
+        `;
+    });
+
+    html += `</div></div>`;
+    container.innerHTML = html;
+}
+window.renderRetainersTab = renderRetainersTab;
+
+// --- RETAINER HELPERS ---
+window.editRetainer = function(index) {
+    if (window.state.retainers && window.state.retainers[index]) {
+        // Pass the actual object and the index
+        if(window.openGhoulCreator) window.openGhoulCreator(window.state.retainers[index], index);
+    }
+};
+
+window.deleteRetainer = function(index) {
+    if(confirm("Permanently release this retainer? This cannot be undone.")) {
+        if(window.state.retainers) {
+            window.state.retainers.splice(index, 1);
+            // Re-render
+            renderRetainersTab();
+            // Trigger auto-save if available
+            if(window.performSave) window.performSave(true); 
+        }
+    }
+};
 
 // --- PRINT SHEET RENDERER ---
 
