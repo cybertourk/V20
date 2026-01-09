@@ -461,10 +461,124 @@ function renderDynamicListsForFreebies() {
 }
 
 function validateChange(type, key, newVal, currentVal) {
-    if (currentTab === 'step5') return true; 
-
     const delta = newVal - currentVal;
-    if (delta <= 0) return true; 
+
+    // --- FREEBIE MODE VALIDATION (STEP 5) ---
+    if (currentTab === 'step5') {
+        // Always allow adding dots (buying)
+        if (delta > 0) return true;
+
+        // PREVENT SELLING BASE DOTS
+        // We calculate if the NEW value would drop the total "Creation Spend" below the Priority Limit
+        
+        if (type === 'attributes') {
+            let group = null;
+            if (ATTRIBUTES.Physical.includes(key)) group = 'Physical';
+            else if (ATTRIBUTES.Social.includes(key)) group = 'Social';
+            else if (ATTRIBUTES.Mental.includes(key)) group = 'Mental';
+            
+            if (group) {
+                const limit = localPriorities.attr[group] || 0;
+                let currentSpent = 0;
+                // Calculate spend EXCLUDING the current trait's old value, adding the NEW value
+                ATTRIBUTES[group].forEach(k => {
+                    const val = (k === key) ? newVal : (activeGhoul.attributes[k] || 1);
+                    currentSpent += Math.max(0, val - 1);
+                });
+                
+                if (currentSpent < limit) {
+                    showNotification("Cannot refund dots allocated during Creation (Attributes).");
+                    return false;
+                }
+            }
+        }
+
+        if (type === 'abilities') {
+            let group = null;
+            if (ABILITIES.Talents.includes(key)) group = 'Talents';
+            else if (ABILITIES.Skills.includes(key)) group = 'Skills';
+            else if (ABILITIES.Knowledges.includes(key)) group = 'Knowledges';
+
+            if (group) {
+                const limit = localPriorities.abil[group] || 0;
+                let currentSpent = 0;
+                const list = (group === 'Talents') ? ABILITIES.Talents : (group === 'Skills' ? ABILITIES.Skills : ABILITIES.Knowledges);
+                list.forEach(k => {
+                    const val = (k === key) ? newVal : (activeGhoul.abilities[k] || 0);
+                    currentSpent += val;
+                });
+
+                if (currentSpent < limit) {
+                    showNotification("Cannot refund dots allocated during Creation (Abilities).");
+                    return false;
+                }
+            }
+        }
+
+        if (type === 'disciplines') {
+            // Limit: Potence 1 + 1 Free = 2 Base
+            let total = 0;
+            Object.entries(activeGhoul.disciplines).forEach(([k, v]) => {
+                const val = (k === key) ? newVal : v;
+                total += val;
+            });
+            if (total < 2) {
+                showNotification("Cannot refund the base 2 Creation dots for Disciplines.");
+                return false;
+            }
+        }
+
+        if (type === 'backgrounds') {
+            // Limit: 5 Free
+            let total = 0;
+            Object.entries(activeGhoul.backgrounds).forEach(([k, v]) => {
+                const val = (k === key) ? newVal : v;
+                total += val;
+            });
+            if (total < 5) {
+                showNotification("Cannot refund the base 5 Creation dots for Backgrounds.");
+                return false;
+            }
+        }
+
+        if (type === 'virtues') {
+            // Limit based on type
+            const limit = activeGhoul.type === 'Revenant' ? 5 : 7;
+            let total = 0;
+            VIRTUES.forEach(k => {
+                const val = (k === key) ? newVal : (activeGhoul.virtues[k] || 1);
+                total += Math.max(0, val - 1);
+            });
+            if (total < limit) {
+                showNotification(`Cannot refund the base ${limit} Creation dots for Virtues.`);
+                return false;
+            }
+        }
+
+        // Logic for Derived Traits (Humanity/Willpower)
+        // You cannot sell back the base derived from Virtues
+        if (type === 'humanity') {
+            const base = (activeGhoul.virtues.Conscience||1) + (activeGhoul.virtues["Self-Control"]||1);
+            if (newVal < base) {
+                showNotification("Cannot lower Humanity below base derived from Virtues.");
+                return false;
+            }
+        }
+        if (type === 'willpower') {
+            const base = (activeGhoul.virtues.Courage||1);
+            if (newVal < base) {
+                showNotification("Cannot lower Willpower below base derived from Courage.");
+                return false;
+            }
+        }
+
+        return true; 
+    }
+
+    // --- CREATION MODE VALIDATION (STEPS 2-4) ---
+    // (Only runs if NOT in Step 5)
+    
+    if (delta <= 0) return true; // Removing dots is allowed in creation
 
     // 1. Attributes
     if (type === 'attributes') {
@@ -900,6 +1014,9 @@ function bindDotClicks(modal) {
             if (newVal === currentVal) finalVal = newVal - 1;
             if (finalVal < 1) finalVal = 1;
             
+            // Validate Logic for Derived traits
+            if (!validateChange(type, null, finalVal, currentVal)) return;
+
             activeGhoul[type] = finalVal;
             el.innerHTML = renderDots(finalVal, 10);
             updateCounters();
