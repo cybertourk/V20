@@ -1039,6 +1039,71 @@ export function togglePlayMode() {
                 }); 
             }
         }
+        
+        // --- MOVEMENT SPEED SECTION (PLAY MODE 2) ---
+        const pm2 = document.getElementById('play-mode-2');
+        if (pm2) {
+            let moveSection = document.getElementById('play-movement-section');
+            if (!moveSection) {
+                moveSection = document.createElement('div');
+                moveSection.id = 'play-movement-section';
+                moveSection.className = 'sheet-section mt-6';
+                
+                // Try to insert before the last child (Combat Maneuvers usually)
+                const combatSection = pm2.querySelector('.sheet-section:last-child');
+                if(combatSection) pm2.insertBefore(moveSection, combatSection);
+                else pm2.appendChild(moveSection);
+            }
+            
+            // Calculate Movement
+            const dex = window.state.dots.attr['Dexterity'] || 1;
+            const dmgBoxes = (window.state.status.health_states || []).filter(x => x > 0).length;
+            
+            let w = 7;
+            let j = 12 + dex;
+            let r = 20 + (3 * dex);
+            let note = "Normal Movement";
+            let noteColor = "text-gray-500";
+            
+            // Health Penalties (V20 p.282)
+            if (dmgBoxes === 4) { // Wounded
+                r = 0; 
+                note = "Wounded: Cannot Run"; 
+                noteColor = "text-orange-400";
+            } else if (dmgBoxes === 5) { // Mauled
+                j = 0; r = 0;
+                note = "Mauled: Walk Only";
+                noteColor = "text-red-400";
+            } else if (dmgBoxes === 6) { // Crippled
+                w = 1; j = 0; r = 0;
+                note = "Crippled: Crawl Only (1 yd/turn)";
+                noteColor = "text-red-600 font-bold";
+            } else if (dmgBoxes >= 7) { // Incapacitated
+                w = 0; j = 0; r = 0;
+                note = "Incapacitated: Immobile";
+                noteColor = "text-red-700 font-black";
+            }
+
+            // Render
+            moveSection.innerHTML = `
+                <div class="section-title">Movement (Yards/Turn)</div>
+                <div class="grid grid-cols-3 gap-4 text-center mt-2">
+                    <div>
+                        <div class="text-[10px] uppercase font-bold text-gray-400">Walk</div>
+                        <div class="text-xl font-bold text-white">${w > 0 ? w : '-'}</div>
+                    </div>
+                    <div>
+                        <div class="text-[10px] uppercase font-bold text-gray-400">Jog</div>
+                        <div class="text-xl font-bold text-gold">${j > 0 ? j : '-'}</div>
+                    </div>
+                    <div>
+                        <div class="text-[10px] uppercase font-bold text-gray-400">Run</div>
+                        <div class="text-xl font-bold text-red-500">${r > 0 ? r : '-'}</div>
+                    </div>
+                </div>
+                <div class="text-[10px] text-center mt-2 border-t border-[#333] pt-1 ${noteColor} font-bold uppercase">${note}</div>
+            `;
+        }
 
         if(document.getElementById('rituals-list-play')) document.getElementById('rituals-list-play').innerText = document.getElementById('rituals-list-create-ta').value;
         let carried = []; let owned = []; if(window.state.inventory) { window.state.inventory.forEach(i => { const str = `${i.displayName || i.name} ${i.type === 'Armor' ? `(R:${i.stats.rating} P:${i.stats.penalty})` : ''}`; if(i.status === 'carried') carried.push(str); else owned.push(str); }); }
