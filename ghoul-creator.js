@@ -1,7 +1,7 @@
 import { 
     ATTRIBUTES, ABILITIES, DISCIPLINES, VIRTUES, BACKGROUNDS, ARCHETYPES, CLANS, 
     SPECIALTY_EXAMPLES as SPECIALTIES, 
-    V20_MERITS_LIST, V20_FLAWS_LIST 
+    V20_MERITS_LIST, V20_FLAWS_LIST, VIT 
 } from "./data.js";
 import { renderDots, showNotification } from "./ui-common.js";
 
@@ -48,7 +48,7 @@ export function openGhoulCreator(dataOrEvent = null, index = null) {
     if (incomingData) {
         activeGhoul = JSON.parse(JSON.stringify(incomingData));
         // Patch missing objects
-        ['attributes', 'abilities', 'disciplines', 'backgrounds', 'specialties', 'merits', 'flaws'].forEach(k => { if (!activeGhoul[k]) activeGhoul[k] = {}; });
+        ['attributes', 'abilities', 'disciplines', 'backgrounds', 'specialties', 'merits', 'flaws', 'bio'].forEach(k => { if (!activeGhoul[k]) activeGhoul[k] = {}; });
         if (!activeGhoul.virtues) activeGhoul.virtues = { Conscience: 1, "Self-Control": 1, Courage: 1 };
         
         if (!activeGhoul.disciplines.Potence) activeGhoul.disciplines.Potence = 1;
@@ -73,7 +73,7 @@ export function openGhoulCreator(dataOrEvent = null, index = null) {
             backgrounds: {}, 
             virtues: { Conscience: 1, "Self-Control": 1, Courage: 1 },
             specialties: {},
-            merits: {}, flaws: {},
+            merits: {}, flaws: {}, bio: {},
             priorities: {
                 attr: { Physical: null, Social: null, Mental: null },
                 abil: { Talents: null, Skills: null, Knowledges: null }
@@ -169,7 +169,8 @@ function renderEditorModal() {
                 <button class="ghoul-tab px-6 py-4 hover:bg-[#111] hover:text-[#d4af37] border-r border-[#333] transition-colors" data-tab="step2">2. Attributes</button>
                 <button class="ghoul-tab px-6 py-4 hover:bg-[#111] hover:text-[#d4af37] border-r border-[#333] transition-colors" data-tab="step3">3. Abilities</button>
                 <button class="ghoul-tab px-6 py-4 hover:bg-[#111] hover:text-[#d4af37] border-r border-[#333] transition-colors" data-tab="step4">4. Advantages</button>
-                <button class="ghoul-tab px-6 py-4 hover:bg-[#111] hover:text-[#d4af37] border-r border-[#333] transition-colors" data-tab="step5">5. Finishing</button>
+                <button class="ghoul-tab px-6 py-4 hover:bg-[#111] hover:text-[#d4af37] border-r border-[#333] transition-colors" data-tab="stepBio">5. Biography</button>
+                <button class="ghoul-tab px-6 py-4 hover:bg-[#111] hover:text-[#d4af37] border-r border-[#333] transition-colors" data-tab="step5">6. Finishing</button>
             </div>
 
             <!-- CONTENT -->
@@ -330,7 +331,34 @@ function renderEditorModal() {
                     </div>
                 </div>
 
-                <!-- STEP 5: FINISHING (FREEBIES) -->
+                <!-- STEP 5: BIOGRAPHY (NEW) -->
+                <div id="stepBio" class="ghoul-step hidden">
+                    <div class="sheet-section !mt-0">
+                        <div class="section-title">Biography & Vitals</div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            <div class="space-y-4">
+                                ${VIT.map(v => `
+                                    <div class="flex justify-between items-center border-b border-[#333] pb-1">
+                                        <label class="label-text text-[#d4af37] w-1/3">${v}</label>
+                                        <input type="text" class="w-2/3 bg-transparent text-white text-xs text-right focus:outline-none bio-input" data-field="${v}" value="${activeGhoul.bio[v] || ''}">
+                                    </div>
+                                `).join('')}
+                            </div>
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="label-text text-[#d4af37] mb-2">Description / Appearance</label>
+                                    <textarea id="g-bio-desc" class="w-full h-32 bg-transparent border border-[#444] text-white p-2 text-xs focus:border-[#d4af37] outline-none resize-none">${activeGhoul.bio.Description || ''}</textarea>
+                                </div>
+                                <div>
+                                    <label class="label-text text-[#d4af37] mb-2">Notes / History</label>
+                                    <textarea id="g-bio-notes" class="w-full h-32 bg-transparent border border-[#444] text-white p-2 text-xs focus:border-[#d4af37] outline-none resize-none">${activeGhoul.bio.Notes || ''}</textarea>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- STEP 6: FINISHING (FREEBIES) -->
                 <div id="step5" class="ghoul-step hidden">
                     <div class="sheet-section !mt-0 h-full">
                         <div class="section-title">Finishing Touches & Freebie Points</div>
@@ -472,6 +500,10 @@ function renderEditorModal() {
     bindDotClicks(modal);
     updateTracker();
     updateVirtueHeader();
+}
+
+function updateWeaknessDisplay(clan) {
+    // No-op as per previous instructions to make it editable without auto-fill
 }
 
 function renderFreebieLists() {
@@ -1005,6 +1037,15 @@ function setupActionListeners(modal) {
         if(clanEl) activeGhoul.domitorClan = clanEl.value;
         if(famEl) activeGhoul.family = famEl.value;
 
+        // Save Bio inputs
+        const bioInputs = modal.querySelectorAll('.bio-input');
+        if(!activeGhoul.bio) activeGhoul.bio = {};
+        bioInputs.forEach(input => {
+            activeGhoul.bio[input.dataset.field] = input.value;
+        });
+        activeGhoul.bio.Description = document.getElementById('g-bio-desc').value;
+        activeGhoul.bio.Notes = document.getElementById('g-bio-notes').value;
+
         activeGhoul.bloodPool = parseInt(document.getElementById('g-blood').value) || 10;
         
         // SAVE PRIORITIES (Critical for Freebie calculation on reload)
@@ -1146,8 +1187,8 @@ function bindDotClicks(modal) {
         };
     };
 
-    bindDirect(humRow, 'humanity');
-    bindDirect(willRow, 'willpower');
+    if(humRow) bindDirect(humRow, 'humanity');
+    if(willRow) bindDirect(willRow, 'willpower');
 
     rows.forEach(row => {
         row.onclick = null; 
