@@ -79,11 +79,13 @@ window.initNewSessionLog = function() {
             health: currentHealth,
             effects: ''
         },
-        boonsOwed: [], // {name, type, reason}
+        boonsOwed: [], 
         boonsIOwe: [],
-        npcs: [], // {name, clan, attitude, notes}
-        notes: { scene1: '', scene2: '', scene3: '' },
-        investigation: { objective: '', clues: '', secrets: '' },
+        npcs: [], 
+        // Changed to array for dynamic scenes
+        scenes: [{id: 1, text: ''}], 
+        // Changed to array for dynamic clues
+        investigation: [{id: 1, text: ''}],
         downtime: ''
     };
     renderSessionLogForm(newLog);
@@ -93,23 +95,33 @@ function renderSessionLogForm(data) {
     const area = document.getElementById('journal-content-area');
     if(!area) return;
 
-    // Helper for rows
+    // Collect unique NPC names from all previous logs for autocomplete
+    const existingNPCs = new Set();
+    window.state.sessionLogs.forEach(log => {
+        if(log.npcs) log.npcs.forEach(n => existingNPCs.add(n.name));
+    });
+    const npcOptions = Array.from(existingNPCs).map(name => `<option value="${name}">`).join('');
+
+    // --- HTML GENERATORS ---
+
     const boonRow = (b, type) => `
-        <div class="grid grid-cols-12 gap-1 mb-1 text-[9px]">
-            <input type="text" class="col-span-4 bg-black/50 border border-[#333] text-white px-1" placeholder="Name" value="${b.name}" data-group="${type}" data-field="name">
-            <select class="col-span-3 bg-black/50 border border-[#333] text-white px-1" data-group="${type}" data-field="type">
+        <div class="flex gap-1 mb-1 text-[9px] items-center group boon-row">
+            <input type="text" class="flex-1 bg-black/50 border border-[#333] text-white px-1" placeholder="Name" value="${b.name}" data-group="${type}" data-field="name">
+            <select class="w-20 bg-black/50 border border-[#333] text-white px-1" data-group="${type}" data-field="type">
                 <option value="Trivial" ${b.type==='Trivial'?'selected':''}>Trivial</option>
                 <option value="Minor" ${b.type==='Minor'?'selected':''}>Minor</option>
                 <option value="Major" ${b.type==='Major'?'selected':''}>Major</option>
                 <option value="Life" ${b.type==='Life'?'selected':''}>Life</option>
             </select>
-            <input type="text" class="col-span-5 bg-black/50 border border-[#333] text-white px-1" placeholder="Reason" value="${b.reason}" data-group="${type}" data-field="reason">
+            <input type="text" class="flex-1 bg-black/50 border border-[#333] text-white px-1" placeholder="Reason" value="${b.reason}" data-group="${type}" data-field="reason">
+            <button class="text-gray-600 hover:text-red-500 font-bold px-1" onclick="this.closest('.boon-row').remove()">×</button>
         </div>`;
 
     const npcRow = (n) => `
-        <div class="bg-[#111] p-2 mb-2 border border-[#333]">
+        <div class="bg-[#111] p-2 mb-2 border border-[#333] relative group npc-row">
+            <button class="absolute top-1 right-1 text-gray-600 hover:text-red-500 font-bold text-[10px]" onclick="this.closest('.npc-row').remove()">×</button>
             <div class="grid grid-cols-2 gap-2 mb-1">
-                <input type="text" class="bg-black/50 border border-[#333] text-white px-1 text-[10px]" placeholder="Name" value="${n.name}" data-group="npcs" data-field="name">
+                <input type="text" list="npc-list" class="bg-black/50 border border-[#333] text-white px-1 text-[10px]" placeholder="Name" value="${n.name}" data-group="npcs" data-field="name" onchange="window.autofillNPC(this)">
                 <input type="text" class="bg-black/50 border border-[#333] text-white px-1 text-[10px]" placeholder="Clan/Role" value="${n.clan}" data-group="npcs" data-field="clan">
             </div>
             <div class="flex gap-2 mb-1 text-[9px] text-gray-400">
@@ -121,8 +133,28 @@ function renderSessionLogForm(data) {
             <input type="text" class="w-full bg-black/50 border border-[#333] text-white px-1 text-[10px]" placeholder="Key Notes" value="${n.notes}" data-group="npcs" data-field="notes">
         </div>`;
 
+    const sceneRow = (s, idx) => `
+        <div class="mb-2 scene-row">
+            <div class="flex justify-between text-[9px] text-gray-500 font-bold uppercase mb-1">
+                <span>Scene ${idx + 1}</span>
+                ${idx > 0 ? `<button class="hover:text-red-500" onclick="this.closest('.scene-row').remove()">Remove</button>` : ''}
+            </div>
+            <textarea class="w-full bg-[#111] border border-[#333] text-white text-[10px] p-1 h-16 resize-none" placeholder="Description..." data-group="scenes">${s.text}</textarea>
+        </div>`;
+
+    const clueRow = (c, idx) => `
+        <div class="mb-1 flex gap-1 items-center clue-row">
+            <span class="text-[9px] text-gray-500 w-4">${idx + 1}.</span>
+            <input type="text" class="flex-1 bg-[#111] border border-[#333] text-white px-1 text-[10px]" placeholder="Clue / Objective / Secret..." value="${c.text}" data-group="investigation">
+            <button class="text-gray-600 hover:text-red-500 font-bold px-1" onclick="this.closest('.clue-row').remove()">×</button>
+        </div>`;
+
+    // --- MAIN RENDER ---
+
     area.innerHTML = `
         <div class="bg-black border border-[#444] p-4 text-xs font-serif min-h-full relative" id="active-log-form">
+            <datalist id="npc-list">${npcOptions}</datalist>
+            
             <div class="flex justify-between items-start border-b-2 border-double border-gold pb-2 mb-4">
                 <div>
                     <h2 class="text-lg text-white font-bold uppercase tracking-wider">V20 Player Session Journal</h2>
@@ -180,21 +212,19 @@ function renderSessionLogForm(data) {
                 <div id="container-npcs">${data.npcs.map(n => { n.id = n.id || Math.random().toString(36).substr(2, 5); return npcRow(n); }).join('')}</div>
             </div>
 
-            <!-- SESSION NOTES -->
-            <div class="mb-4 space-y-2">
-                <div class="text-[10px] font-bold text-gray-500 uppercase">Session Notes & Events</div>
-                <textarea id="log-scene1" class="w-full bg-[#111] border border-[#333] text-white text-[10px] p-1 h-16 resize-none" placeholder="Scene 1...">${data.notes.scene1}</textarea>
-                <textarea id="log-scene2" class="w-full bg-[#111] border border-[#333] text-white text-[10px] p-1 h-16 resize-none" placeholder="Scene 2...">${data.notes.scene2}</textarea>
-                <textarea id="log-scene3" class="w-full bg-[#111] border border-[#333] text-white text-[10px] p-1 h-16 resize-none" placeholder="Scene 3...">${data.notes.scene3}</textarea>
+            <!-- SESSION NOTES (SCENES) -->
+            <div class="mb-4">
+                <div class="text-[10px] font-bold text-gray-500 uppercase mb-1 border-b border-gray-700/30">Session Scenes <button class="ml-2 text-gray-500 hover:text-white" onclick="window.addLogScene()">+</button></div>
+                <div id="container-scenes" class="space-y-2">
+                    ${(data.scenes || [{id:1, text:''}]).map((s, i) => sceneRow(s, i)).join('')}
+                </div>
             </div>
 
             <!-- INVESTIGATION -->
             <div class="mb-4">
-                <div class="text-[10px] font-bold text-purple-400 uppercase mb-1 border-b border-purple-500/30">Investigation & Secrets</div>
-                <div class="space-y-1">
-                    <input type="text" id="log-obj" class="w-full bg-[#111] border border-[#333] text-white px-1 text-[10px]" placeholder="Current Objective" value="${data.investigation.objective}">
-                    <input type="text" id="log-clues" class="w-full bg-[#111] border border-[#333] text-white px-1 text-[10px]" placeholder="New Clues Found" value="${data.investigation.clues}">
-                    <input type="text" id="log-secrets" class="w-full bg-[#111] border border-[#333] text-white px-1 text-[10px]" placeholder="Secrets / Blackmail Material" value="${data.investigation.secrets}">
+                <div class="text-[10px] font-bold text-purple-400 uppercase mb-1 border-b border-purple-500/30">Investigation & Secrets <button class="ml-2 text-gray-500 hover:text-white" onclick="window.addLogClue()">+</button></div>
+                <div id="container-investigation" class="space-y-1">
+                    ${(data.investigation || [{id:1, text:''}]).map((c, i) => clueRow(c, i)).join('')}
                 </div>
             </div>
 
@@ -206,20 +236,60 @@ function renderSessionLogForm(data) {
         </div>
     `;
 
-    // ADD BOON HANDLER
+    // --- DOM HANDLERS ---
+
     window.addLogBoon = (type) => {
         const cont = document.getElementById(`container-${type}`);
-        const div = document.createElement('div');
-        div.innerHTML = boonRow({name:'', type:'Trivial', reason:''}, type);
-        cont.appendChild(div.firstElementChild);
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = boonRow({name:'', type:'Trivial', reason:''}, type);
+        cont.appendChild(tempDiv.firstElementChild);
     };
 
-    // ADD NPC HANDLER
     window.addLogNPC = () => {
         const cont = document.getElementById(`container-npcs`);
-        const div = document.createElement('div');
-        div.innerHTML = npcRow({name:'', clan:'', attitude:'Neutral', notes:'', id: Math.random().toString(36).substr(2, 5)});
-        cont.appendChild(div.firstElementChild);
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = npcRow({name:'', clan:'', attitude:'Neutral', notes:'', id: Math.random().toString(36).substr(2, 5)});
+        cont.appendChild(tempDiv.firstElementChild);
+    };
+
+    window.autofillNPC = (input) => {
+        const name = input.value;
+        // Search previous logs for this NPC to autofill details
+        for (const log of window.state.sessionLogs) {
+            if (log.npcs) {
+                const found = log.npcs.find(n => n.name === name);
+                if (found) {
+                    const row = input.closest('.npc-row');
+                    const clanInput = row.querySelector('[data-field="clan"]');
+                    const noteInput = row.querySelector('[data-field="notes"]');
+                    const radios = row.querySelectorAll('input[type="radio"]');
+                    
+                    if(clanInput && !clanInput.value) clanInput.value = found.clan;
+                    if(noteInput && !noteInput.value) noteInput.value = found.notes; // Optional: maybe don't autofill notes?
+                    
+                    radios.forEach(r => {
+                        if (r.value === found.attitude) r.checked = true;
+                    });
+                    break;
+                }
+            }
+        }
+    };
+
+    window.addLogScene = () => {
+        const cont = document.getElementById('container-scenes');
+        const count = cont.children.length;
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = sceneRow({text:''}, count);
+        cont.appendChild(tempDiv.firstElementChild);
+    };
+
+    window.addLogClue = () => {
+        const cont = document.getElementById('container-investigation');
+        const count = cont.children.length;
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = clueRow({text:''}, count);
+        cont.appendChild(tempDiv.firstElementChild);
     };
 
     // SAVE HANDLER
@@ -228,12 +298,10 @@ function renderSessionLogForm(data) {
         saveBtn.onclick = () => {
             const getVal = (id) => { const el = document.getElementById(id); return el ? el.value : ''; };
 
-            // Simplified DOM reading for lists
             const readBoons = (type) => {
                 const container = document.getElementById(`container-${type}`);
                 if(!container) return [];
-                const rows = container.children;
-                return Array.from(rows).map(r => ({
+                return Array.from(container.children).map(r => ({
                     name: r.querySelector('[data-field="name"]').value,
                     type: r.querySelector('[data-field="type"]').value,
                     reason: r.querySelector('[data-field="reason"]').value
@@ -243,8 +311,7 @@ function renderSessionLogForm(data) {
             const readNPCs = () => {
                 const container = document.getElementById('container-npcs');
                 if(!container) return [];
-                const rows = container.children;
-                return Array.from(rows).map(r => {
+                return Array.from(container.children).map(r => {
                     const att = r.querySelector('input[type="radio"]:checked')?.value || 'Neutral';
                     return {
                         name: r.querySelector('[data-field="name"]').value,
@@ -254,6 +321,24 @@ function renderSessionLogForm(data) {
                         id: r.querySelector('input[type="radio"]').name.split('-')[1] 
                     };
                 }).filter(n => n.name);
+            };
+
+            const readScenes = () => {
+                const container = document.getElementById('container-scenes');
+                if(!container) return [];
+                return Array.from(container.children).map((r, i) => ({
+                    id: i + 1,
+                    text: r.querySelector('textarea').value
+                })).filter(s => s.text.trim() !== "");
+            };
+
+            const readClues = () => {
+                const container = document.getElementById('container-investigation');
+                if(!container) return [];
+                return Array.from(container.children).map((r, i) => ({
+                    id: i + 1,
+                    text: r.querySelector('input').value
+                })).filter(c => c.text.trim() !== "");
             };
 
             const updated = {
@@ -266,16 +351,8 @@ function renderSessionLogForm(data) {
                 boonsOwed: readBoons('boonsOwed'),
                 boonsIOwe: readBoons('boonsIOwe'),
                 npcs: readNPCs(),
-                notes: {
-                    scene1: getVal('log-scene1'),
-                    scene2: getVal('log-scene2'),
-                    scene3: getVal('log-scene3')
-                },
-                investigation: {
-                    objective: getVal('log-obj'),
-                    clues: getVal('log-clues'),
-                    secrets: getVal('log-secrets')
-                },
+                scenes: readScenes(),
+                investigation: readClues(),
                 downtime: getVal('log-downtime')
             };
 
@@ -288,7 +365,7 @@ function renderSessionLogForm(data) {
             }
 
             renderJournalHistoryList();
-            renderSessionLogForm(updated); // Refresh view
+            renderSessionLogForm(updated);
             showNotification("Journal Saved!");
         };
     }
@@ -299,7 +376,7 @@ function renderSessionLogForm(data) {
         delBtn.onclick = () => {
             if(confirm("Delete this session log?")) {
                 window.state.sessionLogs = window.state.sessionLogs.filter(l => l.id !== data.id);
-                renderJournalTab(); // Reset view
+                renderJournalTab(); 
             }
         };
     }
