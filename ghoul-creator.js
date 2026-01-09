@@ -1,7 +1,7 @@
 import { 
     ATTRIBUTES, ABILITIES, DISCIPLINES, VIRTUES, BACKGROUNDS, ARCHETYPES, CLANS, 
     SPECIALTY_EXAMPLES as SPECIALTIES, 
-    V20_MERITS_LIST, V20_FLAWS_LIST, CLAN_WEAKNESSES 
+    V20_MERITS_LIST, V20_FLAWS_LIST 
 } from "./data.js";
 import { renderDots, showNotification } from "./ui-common.js";
 
@@ -66,7 +66,7 @@ export function openGhoulCreator(dataOrEvent = null, index = null) {
 
         activeGhoul = {
             name: "", player: "", chronicle: defaultChronicle, type: "Vassal", concept: "", 
-            domitor: "", domitorClan: "", family: "",
+            domitor: "", domitorClan: "", family: "", weakness: "",
             nature: "", demeanor: "",
             attributes: {}, abilities: {}, 
             disciplines: { Potence: 1 }, 
@@ -213,7 +213,7 @@ function renderEditorModal() {
                                 </div>
                                 <!-- Conditional Fields -->
                                 <div id="div-domitor-clan" class="${activeGhoul.type === 'Revenant' ? 'hidden' : 'block'}">
-                                    <label class="label-text text-[#d4af37]">Domitor Clan (Weakness Source)</label>
+                                    <label class="label-text text-[#d4af37]">Domitor Clan</label>
                                     <select id="g-domitor-clan" class="w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] focus:outline-none transition-colors">
                                         <option value="" class="bg-black">Unknown/None</option>
                                         ${clanOptions}
@@ -230,8 +230,8 @@ function renderEditorModal() {
                         </div>
                         <!-- Weakness Display -->
                         <div class="mt-6 p-4 bg-red-900/10 border border-red-900/30 rounded">
-                            <label class="label-text text-red-400">Domitor/Clan Weakness Reference (Ghouls suffer a lesser form)</label>
-                            <div id="g-weakness-display" class="text-xs text-gray-400 mt-1 italic min-h-[40px]">Select a Domitor Clan to view weakness details...</div>
+                            <label class="label-text text-red-400">Weakness (Conditional)</label>
+                            <textarea id="g-weakness" class="w-full h-20 bg-transparent border-b border-[#444] text-white p-1 text-xs focus:border-red-500 focus:outline-none transition-colors" placeholder="Enter specific weakness details here if conditions are met (e.g. 'Rashes in sunlight' if Setite blood consumed)...">${activeGhoul.weakness || ''}</textarea>
                         </div>
                     </div>
                 </div>
@@ -460,8 +460,6 @@ function renderEditorModal() {
     if(activeGhoul.domitorClan) document.getElementById('g-domitor-clan').value = activeGhoul.domitorClan;
     if(activeGhoul.family) document.getElementById('g-family').value = activeGhoul.family;
 
-    updateWeaknessDisplay(activeGhoul.domitorClan);
-
     renderDotGroups();
     renderDynamicLists();
     renderMeritsFlaws(); 
@@ -474,16 +472,6 @@ function renderEditorModal() {
     bindDotClicks(modal);
     updateTracker();
     updateVirtueHeader();
-}
-
-function updateWeaknessDisplay(clan) {
-    const el = document.getElementById('g-weakness-display');
-    if(!el) return;
-    if (clan && CLAN_WEAKNESSES[clan]) {
-        el.innerText = CLAN_WEAKNESSES[clan];
-    } else {
-        el.innerText = "Select a Domitor Clan to view weakness details...";
-    }
 }
 
 function renderFreebieLists() {
@@ -1005,6 +993,7 @@ function setupActionListeners(modal) {
         activeGhoul.concept = document.getElementById('g-concept').value;
         activeGhoul.type = document.getElementById('g-type').value;
         activeGhoul.player = document.getElementById('g-player').value;
+        activeGhoul.weakness = document.getElementById('g-weakness').value;
         
         const natureEl = document.getElementById('g-nature');
         const demeanorEl = document.getElementById('g-demeanor');
@@ -1052,11 +1041,11 @@ function setupActionListeners(modal) {
         };
     }
 
+    // Clan Change Listener (Just saves state, no autofill)
     const clanSelect = document.getElementById('g-domitor-clan');
     if(clanSelect) {
         clanSelect.onchange = (e) => {
             activeGhoul.domitorClan = e.target.value;
-            updateWeaknessDisplay(e.target.value);
         };
     }
 
