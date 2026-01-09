@@ -23,7 +23,6 @@ export function openGhoulCreator(dataOrEvent = null, index = null) {
 
     let incomingData = null;
     
-    // Robust check for Browser Event vs Data Object
     const isEvent = dataOrEvent && (typeof dataOrEvent.preventDefault === 'function' || typeof dataOrEvent.stopPropagation === 'function');
     
     if (dataOrEvent && !isEvent) {
@@ -41,27 +40,29 @@ export function openGhoulCreator(dataOrEvent = null, index = null) {
     if (incomingData) {
         activeGhoul = JSON.parse(JSON.stringify(incomingData));
         // Patch missing objects
-        ['attributes', 'abilities', 'disciplines', 'backgrounds'].forEach(k => { if (!activeGhoul[k]) activeGhoul[k] = {}; });
+        ['attributes', 'abilities', 'disciplines', 'backgrounds', 'specialties'].forEach(k => { if (!activeGhoul[k]) activeGhoul[k] = {}; });
         if (!activeGhoul.virtues) activeGhoul.virtues = { Conscience: 1, "Self-Control": 1, Courage: 1 };
         
-        // Ensure Potence 1 exists
         if (!activeGhoul.disciplines.Potence) activeGhoul.disciplines.Potence = 1;
 
         initBaseDots(activeGhoul);
     } else {
         // New Ghoul Template
+        // Default Chronicle to main character if available
+        const defaultChronicle = (window.character && window.character.chronicle) ? window.character.chronicle : "";
+
         activeGhoul = {
-            name: "", player: "", chronicle: "", type: "Vassal", concept: "", domitor: "",
+            name: "", player: "", chronicle: defaultChronicle, type: "Vassal", concept: "", domitor: "",
             nature: "", demeanor: "",
             attributes: {}, abilities: {}, 
             disciplines: { Potence: 1 }, 
             backgrounds: {}, 
             virtues: { Conscience: 1, "Self-Control": 1, Courage: 1 },
+            specialties: {},
             humanity: 2, willpower: 1, bloodPool: 10 
         };
         initBaseDots(activeGhoul);
         
-        // Initial Calc
         recalcStatus();
     }
 
@@ -89,11 +90,8 @@ function renderEditorModal() {
         document.body.appendChild(modal);
     }
 
-    // Populate Lists using Shared Data
     const bgOptions = (BACKGROUNDS || []).map(b => `<option value="${b}">${b}</option>`).join('');
     const discOptions = (DISCIPLINES || []).map(d => `<option value="${d}">${d}</option>`).join('');
-    
-    // Sort Archetypes alphabetically if they exist
     const archList = (ARCHETYPES || []).sort();
     const archOptions = archList.map(a => `<option value="${a}">${a}</option>`).join('');
 
@@ -126,11 +124,11 @@ function renderEditorModal() {
                 <div id="step1" class="ghoul-step hidden">
                     <div class="sheet-section !mt-0">
                         <div class="section-title">Character Concept</div>
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
                             <div class="space-y-6">
                                 <div><label class="label-text text-[#d4af37]">Name</label><input type="text" id="g-name" value="${activeGhoul.name || ''}" class="w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] focus:outline-none transition-colors"></div>
                                 <div><label class="label-text text-[#d4af37]">Player</label><input type="text" id="g-player" value="${activeGhoul.player || ''}" class="w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] focus:outline-none transition-colors"></div>
-                                <div><label class="label-text text-[#d4af37]">Chronicle</label><input type="text" id="g-chronicle" value="${activeGhoul.chronicle || ''}" class="w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] focus:outline-none transition-colors"></div>
+                                <div><label class="label-text text-[#d4af37]">Domitor (Master)</label><input type="text" id="g-domitor" value="${activeGhoul.domitor || ''}" class="w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] focus:outline-none transition-colors"></div>
                             </div>
                             <div class="space-y-6">
                                 <div>
@@ -148,9 +146,6 @@ function renderEditorModal() {
                                     </select>
                                 </div>
                                 <div><label class="label-text text-[#d4af37]">Concept</label><input type="text" id="g-concept" value="${activeGhoul.concept || ''}" class="w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] focus:outline-none transition-colors"></div>
-                            </div>
-                            <div class="space-y-6">
-                                <div><label class="label-text text-[#d4af37]">Domitor (Master)</label><input type="text" id="g-domitor" value="${activeGhoul.domitor || ''}" class="w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] focus:outline-none transition-colors"></div>
                                 <div>
                                     <label class="label-text text-[#d4af37]">Ghoul Type</label>
                                     <select id="g-type" class="w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] focus:outline-none transition-colors">
@@ -258,46 +253,81 @@ function renderEditorModal() {
                     </div>
                 </div>
 
-                <!-- STEP 5: FINISHING -->
+                <!-- STEP 5: FINISHING (FREEBIES) -->
                 <div id="step5" class="ghoul-step hidden">
-                    <div class="sheet-section !mt-0">
-                        <div class="section-title">Finishing Touches (21 Freebies)</div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
-                            <div>
-                                <h3 class="column-title">Status</h3>
-                                <div class="border border-[#333] bg-black/40 p-6 space-y-6">
+                    <div class="sheet-section !mt-0 h-full">
+                        <div class="section-title">Finishing Touches & Freebie Points</div>
+                        
+                        <div class="flex flex-col md:flex-row gap-6 h-full">
+                            <!-- LEFT: UPGRADE PANEL -->
+                            <div class="flex-1 space-y-8 overflow-y-auto pr-2 max-h-[60vh]">
+                                <!-- Status Block (Moved here for easy access) -->
+                                <div class="border border-[#333] bg-black/40 p-4 grid grid-cols-2 gap-4">
                                     <div class="flex justify-between items-center text-xs">
-                                        <span class="font-bold text-[#d4af37] uppercase tracking-wider">Humanity</span>
-                                        <div class="dot-row cursor-pointer" id="g-humanity-row">
-                                            ${renderDots(activeGhoul.humanity, 10)}
-                                        </div>
+                                        <span class="font-bold text-[#d4af37] uppercase">Humanity</span>
+                                        <div class="dot-row cursor-pointer" id="g-humanity-row">${renderDots(activeGhoul.humanity, 10)}</div>
                                     </div>
                                     <div class="flex justify-between items-center text-xs">
-                                        <span class="font-bold text-[#d4af37] uppercase tracking-wider">Willpower</span>
-                                        <div class="dot-row cursor-pointer" id="g-willpower-row">
-                                            ${renderDots(activeGhoul.willpower, 10)}
-                                        </div>
+                                        <span class="font-bold text-[#d4af37] uppercase">Willpower</span>
+                                        <div class="dot-row cursor-pointer" id="g-willpower-row">${renderDots(activeGhoul.willpower, 10)}</div>
                                     </div>
-                                    <div class="flex justify-between items-center text-xs pt-4 border-t border-[#333]">
-                                        <span class="font-bold text-[#d4af37] uppercase tracking-wider">Blood Pool</span>
+                                    <div class="flex justify-between items-center text-xs col-span-2 border-t border-[#333] pt-2">
+                                        <span class="font-bold text-[#d4af37] uppercase">Blood Pool</span>
                                         <input type="number" id="g-blood" value="${activeGhoul.bloodPool}" class="w-12 bg-transparent border-b border-[#444] text-center text-white p-1 font-bold text-lg focus:border-[#d4af37] outline-none">
                                     </div>
                                 </div>
-                            </div>
-                            <div>
-                                <h3 class="column-title">Freebie Ledger</h3>
-                                <div class="text-[10px] font-mono space-y-2 p-4 bg-black/40 border border-[#333] text-gray-400">
-                                    <div class="flex justify-between border-b border-[#222] pb-1"><span>Attributes (5):</span> <span id="fb-cost-attr" class="text-white">0</span></div>
-                                    <div class="flex justify-between border-b border-[#222] pb-1"><span>Abilities (2):</span> <span id="fb-cost-abil" class="text-white">0</span></div>
-                                    <div class="flex justify-between border-b border-[#222] pb-1"><span>Disciplines (10):</span> <span id="fb-cost-disc" class="text-white">0</span></div>
-                                    <div class="flex justify-between border-b border-[#222] pb-1"><span>Backgrounds (1):</span> <span id="fb-cost-back" class="text-white">0</span></div>
-                                    <div class="flex justify-between border-b border-[#222] pb-1"><span>Virtues (2):</span> <span id="fb-cost-virt" class="text-white">0</span></div>
-                                    <div class="flex justify-between border-b border-[#222] pb-1"><span>Humanity (1):</span> <span id="fb-cost-hum" class="text-white">0</span></div>
-                                    <div class="flex justify-between border-b border-[#222] pb-1"><span>Willpower (1):</span> <span id="fb-cost-will" class="text-white">0</span></div>
+
+                                <!-- Attributes Upgrade -->
+                                <div>
+                                    <h3 class="column-title mb-2">Attributes</h3>
+                                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        <div id="fb-attr-phys"></div>
+                                        <div id="fb-attr-soc"></div>
+                                        <div id="fb-attr-men"></div>
+                                    </div>
                                 </div>
-                                <div class="mt-6 p-4 border border-[#d4af37]/30 bg-[#d4af37]/10 rounded text-center shadow-[0_0_15px_rgba(212,175,55,0.1)]">
-                                    <div class="uppercase text-[9px] font-bold text-[#d4af37] tracking-widest">Freebies Remaining</div>
-                                    <div id="final-freebie-disp" class="text-4xl font-black text-white mt-2 font-cinzel">21</div>
+
+                                <!-- Abilities Upgrade -->
+                                <div>
+                                    <h3 class="column-title mb-2">Abilities</h3>
+                                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        <div id="fb-abil-tal"></div>
+                                        <div id="fb-abil-ski"></div>
+                                        <div id="fb-abil-kno"></div>
+                                    </div>
+                                </div>
+
+                                <!-- Advantages Upgrade -->
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div>
+                                        <h3 class="column-title mb-2">Disciplines & Backgrounds</h3>
+                                        <div id="fb-disc-list" class="space-y-1"></div>
+                                        <div id="fb-back-list" class="space-y-1 mt-4"></div>
+                                    </div>
+                                    <div>
+                                        <h3 class="column-title mb-2">Virtues</h3>
+                                        <div id="fb-virt-list" class="space-y-2"></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- RIGHT: LEDGER (STICKY) -->
+                            <div class="w-full md:w-64 flex-shrink-0">
+                                <div class="sticky top-0 space-y-4">
+                                    <h3 class="column-title">Freebie Ledger</h3>
+                                    <div class="text-[10px] font-mono space-y-2 p-4 bg-black/40 border border-[#333] text-gray-400">
+                                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Attributes (5):</span> <span id="fb-cost-attr" class="text-white">0</span></div>
+                                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Abilities (2):</span> <span id="fb-cost-abil" class="text-white">0</span></div>
+                                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Disciplines (10):</span> <span id="fb-cost-disc" class="text-white">0</span></div>
+                                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Backgrounds (1):</span> <span id="fb-cost-back" class="text-white">0</span></div>
+                                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Virtues (2):</span> <span id="fb-cost-virt" class="text-white">0</span></div>
+                                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Humanity (1):</span> <span id="fb-cost-hum" class="text-white">0</span></div>
+                                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Willpower (1):</span> <span id="fb-cost-will" class="text-white">0</span></div>
+                                    </div>
+                                    <div class="p-4 border border-[#d4af37]/30 bg-[#d4af37]/10 rounded text-center shadow-[0_0_15px_rgba(212,175,55,0.1)]">
+                                        <div class="uppercase text-[9px] font-bold text-[#d4af37] tracking-widest">Freebies Remaining</div>
+                                        <div id="final-freebie-disp" class="text-4xl font-black text-white mt-2 font-cinzel">21</div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -309,7 +339,7 @@ function renderEditorModal() {
             <!-- FOOTER -->
             <div class="p-4 border-t border-[#444] bg-[#050505] flex justify-between items-center shrink-0">
                 <div class="text-[10px] text-gray-500 italic">
-                    <span class="text-[#d4af37]">Note:</span> Abilities capped at 3 dots until 'Finishing' step.
+                    <span class="text-[#d4af37]">Note:</span> Abilities capped at 3 dots until 'Finishing' step. Specialties available at 4+ dots.
                 </div>
                 <div class="flex gap-4">
                     <button id="cancel-ghoul" class="border border-[#444] text-gray-400 px-6 py-2 uppercase font-bold text-xs hover:bg-[#222] hover:text-white transition tracking-wider">Cancel</button>
@@ -324,7 +354,6 @@ function renderEditorModal() {
     modal.style.display = 'flex';
     modal.classList.remove('hidden');
 
-    // Populate Selectors from State
     if(activeGhoul.nature) document.getElementById('g-nature').value = activeGhoul.nature;
     if(activeGhoul.demeanor) document.getElementById('g-demeanor').value = activeGhoul.demeanor;
 
@@ -332,12 +361,61 @@ function renderEditorModal() {
     renderDynamicLists();
     updatePriorityUI(); 
     
+    // Render Step 5 Lists initially (hidden but ready)
+    renderFreebieLists();
+
     setupNavListeners(modal);
     setupActionListeners(modal);
-    
     bindDotClicks(modal);
     updateTracker();
     updateVirtueHeader();
+}
+
+function renderFreebieLists() {
+    // Re-render everything into the 'fb-' containers
+    if(ATTRIBUTES) {
+        renderGroup('fb-attr-phys', 'Physical', ATTRIBUTES.Physical, 'attributes');
+        renderGroup('fb-attr-soc', 'Social', ATTRIBUTES.Social, 'attributes');
+        renderGroup('fb-attr-men', 'Mental', ATTRIBUTES.Mental, 'attributes');
+    }
+    if(ABILITIES) {
+        renderGroup('fb-abil-tal', 'Talents', ABILITIES.Talents, 'abilities');
+        renderGroup('fb-abil-ski', 'Skills', ABILITIES.Skills, 'abilities');
+        renderGroup('fb-abil-kno', 'Knowledges', ABILITIES.Knowledges, 'abilities');
+    }
+    // Disciplines/Backgrounds need dynamic list rendering for Freebie tab too
+    // We can just mirror the content from standard IDs if we keep them synced, 
+    // but better to render them specifically.
+    renderDynamicListsForFreebies();
+    if(VIRTUES) renderGroup('fb-virt-list', null, VIRTUES, 'virtues');
+}
+
+function renderDynamicListsForFreebies() {
+    const dEl = document.getElementById('fb-disc-list');
+    const bEl = document.getElementById('fb-back-list');
+    
+    if(dEl && activeGhoul.disciplines) {
+        dEl.innerHTML = '';
+        Object.entries(activeGhoul.disciplines).forEach(([name, val]) => {
+            const isAuto = name === 'Potence';
+            dEl.innerHTML += `
+                <div class="flex justify-between items-center mb-1 dot-row-interactive" data-type="disciplines" data-key="${name}">
+                    <span class="text-[10px] uppercase font-bold ${isAuto ? 'text-[#d4af37]' : 'text-white'}">${name}</span>
+                    <div class="dot-row cursor-pointer hover:opacity-80">${renderDots(val, 5)}</div>
+                </div>`;
+        });
+    }
+
+    if(bEl && activeGhoul.backgrounds) {
+        bEl.innerHTML = '';
+        Object.entries(activeGhoul.backgrounds).forEach(([name, val]) => {
+            bEl.innerHTML += `
+                <div class="flex justify-between items-center mb-1 dot-row-interactive" data-type="backgrounds" data-key="${name}">
+                    <span class="text-[10px] uppercase font-bold text-white">${name}</span>
+                    <div class="dot-row cursor-pointer hover:opacity-80">${renderDots(val, 5)}</div>
+                </div>`;
+        });
+    }
 }
 
 function validateChange(type, key, newVal, currentVal) {
@@ -539,6 +617,7 @@ function switchTab(tabId) {
         }
     });
 
+    // We must re-bind clicks because elements might have been re-rendered
     const modal = document.getElementById('ghoul-modal');
     if(modal) bindDotClicks(modal);
 }
@@ -572,9 +651,25 @@ function renderGroup(id, title, list, type) {
             const val = activeGhoul[type][item] || 0;
             const dispVal = (type === 'attributes' && val < 1) ? 1 : val;
             
+            // Specialty Check
+            let specialtyHtml = '';
+            if ((type === 'attributes' || type === 'abilities') && val >= 4) {
+                const specVal = (activeGhoul.specialties && activeGhoul.specialties[item]) || '';
+                specialtyHtml = `
+                    <input type="text" 
+                        class="specialty-input bg-transparent border-b border-[#333] text-[9px] text-[#d4af37] w-20 ml-2 focus:outline-none focus:border-[#d4af37] placeholder-gray-600" 
+                        placeholder="Specialty" 
+                        data-key="${item}" 
+                        value="${specVal}">
+                `;
+            }
+            
             html += `
                 <div class="flex justify-between items-center mb-1 dot-row-interactive" data-type="${type}" data-key="${item}">
-                    <span class="text-[10px] uppercase font-bold text-gray-300 tracking-tight">${item}</span>
+                    <div class="flex items-center">
+                        <span class="text-[10px] uppercase font-bold text-gray-300 tracking-tight">${item}</span>
+                        ${specialtyHtml}
+                    </div>
                     <div class="dot-row cursor-pointer hover:opacity-80 transition-opacity">
                         ${renderDots(dispVal, 5)}
                     </div>
@@ -636,6 +731,7 @@ window.removeGhoulItem = function(type, key) {
     if (activeGhoul[type] && activeGhoul[type][key] !== undefined) {
         delete activeGhoul[type][key];
         renderDynamicLists();
+        renderFreebieLists(); // Update step 5 too
         updateCounters();
         bindDotClicks(document.getElementById('ghoul-modal'));
     }
@@ -654,11 +750,10 @@ function setupActionListeners(modal) {
         activeGhoul.name = document.getElementById('g-name').value;
         activeGhoul.domitor = document.getElementById('g-domitor').value;
         activeGhoul.concept = document.getElementById('g-concept').value;
-        activeGhoul.chronicle = document.getElementById('g-chronicle').value;
+        // Chronicle not saved from input anymore, uses default
         activeGhoul.type = document.getElementById('g-type').value;
         activeGhoul.player = document.getElementById('g-player').value;
         
-        // Save Nature/Demeanor
         const natureEl = document.getElementById('g-nature');
         const demeanorEl = document.getElementById('g-demeanor');
         if(natureEl) activeGhoul.nature = natureEl.value;
@@ -690,6 +785,15 @@ function setupActionListeners(modal) {
         };
     }
 
+    // Specialty Inputs
+    modal.addEventListener('change', (e) => {
+        if(e.target.classList.contains('specialty-input')) {
+            const key = e.target.dataset.key;
+            if(!activeGhoul.specialties) activeGhoul.specialties = {};
+            activeGhoul.specialties[key] = e.target.value;
+        }
+    });
+
     const setupDrop = (id, type, renderFn) => {
         const sel = document.getElementById(id);
         if(!sel) return;
@@ -704,6 +808,7 @@ function setupActionListeners(modal) {
                     }
                     activeGhoul[type][val] = 1;
                     renderFn();
+                    renderFreebieLists(); // Update step 5 too
                     updateCounters();
                     bindDotClicks(modal);
                 }
@@ -771,10 +876,20 @@ function bindDotClicks(modal) {
             if (!validateChange(type, key, finalVal, currentVal)) return;
             
             activeGhoul[type][key] = finalVal;
-            row.querySelector('.dot-row').innerHTML = renderDots(finalVal, 5);
             
+            // Re-render ALL instances of this row (in step 2-4 AND step 5)
+            // We do this by re-calling render functions.
+            // A bit heavy but ensures sync.
+            renderDotGroups();
+            renderDynamicLists();
+            renderFreebieLists();
+            
+            // Re-bind because we wiped HTML
+            bindDotClicks(modal);
+
             if (type === 'virtues') {
                 recalcStatus();
+                // Status is in Step 5, update manually if we aren't re-rendering whole modal
                 const hDots = document.getElementById('g-humanity-row');
                 const wDots = document.getElementById('g-willpower-row');
                 if(hDots) hDots.innerHTML = renderDots(activeGhoul.humanity, 10);
