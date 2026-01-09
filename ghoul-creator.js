@@ -22,7 +22,11 @@ export function openGhoulCreator(dataOrEvent = null, index = null) {
     console.log("Creating/Editing Ghoul...", dataOrEvent); 
 
     let incomingData = null;
-    const isEvent = dataOrEvent && (dataOrEvent instanceof Event || !!dataOrEvent.target || !!dataOrEvent.type);
+    
+    // FIX: Robust check for Browser Event vs Data Object
+    // Only browser events have preventDefault/stopPropagation methods.
+    // We strictly check for these to avoid confusing data.type with event.type
+    const isEvent = dataOrEvent && (typeof dataOrEvent.preventDefault === 'function' || typeof dataOrEvent.stopPropagation === 'function');
     
     if (dataOrEvent && !isEvent) {
         incomingData = dataOrEvent;
@@ -38,10 +42,12 @@ export function openGhoulCreator(dataOrEvent = null, index = null) {
 
     if (incomingData) {
         activeGhoul = JSON.parse(JSON.stringify(incomingData));
+        // Patch missing objects
         ['attributes', 'abilities', 'disciplines', 'backgrounds'].forEach(k => { if (!activeGhoul[k]) activeGhoul[k] = {}; });
         if (!activeGhoul.virtues) activeGhoul.virtues = { Conscience: 1, "Self-Control": 1, Courage: 1 };
         initBaseDots(activeGhoul);
     } else {
+        // New Ghoul Template
         activeGhoul = {
             name: "", player: "", chronicle: "", type: "Ghoul", concept: "", domitor: "",
             attributes: {}, abilities: {}, disciplines: { Potence: 1 }, backgrounds: {}, 
@@ -262,7 +268,7 @@ function renderEditorModal() {
                 <div class="flex gap-4">
                     <button id="cancel-ghoul" class="border border-[#444] text-gray-300 px-6 py-2 uppercase font-bold text-xs hover:bg-[#222] transition">Cancel</button>
                     <button id="save-ghoul" class="bg-[#8b0000] text-white px-8 py-2 uppercase font-bold text-xs hover:bg-red-700 shadow-lg tracking-widest transition flex items-center gap-2">
-                        <i class="fas fa-check"></i> Add/Update
+                        <i class="fas fa-check"></i> Save & Close
                     </button>
                 </div>
             </div>
@@ -510,7 +516,7 @@ function setupActionListeners(modal) {
         if(window.renderRetainersTab) window.renderRetainersTab(document.getElementById('play-content'));
         
         // Notify user (DO NOT AUTO-SAVE)
-        if (showNotification) {
+        if (typeof showNotification === 'function') {
             showNotification("Retainer Added. Please save your character.");
         } else if (window.showNotification) {
             window.showNotification("Retainer Added. Please save your character.");
