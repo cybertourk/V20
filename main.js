@@ -420,8 +420,7 @@ function initUI() {
         if(cmdSave) cmdSave.onclick = window.handleSaveClick;
         const cmdLoad = document.getElementById('cmd-load');
         if(cmdLoad) cmdLoad.onclick = window.handleLoadClick;
-        const cmdGhoul = document.getElementById('cmd-ghoul');
-        if(cmdGhoul) cmdGhoul.onclick = window.openGhoulCreator;
+        // REMOVED cmd-ghoul handler
         const confirmSave = document.getElementById('confirm-save-btn');
         if(confirmSave) confirmSave.onclick = window.performSave;
         const topPlayBtn = document.getElementById('play-mode-btn');
