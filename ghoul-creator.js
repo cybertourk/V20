@@ -1,4 +1,4 @@
-import { ATTRIBUTES, ABILITIES, DISCIPLINES, VIRTUES, BACKGROUNDS, ARCHETYPES } from "./data.js";
+import { ATTRIBUTES, ABILITIES, DISCIPLINES, VIRTUES, BACKGROUNDS, ARCHETYPES, SPECIALTIES } from "./data.js";
 import { renderDots, showNotification } from "./ui-common.js";
 
 // --- STATE ---
@@ -32,6 +32,7 @@ export function openGhoulCreator(dataOrEvent = null, index = null) {
     activeIndex = (typeof index === 'number') ? index : null;
     currentTab = 'step1';
     
+    // Reset Local State
     localPriorities = {
         attr: { Physical: null, Social: null, Mental: null },
         abil: { Talents: null, Skills: null, Knowledges: null }
@@ -46,9 +47,16 @@ export function openGhoulCreator(dataOrEvent = null, index = null) {
         if (!activeGhoul.disciplines.Potence) activeGhoul.disciplines.Potence = 1;
 
         initBaseDots(activeGhoul);
+        
+        // RECOVER PRIORITIES
+        if (activeGhoul.priorities) {
+            localPriorities = JSON.parse(JSON.stringify(activeGhoul.priorities));
+        } else {
+            autoDetectPriorities();
+        }
+
     } else {
         // New Ghoul Template
-        // Default Chronicle to main character if available
         const defaultChronicle = (window.character && window.character.chronicle) ? window.character.chronicle : "";
 
         activeGhoul = {
@@ -59,10 +67,13 @@ export function openGhoulCreator(dataOrEvent = null, index = null) {
             backgrounds: {}, 
             virtues: { Conscience: 1, "Self-Control": 1, Courage: 1 },
             specialties: {},
+            priorities: {
+                attr: { Physical: null, Social: null, Mental: null },
+                abil: { Talents: null, Skills: null, Knowledges: null }
+            },
             humanity: 2, willpower: 1, bloodPool: 10 
         };
         initBaseDots(activeGhoul);
-        
         recalcStatus();
     }
 
@@ -73,6 +84,41 @@ export function openGhoulCreator(dataOrEvent = null, index = null) {
 function initBaseDots(ghoul) {
     if (ATTRIBUTES) Object.values(ATTRIBUTES).flat().forEach(a => { if (ghoul.attributes[a] === undefined) ghoul.attributes[a] = 1; });
     if (ABILITIES) Object.values(ABILITIES).flat().forEach(a => { if (ghoul.abilities[a] === undefined) ghoul.abilities[a] = 0; });
+}
+
+function autoDetectPriorities() {
+    // Helper to sum points
+    const sumGroup = (cat, groupList, isAttr) => {
+        let sum = 0;
+        groupList.forEach(k => {
+            const val = isAttr ? (activeGhoul.attributes[k] || 1) : (activeGhoul.abilities[k] || 0);
+            sum += isAttr ? Math.max(0, val - 1) : val;
+        });
+        return sum;
+    };
+
+    // 1. Detect Attributes
+    const attrSums = [
+        { grp: 'Physical', val: sumGroup('attr', ATTRIBUTES.Physical, true) },
+        { grp: 'Social', val: sumGroup('attr', ATTRIBUTES.Social, true) },
+        { grp: 'Mental', val: sumGroup('attr', ATTRIBUTES.Mental, true) }
+    ].sort((a, b) => b.val - a.val);
+
+    // Assign strictly descending (approximate)
+    if(attrSums[0]) localPriorities.attr[attrSums[0].grp] = 6;
+    if(attrSums[1]) localPriorities.attr[attrSums[1].grp] = 4;
+    if(attrSums[2]) localPriorities.attr[attrSums[2].grp] = 3;
+
+    // 2. Detect Abilities
+    const abilSums = [
+        { grp: 'Talents', val: sumGroup('abil', ABILITIES.Talents, false) },
+        { grp: 'Skills', val: sumGroup('abil', ABILITIES.Skills, false) },
+        { grp: 'Knowledges', val: sumGroup('abil', ABILITIES.Knowledges, false) }
+    ].sort((a, b) => b.val - a.val);
+
+    if(abilSums[0]) localPriorities.abil[abilSums[0].grp] = 11;
+    if(abilSums[1]) localPriorities.abil[abilSums[1].grp] = 7;
+    if(abilSums[2]) localPriorities.abil[abilSums[2].grp] = 4;
 }
 
 function recalcStatus() {
@@ -261,7 +307,7 @@ function renderEditorModal() {
                         <div class="flex flex-col md:flex-row gap-6 h-full">
                             <!-- LEFT: UPGRADE PANEL -->
                             <div class="flex-1 space-y-8 overflow-y-auto pr-2 max-h-[60vh]">
-                                <!-- Status Block (Moved here for easy access) -->
+                                <!-- Status Block -->
                                 <div class="border border-[#333] bg-black/40 p-4 grid grid-cols-2 gap-4">
                                     <div class="flex justify-between items-center text-xs">
                                         <span class="font-bold text-[#d4af37] uppercase">Humanity</span>
@@ -372,7 +418,6 @@ function renderEditorModal() {
 }
 
 function renderFreebieLists() {
-    // Re-render everything into the 'fb-' containers
     if(ATTRIBUTES) {
         renderGroup('fb-attr-phys', 'Physical', ATTRIBUTES.Physical, 'attributes');
         renderGroup('fb-attr-soc', 'Social', ATTRIBUTES.Social, 'attributes');
@@ -383,9 +428,6 @@ function renderFreebieLists() {
         renderGroup('fb-abil-ski', 'Skills', ABILITIES.Skills, 'abilities');
         renderGroup('fb-abil-kno', 'Knowledges', ABILITIES.Knowledges, 'abilities');
     }
-    // Disciplines/Backgrounds need dynamic list rendering for Freebie tab too
-    // We can just mirror the content from standard IDs if we keep them synced, 
-    // but better to render them specifically.
     renderDynamicListsForFreebies();
     if(VIRTUES) renderGroup('fb-virt-list', null, VIRTUES, 'virtues');
 }
@@ -617,7 +659,6 @@ function switchTab(tabId) {
         }
     });
 
-    // We must re-bind clicks because elements might have been re-rendered
     const modal = document.getElementById('ghoul-modal');
     if(modal) bindDotClicks(modal);
 }
@@ -655,10 +696,22 @@ function renderGroup(id, title, list, type) {
             let specialtyHtml = '';
             if ((type === 'attributes' || type === 'abilities') && val >= 4) {
                 const specVal = (activeGhoul.specialties && activeGhoul.specialties[item]) || '';
+                
+                // Get relevant options
+                const options = (SPECIALTIES && SPECIALTIES[item]) ? SPECIALTIES[item] : [];
+                const datalistId = `spec-list-${item.replace(/\s/g, '-')}`;
+                const datalistHtml = `
+                    <datalist id="${datalistId}">
+                        ${options.map(opt => `<option value="${opt}">`).join('')}
+                    </datalist>
+                `;
+
                 specialtyHtml = `
+                    ${datalistHtml}
                     <input type="text" 
                         class="specialty-input bg-transparent border-b border-[#333] text-[9px] text-[#d4af37] w-20 ml-2 focus:outline-none focus:border-[#d4af37] placeholder-gray-600" 
                         placeholder="Specialty" 
+                        list="${datalistId}"
                         data-key="${item}" 
                         value="${specVal}">
                 `;
@@ -750,7 +803,6 @@ function setupActionListeners(modal) {
         activeGhoul.name = document.getElementById('g-name').value;
         activeGhoul.domitor = document.getElementById('g-domitor').value;
         activeGhoul.concept = document.getElementById('g-concept').value;
-        // Chronicle not saved from input anymore, uses default
         activeGhoul.type = document.getElementById('g-type').value;
         activeGhoul.player = document.getElementById('g-player').value;
         
@@ -760,6 +812,9 @@ function setupActionListeners(modal) {
         if(demeanorEl) activeGhoul.demeanor = demeanorEl.value;
 
         activeGhoul.bloodPool = parseInt(document.getElementById('g-blood').value) || 10;
+        
+        // SAVE PRIORITIES (Critical for Freebie calculation on reload)
+        activeGhoul.priorities = JSON.parse(JSON.stringify(localPriorities));
 
         if (!window.state.retainers) window.state.retainers = [];
         if (activeIndex !== null && activeIndex >= 0) window.state.retainers[activeIndex] = activeGhoul;
@@ -878,8 +933,6 @@ function bindDotClicks(modal) {
             activeGhoul[type][key] = finalVal;
             
             // Re-render ALL instances of this row (in step 2-4 AND step 5)
-            // We do this by re-calling render functions.
-            // A bit heavy but ensures sync.
             renderDotGroups();
             renderDynamicLists();
             renderFreebieLists();
