@@ -1049,9 +1049,9 @@ export function togglePlayMode() {
                 moveSection.id = 'play-movement-section';
                 moveSection.className = 'sheet-section mt-6';
                 
-                // Try to insert before the last child (Combat Maneuvers usually)
+                // FIXED: Check parentNode before inserting
                 const combatSection = pm2.querySelector('.sheet-section:last-child');
-                if(combatSection) pm2.insertBefore(moveSection, combatSection);
+                if(combatSection && combatSection.parentNode === pm2) pm2.insertBefore(moveSection, combatSection);
                 else pm2.appendChild(moveSection);
             }
             
