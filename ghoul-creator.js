@@ -8,35 +8,46 @@ let currentTab = 'step1';
 
 // --- INITIALIZER ---
 export function openGhoulCreator(dataOrEvent = null, index = null) {
-    // 1. Handle Arguments (Fix for Event Object bug)
+    console.log("Creating/Editing Ghoul...", dataOrEvent); // Debug Log
+
+    // 1. Handle Arguments
+    // Detect if the first argument is a browser Event (click) or actual Data
     let incomingData = null;
-    if (dataOrEvent && !dataOrEvent.target && !dataOrEvent.type && !dataOrEvent.bubbles) {
+    
+    // Check if it's an event (has type and target) or just empty
+    const isEvent = dataOrEvent && (dataOrEvent instanceof Event || !!dataOrEvent.target || !!dataOrEvent.type);
+    
+    if (dataOrEvent && !isEvent) {
         incomingData = dataOrEvent;
     }
 
     activeIndex = (typeof index === 'number') ? index : null;
-    currentTab = 'step1'; // Reset to first step
+    currentTab = 'step1'; 
     
     // 2. Initialize Data
     if (incomingData) {
+        console.log("Loading existing ghoul...");
         activeGhoul = JSON.parse(JSON.stringify(incomingData));
+        
         // Patch missing objects
         ['attributes', 'abilities', 'disciplines', 'backgrounds'].forEach(k => {
             if (!activeGhoul[k]) activeGhoul[k] = {};
         });
         if (!activeGhoul.virtues) activeGhoul.virtues = { Conscience: 1, "Self-Control": 1, Courage: 1 };
+        
         initBaseDots(activeGhoul);
     } else {
+        console.log("Initializing new ghoul...");
         activeGhoul = {
             name: "",
             player: "",
             chronicle: "",
-            type: "Ghoul", // Vassal, Independent, Revenant
+            type: "Ghoul", 
             concept: "",
             domitor: "",
             attributes: {},
             abilities: {},
-            disciplines: { Potence: 1 }, // Auto Potence 1
+            disciplines: { Potence: 1 }, 
             backgrounds: {}, 
             virtues: { Conscience: 1, "Self-Control": 1, Courage: 1 },
             humanity: 6,
@@ -53,8 +64,8 @@ export function openGhoulCreator(dataOrEvent = null, index = null) {
 
 // --- HELPER: BASE DOTS ---
 function initBaseDots(ghoul) {
-    Object.values(ATTRIBUTES).flat().forEach(a => { if (ghoul.attributes[a] === undefined) ghoul.attributes[a] = 1; });
-    Object.values(ABILITIES).flat().forEach(a => { if (ghoul.abilities[a] === undefined) ghoul.abilities[a] = 0; });
+    if (ATTRIBUTES) Object.values(ATTRIBUTES).flat().forEach(a => { if (ghoul.attributes[a] === undefined) ghoul.attributes[a] = 1; });
+    if (ABILITIES) Object.values(ABILITIES).flat().forEach(a => { if (ghoul.abilities[a] === undefined) ghoul.abilities[a] = 0; });
 }
 
 // --- MAIN RENDER ---
@@ -63,9 +74,14 @@ function renderEditorModal() {
     if (!modal) {
         modal = document.createElement('div');
         modal.id = 'ghoul-modal';
+        // Ensure z-index is high enough and fixed positioning works
         modal.className = 'fixed inset-0 bg-black/90 z-[100] flex items-center justify-center hidden';
         document.body.appendChild(modal);
     }
+
+    // Safety for Backgrounds in case data.js is older version
+    const bgOptions = (BACKGROUNDS || []).map(b => `<option value="${b}">${b}</option>`).join('');
+    const discOptions = (DISCIPLINES || []).map(d => `<option value="${d}">${d}</option>`).join('');
 
     modal.innerHTML = `
         <div class="w-[95%] max-w-7xl h-[95%] bg-[#0a0a0a] border-2 border-[#8b0000] shadow-[0_0_50px_rgba(139,0,0,0.5)] flex flex-col relative">
@@ -103,12 +119,12 @@ function renderEditorModal() {
                             <div class="section-title">Character Concept</div>
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div class="space-y-4">
-                                    <div><label class="label-text">Name</label><input type="text" id="g-name" value="${activeGhoul.name}" class="w-full bg-black/30 border-b border-[#333] text-white p-2 text-xs focus:border-[#8b0000] outline-none"></div>
-                                    <div><label class="label-text">Domitor (Master)</label><input type="text" id="g-domitor" value="${activeGhoul.domitor}" class="w-full bg-black/30 border-b border-[#333] text-white p-2 text-xs focus:border-[#8b0000] outline-none"></div>
-                                    <div><label class="label-text">Chronicle</label><input type="text" id="g-chronicle" value="${activeGhoul.chronicle}" class="w-full bg-black/30 border-b border-[#333] text-white p-2 text-xs focus:border-[#8b0000] outline-none"></div>
+                                    <div><label class="label-text">Name</label><input type="text" id="g-name" value="${activeGhoul.name || ''}" class="w-full bg-black/30 border-b border-[#333] text-white p-2 text-xs focus:border-[#8b0000] outline-none"></div>
+                                    <div><label class="label-text">Domitor (Master)</label><input type="text" id="g-domitor" value="${activeGhoul.domitor || ''}" class="w-full bg-black/30 border-b border-[#333] text-white p-2 text-xs focus:border-[#8b0000] outline-none"></div>
+                                    <div><label class="label-text">Chronicle</label><input type="text" id="g-chronicle" value="${activeGhoul.chronicle || ''}" class="w-full bg-black/30 border-b border-[#333] text-white p-2 text-xs focus:border-[#8b0000] outline-none"></div>
                                 </div>
                                 <div class="space-y-4">
-                                    <div><label class="label-text">Concept</label><input type="text" id="g-concept" value="${activeGhoul.concept}" class="w-full bg-black/30 border-b border-[#333] text-white p-2 text-xs focus:border-[#8b0000] outline-none"></div>
+                                    <div><label class="label-text">Concept</label><input type="text" id="g-concept" value="${activeGhoul.concept || ''}" class="w-full bg-black/30 border-b border-[#333] text-white p-2 text-xs focus:border-[#8b0000] outline-none"></div>
                                     <div>
                                         <label class="label-text">Ghoul Type</label>
                                         <select id="g-type" class="w-full bg-[#111] border border-[#333] text-white p-2 text-xs">
@@ -163,7 +179,7 @@ function renderEditorModal() {
                                     <div class="mt-3">
                                         <select id="g-disc-select" class="w-full bg-[#111] border border-[#444] text-[10px] text-gray-300 p-1 uppercase font-bold">
                                             <option value="">+ Add Discipline</option>
-                                            ${DISCIPLINES.map(d => `<option value="${d}">${d}</option>`).join('')}
+                                            ${discOptions}
                                         </select>
                                     </div>
                                     <div class="mt-6">
@@ -172,7 +188,7 @@ function renderEditorModal() {
                                         <div class="mt-3">
                                             <select id="g-back-select" class="w-full bg-[#111] border border-[#444] text-[10px] text-gray-300 p-1 uppercase font-bold">
                                                 <option value="">+ Add Background</option>
-                                                ${BACKGROUNDS.map(b => `<option value="${b}">${b}</option>`).join('')}
+                                                ${bgOptions}
                                             </select>
                                         </div>
                                     </div>
@@ -288,6 +304,10 @@ function renderEditorModal() {
         </div>
     `;
 
+    // Force visibility via style property to override any hidden class conflicts
+    modal.style.display = 'flex';
+    modal.classList.remove('hidden');
+
     // Initialize Components
     renderDotGroups();
     renderDynamicLists();
@@ -306,7 +326,9 @@ function switchTab(tabId) {
     // Hide all
     document.querySelectorAll('.ghoul-step').forEach(el => el.classList.add('hidden'));
     // Show active
-    document.getElementById(tabId).classList.remove('hidden');
+    const target = document.getElementById(tabId);
+    if(target) target.classList.remove('hidden');
+    
     // Update Buttons
     document.querySelectorAll('.ghoul-tab').forEach(btn => {
         if (btn.dataset.tab === tabId) {
@@ -327,37 +349,43 @@ function setupNavListeners(modal) {
 // --- RENDERING GROUPS ---
 function renderDotGroups() {
     // Attributes
-    renderGroup('g-attr-phys', 'Physical', ATTRIBUTES.Physical, 'attributes');
-    renderGroup('g-attr-soc', 'Social', ATTRIBUTES.Social, 'attributes');
-    renderGroup('g-attr-men', 'Mental', ATTRIBUTES.Mental, 'attributes');
+    if(ATTRIBUTES) {
+        renderGroup('g-attr-phys', 'Physical', ATTRIBUTES.Physical, 'attributes');
+        renderGroup('g-attr-soc', 'Social', ATTRIBUTES.Social, 'attributes');
+        renderGroup('g-attr-men', 'Mental', ATTRIBUTES.Mental, 'attributes');
+    }
     
     // Abilities
-    renderGroup('g-abil-tal', 'Talents', ABILITIES.Talents, 'abilities');
-    renderGroup('g-abil-ski', 'Skills', ABILITIES.Skills, 'abilities');
-    renderGroup('g-abil-kno', 'Knowledges', ABILITIES.Knowledges, 'abilities');
+    if(ABILITIES) {
+        renderGroup('g-abil-tal', 'Talents', ABILITIES.Talents, 'abilities');
+        renderGroup('g-abil-ski', 'Skills', ABILITIES.Skills, 'abilities');
+        renderGroup('g-abil-kno', 'Knowledges', ABILITIES.Knowledges, 'abilities');
+    }
     
     // Virtues
-    renderGroup('g-virt-list', null, VIRTUES, 'virtues');
+    if(VIRTUES) renderGroup('g-virt-list', null, VIRTUES, 'virtues');
 }
 
 function renderGroup(id, title, list, type) {
     const el = document.getElementById(id);
     if(!el) return;
     let html = title ? `<h3 class="column-title mb-2">${title}</h3>` : '';
-    list.forEach(item => {
-        const val = activeGhoul[type][item] || 0;
-        // Attributes start at 1 visually
-        const dispVal = (type === 'attributes' && val < 1) ? 1 : val;
-        
-        html += `
-            <div class="flex justify-between items-center mb-1 dot-row-interactive" data-type="${type}" data-key="${item}">
-                <span class="text-[10px] uppercase font-bold text-gray-300 tracking-tight">${item}</span>
-                <div class="dot-row cursor-pointer hover:opacity-80 transition-opacity">
-                    ${renderDots(dispVal, 5)}
+    if (list) {
+        list.forEach(item => {
+            const val = activeGhoul[type][item] || 0;
+            // Attributes start at 1 visually
+            const dispVal = (type === 'attributes' && val < 1) ? 1 : val;
+            
+            html += `
+                <div class="flex justify-between items-center mb-1 dot-row-interactive" data-type="${type}" data-key="${item}">
+                    <span class="text-[10px] uppercase font-bold text-gray-300 tracking-tight">${item}</span>
+                    <div class="dot-row cursor-pointer hover:opacity-80 transition-opacity">
+                        ${renderDots(dispVal, 5)}
+                    </div>
                 </div>
-            </div>
-        `;
-    });
+            `;
+        });
+    }
     el.innerHTML = html;
 }
 
@@ -371,18 +399,20 @@ function renderDisciplines() {
     if(!el) return;
     el.innerHTML = '';
     
-    Object.entries(activeGhoul.disciplines).forEach(([name, val]) => {
-        const isAuto = name === 'Potence';
-        el.innerHTML += `
-            <div class="flex justify-between items-center mb-1 dot-row-interactive" data-type="disciplines" data-key="${name}">
-                <div class="flex items-center gap-2">
-                    ${!isAuto ? `<span class="text-red-500 cursor-pointer hover:text-red-300" onclick="window.removeGhoulItem('disciplines','${name}')">&times;</span>` : '<span class="w-2"></span>'}
-                    <span class="text-[10px] uppercase font-bold ${isAuto ? 'text-[#d4af37]' : 'text-white'}">${name}</span>
+    if(activeGhoul.disciplines) {
+        Object.entries(activeGhoul.disciplines).forEach(([name, val]) => {
+            const isAuto = name === 'Potence';
+            el.innerHTML += `
+                <div class="flex justify-between items-center mb-1 dot-row-interactive" data-type="disciplines" data-key="${name}">
+                    <div class="flex items-center gap-2">
+                        ${!isAuto ? `<span class="text-red-500 cursor-pointer hover:text-red-300" onclick="window.removeGhoulItem('disciplines','${name}')">&times;</span>` : '<span class="w-2"></span>'}
+                        <span class="text-[10px] uppercase font-bold ${isAuto ? 'text-[#d4af37]' : 'text-white'}">${name}</span>
+                    </div>
+                    <div class="dot-row cursor-pointer hover:opacity-80">${renderDots(val, 5)}</div>
                 </div>
-                <div class="dot-row cursor-pointer hover:opacity-80">${renderDots(val, 5)}</div>
-            </div>
-        `;
-    });
+            `;
+        });
+    }
 }
 
 function renderBackgrounds() {
@@ -390,17 +420,19 @@ function renderBackgrounds() {
     if(!el) return;
     el.innerHTML = '';
     
-    Object.entries(activeGhoul.backgrounds).forEach(([name, val]) => {
-        el.innerHTML += `
-            <div class="flex justify-between items-center mb-1 dot-row-interactive" data-type="backgrounds" data-key="${name}">
-                <div class="flex items-center gap-2">
-                    <span class="text-red-500 cursor-pointer hover:text-red-300" onclick="window.removeGhoulItem('backgrounds','${name}')">&times;</span>
-                    <span class="text-[10px] uppercase font-bold text-white">${name}</span>
+    if(activeGhoul.backgrounds) {
+        Object.entries(activeGhoul.backgrounds).forEach(([name, val]) => {
+            el.innerHTML += `
+                <div class="flex justify-between items-center mb-1 dot-row-interactive" data-type="backgrounds" data-key="${name}">
+                    <div class="flex items-center gap-2">
+                        <span class="text-red-500 cursor-pointer hover:text-red-300" onclick="window.removeGhoulItem('backgrounds','${name}')">&times;</span>
+                        <span class="text-[10px] uppercase font-bold text-white">${name}</span>
+                    </div>
+                    <div class="dot-row cursor-pointer hover:opacity-80">${renderDots(val, 5)}</div>
                 </div>
-                <div class="dot-row cursor-pointer hover:opacity-80">${renderDots(val, 5)}</div>
-            </div>
-        `;
-    });
+            `;
+        });
+    }
 }
 
 // --- GLOBAL REMOVE HANDLER ---
@@ -417,8 +449,13 @@ window.removeGhoulItem = function(type, key) {
 
 // --- LOGIC & CALC ---
 function setupActionListeners(modal) {
-    document.getElementById('close-ghoul-modal').onclick = () => modal.classList.add('hidden');
-    document.getElementById('cancel-ghoul').onclick = () => modal.classList.add('hidden');
+    const close = () => {
+        modal.style.display = 'none';
+        modal.classList.add('hidden');
+    };
+    
+    document.getElementById('close-ghoul-modal').onclick = close;
+    document.getElementById('cancel-ghoul').onclick = close;
     
     document.getElementById('save-ghoul').onclick = () => {
         // Harvest Inputs
@@ -436,12 +473,14 @@ function setupActionListeners(modal) {
 
         if(window.renderRetainersTab) window.renderRetainersTab(document.getElementById('play-content'));
         if(window.performSave) window.performSave(true);
-        modal.classList.add('hidden');
+        
+        close();
     };
 
     // Add Dropdowns
     const setupDrop = (id, type, renderFn) => {
         const sel = document.getElementById(id);
+        if(!sel) return;
         sel.onchange = (e) => {
             const val = e.target.value;
             if(val) {
@@ -496,8 +535,10 @@ function bindDotClicks(modal) {
                 const cour = activeGhoul.virtues.Courage || 1;
                 activeGhoul.humanity = c + sc;
                 activeGhoul.willpower = cour;
-                document.getElementById('g-humanity-dots').innerHTML = renderDots(activeGhoul.humanity, 10);
-                document.getElementById('g-willpower-dots').innerHTML = renderDots(activeGhoul.willpower, 10);
+                const hDots = document.getElementById('g-humanity-dots');
+                const wDots = document.getElementById('g-willpower-dots');
+                if(hDots) hDots.innerHTML = renderDots(activeGhoul.humanity, 10);
+                if(wDots) wDots.innerHTML = renderDots(activeGhoul.willpower, 10);
             }
 
             updateTracker();
@@ -513,31 +554,30 @@ function updateTracker() {
         freebies: 21
     };
 
-    // 1. Attributes (Cost: Free for 1st dot, then Freebie 5)
-    // Actually, logic is: First fill Priority buckets (6/4/3). Excess costs Freebies (5 per dot).
-    // This is complex to auto-calculate without explicit user "spending".
-    // SIMPLIFIED APPROACH: Show "Spent" vs "Target". User does math.
-    // Calculate raw dots spent above base 1
-    ATTRIBUTES.Physical.forEach(a => spent.attr.Physical += Math.max(0, (activeGhoul.attributes[a]||1)-1));
-    ATTRIBUTES.Social.forEach(a => spent.attr.Social += Math.max(0, (activeGhoul.attributes[a]||1)-1));
-    ATTRIBUTES.Mental.forEach(a => spent.attr.Mental += Math.max(0, (activeGhoul.attributes[a]||1)-1));
+    if(ATTRIBUTES) {
+        ATTRIBUTES.Physical.forEach(a => spent.attr.Physical += Math.max(0, (activeGhoul.attributes[a]||1)-1));
+        ATTRIBUTES.Social.forEach(a => spent.attr.Social += Math.max(0, (activeGhoul.attributes[a]||1)-1));
+        ATTRIBUTES.Mental.forEach(a => spent.attr.Mental += Math.max(0, (activeGhoul.attributes[a]||1)-1));
+    }
 
-    ABILITIES.Talents.forEach(a => spent.abil.Talents += (activeGhoul.abilities[a]||0));
-    ABILITIES.Skills.forEach(a => spent.abil.Skills += (activeGhoul.abilities[a]||0));
-    ABILITIES.Knowledges.forEach(a => spent.abil.Knowledges += (activeGhoul.abilities[a]||0));
+    if(ABILITIES) {
+        ABILITIES.Talents.forEach(a => spent.abil.Talents += (activeGhoul.abilities[a]||0));
+        ABILITIES.Skills.forEach(a => spent.abil.Skills += (activeGhoul.abilities[a]||0));
+        ABILITIES.Knowledges.forEach(a => spent.abil.Knowledges += (activeGhoul.abilities[a]||0));
+    }
 
     // Disciplines (1 free + Potence free)
     let discDots = 0;
-    Object.keys(activeGhoul.disciplines).forEach(k => {
-        if(k !== 'Potence') discDots += activeGhoul.disciplines[k];
-        else discDots += Math.max(0, activeGhoul.disciplines[k] - 1); // Potence 1 is free
-    });
-    // Actually rule is: Potence 1 (free) + 1 Dot (free). Excess is freebie.
-    // We will just show total "Added" dots for user to judge.
+    if(activeGhoul.disciplines) {
+        Object.keys(activeGhoul.disciplines).forEach(k => {
+            if(k !== 'Potence') discDots += activeGhoul.disciplines[k];
+            else discDots += Math.max(0, activeGhoul.disciplines[k] - 1); // Potence 1 is free
+        });
+    }
     spent.disc = discDots;
 
-    Object.values(activeGhoul.backgrounds).forEach(v => spent.back += v);
-    VIRTUES.forEach(v => spent.virt += Math.max(0, (activeGhoul.virtues[v]||1)-1));
+    if(activeGhoul.backgrounds) Object.values(activeGhoul.backgrounds).forEach(v => spent.back += v);
+    if(VIRTUES && activeGhoul.virtues) VIRTUES.forEach(v => spent.virt += Math.max(0, (activeGhoul.virtues[v]||1)-1));
 
     // Update UI
     const setTxt = (id, txt) => { const el = document.getElementById(id); if(el) el.innerText = txt; };
@@ -554,26 +594,16 @@ function updateTracker() {
     setTxt('trk-back', spent.back + " / 5");
     setTxt('trk-virt', spent.virt + " / 7");
 
-    // Dynamic Freebie Calc (Best Effort)
-    // We assume user fills buckets optimally.
-    // Any dots exceeding the HIGHEST remaining priority bucket cost freebies.
-    // This is too complex for a mini-tracker. We will just show the "21" static and let the user mentally subtract.
-    // However, we CAN subtract the obvious ones (Backgrounds > 5, Virtues > 7).
-    
     let freebieCost = 0;
     if(spent.back > 5) freebieCost += (spent.back - 5) * 1;
     if(spent.virt > 7) freebieCost += (spent.virt - 7) * 2;
     
-    // Simple Abil check: Sum of all abilities - (11+7+4 = 22).
     const totalAbil = spent.abil.Talents + spent.abil.Skills + spent.abil.Knowledges;
     if(totalAbil > 22) freebieCost += (totalAbil - 22) * 2;
 
-    // Simple Attr check: Sum of all attr - (6+4+3 = 13).
     const totalAttr = spent.attr.Physical + spent.attr.Social + spent.attr.Mental;
     if(totalAttr > 13) freebieCost += (totalAttr - 13) * 5;
     
-    // Disc: 1 free dot (besides Potence 1).
-    // Total disc dots (excluding Potence 1 base) > 1 => cost * 10
     if(spent.disc > 1) freebieCost += (spent.disc - 1) * 10;
 
     const remaining = 21 - freebieCost;
