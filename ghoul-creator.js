@@ -674,25 +674,16 @@ window.updateGhoulTotalXP = function(val) {
 function handleXpSpend(type, key, clickedVal, currentVal) {
     let targetVal = clickedVal;
     
-    // Toggle logic: If clicking the *exact same* dot (e.g. clicking 8 when you have 8), 
-    // it implies wanting to step down to 7. 
-    // However, if clicking any other existing dot (e.g. clicking 1 when you have 8), 
-    // it normally means setting value to 1.
-    // In XP/Freebie mode, setting to 1 implies refunding everything from 8 down to 1.
     if (clickedVal === currentVal) {
         targetVal = currentVal - 1;
     }
 
-    // --- REFUND / UNDO LOGIC ---
     if (targetVal < currentVal) {
-        // We need to undo purchases step-by-step from currentVal down to targetVal
         let stepsToUndo = currentVal - targetVal;
         let totalRefund = 0;
         let entriesRemoved = 0;
 
-        // Loop to remove the most recent relevant log entries until we reach target or run out
         while (stepsToUndo > 0) {
-            // Look for the specific log entry that raised value to `currentVal`
             const logIndex = activeGhoul.experience.log.findIndex(l => 
                 (l.type === type && (l.trait === key || (!key && l.type === l.trait))) &&
                 l.to === currentVal
@@ -704,33 +695,28 @@ function handleXpSpend(type, key, clickedVal, currentVal) {
                 activeGhoul.experience.spent -= entry.cost;
                 activeGhoul.experience.log.splice(logIndex, 1);
                 
-                // Update local tracking vars
                 entriesRemoved++;
                 stepsToUndo--;
-                currentVal--; // Effectively stepping down logic
+                currentVal--; 
             } else {
-                // If we can't find a log entry for this level, we can't refund it (it was base/creation dots)
                 if (entriesRemoved === 0) {
                     showNotification("Cannot refund: This dot was not purchased with XP.");
                     return; 
                 }
-                break; // Stop looking if we hit base dots
+                break; 
             }
         }
 
-        // Apply final value based on how many steps we successfully undid
         if (type === 'humanity') activeGhoul.humanity = currentVal;
         else if (type === 'willpower') activeGhoul.willpower = currentVal;
         else activeGhoul[type][key] = currentVal;
 
-        // Re-render
         renderDotGroups();
         renderDynamicLists();
         renderGhoulXpSidebar();
         updateTracker();
         bindDotClicks(document.getElementById('ghoul-modal'));
         
-        // Explicitly re-render Humanity/Willpower rows
         const hDots = document.getElementById('g-humanity-row');
         const wDots = document.getElementById('g-willpower-row');
         if(hDots) hDots.innerHTML = renderDots(activeGhoul.humanity, 10);
@@ -740,10 +726,6 @@ function handleXpSpend(type, key, clickedVal, currentVal) {
         return;
     }
 
-    // --- SPEND LOGIC ---
-    // Fix for the "+1" validation error:
-    // If user clicks 9 and current is 8, targetVal is 9. 
-    // 9 > 8 + 1 is false (9 is not > 9), so this check passes.
     if (targetVal > currentVal + 1) {
         showNotification("XP Mode: Please purchase one dot at a time.");
         return;
@@ -809,11 +791,10 @@ function handleXpSpend(type, key, clickedVal, currentVal) {
         return;
     }
 
-    // Removed confirmation dialog
     activeGhoul.experience.spent += cost;
     activeGhoul.experience.log.push({
         date: Date.now(),
-        trait: key || type, // Explicitly set trait name for logging
+        trait: key || type, 
         from: currentVal,
         to: targetVal,
         cost: cost,
@@ -829,7 +810,6 @@ function handleXpSpend(type, key, clickedVal, currentVal) {
     renderGhoulXpSidebar();
     updateTracker();
     
-    // Explicitly re-render Humanity/Willpower rows
     const hDots = document.getElementById('g-humanity-row');
     const wDots = document.getElementById('g-willpower-row');
     if(hDots) hDots.innerHTML = renderDots(activeGhoul.humanity, 10);
@@ -907,25 +887,64 @@ function renderGhoulFreebieSidebar() {
     }
 }
 
+function renderFreebieLists() {
+    if(ATTRIBUTES) {
+        renderGroup('fb-attr-phys', 'Physical', ATTRIBUTES.Physical, 'attributes');
+        renderGroup('fb-attr-soc', 'Social', ATTRIBUTES.Social, 'attributes');
+        renderGroup('fb-attr-men', 'Mental', ATTRIBUTES.Mental, 'attributes');
+    }
+    if(ABILITIES) {
+        renderGroup('fb-abil-tal', 'Talents', ABILITIES.Talents, 'abilities');
+        renderGroup('fb-abil-ski', 'Skills', ABILITIES.Skills, 'abilities');
+        renderGroup('fb-abil-kno', 'Knowledges', ABILITIES.Knowledges, 'abilities');
+    }
+    renderDynamicListsForFreebies();
+    if(VIRTUES) renderGroup('fb-virt-list', null, VIRTUES, 'virtues');
+}
+
+function renderDynamicListsForFreebies() {
+    const dEl = document.getElementById('fb-disc-list');
+    const bEl = document.getElementById('fb-back-list');
+    
+    if(dEl && activeGhoul.disciplines) {
+        dEl.innerHTML = '';
+        Object.entries(activeGhoul.disciplines).forEach(([name, val]) => {
+            const isAuto = name === 'Potence';
+            dEl.innerHTML += `
+                <div class="flex justify-between items-center mb-1 dot-row-interactive" data-type="disciplines" data-key="${name}">
+                    <span class="text-[10px] uppercase font-bold ${isAuto ? 'text-[#d4af37]' : 'text-white'}">${name}</span>
+                    <div class="dot-row cursor-pointer hover:opacity-80">${renderDots(val, 5)}</div>
+                </div>`;
+        });
+    }
+
+    if(bEl && activeGhoul.backgrounds) {
+        bEl.innerHTML = '';
+        Object.entries(activeGhoul.backgrounds).forEach(([name, val]) => {
+            bEl.innerHTML += `
+                <div class="flex justify-between items-center mb-1 dot-row-interactive" data-type="backgrounds" data-key="${name}">
+                    <span class="text-[10px] uppercase font-bold text-white">${name}</span>
+                    <div class="dot-row cursor-pointer hover:opacity-80">${renderDots(val, 5)}</div>
+                </div>`;
+        });
+    }
+}
+
 function handleFreebieSpend(type, key, clickedVal, currentVal) {
     let targetVal = clickedVal;
     
-    // Toggle logic
     if (clickedVal === currentVal) {
         targetVal = currentVal - 1;
     }
 
     if (targetVal === currentVal) return;
 
-    // --- REFUND / UNDO LOGIC ---
     if (targetVal < currentVal) {
-        // Multi-step refund logic like XP
         let stepsToUndo = currentVal - targetVal;
         let totalRefund = 0;
         let entriesRemoved = 0;
 
         while (stepsToUndo > 0) {
-            // Find specific log entry for this level
             const logIndex = activeGhoul.freebies.log.findIndex(l => 
                 (l.type === type && (l.trait === key || (!key && l.type === l.trait))) &&
                 l.to === currentVal
@@ -955,7 +974,6 @@ function handleFreebieSpend(type, key, clickedVal, currentVal) {
         return;
     }
 
-    // --- SPEND LOGIC ---
     if (targetVal > currentVal + 1) { 
         showNotification("Please purchase dots one at a time."); 
         return; 
@@ -997,9 +1015,12 @@ function updateValue(type, key, val) {
     
     renderDotGroups();
     renderDynamicLists();
-    renderFreebieLists();
     
-    // Explicitly re-render Humanity/Willpower rows since they aren't covered by renderGroup/DynamicLists
+    // Safety check for renderFreebieLists before calling
+    if (typeof renderFreebieLists === 'function') {
+        renderFreebieLists();
+    }
+    
     const hDots = document.getElementById('g-humanity-row');
     const wDots = document.getElementById('g-willpower-row');
     if(hDots) hDots.innerHTML = renderDots(activeGhoul.humanity, 10);
@@ -1060,7 +1081,7 @@ function bindDotClicks(modal) {
             activeGhoul[type][key] = finalVal;
             renderDotGroups();
             renderDynamicLists();
-            renderFreebieLists();
+            if (typeof renderFreebieLists === 'function') renderFreebieLists();
             bindDotClicks(modal);
             if (type === 'virtues') {
                 recalcStatus();
