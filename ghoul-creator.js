@@ -650,6 +650,109 @@ function renderGhoulXpSidebar() {
     if (remEl) remEl.innerText = activeGhoul.experience.total - activeGhoul.experience.spent;
 }
 
+// --- NEW XP HELPER FUNCTION ---
+window.updateGhoulTotalXP = function(val) {
+    if(!activeGhoul) return;
+    activeGhoul.experience.total = parseInt(val) || 0;
+    renderGhoulXpSidebar();
+};
+
+// --- NEW XP SPEND LOGIC ---
+function handleXpSpend(type, key, newVal, currentVal) {
+    if (newVal <= currentVal) {
+        showNotification("XP Mode: Can only purchase upgrades.");
+        return;
+    }
+
+    if (newVal > currentVal + 1) {
+        showNotification("XP Mode: Please purchase one dot at a time.");
+        return;
+    }
+
+    let cost = 0;
+    let multiplier = 0;
+    let flatCost = 0;
+
+    if (type === 'attributes') {
+        multiplier = XP_COSTS.attribute; 
+        cost = currentVal * multiplier;
+    } 
+    else if (type === 'abilities') {
+        if (currentVal === 0) {
+            flatCost = XP_COSTS.newAbility; 
+            cost = flatCost;
+        } else {
+            multiplier = XP_COSTS.ability; 
+            cost = currentVal * multiplier;
+        }
+    }
+    else if (type === 'virtues') {
+        multiplier = XP_COSTS.virtue;
+        cost = currentVal * multiplier;
+    }
+    else if (type === 'humanity') {
+        multiplier = XP_COSTS.humanity;
+        cost = currentVal * multiplier;
+    }
+    else if (type === 'willpower') {
+        multiplier = XP_COSTS.willpower;
+        cost = currentVal * multiplier;
+    }
+    else if (type === 'backgrounds') {
+        cost = XP_COSTS.background;
+    }
+    else if (type === 'disciplines') {
+        if (currentVal === 0) {
+            cost = XP_COSTS.newDiscipline; 
+        } else {
+            let isClan = false;
+            const domClan = activeGhoul.domitorClan;
+            if (domClan && CLAN_DISCIPLINES[domClan] && CLAN_DISCIPLINES[domClan].includes(key)) {
+                isClan = true;
+            }
+            if (isClan) {
+                multiplier = XP_COSTS.clanDiscipline; 
+                cost = currentVal * multiplier;
+            } else {
+                multiplier = XP_COSTS.otherDiscipline; 
+                cost = currentVal * multiplier;
+            }
+        }
+    }
+
+    const total = activeGhoul.experience.total || 0;
+    const spent = activeGhoul.experience.spent || 0;
+    const remaining = total - spent;
+
+    if (cost > remaining) {
+        showNotification(`Not enough XP. Cost: ${cost}, Remaining: ${remaining}`);
+        return;
+    }
+
+    if (confirm(`Spend ${cost} XP to raise ${key || type} to ${newVal}?`)) {
+        activeGhoul.experience.spent += cost;
+        activeGhoul.experience.log.push({
+            date: Date.now(),
+            trait: key || type,
+            from: currentVal,
+            to: newVal,
+            cost: cost,
+            type: type
+        });
+        
+        if (type === 'humanity') activeGhoul.humanity = newVal;
+        else if (type === 'willpower') activeGhoul.willpower = newVal;
+        else activeGhoul[type][key] = newVal;
+
+        renderDotGroups();
+        renderDynamicLists();
+        renderGhoulXpSidebar();
+        updateTracker();
+        bindDotClicks(document.getElementById('ghoul-modal'));
+        showNotification("XP Spent.");
+    }
+}
+
 function renderGhoulFreebieSidebar() {
     if (!activeGhoul.freebies) activeGhoul.freebies = { spent: 0, log: [] };
     const log = activeGhoul.freebies.log || [];
