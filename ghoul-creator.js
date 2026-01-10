@@ -133,7 +133,7 @@ function handlePrioClick(e) {
     }
 
     updatePriorityUI();
-    updateTracker(); // Corrected from updateCounters()
+    updateTracker(); 
 }
 
 function renderGroup(id, title, list, type) {
@@ -563,7 +563,7 @@ function renderEditorModal() {
     setupNavListeners(modal);
     setupActionListeners(modal);
     bindDotClicks(modal);
-    updateTracker(); // Corrected from updateCounters()
+    updateTracker(); 
     updateVirtueHeader();
 }
 
@@ -650,21 +650,59 @@ function renderGhoulXpSidebar() {
     if (remEl) remEl.innerText = activeGhoul.experience.total - activeGhoul.experience.spent;
 }
 
-// --- NEW XP HELPER FUNCTION ---
 window.updateGhoulTotalXP = function(val) {
     if(!activeGhoul) return;
     activeGhoul.experience.total = parseInt(val) || 0;
     renderGhoulXpSidebar();
 };
 
-// --- NEW XP SPEND LOGIC ---
-function handleXpSpend(type, key, newVal, currentVal) {
-    if (newVal <= currentVal) {
-        showNotification("XP Mode: Can only purchase upgrades.");
+function handleXpSpend(type, key, clickedVal, currentVal) {
+    let targetVal = clickedVal;
+    
+    // Toggle logic: if clicking the current max dot, assume desire to step down
+    if (clickedVal === currentVal) {
+        targetVal = currentVal - 1;
+    }
+
+    // --- REFUND / UNDO LOGIC ---
+    if (targetVal < currentVal) {
+        // Find the specific log entry that raised this trait to currentVal
+        // We look for the most recent entry matching trait and 'to' value
+        const logIndex = activeGhoul.experience.log.findIndex(l => 
+            (l.type === type && (l.trait === key || (!key && l.type === l.trait))) &&
+            l.to === currentVal
+        );
+
+        if (logIndex === -1) {
+            showNotification("Cannot refund: This dot was not purchased with XP.");
+            return;
+        }
+
+        const entry = activeGhoul.experience.log[logIndex];
+
+        // Refund the specific cost found in the log
+        activeGhoul.experience.spent -= entry.cost;
+        
+        // Remove the entry completely
+        activeGhoul.experience.log.splice(logIndex, 1);
+
+        // Update the stat to its previous value (from the log entry)
+        if (type === 'humanity') activeGhoul.humanity = entry.from;
+        else if (type === 'willpower') activeGhoul.willpower = entry.from;
+        else activeGhoul[type][key] = entry.from;
+
+        // Re-render
+        renderDotGroups();
+        renderDynamicLists();
+        renderGhoulXpSidebar();
+        updateTracker();
+        bindDotClicks(document.getElementById('ghoul-modal'));
+        showNotification(`Refunded ${entry.cost} XP.`);
         return;
     }
 
-    if (newVal > currentVal + 1) {
+    // --- SPEND LOGIC ---
+    if (targetVal > currentVal + 1) {
         showNotification("XP Mode: Please purchase one dot at a time.");
         return;
     }
@@ -729,20 +767,20 @@ function handleXpSpend(type, key, newVal, currentVal) {
         return;
     }
 
-    if (confirm(`Spend ${cost} XP to raise ${key || type} to ${newVal}?`)) {
+    if (confirm(`Spend ${cost} XP to raise ${key || type} to ${targetVal}?`)) {
         activeGhoul.experience.spent += cost;
         activeGhoul.experience.log.push({
             date: Date.now(),
             trait: key || type,
             from: currentVal,
-            to: newVal,
+            to: targetVal,
             cost: cost,
             type: type
         });
         
-        if (type === 'humanity') activeGhoul.humanity = newVal;
-        else if (type === 'willpower') activeGhoul.willpower = newVal;
-        else activeGhoul[type][key] = newVal;
+        if (type === 'humanity') activeGhoul.humanity = targetVal;
+        else if (type === 'willpower') activeGhoul.willpower = targetVal;
+        else activeGhoul[type][key] = targetVal;
 
         renderDotGroups();
         renderDynamicLists();
@@ -821,53 +859,72 @@ function renderGhoulFreebieSidebar() {
     }
 }
 
-function handleFreebieSpend(type, key, newVal, currentVal) {
-    let targetVal = newVal;
-    if (newVal === currentVal) targetVal = currentVal - 1; 
+function handleFreebieSpend(type, key, clickedVal, currentVal) {
+    let targetVal = clickedVal;
+    
+    // Toggle logic
+    if (clickedVal === currentVal) {
+        targetVal = currentVal - 1;
+    }
+
     if (targetVal === currentVal) return;
 
-    if (targetVal > currentVal) {
-        if (targetVal > currentVal + 1) { showNotification("Please purchase dots one at a time."); return; }
-        let cost = 0;
-        if (type === 'attributes') cost = FREEBIE_COSTS.attribute;
-        else if (type === 'abilities') cost = FREEBIE_COSTS.ability;
-        else if (type === 'disciplines') cost = FREEBIE_COSTS.discipline;
-        else if (type === 'backgrounds') cost = FREEBIE_COSTS.background;
-        else if (type === 'virtues') cost = FREEBIE_COSTS.virtue;
-        else if (type === 'humanity') cost = FREEBIE_COSTS.humanity;
-        else if (type === 'willpower') cost = FREEBIE_COSTS.willpower;
+    // --- REFUND / UNDO LOGIC ---
+    if (targetVal < currentVal) {
+        // Find specific log entry
+        const logIndex = activeGhoul.freebies.log.findIndex(l => 
+            (l.type === type && (l.trait === key || (!key && l.type === l.trait))) &&
+            l.to === currentVal
+        );
 
-        const logSpent = activeGhoul.freebies.log.reduce((acc, l) => acc + l.cost, 0);
-        let meritCost = 0;
-        if (activeGhoul.merits) Object.values(activeGhoul.merits).forEach(v => meritCost += v);
-        let flawBonus = 0;
-        if (activeGhoul.flaws) Object.values(activeGhoul.flaws).forEach(v => flawBonus += v);
+        if (logIndex === -1) {
+             showNotification("Cannot refund: This dot was not purchased with Freebies.");
+             return;
+        }
+
+        const entry = activeGhoul.freebies.log[logIndex];
         
-        const totalSpent = logSpent + meritCost;
-        const totalAvail = 21 + Math.min(7, flawBonus);
-        const rem = totalAvail - totalSpent;
-
-        if (cost > rem) { showNotification("Not enough Freebie Points!"); return; }
-
-        activeGhoul.freebies.spent += cost;
-        activeGhoul.freebies.log.push({ date: Date.now(), trait: key || type, from: currentVal, to: targetVal, cost: cost, type: type });
-        updateValue(type, key, targetVal);
-        showNotification(`Spent ${cost} Freebies`);
-    } else {
-        let refundAmount = 0;
-        if (type === 'attributes') refundAmount = FREEBIE_COSTS.attribute;
-        else if (type === 'abilities') refundAmount = FREEBIE_COSTS.ability;
-        else if (type === 'disciplines') refundAmount = FREEBIE_COSTS.discipline;
-        else if (type === 'backgrounds') refundAmount = FREEBIE_COSTS.background;
-        else if (type === 'virtues') refundAmount = FREEBIE_COSTS.virtue;
-        else if (type === 'humanity') refundAmount = FREEBIE_COSTS.humanity;
-        else if (type === 'willpower') refundAmount = FREEBIE_COSTS.willpower;
-
-        activeGhoul.freebies.spent -= refundAmount;
-        activeGhoul.freebies.log.push({ date: Date.now(), trait: key || type, from: currentVal, to: targetVal, cost: -refundAmount, type: type });
-        updateValue(type, key, targetVal);
-        showNotification(`Refunded ${refundAmount} Freebies`);
+        // Remove entry
+        activeGhoul.freebies.spent -= entry.cost;
+        activeGhoul.freebies.log.splice(logIndex, 1);
+        
+        updateValue(type, key, entry.from);
+        showNotification(`Refunded ${entry.cost} Freebies`);
+        renderGhoulFreebieSidebar();
+        return;
     }
+
+    // --- SPEND LOGIC ---
+    if (targetVal > currentVal + 1) { 
+        showNotification("Please purchase dots one at a time."); 
+        return; 
+    }
+
+    let cost = 0;
+    if (type === 'attributes') cost = FREEBIE_COSTS.attribute;
+    else if (type === 'abilities') cost = FREEBIE_COSTS.ability;
+    else if (type === 'disciplines') cost = FREEBIE_COSTS.discipline;
+    else if (type === 'backgrounds') cost = FREEBIE_COSTS.background;
+    else if (type === 'virtues') cost = FREEBIE_COSTS.virtue;
+    else if (type === 'humanity') cost = FREEBIE_COSTS.humanity;
+    else if (type === 'willpower') cost = FREEBIE_COSTS.willpower;
+
+    const logSpent = activeGhoul.freebies.log.reduce((acc, l) => acc + l.cost, 0);
+    let meritCost = 0;
+    if (activeGhoul.merits) Object.values(activeGhoul.merits).forEach(v => meritCost += v);
+    let flawBonus = 0;
+    if (activeGhoul.flaws) Object.values(activeGhoul.flaws).forEach(v => flawBonus += v);
+    
+    const totalSpent = logSpent + meritCost;
+    const totalAvail = 21 + Math.min(7, flawBonus);
+    const rem = totalAvail - totalSpent;
+
+    if (cost > rem) { showNotification("Not enough Freebie Points!"); return; }
+
+    activeGhoul.freebies.spent += cost;
+    activeGhoul.freebies.log.push({ date: Date.now(), trait: key || type, from: currentVal, to: targetVal, cost: cost, type: type });
+    updateValue(type, key, targetVal);
+    showNotification(`Spent ${cost} Freebies`);
     renderGhoulFreebieSidebar();
 }
 
@@ -903,7 +960,7 @@ function bindDotClicks(modal) {
             if (!validateChange(type, null, finalVal, currentVal)) return;
             activeGhoul[type] = finalVal;
             el.innerHTML = renderDots(finalVal, 10);
-            updateTracker(); // Corrected from updateCounters()
+            updateTracker(); 
         };
     };
 
@@ -944,7 +1001,7 @@ function bindDotClicks(modal) {
                 if(hDots) hDots.innerHTML = renderDots(activeGhoul.humanity, 10);
                 if(wDots) wDots.innerHTML = renderDots(activeGhoul.willpower, 10);
             }
-            updateTracker(); // Corrected from updateCounters()
+            updateTracker(); 
         };
     });
 }
@@ -1085,13 +1142,13 @@ window.removeGhoulItem = function(type, key) {
     if (type === 'merits') {
         delete activeGhoul.merits[key];
         renderMeritsFlaws();
-        updateTracker(); // Corrected from updateCounters()
+        updateTracker(); 
         return;
     }
     if (type === 'flaws') {
         delete activeGhoul.flaws[key];
         renderMeritsFlaws();
-        updateTracker(); // Corrected from updateCounters()
+        updateTracker(); 
         return;
     }
 
@@ -1099,7 +1156,7 @@ window.removeGhoulItem = function(type, key) {
         delete activeGhoul[type][key];
         renderDynamicLists();
         renderFreebieLists(); 
-        updateTracker(); // Corrected from updateCounters()
+        updateTracker(); 
         bindDotClicks(document.getElementById('ghoul-modal'));
     }
 };
@@ -1167,7 +1224,7 @@ function setupActionListeners(modal) {
             document.getElementById('div-domitor-clan').className = isRevenant ? 'hidden' : 'block';
             document.getElementById('div-family').className = isRevenant ? 'block' : 'hidden';
             updateVirtueHeader();
-            updateTracker(); // Corrected from updateCounters() 
+            updateTracker(); 
         };
     }
 
@@ -1242,7 +1299,7 @@ function setupActionListeners(modal) {
                     activeGhoul[type][val] = 1;
                     renderFn();
                     renderFreebieLists(); 
-                    updateTracker(); // Corrected from updateCounters()
+                    updateTracker(); 
                     bindDotClicks(modal);
                 }
                 e.target.value = "";
