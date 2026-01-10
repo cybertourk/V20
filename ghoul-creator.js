@@ -8,10 +8,24 @@ import { renderDots, showNotification } from "./ui-common.js";
 // Revenant Families (Not currently in data.js, so kept local)
 const REVENANT_FAMILIES = ["Bratovitch", "Grimaldi", "Obertus", "Zantosa"];
 
+// --- XP COSTS (V20 Ghouls p. 499) ---
+const XP_COSTS = {
+    attribute: 4,      // Current Rating x 4
+    ability: 2,        // Current Rating x 2
+    newAbility: 3,     // 3 points for first dot
+    virtue: 2,         // Current Rating x 2
+    willpower: 1,      // Current Rating
+    humanity: 2,       // Current Rating x 2
+    discipline_phys: 10, // Current Rating x 10 (Celerity, Fortitude, Potence)
+    discipline_other: 20, // Current Rating x 20
+    background: 3        // Ghouls usually buy backgrounds with 3 XP (Storyteller discretion)
+};
+
 // --- STATE ---
 let activeGhoul = null;
 let activeIndex = null;
 let currentTab = 'step1';
+let xpMode = false; // Toggle for XP spending
 
 // Priority State Checkers (V20 Ghoul Rules)
 const PRIO_CONFIG = {
@@ -38,6 +52,7 @@ export function openGhoulCreator(dataOrEvent = null, index = null) {
 
     activeIndex = (typeof index === 'number') ? index : null;
     currentTab = 'step1';
+    xpMode = false;
     
     // Reset Local State
     localPriorities = {
@@ -52,6 +67,11 @@ export function openGhoulCreator(dataOrEvent = null, index = null) {
         if (!activeGhoul.virtues) activeGhoul.virtues = { Conscience: 1, "Self-Control": 1, Courage: 1 };
         
         if (!activeGhoul.disciplines.Potence) activeGhoul.disciplines.Potence = 1;
+
+        // Init XP Data if missing
+        if (!activeGhoul.experience) {
+            activeGhoul.experience = { total: 0, spent: 0, log: [] };
+        }
 
         initBaseDots(activeGhoul);
         
@@ -74,6 +94,7 @@ export function openGhoulCreator(dataOrEvent = null, index = null) {
             virtues: { Conscience: 1, "Self-Control": 1, Courage: 1 },
             specialties: {},
             merits: {}, flaws: {}, bio: {},
+            experience: { total: 0, spent: 0, log: [] },
             priorities: {
                 attr: { Physical: null, Social: null, Mental: null },
                 abil: { Talents: null, Skills: null, Knowledges: null }
@@ -125,8 +146,14 @@ function autoDetectPriorities() {
 }
 
 function recalcStatus() {
-    activeGhoul.humanity = (activeGhoul.virtues.Conscience || 1) + (activeGhoul.virtues["Self-Control"] || 1);
-    activeGhoul.willpower = activeGhoul.virtues.Courage || 1;
+    // Only recalc if we haven't manually set them (simple check)
+    // Actually for ghouls, just default recalc unless overrides exist?
+    // We'll trust the stored value if it's higher than base.
+    const baseHum = (activeGhoul.virtues.Conscience || 1) + (activeGhoul.virtues["Self-Control"] || 1);
+    const baseWill = activeGhoul.virtues.Courage || 1;
+    
+    if (activeGhoul.humanity < baseHum) activeGhoul.humanity = baseHum;
+    if (activeGhoul.willpower < baseWill) activeGhoul.willpower = baseWill;
 }
 
 // --- MAIN RENDER ---
@@ -159,6 +186,12 @@ function renderEditorModal() {
                     <h2 class="text-2xl font-cinzel text-[#d4af37] font-bold tracking-widest uppercase shadow-black drop-shadow-md">
                         <i class="fas fa-user-plus mr-2 text-[#8b0000]"></i>Ghoul Creator <span class="text-xs align-top opacity-50 ml-1">V20</span>
                     </h2>
+                    <!-- XP Mode Toggle -->
+                    <div class="ml-6 flex items-center gap-2 border-l border-[#444] pl-4">
+                        <button id="toggle-xp-mode" class="text-[10px] uppercase font-bold px-3 py-1 border border-[#444] rounded transition-all ${xpMode ? 'bg-purple-900/40 text-purple-300 border-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.3)]' : 'text-gray-500 hover:text-white hover:border-gray-300'}">
+                            <i class="fas fa-hourglass-half mr-1"></i> XP Mode: ${xpMode ? 'ON' : 'OFF'}
+                        </button>
+                    </div>
                 </div>
                 <button id="close-ghoul-modal" class="text-gray-400 hover:text-white text-xl px-2 transition-transform hover:rotate-90"><i class="fas fa-times"></i></button>
             </div>
@@ -174,292 +207,323 @@ function renderEditorModal() {
             </div>
 
             <!-- CONTENT -->
-            <div class="flex-1 overflow-y-auto p-8 space-y-6 no-scrollbar relative bg-[#050505] bg-[url('https://www.transparenttextures.com/patterns/black-linen.png')]">
+            <div class="flex-1 overflow-hidden relative flex">
                 
-                <!-- STEP 1: IDENTITY -->
-                <div id="step1" class="ghoul-step hidden">
-                    <div class="sheet-section !mt-0">
-                        <div class="section-title">Character Concept</div>
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-                            <div class="space-y-6">
-                                <div><label class="label-text text-[#d4af37]">Name</label><input type="text" id="g-name" value="${activeGhoul.name || ''}" class="w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] focus:outline-none transition-colors"></div>
-                                <div><label class="label-text text-[#d4af37]">Player</label><input type="text" id="g-player" value="${activeGhoul.player || ''}" class="w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] focus:outline-none transition-colors"></div>
-                                <div><label class="label-text text-[#d4af37]">Domitor Name</label><input type="text" id="g-domitor" value="${activeGhoul.domitor || ''}" class="w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] focus:outline-none transition-colors"></div>
-                            </div>
-                            <div class="space-y-6">
-                                <div>
-                                    <label class="label-text text-[#d4af37]">Nature</label>
-                                    <select id="g-nature" class="w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] focus:outline-none transition-colors appearance-none">
-                                        <option value="" class="bg-black text-gray-500">Select Archetype...</option>
-                                        ${archOptions}
-                                    </select>
+                <!-- MAIN SCROLL AREA -->
+                <div class="flex-1 overflow-y-auto p-8 space-y-6 no-scrollbar bg-[#050505] bg-[url('https://www.transparenttextures.com/patterns/black-linen.png')]">
+                    
+                    <!-- STEP 1: IDENTITY -->
+                    <div id="step1" class="ghoul-step hidden">
+                        <div class="sheet-section !mt-0">
+                            <div class="section-title">Character Concept</div>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                                <div class="space-y-6">
+                                    <div><label class="label-text text-[#d4af37]">Name</label><input type="text" id="g-name" value="${activeGhoul.name || ''}" class="w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] focus:outline-none transition-colors"></div>
+                                    <div><label class="label-text text-[#d4af37]">Player</label><input type="text" id="g-player" value="${activeGhoul.player || ''}" class="w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] focus:outline-none transition-colors"></div>
+                                    <div><label class="label-text text-[#d4af37]">Domitor Name</label><input type="text" id="g-domitor" value="${activeGhoul.domitor || ''}" class="w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] focus:outline-none transition-colors"></div>
                                 </div>
-                                <div>
-                                    <label class="label-text text-[#d4af37]">Demeanor</label>
-                                    <select id="g-demeanor" class="w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] focus:outline-none transition-colors appearance-none">
-                                        <option value="" class="bg-black text-gray-500">Select Archetype...</option>
-                                        ${archOptions}
-                                    </select>
+                                <div class="space-y-6">
+                                    <div>
+                                        <label class="label-text text-[#d4af37]">Nature</label>
+                                        <select id="g-nature" class="w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] focus:outline-none transition-colors appearance-none">
+                                            <option value="" class="bg-black text-gray-500">Select Archetype...</option>
+                                            ${archOptions}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="label-text text-[#d4af37]">Demeanor</label>
+                                        <select id="g-demeanor" class="w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] focus:outline-none transition-colors appearance-none">
+                                            <option value="" class="bg-black text-gray-500">Select Archetype...</option>
+                                            ${archOptions}
+                                        </select>
+                                    </div>
+                                    <div><label class="label-text text-[#d4af37]">Concept</label><input type="text" id="g-concept" value="${activeGhoul.concept || ''}" class="w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] focus:outline-none transition-colors"></div>
                                 </div>
-                                <div><label class="label-text text-[#d4af37]">Concept</label><input type="text" id="g-concept" value="${activeGhoul.concept || ''}" class="w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] focus:outline-none transition-colors"></div>
-                            </div>
-                            <div class="space-y-6">
-                                <div>
-                                    <label class="label-text text-[#d4af37]">Ghoul Type</label>
-                                    <select id="g-type" class="w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] focus:outline-none transition-colors">
-                                        <option value="Vassal" ${activeGhoul.type === 'Vassal' ? 'selected' : ''} class="bg-black">Vassal (7 Virtue Dots)</option>
-                                        <option value="Independent" ${activeGhoul.type === 'Independent' ? 'selected' : ''} class="bg-black">Independent (7 Virtue Dots)</option>
-                                        <option value="Revenant" ${activeGhoul.type === 'Revenant' ? 'selected' : ''} class="bg-black">Revenant (5 Virtue Dots)</option>
-                                    </select>
-                                </div>
-                                <!-- Conditional Fields -->
-                                <div id="div-domitor-clan" class="${activeGhoul.type === 'Revenant' ? 'hidden' : 'block'}">
-                                    <label class="label-text text-[#d4af37]">Domitor Clan</label>
-                                    <select id="g-domitor-clan" class="w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] focus:outline-none transition-colors">
-                                        <option value="" class="bg-black">Unknown/None</option>
-                                        ${clanOptions}
-                                    </select>
-                                </div>
-                                <div id="div-family" class="${activeGhoul.type === 'Revenant' ? 'block' : 'hidden'}">
-                                    <label class="label-text text-[#d4af37]">Revenant Family</label>
-                                    <select id="g-family" class="w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] focus:outline-none transition-colors">
-                                        <option value="" class="bg-black">Select Family...</option>
-                                        ${revOptions}
-                                    </select>
-                                </div>
-                            </div>
-                        </div>
-                        <!-- Weakness Display -->
-                        <div class="mt-6 p-4 bg-red-900/10 border border-red-900/30 rounded">
-                            <label class="label-text text-red-400">Weakness (Conditional)</label>
-                            <textarea id="g-weakness" class="w-full h-20 bg-transparent border-b border-[#444] text-white p-1 text-xs focus:border-red-500 focus:outline-none transition-colors" placeholder="Enter specific weakness details here if conditions are met (e.g. 'Rashes in sunlight' if Setite blood consumed)...">${activeGhoul.weakness || ''}</textarea>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- STEP 2: ATTRIBUTES -->
-                <div id="step2" class="ghoul-step hidden">
-                    <div class="sheet-section !mt-0">
-                        <div class="section-title">Attributes (6 / 4 / 3)</div>
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-10">
-                            <div id="col-attr-phys">
-                                <h3 class="column-title">Physical <span id="cnt-attr-Physical" class="text-[10px] text-gray-500 ml-1"></span></h3>
-                                <div class="flex justify-center gap-2 mb-4">
-                                    ${renderPrioButtons('attr', 'Physical')}
-                                </div>
-                                <div id="g-attr-phys"></div>
-                            </div>
-                            <div id="col-attr-soc">
-                                <h3 class="column-title">Social <span id="cnt-attr-Social" class="text-[10px] text-gray-500 ml-1"></span></h3>
-                                <div class="flex justify-center gap-2 mb-4">
-                                    ${renderPrioButtons('attr', 'Social')}
-                                </div>
-                                <div id="g-attr-soc"></div>
-                            </div>
-                            <div id="col-attr-men">
-                                <h3 class="column-title">Mental <span id="cnt-attr-Mental" class="text-[10px] text-gray-500 ml-1"></span></h3>
-                                <div class="flex justify-center gap-2 mb-4">
-                                    ${renderPrioButtons('attr', 'Mental')}
-                                </div>
-                                <div id="g-attr-men"></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- STEP 3: ABILITIES -->
-                <div id="step3" class="ghoul-step hidden">
-                    <div class="sheet-section !mt-0">
-                        <div class="section-title">Abilities (11 / 7 / 4) - Max 3 Dots</div>
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-10">
-                            <div id="col-abil-tal">
-                                <h3 class="column-title">Talents <span id="cnt-abil-Talents" class="text-[10px] text-gray-500 ml-1"></span></h3>
-                                <div class="flex justify-center gap-2 mb-4">
-                                    ${renderPrioButtons('abil', 'Talents')}
-                                </div>
-                                <div id="g-abil-tal"></div>
-                            </div>
-                            <div id="col-abil-ski">
-                                <h3 class="column-title">Skills <span id="cnt-abil-Skills" class="text-[10px] text-gray-500 ml-1"></span></h3>
-                                <div class="flex justify-center gap-2 mb-4">
-                                    ${renderPrioButtons('abil', 'Skills')}
-                                </div>
-                                <div id="g-abil-ski"></div>
-                            </div>
-                            <div id="col-abil-kno">
-                                <h3 class="column-title">Knowledges <span id="cnt-abil-Knowledges" class="text-[10px] text-gray-500 ml-1"></span></h3>
-                                <div class="flex justify-center gap-2 mb-4">
-                                    ${renderPrioButtons('abil', 'Knowledges')}
-                                </div>
-                                <div id="g-abil-kno"></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- STEP 4: ADVANTAGES -->
-                <div id="step4" class="ghoul-step hidden">
-                    <div class="sheet-section !mt-0">
-                        <div class="section-title">Advantages</div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
-                            <div>
-                                <h3 class="column-title">Disciplines (Potence 1 + 1 Free Dot)</h3>
-                                <div class="text-[9px] text-gray-500 mb-2 italic">Creation Limit: 2 Dots Total.</div>
-                                <div id="g-disc-list" class="space-y-1 mt-2"></div>
-                                <div class="mt-3">
-                                    <select id="g-disc-select" class="w-full bg-transparent border border-[#444] text-[10px] text-gray-300 p-2 uppercase font-bold focus:border-[#d4af37] focus:outline-none">
-                                        <option value="" class="bg-black">+ Add Discipline</option>
-                                        ${discOptions}
-                                    </select>
-                                </div>
-                                <div class="mt-8">
-                                    <h3 class="column-title">Backgrounds (5 Dots Free)</h3>
-                                    <div id="g-back-list" class="space-y-1 mt-2"></div>
-                                    <div class="mt-3">
-                                        <select id="g-back-select" class="w-full bg-transparent border border-[#444] text-[10px] text-gray-300 p-2 uppercase font-bold focus:border-[#d4af37] focus:outline-none">
-                                            <option value="" class="bg-black">+ Add Background</option>
-                                            ${bgOptions}
+                                <div class="space-y-6">
+                                    <div>
+                                        <label class="label-text text-[#d4af37]">Ghoul Type</label>
+                                        <select id="g-type" class="w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] focus:outline-none transition-colors">
+                                            <option value="Vassal" ${activeGhoul.type === 'Vassal' ? 'selected' : ''} class="bg-black">Vassal (7 Virtue Dots)</option>
+                                            <option value="Independent" ${activeGhoul.type === 'Independent' ? 'selected' : ''} class="bg-black">Independent (7 Virtue Dots)</option>
+                                            <option value="Revenant" ${activeGhoul.type === 'Revenant' ? 'selected' : ''} class="bg-black">Revenant (5 Virtue Dots)</option>
+                                        </select>
+                                    </div>
+                                    <!-- Conditional Fields -->
+                                    <div id="div-domitor-clan" class="${activeGhoul.type === 'Revenant' ? 'hidden' : 'block'}">
+                                        <label class="label-text text-[#d4af37]">Domitor Clan</label>
+                                        <select id="g-domitor-clan" class="w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] focus:outline-none transition-colors">
+                                            <option value="" class="bg-black">Unknown/None</option>
+                                            ${clanOptions}
+                                        </select>
+                                    </div>
+                                    <div id="div-family" class="${activeGhoul.type === 'Revenant' ? 'block' : 'hidden'}">
+                                        <label class="label-text text-[#d4af37]">Revenant Family</label>
+                                        <select id="g-family" class="w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] focus:outline-none transition-colors">
+                                            <option value="" class="bg-black">Select Family...</option>
+                                            ${revOptions}
                                         </select>
                                     </div>
                                 </div>
                             </div>
-                            <div>
-                                <h3 class="column-title">Virtues <span id="g-virtue-header-limit" class="text-gray-500 text-xs"></span></h3>
-                                <div id="g-virt-list" class="space-y-3 mt-4 mb-4"></div>
+                            <!-- Weakness Display -->
+                            <div class="mt-6 p-4 bg-red-900/10 border border-red-900/30 rounded">
+                                <label class="label-text text-red-400">Weakness (Conditional)</label>
+                                <textarea id="g-weakness" class="w-full h-20 bg-transparent border-b border-[#444] text-white p-1 text-xs focus:border-red-500 focus:outline-none transition-colors" placeholder="Enter specific weakness details here if conditions are met (e.g. 'Rashes in sunlight' if Setite blood consumed)...">${activeGhoul.weakness || ''}</textarea>
                             </div>
                         </div>
                     </div>
-                </div>
 
-                <!-- STEP 5: BIOGRAPHY (NEW) -->
-                <div id="stepBio" class="ghoul-step hidden">
-                    <div class="sheet-section !mt-0">
-                        <div class="section-title">Biography & Vitals</div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                            <div class="space-y-4">
-                                ${VIT.map(v => `
-                                    <div class="flex justify-between items-center border-b border-[#333] pb-1">
-                                        <label class="label-text text-[#d4af37] w-1/3">${v}</label>
-                                        <input type="text" class="w-2/3 bg-transparent text-white text-xs text-right focus:outline-none bio-input" data-field="${v}" value="${activeGhoul.bio[v] || ''}">
+                    <!-- STEP 2: ATTRIBUTES -->
+                    <div id="step2" class="ghoul-step hidden">
+                        <div class="sheet-section !mt-0">
+                            <div class="section-title">Attributes (6 / 4 / 3)</div>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-10">
+                                <div id="col-attr-phys">
+                                    <h3 class="column-title">Physical <span id="cnt-attr-Physical" class="text-[10px] text-gray-500 ml-1"></span></h3>
+                                    <div class="flex justify-center gap-2 mb-4">
+                                        ${renderPrioButtons('attr', 'Physical')}
                                     </div>
-                                `).join('')}
-                            </div>
-                            <div class="space-y-4">
-                                <div>
-                                    <label class="label-text text-[#d4af37] mb-2">Description / Appearance</label>
-                                    <textarea id="g-bio-desc" class="w-full h-32 bg-transparent border border-[#444] text-white p-2 text-xs focus:border-[#d4af37] outline-none resize-none">${activeGhoul.bio.Description || ''}</textarea>
+                                    <div id="g-attr-phys"></div>
                                 </div>
-                                <div>
-                                    <label class="label-text text-[#d4af37] mb-2">Notes / History</label>
-                                    <textarea id="g-bio-notes" class="w-full h-32 bg-transparent border border-[#444] text-white p-2 text-xs focus:border-[#d4af37] outline-none resize-none">${activeGhoul.bio.Notes || ''}</textarea>
+                                <div id="col-attr-soc">
+                                    <h3 class="column-title">Social <span id="cnt-attr-Social" class="text-[10px] text-gray-500 ml-1"></span></h3>
+                                    <div class="flex justify-center gap-2 mb-4">
+                                        ${renderPrioButtons('attr', 'Social')}
+                                    </div>
+                                    <div id="g-attr-soc"></div>
+                                </div>
+                                <div id="col-attr-men">
+                                    <h3 class="column-title">Mental <span id="cnt-attr-Mental" class="text-[10px] text-gray-500 ml-1"></span></h3>
+                                    <div class="flex justify-center gap-2 mb-4">
+                                        ${renderPrioButtons('attr', 'Mental')}
+                                    </div>
+                                    <div id="g-attr-men"></div>
                                 </div>
                             </div>
                         </div>
                     </div>
-                </div>
 
-                <!-- STEP 6: FINISHING (FREEBIES) -->
-                <div id="step5" class="ghoul-step hidden">
-                    <div class="sheet-section !mt-0 h-full">
-                        <div class="section-title">Finishing Touches & Freebie Points</div>
-                        
-                        <div class="flex flex-col md:flex-row gap-6 h-full">
-                            <!-- LEFT: UPGRADE PANEL -->
-                            <div class="flex-1 space-y-8 overflow-y-auto pr-2 max-h-[60vh]">
-                                
-                                <!-- Merits & Flaws Block -->
-                                <div class="border border-[#333] bg-black/40 p-4">
-                                    <h3 class="column-title mb-4">Merits & Flaws (Max 7 Flaw Points)</h3>
-                                    <div class="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <select id="g-merit-select" class="w-full bg-transparent border-b border-[#444] text-[10px] text-gray-300 p-1 mb-2">
-                                                <option value="" class="bg-black">Add Merit...</option>
-                                                ${meritOpts}
-                                            </select>
-                                            <div id="g-merits-list" class="space-y-1"></div>
-                                        </div>
-                                        <div>
-                                            <select id="g-flaw-select" class="w-full bg-transparent border-b border-[#444] text-[10px] text-gray-300 p-1 mb-2">
-                                                <option value="" class="bg-black">Add Flaw...</option>
-                                                ${flawOpts}
-                                            </select>
-                                            <div id="g-flaws-list" class="space-y-1"></div>
-                                        </div>
+                    <!-- STEP 3: ABILITIES -->
+                    <div id="step3" class="ghoul-step hidden">
+                        <div class="sheet-section !mt-0">
+                            <div class="section-title">Abilities (11 / 7 / 4) - Max 3 Dots</div>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-10">
+                                <div id="col-abil-tal">
+                                    <h3 class="column-title">Talents <span id="cnt-abil-Talents" class="text-[10px] text-gray-500 ml-1"></span></h3>
+                                    <div class="flex justify-center gap-2 mb-4">
+                                        ${renderPrioButtons('abil', 'Talents')}
                                     </div>
+                                    <div id="g-abil-tal"></div>
                                 </div>
-
-                                <!-- Status Block -->
-                                <div class="border border-[#333] bg-black/40 p-4 grid grid-cols-2 gap-4">
-                                    <div class="flex justify-between items-center text-xs">
-                                        <span class="font-bold text-[#d4af37] uppercase">Humanity</span>
-                                        <div class="dot-row cursor-pointer" id="g-humanity-row">${renderDots(activeGhoul.humanity, 10)}</div>
+                                <div id="col-abil-ski">
+                                    <h3 class="column-title">Skills <span id="cnt-abil-Skills" class="text-[10px] text-gray-500 ml-1"></span></h3>
+                                    <div class="flex justify-center gap-2 mb-4">
+                                        ${renderPrioButtons('abil', 'Skills')}
                                     </div>
-                                    <div class="flex justify-between items-center text-xs">
-                                        <span class="font-bold text-[#d4af37] uppercase">Willpower</span>
-                                        <div class="dot-row cursor-pointer" id="g-willpower-row">${renderDots(activeGhoul.willpower, 10)}</div>
-                                    </div>
-                                    <div class="flex justify-between items-center text-xs col-span-2 border-t border-[#333] pt-2">
-                                        <span class="font-bold text-[#d4af37] uppercase">Blood Pool (Vitae)</span>
-                                        <input type="number" id="g-blood" value="${activeGhoul.bloodPool}" class="w-12 bg-transparent border-b border-[#444] text-center text-white p-1 font-bold text-lg focus:border-[#d4af37] outline-none">
-                                    </div>
+                                    <div id="g-abil-ski"></div>
                                 </div>
-
-                                <!-- Attributes Upgrade -->
-                                <div>
-                                    <h3 class="column-title mb-2">Attributes</h3>
-                                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                        <div id="fb-attr-phys"></div>
-                                        <div id="fb-attr-soc"></div>
-                                        <div id="fb-attr-men"></div>
+                                <div id="col-abil-kno">
+                                    <h3 class="column-title">Knowledges <span id="cnt-abil-Knowledges" class="text-[10px] text-gray-500 ml-1"></span></h3>
+                                    <div class="flex justify-center gap-2 mb-4">
+                                        ${renderPrioButtons('abil', 'Knowledges')}
                                     </div>
-                                </div>
-
-                                <!-- Abilities Upgrade -->
-                                <div>
-                                    <h3 class="column-title mb-2">Abilities</h3>
-                                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                        <div id="fb-abil-tal"></div>
-                                        <div id="fb-abil-ski"></div>
-                                        <div id="fb-abil-kno"></div>
-                                    </div>
-                                </div>
-
-                                <!-- Advantages Upgrade -->
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div>
-                                        <h3 class="column-title mb-2">Disciplines & Backgrounds</h3>
-                                        <div id="fb-disc-list" class="space-y-1"></div>
-                                        <div id="fb-back-list" class="space-y-1 mt-4"></div>
-                                    </div>
-                                    <div>
-                                        <h3 class="column-title mb-2">Virtues</h3>
-                                        <div id="fb-virt-list" class="space-y-2"></div>
-                                    </div>
+                                    <div id="g-abil-kno"></div>
                                 </div>
                             </div>
+                        </div>
+                    </div>
 
-                            <!-- RIGHT: LEDGER (STICKY) -->
-                            <div class="w-full md:w-64 flex-shrink-0">
-                                <div class="sticky top-0 space-y-4">
-                                    <h3 class="column-title">Freebie Ledger</h3>
-                                    <div class="text-[10px] font-mono space-y-2 p-4 bg-black/40 border border-[#333] text-gray-400">
-                                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Attributes (5):</span> <span id="fb-cost-attr" class="text-white">0</span></div>
-                                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Abilities (2):</span> <span id="fb-cost-abil" class="text-white">0</span></div>
-                                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Disciplines (10):</span> <span id="fb-cost-disc" class="text-white">0</span></div>
-                                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Backgrounds (1):</span> <span id="fb-cost-back" class="text-white">0</span></div>
-                                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Virtues (2):</span> <span id="fb-cost-virt" class="text-white">0</span></div>
-                                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Humanity (1):</span> <span id="fb-cost-hum" class="text-white">0</span></div>
-                                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Willpower (1):</span> <span id="fb-cost-will" class="text-white">0</span></div>
-                                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Merits (Cost):</span> <span id="fb-cost-merit" class="text-white">0</span></div>
-                                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Flaws (Bonus):</span> <span id="fb-cost-flaw" class="text-green-400">0</span></div>
+                    <!-- STEP 4: ADVANTAGES -->
+                    <div id="step4" class="ghoul-step hidden">
+                        <div class="sheet-section !mt-0">
+                            <div class="section-title">Advantages</div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
+                                <div>
+                                    <h3 class="column-title">Disciplines (Potence 1 + 1 Free Dot)</h3>
+                                    <div class="text-[9px] text-gray-500 mb-2 italic">Creation Limit: 2 Dots Total.</div>
+                                    <div id="g-disc-list" class="space-y-1 mt-2"></div>
+                                    <div class="mt-3">
+                                        <select id="g-disc-select" class="w-full bg-transparent border border-[#444] text-[10px] text-gray-300 p-2 uppercase font-bold focus:border-[#d4af37] focus:outline-none">
+                                            <option value="" class="bg-black">+ Add Discipline</option>
+                                            ${discOptions}
+                                        </select>
                                     </div>
-                                    <div class="p-4 border border-[#d4af37]/30 bg-[#d4af37]/10 rounded text-center shadow-[0_0_15px_rgba(212,175,55,0.1)]">
-                                        <div class="uppercase text-[9px] font-bold text-[#d4af37] tracking-widest">Freebies Remaining</div>
-                                        <div id="final-freebie-disp" class="text-4xl font-black text-white mt-2 font-cinzel">21</div>
+                                    <div class="mt-8">
+                                        <h3 class="column-title">Backgrounds (5 Dots Free)</h3>
+                                        <div id="g-back-list" class="space-y-1 mt-2"></div>
+                                        <div class="mt-3">
+                                            <select id="g-back-select" class="w-full bg-transparent border border-[#444] text-[10px] text-gray-300 p-2 uppercase font-bold focus:border-[#d4af37] focus:outline-none">
+                                                <option value="" class="bg-black">+ Add Background</option>
+                                                ${bgOptions}
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div>
+                                    <h3 class="column-title">Virtues <span id="g-virtue-header-limit" class="text-gray-500 text-xs"></span></h3>
+                                    <div id="g-virt-list" class="space-y-3 mt-4 mb-4"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- STEP 5: BIOGRAPHY (NEW) -->
+                    <div id="stepBio" class="ghoul-step hidden">
+                        <div class="sheet-section !mt-0">
+                            <div class="section-title">Biography & Vitals</div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                <div class="space-y-4">
+                                    ${VIT.map(v => `
+                                        <div class="flex justify-between items-center border-b border-[#333] pb-1">
+                                            <label class="label-text text-[#d4af37] w-1/3">${v}</label>
+                                            <input type="text" class="w-2/3 bg-transparent text-white text-xs text-right focus:outline-none bio-input" data-field="${v}" value="${activeGhoul.bio[v] || ''}">
+                                        </div>
+                                    `).join('')}
+                                </div>
+                                <div class="space-y-4">
+                                    <div>
+                                        <label class="label-text text-[#d4af37] mb-2">Description / Appearance</label>
+                                        <textarea id="g-bio-desc" class="w-full h-32 bg-transparent border border-[#444] text-white p-2 text-xs focus:border-[#d4af37] outline-none resize-none">${activeGhoul.bio.Description || ''}</textarea>
+                                    </div>
+                                    <div>
+                                        <label class="label-text text-[#d4af37] mb-2">Notes / History</label>
+                                        <textarea id="g-bio-notes" class="w-full h-32 bg-transparent border border-[#444] text-white p-2 text-xs focus:border-[#d4af37] outline-none resize-none">${activeGhoul.bio.Notes || ''}</textarea>
                                     </div>
                                 </div>
                             </div>
                         </div>
+                    </div>
+
+                    <!-- STEP 6: FINISHING (FREEBIES) -->
+                    <div id="step5" class="ghoul-step hidden">
+                        <div class="sheet-section !mt-0 h-full">
+                            <div class="section-title">Finishing Touches & Freebie Points</div>
+                            
+                            <div class="flex flex-col md:flex-row gap-6 h-full">
+                                <!-- LEFT: UPGRADE PANEL -->
+                                <div class="flex-1 space-y-8 overflow-y-auto pr-2 max-h-[60vh]">
+                                    
+                                    <!-- Merits & Flaws Block -->
+                                    <div class="border border-[#333] bg-black/40 p-4">
+                                        <h3 class="column-title mb-4">Merits & Flaws (Max 7 Flaw Points)</h3>
+                                        <div class="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <select id="g-merit-select" class="w-full bg-transparent border-b border-[#444] text-[10px] text-gray-300 p-1 mb-2">
+                                                    <option value="" class="bg-black">Add Merit...</option>
+                                                    ${meritOpts}
+                                                </select>
+                                                <div id="g-merits-list" class="space-y-1"></div>
+                                            </div>
+                                            <div>
+                                                <select id="g-flaw-select" class="w-full bg-transparent border-b border-[#444] text-[10px] text-gray-300 p-1 mb-2">
+                                                    <option value="" class="bg-black">Add Flaw...</option>
+                                                    ${flawOpts}
+                                                </select>
+                                                <div id="g-flaws-list" class="space-y-1"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Status Block -->
+                                    <div class="border border-[#333] bg-black/40 p-4 grid grid-cols-2 gap-4">
+                                        <div class="flex justify-between items-center text-xs">
+                                            <span class="font-bold text-[#d4af37] uppercase">Humanity</span>
+                                            <div class="dot-row cursor-pointer" id="g-humanity-row">${renderDots(activeGhoul.humanity, 10)}</div>
+                                        </div>
+                                        <div class="flex justify-between items-center text-xs">
+                                            <span class="font-bold text-[#d4af37] uppercase">Willpower</span>
+                                            <div class="dot-row cursor-pointer" id="g-willpower-row">${renderDots(activeGhoul.willpower, 10)}</div>
+                                        </div>
+                                        <div class="flex justify-between items-center text-xs col-span-2 border-t border-[#333] pt-2">
+                                            <span class="font-bold text-[#d4af37] uppercase">Blood Pool (Vitae)</span>
+                                            <input type="number" id="g-blood" value="${activeGhoul.bloodPool}" class="w-12 bg-transparent border-b border-[#444] text-center text-white p-1 font-bold text-lg focus:border-[#d4af37] outline-none">
+                                        </div>
+                                    </div>
+
+                                    <!-- Attributes Upgrade -->
+                                    <div>
+                                        <h3 class="column-title mb-2">Attributes</h3>
+                                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                            <div id="fb-attr-phys"></div>
+                                            <div id="fb-attr-soc"></div>
+                                            <div id="fb-attr-men"></div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Abilities Upgrade -->
+                                    <div>
+                                        <h3 class="column-title mb-2">Abilities</h3>
+                                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                            <div id="fb-abil-tal"></div>
+                                            <div id="fb-abil-ski"></div>
+                                            <div id="fb-abil-kno"></div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Advantages Upgrade -->
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div>
+                                            <h3 class="column-title mb-2">Disciplines & Backgrounds</h3>
+                                            <div id="fb-disc-list" class="space-y-1"></div>
+                                            <div id="fb-back-list" class="space-y-1 mt-4"></div>
+                                        </div>
+                                        <div>
+                                            <h3 class="column-title mb-2">Virtues</h3>
+                                            <div id="fb-virt-list" class="space-y-2"></div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- RIGHT: LEDGER (Creation) -->
+                                <div class="w-full md:w-64 flex-shrink-0" id="creation-ledger-container">
+                                    <div class="sticky top-0 space-y-4">
+                                        <h3 class="column-title">Freebie Ledger</h3>
+                                        <div class="text-[10px] font-mono space-y-2 p-4 bg-black/40 border border-[#333] text-gray-400">
+                                            <div class="flex justify-between border-b border-[#222] pb-1"><span>Attributes (5):</span> <span id="fb-cost-attr" class="text-white">0</span></div>
+                                            <div class="flex justify-between border-b border-[#222] pb-1"><span>Abilities (2):</span> <span id="fb-cost-abil" class="text-white">0</span></div>
+                                            <div class="flex justify-between border-b border-[#222] pb-1"><span>Disciplines (10):</span> <span id="fb-cost-disc" class="text-white">0</span></div>
+                                            <div class="flex justify-between border-b border-[#222] pb-1"><span>Backgrounds (1):</span> <span id="fb-cost-back" class="text-white">0</span></div>
+                                            <div class="flex justify-between border-b border-[#222] pb-1"><span>Virtues (2):</span> <span id="fb-cost-virt" class="text-white">0</span></div>
+                                            <div class="flex justify-between border-b border-[#222] pb-1"><span>Humanity (1):</span> <span id="fb-cost-hum" class="text-white">0</span></div>
+                                            <div class="flex justify-between border-b border-[#222] pb-1"><span>Willpower (1):</span> <span id="fb-cost-will" class="text-white">0</span></div>
+                                            <div class="flex justify-between border-b border-[#222] pb-1"><span>Merits (Cost):</span> <span id="fb-cost-merit" class="text-white">0</span></div>
+                                            <div class="flex justify-between border-b border-[#222] pb-1"><span>Flaws (Bonus):</span> <span id="fb-cost-flaw" class="text-green-400">0</span></div>
+                                        </div>
+                                        <div class="p-4 border border-[#d4af37]/30 bg-[#d4af37]/10 rounded text-center shadow-[0_0_15px_rgba(212,175,55,0.1)]">
+                                            <div class="uppercase text-[9px] font-bold text-[#d4af37] tracking-widest">Freebies Remaining</div>
+                                            <div id="final-freebie-disp" class="text-4xl font-black text-white mt-2 font-cinzel">21</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div> <!-- End Main Scroll Area -->
+
+                <!-- RIGHT SIDEBAR: XP LEDGER (Visible in XP Mode) -->
+                <div id="xp-ledger-panel" class="hidden w-64 bg-[#080808] border-l border-[#333] flex-col shrink-0 transition-all">
+                    <div class="p-3 border-b border-[#333] bg-[#111]">
+                        <h3 class="text-purple-400 font-cinzel font-bold text-center">XP Log</h3>
+                    </div>
+                    
+                    <div class="p-3 border-b border-[#333] bg-[#1a1a1a]">
+                        <div class="flex justify-between items-center text-xs mb-2">
+                            <span class="text-gray-400">Total XP</span>
+                            <input type="number" id="xp-total-input" value="${activeGhoul.experience.total}" onchange="window.updateGhoulTotalXP(this.value)" class="w-16 bg-black border border-[#333] text-purple-400 text-center font-bold focus:border-purple-500 outline-none">
+                        </div>
+                        <div class="flex justify-between items-center text-xs">
+                            <span class="text-gray-400">Spent XP</span>
+                            <span id="xp-spent-disp" class="text-white font-bold">${activeGhoul.experience.spent}</span>
+                        </div>
+                        <div class="flex justify-between items-center text-xs mt-1 pt-1 border-t border-[#333]">
+                            <span class="text-gray-400">Remaining</span>
+                            <span id="xp-rem-disp" class="text-green-400 font-bold">${activeGhoul.experience.total - activeGhoul.experience.spent}</span>
+                        </div>
+                    </div>
+
+                    <div id="xp-log-list" class="flex-1 overflow-y-auto p-2 space-y-1 font-mono text-[9px]">
+                        <!-- Log entries injected here -->
                     </div>
                 </div>
 
@@ -483,6 +547,7 @@ function renderEditorModal() {
     modal.style.display = 'flex';
     modal.classList.remove('hidden');
 
+    // Populate Fields
     if(activeGhoul.nature) document.getElementById('g-nature').value = activeGhoul.nature;
     if(activeGhoul.demeanor) document.getElementById('g-demeanor').value = activeGhoul.demeanor;
     if(activeGhoul.domitorClan) document.getElementById('g-domitor-clan').value = activeGhoul.domitorClan;
@@ -492,8 +557,8 @@ function renderEditorModal() {
     renderDynamicLists();
     renderMeritsFlaws(); 
     updatePriorityUI(); 
-    
     renderFreebieLists();
+    renderXpLog(); // New
 
     setupNavListeners(modal);
     setupActionListeners(modal);
@@ -503,7 +568,7 @@ function renderEditorModal() {
 }
 
 function updateWeaknessDisplay(clan) {
-    // No-op as per previous instructions to make it editable without auto-fill
+    // No-op 
 }
 
 function renderFreebieLists() {
@@ -573,6 +638,8 @@ function renderMeritsFlaws() {
 }
 
 function validateChange(type, key, newVal, currentVal) {
+    if (xpMode) return true; // XP Mode has its own validation
+
     const delta = newVal - currentVal;
 
     if (currentTab === 'step5') {
@@ -775,6 +842,7 @@ function renderPrioButtons(cat, group) {
 }
 
 function handlePrioClick(e) {
+    if (xpMode) return; // Disable priority switching in XP mode
     const btn = e.target;
     const { cat, group, val } = btn.dataset;
     const v = parseInt(val);
@@ -1127,6 +1195,12 @@ function setupActionListeners(modal) {
         }
     });
 
+    // XP Toggle
+    const xpBtn = document.getElementById('toggle-xp-mode');
+    if (xpBtn) {
+        xpBtn.onclick = toggleXpMode;
+    }
+
     const setupDrop = (id, type, renderFn) => {
         const sel = document.getElementById(id);
         if(!sel) return;
@@ -1134,7 +1208,17 @@ function setupActionListeners(modal) {
             const val = e.target.value;
             if(val) {
                 if(!activeGhoul[type]) activeGhoul[type] = {};
-                if(activeGhoul[type][val] === undefined) {
+                
+                // XP MODE NEW DISCIPLINE ADD
+                if (xpMode && type === 'disciplines' && activeGhoul[type][val] === undefined) {
+                    // Start at 0? No, V20 says learn new discipline = 10xp for first dot (or 20 for non-physical).
+                    // We'll init at 0 and let user click dot 1 to buy it.
+                    activeGhoul[type][val] = 0;
+                    renderFn();
+                    bindDotClicks(modal);
+                }
+                // CREATION MODE
+                else if(activeGhoul[type][val] === undefined) {
                     if (!validateChange(type, val, 1, 0)) {
                         e.target.value = "";
                         return;
@@ -1153,6 +1237,132 @@ function setupActionListeners(modal) {
     setupDrop('g-back-select', 'backgrounds', renderBackgrounds);
 }
 
+// --- XP LOGIC ---
+
+function toggleXpMode() {
+    xpMode = !xpMode;
+    const modal = document.getElementById('ghoul-modal');
+    if(modal) {
+        // Redraw to show/hide panels
+        // Ideally we just toggle classes but strict re-render is safer for bindings
+        renderEditorModal();
+        switchTab(currentTab); // Return to current tab
+    }
+}
+
+// Global hook for the XP total input
+window.updateGhoulTotalXP = function(val) {
+    if (activeGhoul && activeGhoul.experience) {
+        activeGhoul.experience.total = parseInt(val) || 0;
+        document.getElementById('xp-rem-disp').innerText = activeGhoul.experience.total - activeGhoul.experience.spent;
+    }
+}
+
+function handleXpSpend(type, key, newVal, currentVal) {
+    if (newVal <= currentVal) return; // Only buying up allowed easily
+    
+    // Safety check: One dot at a time
+    if (newVal > currentVal + 1) {
+        showNotification("Please purchase dots one at a time with XP.");
+        return;
+    }
+
+    let cost = 0;
+    const target = newVal;
+
+    if (type === 'attributes') {
+        cost = target * XP_COSTS.attribute;
+    } else if (type === 'abilities') {
+        // New ability (0->1) cost is 3, otherwise New x 2
+        if (currentVal === 0) cost = XP_COSTS.newAbility;
+        else cost = target * XP_COSTS.ability;
+    } else if (type === 'virtues') {
+        cost = target * XP_COSTS.virtue;
+    } else if (type === 'willpower') {
+        cost = currentVal; // Cost is current rating (V20 p499 says "current rating" to raise)
+        // Wait, V20 Chart says "Current Rating". So if raising 4 to 5, cost is 4.
+        cost = currentVal; 
+        if (cost === 0) cost = 1; // Fallback
+    } else if (type === 'humanity') {
+        cost = target * XP_COSTS.humanity;
+    } else if (type === 'disciplines') {
+        // Is it physical?
+        const phys = ['Celerity', 'Fortitude', 'Potence'];
+        // Or Domitor's clan discipline (complicated to track). 
+        // We'll simplify: Physicals are cheap (x10), others expensive (x20).
+        // V20 Ghouls: New x 10 for Phys, New x 20 for others.
+        if (phys.includes(key)) {
+            cost = target * XP_COSTS.discipline_phys;
+        } else {
+            cost = target * XP_COSTS.discipline_other;
+        }
+        // First dot? V20 doesn't explicitly discount first dot for ghouls, just New Rating. 1*10 = 10.
+    } else if (type === 'backgrounds') {
+        cost = XP_COSTS.background; // Usually 3xp per dot or flat
+    }
+
+    const rem = activeGhoul.experience.total - activeGhoul.experience.spent;
+    
+    if (cost > rem) {
+        showNotification(`Not enough XP! Cost: ${cost}, Remaining: ${rem}`);
+        return;
+    }
+
+    if (confirm(`Spend ${cost} XP to raise ${key} to ${newVal}?`)) {
+        activeGhoul.experience.spent += cost;
+        activeGhoul.experience.log.push({
+            date: Date.now(),
+            trait: key,
+            from: currentVal,
+            to: newVal,
+            cost: cost
+        });
+        
+        // Apply change
+        if (type === 'attributes' || type === 'abilities' || type === 'virtues' || type === 'disciplines' || type === 'backgrounds') {
+            activeGhoul[type][key] = newVal;
+        } else if (type === 'humanity') {
+            activeGhoul.humanity = newVal;
+        } else if (type === 'willpower') {
+            activeGhoul.willpower = newVal;
+        }
+
+        renderXpLog();
+        document.getElementById('xp-spent-disp').innerText = activeGhoul.experience.spent;
+        document.getElementById('xp-rem-disp').innerText = activeGhoul.experience.total - activeGhoul.experience.spent;
+        
+        // Re-render dots
+        renderDotGroups();
+        renderDynamicLists();
+        renderFreebieLists();
+        
+        // Re-bind needed?
+        // Since we re-rendered dots, we need to rebind
+        bindDotClicks(document.getElementById('ghoul-modal'));
+        
+        showNotification(`Spent ${cost} XP.`);
+    }
+}
+
+function renderXpLog() {
+    const list = document.getElementById('xp-log-list');
+    if (!list || !activeGhoul.experience || !activeGhoul.experience.log) return;
+    
+    list.innerHTML = activeGhoul.experience.log.slice().reverse().map(l => `
+        <div class="border-b border-[#222] pb-1 mb-1 text-gray-400">
+            <div class="flex justify-between">
+                <span class="text-white font-bold">${l.trait}</span>
+                <span class="text-purple-400">-${l.cost}</span>
+            </div>
+            <div class="text-[8px] flex justify-between opacity-70">
+                <span>${l.from} &rarr; ${l.to}</span>
+                <span>${new Date(l.date).toLocaleDateString()}</span>
+            </div>
+        </div>
+    `).join('');
+}
+
+
 function updateVirtueHeader() {
     const header = document.getElementById('g-virtue-header-limit');
     if (!header) return;
@@ -1170,10 +1380,17 @@ function bindDotClicks(modal) {
         if(!el) return;
         el.onclick = (e) => {
             if (!e.target.classList.contains('dot')) return;
-            if (currentTab !== 'step5') return;
-            
+            // Mode Check
             const newVal = parseInt(e.target.dataset.v);
             let currentVal = activeGhoul[type];
+            
+            if (xpMode) {
+                handleXpSpend(type, type, newVal, currentVal); // Key is same as type for hum/will
+                return;
+            }
+
+            if (currentTab !== 'step5') return;
+            
             let finalVal = newVal;
             if (newVal === currentVal) finalVal = newVal - 1;
             if (finalVal < 1) finalVal = 1;
@@ -1202,6 +1419,12 @@ function bindDotClicks(modal) {
             
             let currentVal = activeGhoul[type][key] || 0;
             if ((type === 'attributes' || type === 'virtues') && activeGhoul[type][key] === undefined) currentVal = 1;
+
+            // XP BRANCH
+            if (xpMode) {
+                handleXpSpend(type, key, newVal, currentVal);
+                return;
+            }
 
             let finalVal = newVal;
             if (newVal === currentVal) finalVal = newVal - 1;
