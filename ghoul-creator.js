@@ -5,27 +5,39 @@ import {
 } from "./data.js";
 import { renderDots, showNotification } from "./ui-common.js";
 
-// Revenant Families (Not currently in data.js, so kept local)
+// Revenant Families
 const REVENANT_FAMILIES = ["Bratovitch", "Grimaldi", "Obertus", "Zantosa"];
 
 // --- XP COSTS (V20 Ghouls p. 499) ---
 const XP_COSTS = {
-    attribute: 4,      // Current Rating x 4
-    ability: 2,        // Current Rating x 2
-    newAbility: 3,     // 3 points for first dot
-    virtue: 2,         // Current Rating x 2
-    willpower: 1,      // Current Rating
-    humanity: 2,       // Current Rating x 2
+    attribute: 4,       // Current Rating x 4
+    ability: 2,         // Current Rating x 2
+    newAbility: 3,      // 3 points for first dot
+    virtue: 2,          // Current Rating x 2
+    willpower: 1,       // Current Rating (Simplified V20)
+    humanity: 2,        // Current Rating x 2
     discipline_phys: 10, // Current Rating x 10 (Celerity, Fortitude, Potence)
     discipline_other: 20, // Current Rating x 20
-    background: 3        // Ghouls usually buy backgrounds with 3 XP (Storyteller discretion)
+    background: 3        // Storyteller discretion
+};
+
+// --- FREEBIE COSTS (V20 Ghouls p. 498) ---
+const FB_COSTS = {
+    attribute: 5,
+    ability: 2,
+    discipline: 10,
+    background: 1,
+    virtue: 2,
+    humanity: 1,
+    willpower: 1
 };
 
 // --- STATE ---
 let activeGhoul = null;
 let activeIndex = null;
 let currentTab = 'step1';
-let xpMode = false; // Toggle for XP spending
+let xpMode = false;
+let freebieMode = false; 
 
 // Priority State Checkers (V20 Ghoul Rules)
 const PRIO_CONFIG = {
@@ -43,7 +55,6 @@ export function openGhoulCreator(dataOrEvent = null, index = null) {
     console.log("Creating/Editing Ghoul...", dataOrEvent); 
 
     let incomingData = null;
-    
     const isEvent = dataOrEvent && (typeof dataOrEvent.preventDefault === 'function' || typeof dataOrEvent.stopPropagation === 'function');
     
     if (dataOrEvent && !isEvent) {
@@ -53,6 +64,7 @@ export function openGhoulCreator(dataOrEvent = null, index = null) {
     activeIndex = (typeof index === 'number') ? index : null;
     currentTab = 'step1';
     xpMode = false;
+    freebieMode = false;
     
     // Reset Local State
     localPriorities = {
@@ -68,7 +80,6 @@ export function openGhoulCreator(dataOrEvent = null, index = null) {
         
         if (!activeGhoul.disciplines.Potence) activeGhoul.disciplines.Potence = 1;
 
-        // Init XP Data if missing
         if (!activeGhoul.experience) {
             activeGhoul.experience = { total: 0, spent: 0, log: [] };
         }
@@ -99,7 +110,7 @@ export function openGhoulCreator(dataOrEvent = null, index = null) {
                 attr: { Physical: null, Social: null, Mental: null },
                 abil: { Talents: null, Skills: null, Knowledges: null }
             },
-            humanity: 2, willpower: 1, bloodPool: 10 
+            humanity: 1, willpower: 1, bloodPool: 10 
         };
         initBaseDots(activeGhoul);
         recalcStatus();
@@ -146,12 +157,11 @@ function autoDetectPriorities() {
 }
 
 function recalcStatus() {
-    // Only recalc if we haven't manually set them (simple check)
-    // Actually for ghouls, just default recalc unless overrides exist?
-    // We'll trust the stored value if it's higher than base.
     const baseHum = (activeGhoul.virtues.Conscience || 1) + (activeGhoul.virtues["Self-Control"] || 1);
     const baseWill = activeGhoul.virtues.Courage || 1;
     
+    // Only adjust if we aren't explicitly overriding (basic sync)
+    // In freebie mode we might have raised them, so we only raise the floor
     if (activeGhoul.humanity < baseHum) activeGhoul.humanity = baseHum;
     if (activeGhoul.willpower < baseWill) activeGhoul.willpower = baseWill;
 }
@@ -173,7 +183,6 @@ function renderEditorModal() {
     const clanOptions = (CLANS || []).sort().map(c => `<option value="${c}">${c}</option>`).join('');
     const revOptions = (REVENANT_FAMILIES || []).map(r => `<option value="${r}">${r}</option>`).join('');
 
-    // Merit/Flaw Options
     const meritOpts = (V20_MERITS_LIST || []).map(m => `<option value="${m.n}|${m.v}">${m.n} (${m.v} pts)</option>`).join('');
     const flawOpts = (V20_FLAWS_LIST || []).map(f => `<option value="${f.n}|${f.v}">${f.n} (${f.v} pts)</option>`).join('');
 
@@ -186,8 +195,10 @@ function renderEditorModal() {
                     <h2 class="text-2xl font-cinzel text-[#d4af37] font-bold tracking-widest uppercase shadow-black drop-shadow-md">
                         <i class="fas fa-user-plus mr-2 text-[#8b0000]"></i>Ghoul Creator <span class="text-xs align-top opacity-50 ml-1">V20</span>
                     </h2>
-                    <!-- XP Mode Toggle -->
                     <div class="ml-6 flex items-center gap-2 border-l border-[#444] pl-4">
+                         <button id="toggle-fb-mode" class="text-[10px] uppercase font-bold px-3 py-1 border border-[#444] rounded transition-all ${freebieMode ? 'bg-yellow-900/40 text-[#d4af37] border-[#d4af37] shadow-[0_0_10px_rgba(212,175,55,0.3)]' : 'text-gray-500 hover:text-white hover:border-gray-300'}">
+                            <i class="fas fa-star mr-1"></i> Freebie Mode: ${freebieMode ? 'ON' : 'OFF'}
+                        </button>
                         <button id="toggle-xp-mode" class="text-[10px] uppercase font-bold px-3 py-1 border border-[#444] rounded transition-all ${xpMode ? 'bg-purple-900/40 text-purple-300 border-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.3)]' : 'text-gray-500 hover:text-white hover:border-gray-300'}">
                             <i class="fas fa-hourglass-half mr-1"></i> XP Mode: ${xpMode ? 'ON' : 'OFF'}
                         </button>
@@ -196,14 +207,13 @@ function renderEditorModal() {
                 <button id="close-ghoul-modal" class="text-gray-400 hover:text-white text-xl px-2 transition-transform hover:rotate-90"><i class="fas fa-times"></i></button>
             </div>
 
-            <!-- TABS -->
+            <!-- TABS (5 Tabs Only) -->
             <div class="flex border-b border-[#333] bg-[#050505] text-[10px] uppercase font-bold text-gray-500 tracking-wider overflow-x-auto no-scrollbar shrink-0">
                 <button class="ghoul-tab px-6 py-4 hover:bg-[#111] hover:text-[#d4af37] border-r border-[#333] transition-colors" data-tab="step1">1. Concept</button>
                 <button class="ghoul-tab px-6 py-4 hover:bg-[#111] hover:text-[#d4af37] border-r border-[#333] transition-colors" data-tab="step2">2. Attributes</button>
                 <button class="ghoul-tab px-6 py-4 hover:bg-[#111] hover:text-[#d4af37] border-r border-[#333] transition-colors" data-tab="step3">3. Abilities</button>
                 <button class="ghoul-tab px-6 py-4 hover:bg-[#111] hover:text-[#d4af37] border-r border-[#333] transition-colors" data-tab="step4">4. Advantages</button>
                 <button class="ghoul-tab px-6 py-4 hover:bg-[#111] hover:text-[#d4af37] border-r border-[#333] transition-colors" data-tab="stepBio">5. Biography</button>
-                <button class="ghoul-tab px-6 py-4 hover:bg-[#111] hover:text-[#d4af37] border-r border-[#333] transition-colors" data-tab="step5">6. Finishing</button>
             </div>
 
             <!-- CONTENT -->
@@ -265,10 +275,9 @@ function renderEditorModal() {
                                     </div>
                                 </div>
                             </div>
-                            <!-- Weakness Display -->
                             <div class="mt-6 p-4 bg-red-900/10 border border-red-900/30 rounded">
                                 <label class="label-text text-red-400">Weakness (Conditional)</label>
-                                <textarea id="g-weakness" class="w-full h-20 bg-transparent border-b border-[#444] text-white p-1 text-xs focus:border-red-500 focus:outline-none transition-colors" placeholder="Enter specific weakness details here if conditions are met (e.g. 'Rashes in sunlight' if Setite blood consumed)...">${activeGhoul.weakness || ''}</textarea>
+                                <textarea id="g-weakness" class="w-full h-20 bg-transparent border-b border-[#444] text-white p-1 text-xs focus:border-red-500 focus:outline-none transition-colors" placeholder="Enter specific weakness details here if conditions are met...">${activeGhoul.weakness || ''}</textarea>
                             </div>
                         </div>
                     </div>
@@ -333,14 +342,15 @@ function renderEditorModal() {
                         </div>
                     </div>
 
-                    <!-- STEP 4: ADVANTAGES -->
+                    <!-- STEP 4: ADVANTAGES (Includes Merits/Flaws) -->
                     <div id="step4" class="ghoul-step hidden">
                         <div class="sheet-section !mt-0">
                             <div class="section-title">Advantages</div>
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-10">
+                                <!-- Col 1: Disciplines & Backgrounds -->
                                 <div>
-                                    <h3 class="column-title">Disciplines (Potence 1 + 1 Free Dot)</h3>
-                                    <div class="text-[9px] text-gray-500 mb-2 italic">Creation Limit: 2 Dots Total.</div>
+                                    <h3 class="column-title">Disciplines</h3>
+                                    <div class="text-[9px] text-gray-500 mb-2 italic">Potence 1 + 1 Free Dot (Max 2 in creation).</div>
                                     <div id="g-disc-list" class="space-y-1 mt-2"></div>
                                     <div class="mt-3">
                                         <select id="g-disc-select" class="w-full bg-transparent border border-[#444] text-[10px] text-gray-300 p-2 uppercase font-bold focus:border-[#d4af37] focus:outline-none">
@@ -349,7 +359,8 @@ function renderEditorModal() {
                                         </select>
                                     </div>
                                     <div class="mt-8">
-                                        <h3 class="column-title">Backgrounds (5 Dots Free)</h3>
+                                        <h3 class="column-title">Backgrounds</h3>
+                                        <div class="text-[9px] text-gray-500 mb-2 italic">5 Dots Free</div>
                                         <div id="g-back-list" class="space-y-1 mt-2"></div>
                                         <div class="mt-3">
                                             <select id="g-back-select" class="w-full bg-transparent border border-[#444] text-[10px] text-gray-300 p-2 uppercase font-bold focus:border-[#d4af37] focus:outline-none">
@@ -359,15 +370,52 @@ function renderEditorModal() {
                                         </div>
                                     </div>
                                 </div>
+                                <!-- Col 2: Virtues & Vitals -->
                                 <div>
                                     <h3 class="column-title">Virtues <span id="g-virtue-header-limit" class="text-gray-500 text-xs"></span></h3>
                                     <div id="g-virt-list" class="space-y-3 mt-4 mb-4"></div>
+                                    
+                                    <div class="mt-8 border-t border-[#333] pt-4">
+                                        <div class="flex justify-between items-center text-xs mb-4">
+                                            <span class="font-bold text-[#d4af37] uppercase">Humanity</span>
+                                            <div class="dot-row cursor-pointer" id="g-humanity-row">${renderDots(activeGhoul.humanity, 10)}</div>
+                                        </div>
+                                        <div class="flex justify-between items-center text-xs mb-4">
+                                            <span class="font-bold text-[#d4af37] uppercase">Willpower</span>
+                                            <div class="dot-row cursor-pointer" id="g-willpower-row">${renderDots(activeGhoul.willpower, 10)}</div>
+                                        </div>
+                                        <div class="flex justify-between items-center text-xs">
+                                            <span class="font-bold text-[#d4af37] uppercase">Blood Pool</span>
+                                            <input type="number" id="g-blood" value="${activeGhoul.bloodPool}" class="w-12 bg-transparent border-b border-[#444] text-center text-white p-1 font-bold text-lg focus:border-[#d4af37] outline-none">
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- Col 3: Merits & Flaws -->
+                                <div>
+                                    <h3 class="column-title">Merits & Flaws</h3>
+                                    <div class="text-[9px] text-gray-500 mb-2 italic">Max 7 pts Flaws</div>
+                                    <div class="space-y-4">
+                                        <div>
+                                            <select id="g-merit-select" class="w-full bg-transparent border-b border-[#444] text-[10px] text-gray-300 p-1 mb-2">
+                                                <option value="" class="bg-black">Add Merit...</option>
+                                                ${meritOpts}
+                                            </select>
+                                            <div id="g-merits-list" class="space-y-1"></div>
+                                        </div>
+                                        <div>
+                                            <select id="g-flaw-select" class="w-full bg-transparent border-b border-[#444] text-[10px] text-gray-300 p-1 mb-2">
+                                                <option value="" class="bg-black">Add Flaw...</option>
+                                                ${flawOpts}
+                                            </select>
+                                            <div id="g-flaws-list" class="space-y-1"></div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <!-- STEP 5: BIOGRAPHY (NEW) -->
+                    <!-- STEP 5: BIOGRAPHY -->
                     <div id="stepBio" class="ghoul-step hidden">
                         <div class="sheet-section !mt-0">
                             <div class="section-title">Biography & Vitals</div>
@@ -394,131 +442,20 @@ function renderEditorModal() {
                         </div>
                     </div>
 
-                    <!-- STEP 6: FINISHING (FREEBIES) -->
-                    <div id="step5" class="ghoul-step hidden">
-                        <div class="sheet-section !mt-0 h-full">
-                            <div class="section-title">Finishing Touches & Freebie Points</div>
-                            
-                            <div class="flex flex-col md:flex-row gap-6 h-full">
-                                <!-- LEFT: UPGRADE PANEL -->
-                                <div class="flex-1 space-y-8 overflow-y-auto pr-2 max-h-[60vh]">
-                                    
-                                    <!-- Merits & Flaws Block -->
-                                    <div class="border border-[#333] bg-black/40 p-4">
-                                        <h3 class="column-title mb-4">Merits & Flaws (Max 7 Flaw Points)</h3>
-                                        <div class="grid grid-cols-2 gap-4">
-                                            <div>
-                                                <select id="g-merit-select" class="w-full bg-transparent border-b border-[#444] text-[10px] text-gray-300 p-1 mb-2">
-                                                    <option value="" class="bg-black">Add Merit...</option>
-                                                    ${meritOpts}
-                                                </select>
-                                                <div id="g-merits-list" class="space-y-1"></div>
-                                            </div>
-                                            <div>
-                                                <select id="g-flaw-select" class="w-full bg-transparent border-b border-[#444] text-[10px] text-gray-300 p-1 mb-2">
-                                                    <option value="" class="bg-black">Add Flaw...</option>
-                                                    ${flawOpts}
-                                                </select>
-                                                <div id="g-flaws-list" class="space-y-1"></div>
-                                            </div>
-                                        </div>
-                                    </div>
+                </div>
 
-                                    <!-- Status Block -->
-                                    <div class="border border-[#333] bg-black/40 p-4 grid grid-cols-2 gap-4">
-                                        <div class="flex justify-between items-center text-xs">
-                                            <span class="font-bold text-[#d4af37] uppercase">Humanity</span>
-                                            <div class="dot-row cursor-pointer" id="g-humanity-row">${renderDots(activeGhoul.humanity, 10)}</div>
-                                        </div>
-                                        <div class="flex justify-between items-center text-xs">
-                                            <span class="font-bold text-[#d4af37] uppercase">Willpower</span>
-                                            <div class="dot-row cursor-pointer" id="g-willpower-row">${renderDots(activeGhoul.willpower, 10)}</div>
-                                        </div>
-                                        <div class="flex justify-between items-center text-xs col-span-2 border-t border-[#333] pt-2">
-                                            <span class="font-bold text-[#d4af37] uppercase">Blood Pool (Vitae)</span>
-                                            <input type="number" id="g-blood" value="${activeGhoul.bloodPool}" class="w-12 bg-transparent border-b border-[#444] text-center text-white p-1 font-bold text-lg focus:border-[#d4af37] outline-none">
-                                        </div>
-                                    </div>
-
-                                    <!-- Attributes Upgrade -->
-                                    <div>
-                                        <h3 class="column-title mb-2">Attributes</h3>
-                                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                            <div id="fb-attr-phys"></div>
-                                            <div id="fb-attr-soc"></div>
-                                            <div id="fb-attr-men"></div>
-                                        </div>
-                                    </div>
-
-                                    <!-- Abilities Upgrade -->
-                                    <div>
-                                        <h3 class="column-title mb-2">Abilities</h3>
-                                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                            <div id="fb-abil-tal"></div>
-                                            <div id="fb-abil-ski"></div>
-                                            <div id="fb-abil-kno"></div>
-                                        </div>
-                                    </div>
-
-                                    <!-- Advantages Upgrade -->
-                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        <div>
-                                            <h3 class="column-title mb-2">Disciplines & Backgrounds</h3>
-                                            <div id="fb-disc-list" class="space-y-1"></div>
-                                            <div id="fb-back-list" class="space-y-1 mt-4"></div>
-                                        </div>
-                                        <div>
-                                            <h3 class="column-title mb-2">Virtues</h3>
-                                            <div id="fb-virt-list" class="space-y-2"></div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- RIGHT: LEDGER (Creation) -->
-                                <div class="w-full md:w-64 flex-shrink-0" id="creation-ledger-container">
-                                    <div class="sticky top-0 space-y-4">
-                                        <h3 class="column-title">Freebie Ledger</h3>
-                                        <div class="text-[10px] font-mono space-y-2 p-4 bg-black/40 border border-[#333] text-gray-400">
-                                            <div class="flex justify-between border-b border-[#222] pb-1"><span>Attributes (5):</span> <span id="fb-cost-attr" class="text-white">0</span></div>
-                                            <div class="flex justify-between border-b border-[#222] pb-1"><span>Abilities (2):</span> <span id="fb-cost-abil" class="text-white">0</span></div>
-                                            <div class="flex justify-between border-b border-[#222] pb-1"><span>Disciplines (10):</span> <span id="fb-cost-disc" class="text-white">0</span></div>
-                                            <div class="flex justify-between border-b border-[#222] pb-1"><span>Backgrounds (1):</span> <span id="fb-cost-back" class="text-white">0</span></div>
-                                            <div class="flex justify-between border-b border-[#222] pb-1"><span>Virtues (2):</span> <span id="fb-cost-virt" class="text-white">0</span></div>
-                                            <div class="flex justify-between border-b border-[#222] pb-1"><span>Humanity (1):</span> <span id="fb-cost-hum" class="text-white">0</span></div>
-                                            <div class="flex justify-between border-b border-[#222] pb-1"><span>Willpower (1):</span> <span id="fb-cost-will" class="text-white">0</span></div>
-                                            <div class="flex justify-between border-b border-[#222] pb-1"><span>Merits (Cost):</span> <span id="fb-cost-merit" class="text-white">0</span></div>
-                                            <div class="flex justify-between border-b border-[#222] pb-1"><span>Flaws (Bonus):</span> <span id="fb-cost-flaw" class="text-green-400">0</span></div>
-                                        </div>
-                                        <div class="p-4 border border-[#d4af37]/30 bg-[#d4af37]/10 rounded text-center shadow-[0_0_15px_rgba(212,175,55,0.1)]">
-                                            <div class="uppercase text-[9px] font-bold text-[#d4af37] tracking-widest">Freebies Remaining</div>
-                                            <div id="final-freebie-disp" class="text-4xl font-black text-white mt-2 font-cinzel">21</div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                </div> <!-- End Main Scroll Area -->
-
-                <!-- RIGHT SIDEBAR: XP LEDGER (Visible in XP Mode) -->
+                <!-- RIGHT SIDEBAR: XP LEDGER -->
                 <div id="xp-ledger-panel" class="${xpMode ? 'flex' : 'hidden'} w-64 bg-[#080808] border-l border-[#333] flex-col shrink-0 transition-all">
                     <div class="p-3 border-b border-[#333] bg-[#111]">
                         <h3 class="text-purple-400 font-cinzel font-bold text-center">XP Log</h3>
                     </div>
-                    
                     <div class="p-3 border-b border-[#333] bg-[#1a1a1a]">
                         <div class="flex justify-between items-center text-xs mb-2">
                             <span class="text-gray-400">Total XP</span>
                             <input type="number" id="xp-total-input" value="${activeGhoul.experience.total}" onchange="window.updateGhoulTotalXP(this.value)" class="w-16 bg-black border border-[#333] text-purple-400 text-center font-bold focus:border-purple-500 outline-none">
                         </div>
                     </div>
-
-                    <!-- CATEGORIZED COSTS -->
-                    <div id="xp-breakdown-list" class="space-y-2 text-xs p-3 border-b border-[#333]">
-                        <!-- Injected via JS -->
-                    </div>
-
+                    <div id="xp-breakdown-list" class="space-y-2 text-xs p-3 border-b border-[#333]"></div>
                     <div class="p-3 border-b border-[#333] bg-[#111]">
                         <div class="flex justify-between items-center text-xs">
                             <span class="text-gray-400">Total Spent</span>
@@ -529,21 +466,39 @@ function renderEditorModal() {
                             <span id="xp-rem-disp" class="text-green-400 font-bold">${activeGhoul.experience.total - activeGhoul.experience.spent}</span>
                         </div>
                     </div>
-
                     <div class="mt-2 px-3">
                         <h4 class="text-[9px] uppercase text-gray-500 font-bold mb-1 tracking-wider">Session Log</h4>
-                        <div id="xp-log-list" class="text-[9px] text-gray-400 h-40 overflow-y-auto border border-[#333] p-1 font-mono bg-white/5">
-                            <!-- Log entries injected here -->
-                        </div>
+                        <div id="xp-log-list" class="text-[9px] text-gray-400 h-40 overflow-y-auto border border-[#333] p-1 font-mono bg-white/5"></div>
                     </div>
                 </div>
 
+                <!-- RIGHT SIDEBAR: FREEBIE LEDGER -->
+                <div id="fb-ledger-panel" class="${freebieMode ? 'flex' : 'hidden'} w-64 bg-[#080808] border-l border-[#333] flex-col shrink-0 transition-all">
+                    <div class="p-3 border-b border-[#333] bg-[#111]">
+                        <h3 class="text-[#d4af37] font-cinzel font-bold text-center">Freebie Ledger</h3>
+                    </div>
+                    <div class="text-[10px] font-mono space-y-2 p-4 bg-black/40 text-gray-400">
+                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Attributes (5):</span> <span id="fb-cost-attr" class="text-white">0</span></div>
+                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Abilities (2):</span> <span id="fb-cost-abil" class="text-white">0</span></div>
+                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Disciplines (10):</span> <span id="fb-cost-disc" class="text-white">0</span></div>
+                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Backgrounds (1):</span> <span id="fb-cost-back" class="text-white">0</span></div>
+                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Virtues (2):</span> <span id="fb-cost-virt" class="text-white">0</span></div>
+                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Humanity (1):</span> <span id="fb-cost-hum" class="text-white">0</span></div>
+                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Willpower (1):</span> <span id="fb-cost-will" class="text-white">0</span></div>
+                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Merits (Cost):</span> <span id="fb-cost-merit" class="text-white">0</span></div>
+                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Flaws (Bonus):</span> <span id="fb-cost-flaw" class="text-green-400">0</span></div>
+                    </div>
+                    <div class="p-4 mt-auto mb-4 mx-4 border border-[#d4af37]/30 bg-[#d4af37]/10 rounded text-center shadow-[0_0_15px_rgba(212,175,55,0.1)]">
+                        <div class="uppercase text-[9px] font-bold text-[#d4af37] tracking-widest">Freebies Remaining</div>
+                        <div id="final-freebie-disp" class="text-4xl font-black text-white mt-2 font-cinzel">21</div>
+                    </div>
+                </div>
             </div>
 
             <!-- FOOTER -->
             <div class="p-4 border-t border-[#444] bg-[#050505] flex justify-between items-center shrink-0">
                 <div class="text-[10px] text-gray-500 italic">
-                    <span class="text-[#d4af37]">Note:</span> Abilities capped at 3 dots until 'Finishing' step. Specialties available at 4+ dots.
+                    <span class="text-[#d4af37]">Note:</span> Abilities capped at 3 dots in basic creation. Use Freebie Mode to raise higher.
                 </div>
                 <div class="flex gap-4">
                     <button id="cancel-ghoul" class="border border-[#444] text-gray-400 px-6 py-2 uppercase font-bold text-xs hover:bg-[#222] hover:text-white transition tracking-wider">Cancel</button>
@@ -568,37 +523,22 @@ function renderEditorModal() {
     renderDynamicLists();
     renderMeritsFlaws(); 
     updatePriorityUI(); 
-    renderFreebieLists();
-    renderGhoulXpSidebar(); // New Renderer
+    renderGhoulXpSidebar();
+    updateFreebieSidebar();
 
     setupNavListeners(modal);
     setupActionListeners(modal);
     bindDotClicks(modal);
-    updateTracker();
     updateVirtueHeader();
 }
 
-// ... existing helpers ...
-
 function renderGhoulXpSidebar() {
-    // 1. Calculate Buckets
     const log = activeGhoul.experience.log || [];
-    let buckets = {
-        newAbil: 0,
-        attr: 0,
-        abil: 0,
-        disc: 0,
-        virt: 0,
-        humanity: 0,
-        willpower: 0,
-        background: 0
-    };
+    let buckets = { newAbil: 0, attr: 0, abil: 0, disc: 0, virt: 0, humanity: 0, willpower: 0, background: 0 };
 
     log.forEach(entry => {
-        // Use type stored in log, fallback to detection if missing
         const type = entry.type; 
         const cost = entry.cost;
-        
         if (type === 'attributes' || type === 'attr') buckets.attr += cost;
         else if (type === 'abilities' || type === 'abil') {
             if (entry.from === 0) buckets.newAbil += cost;
@@ -611,18 +551,15 @@ function renderGhoulXpSidebar() {
         else if (type === 'backgrounds' || type === 'back') buckets.background += cost;
     });
 
-    // 2. Render Breakdown List
     const breakdown = document.getElementById('xp-breakdown-list');
     if (breakdown) {
         breakdown.innerHTML = '';
         const addRow = (label, val) => {
             const row = document.createElement('div');
             row.className = "flex justify-between items-center gap-1";
-            // Match main app style: Label gray, value colored
             row.innerHTML = `<span class="text-gray-400 truncate">${label}</span><span class="text-purple-400 font-bold bg-black/95 z-10 shrink-0">${val}</span>`;
             breakdown.appendChild(row);
         };
-
         addRow("New Ability (3)", buckets.newAbil);
         addRow("Attributes (x4)", buckets.attr);
         addRow("Abilities (x2)", buckets.abil);
@@ -633,7 +570,6 @@ function renderGhoulXpSidebar() {
         addRow("Backgrounds (3)", buckets.background);
     }
 
-    // 3. Render Log List
     const logList = document.getElementById('xp-log-list');
     if (logList) {
         if (log.length === 0) {
@@ -654,63 +590,12 @@ function renderGhoulXpSidebar() {
         }
     }
 
-    // 4. Update Totals
     const spentEl = document.getElementById('xp-spent-disp');
     const remEl = document.getElementById('xp-rem-disp');
-    
     if (spentEl) spentEl.innerText = activeGhoul.experience.spent;
     if (remEl) remEl.innerText = activeGhoul.experience.total - activeGhoul.experience.spent;
 }
 
-// ... existing updateWeaknessDisplay ...
-function updateWeaknessDisplay(clan) {}
-
-// ... existing renderFreebieLists ...
-function renderFreebieLists() {
-    if(ATTRIBUTES) {
-        renderGroup('fb-attr-phys', 'Physical', ATTRIBUTES.Physical, 'attributes');
-        renderGroup('fb-attr-soc', 'Social', ATTRIBUTES.Social, 'attributes');
-        renderGroup('fb-attr-men', 'Mental', ATTRIBUTES.Mental, 'attributes');
-    }
-    if(ABILITIES) {
-        renderGroup('fb-abil-tal', 'Talents', ABILITIES.Talents, 'abilities');
-        renderGroup('fb-abil-ski', 'Skills', ABILITIES.Skills, 'abilities');
-        renderGroup('fb-abil-kno', 'Knowledges', ABILITIES.Knowledges, 'abilities');
-    }
-    renderDynamicListsForFreebies();
-    if(VIRTUES) renderGroup('fb-virt-list', null, VIRTUES, 'virtues');
-}
-
-// ... existing renderDynamicListsForFreebies ...
-function renderDynamicListsForFreebies() {
-    const dEl = document.getElementById('fb-disc-list');
-    const bEl = document.getElementById('fb-back-list');
-    
-    if(dEl && activeGhoul.disciplines) {
-        dEl.innerHTML = '';
-        Object.entries(activeGhoul.disciplines).forEach(([name, val]) => {
-            const isAuto = name === 'Potence';
-            dEl.innerHTML += `
-                <div class="flex justify-between items-center mb-1 dot-row-interactive" data-type="disciplines" data-key="${name}">
-                    <span class="text-[10px] uppercase font-bold ${isAuto ? 'text-[#d4af37]' : 'text-white'}">${name}</span>
-                    <div class="dot-row cursor-pointer hover:opacity-80">${renderDots(val, 5)}</div>
-                </div>`;
-        });
-    }
-
-    if(bEl && activeGhoul.backgrounds) {
-        bEl.innerHTML = '';
-        Object.entries(activeGhoul.backgrounds).forEach(([name, val]) => {
-            bEl.innerHTML += `
-                <div class="flex justify-between items-center mb-1 dot-row-interactive" data-type="backgrounds" data-key="${name}">
-                    <span class="text-[10px] uppercase font-bold text-white">${name}</span>
-                    <div class="dot-row cursor-pointer hover:opacity-80">${renderDots(val, 5)}</div>
-                </div>`;
-        });
-    }
-}
-
-// ... existing renderMeritsFlaws ...
 function renderMeritsFlaws() {
     const mList = document.getElementById('g-merits-list');
     const fList = document.getElementById('g-flaws-list');
@@ -734,113 +619,11 @@ function renderMeritsFlaws() {
     }
 }
 
-// ... existing validateChange ...
+// Validation
 function validateChange(type, key, newVal, currentVal) {
-    if (xpMode) return true; // XP Mode has its own validation
+    if (xpMode || freebieMode) return true; 
 
     const delta = newVal - currentVal;
-
-    if (currentTab === 'step5') {
-        if (delta > 0) return true;
-
-        if (type === 'attributes') {
-            let group = null;
-            if (ATTRIBUTES.Physical.includes(key)) group = 'Physical';
-            else if (ATTRIBUTES.Social.includes(key)) group = 'Social';
-            else if (ATTRIBUTES.Mental.includes(key)) group = 'Mental';
-            
-            if (group) {
-                const limit = localPriorities.attr[group] || 0;
-                let currentSpent = 0;
-                ATTRIBUTES[group].forEach(k => {
-                    const val = (k === key) ? newVal : (activeGhoul.attributes[k] || 1);
-                    currentSpent += Math.max(0, val - 1);
-                });
-                
-                if (currentSpent < limit) {
-                    showNotification("Cannot refund dots allocated during Creation (Attributes).");
-                    return false;
-                }
-            }
-        }
-
-        if (type === 'abilities') {
-            let group = null;
-            if (ABILITIES.Talents.includes(key)) group = 'Talents';
-            else if (ABILITIES.Skills.includes(key)) group = 'Skills';
-            else if (ABILITIES.Knowledges.includes(key)) group = 'Knowledges';
-
-            if (group) {
-                const limit = localPriorities.abil[group] || 0;
-                let currentSpent = 0;
-                const list = (group === 'Talents') ? ABILITIES.Talents : (group === 'Skills' ? ABILITIES.Skills : ABILITIES.Knowledges);
-                list.forEach(k => {
-                    const val = (k === key) ? newVal : (activeGhoul.abilities[k] || 0);
-                    currentSpent += val;
-                });
-
-                if (currentSpent < limit) {
-                    showNotification("Cannot refund dots allocated during Creation (Abilities).");
-                    return false;
-                }
-            }
-        }
-
-        if (type === 'disciplines') {
-            let total = 0;
-            Object.entries(activeGhoul.disciplines).forEach(([k, v]) => {
-                const val = (k === key) ? newVal : v;
-                total += val;
-            });
-            if (total < 2) {
-                showNotification("Cannot refund the base 2 Creation dots for Disciplines.");
-                return false;
-            }
-        }
-
-        if (type === 'backgrounds') {
-            let total = 0;
-            Object.entries(activeGhoul.backgrounds).forEach(([k, v]) => {
-                const val = (k === key) ? newVal : v;
-                total += val;
-            });
-            if (total < 5) {
-                showNotification("Cannot refund the base 5 Creation dots for Backgrounds.");
-                return false;
-            }
-        }
-
-        if (type === 'virtues') {
-            const limit = activeGhoul.type === 'Revenant' ? 5 : 7;
-            let total = 0;
-            VIRTUES.forEach(k => {
-                const val = (k === key) ? newVal : (activeGhoul.virtues[k] || 1);
-                total += Math.max(0, val - 1);
-            });
-            if (total < limit) {
-                showNotification(`Cannot refund the base ${limit} Creation dots for Virtues.`);
-                return false;
-            }
-        }
-
-        if (type === 'humanity') {
-            const base = (activeGhoul.virtues.Conscience||1) + (activeGhoul.virtues["Self-Control"]||1);
-            if (newVal < base) {
-                showNotification("Cannot lower Humanity below base derived from Virtues.");
-                return false;
-            }
-        }
-        if (type === 'willpower') {
-            const base = (activeGhoul.virtues.Courage||1);
-            if (newVal < base) {
-                showNotification("Cannot lower Willpower below base derived from Courage.");
-                return false;
-            }
-        }
-
-        return true; 
-    }
-
     if (delta <= 0) return true; 
 
     if (type === 'attributes') {
@@ -850,16 +633,13 @@ function validateChange(type, key, newVal, currentVal) {
         else if (ATTRIBUTES.Mental.includes(key)) group = 'Mental';
 
         if (!group) return true;
-
         const limit = localPriorities.attr[group];
         if (limit === null) {
             showNotification("Please select a priority for this Attribute group first.");
             return false;
         }
-
         let spent = 0;
         ATTRIBUTES[group].forEach(k => spent += Math.max(0, (activeGhoul.attributes[k] || 1) - 1));
-        
         if (spent + delta > limit) {
             showNotification(`Cannot exceed ${limit} dots for ${group} Attributes.`);
             return false;
@@ -873,22 +653,18 @@ function validateChange(type, key, newVal, currentVal) {
         else if (ABILITIES.Knowledges.includes(key)) group = 'Knowledges';
 
         if (!group) return true;
-
         if (newVal > 3) {
             showNotification("Abilities are capped at 3 dots during creation.");
             return false;
         }
-
         const limit = localPriorities.abil[group];
         if (limit === null) {
             showNotification("Please select a priority for this Ability group first.");
             return false;
         }
-
         let spent = 0;
         const list = (group === 'Talents') ? ABILITIES.Talents : (group === 'Skills' ? ABILITIES.Skills : ABILITIES.Knowledges);
         list.forEach(k => spent += (activeGhoul.abilities[k] || 0));
-
         if (spent + delta > limit) {
             showNotification(`Cannot exceed ${limit} dots for ${group}.`);
             return false;
@@ -899,7 +675,7 @@ function validateChange(type, key, newVal, currentVal) {
         let total = 0;
         Object.values(activeGhoul.disciplines).forEach(v => total += v);
         if (total + delta > 2) {
-             showNotification("Creation Limit: 1 Free Dot + Potence 1 (Total 2). Use Freebies for more.");
+             showNotification("Creation Limit: 1 Free Dot + Potence 1 (Total 2). Use Freebie Mode for more.");
              return false;
         }
     }
@@ -908,7 +684,7 @@ function validateChange(type, key, newVal, currentVal) {
         let total = 0;
         Object.values(activeGhoul.backgrounds).forEach(v => total += v);
         if (total + delta > 5) {
-             showNotification("Creation Limit: 5 Dots in Backgrounds. Use Freebies for more.");
+             showNotification("Creation Limit: 5 Dots in Backgrounds. Use Freebie Mode for more.");
              return false;
         }
     }
@@ -917,9 +693,8 @@ function validateChange(type, key, newVal, currentVal) {
         let total = 0;
         VIRTUES.forEach(v => total += Math.max(0, (activeGhoul.virtues[v] || 1) - 1));
         const limit = activeGhoul.type === 'Revenant' ? 5 : 7;
-        
         if (total + delta > limit) {
-             showNotification(`Creation Limit: ${limit} Dots in Virtues. Use Freebies for more.`);
+             showNotification(`Creation Limit: ${limit} Dots in Virtues. Use Freebie Mode for more.`);
              return false;
         }
     }
@@ -927,7 +702,6 @@ function validateChange(type, key, newVal, currentVal) {
     return true;
 }
 
-// ... existing renderPrioButtons ...
 function renderPrioButtons(cat, group) {
     const vals = PRIO_CONFIG[cat];
     return vals.map(v => `
@@ -939,17 +713,15 @@ function renderPrioButtons(cat, group) {
     `).join('');
 }
 
-// ... existing handlePrioClick ...
 function handlePrioClick(e) {
-    if (xpMode) return; // Disable priority switching in XP mode
+    if (xpMode || freebieMode) return; 
     const btn = e.target;
     const { cat, group, val } = btn.dataset;
     const v = parseInt(val);
 
     const currentAssignment = Object.entries(localPriorities[cat]).find(([g, assignedVal]) => assignedVal === v);
-    
     if (currentAssignment) {
-        const [otherGroup, otherVal] = currentAssignment;
+        const [otherGroup] = currentAssignment;
         localPriorities[cat][otherGroup] = null;
     }
 
@@ -963,7 +735,6 @@ function handlePrioClick(e) {
     updateCounters();
 }
 
-// ... existing updatePriorityUI ...
 function updatePriorityUI() {
     document.querySelectorAll('.ghoul-prio-btn').forEach(btn => {
         const { cat, group, val } = btn.dataset;
@@ -974,7 +745,6 @@ function updatePriorityUI() {
             btn.classList.remove('border-gray-600', 'text-gray-400');
         } else {
             const isTaken = Object.values(localPriorities[cat]).includes(v);
-            
             btn.classList.remove('bg-[#d4af37]', 'text-black', 'border-[#d4af37]', 'font-black');
             if (isTaken) {
                 btn.classList.add('opacity-20', 'cursor-not-allowed', 'border-gray-800');
@@ -988,7 +758,6 @@ function updatePriorityUI() {
     });
 }
 
-// ... existing updateCounters ...
 function updateCounters() {
     ['attr', 'abil'].forEach(cat => {
         Object.entries(localPriorities[cat]).forEach(([group, limit]) => {
@@ -1014,10 +783,9 @@ function updateCounters() {
             }
         });
     });
-    updateTracker();
+    updateFreebieSidebar();
 }
 
-// ... existing switchTab ...
 function switchTab(tabId) {
     currentTab = tabId;
     document.querySelectorAll('.ghoul-step').forEach(el => el.classList.add('hidden'));
@@ -1038,13 +806,11 @@ function switchTab(tabId) {
     if(modal) bindDotClicks(modal);
 }
 
-// ... existing setupNavListeners ...
 function setupNavListeners(modal) {
     const tabs = modal.querySelectorAll('.ghoul-tab');
     tabs.forEach(t => t.onclick = () => switchTab(t.dataset.tab));
 }
 
-// ... existing renderDotGroups ...
 function renderDotGroups() {
     if(ATTRIBUTES) {
         renderGroup('g-attr-phys', 'Physical', ATTRIBUTES.Physical, 'attributes');
@@ -1059,7 +825,6 @@ function renderDotGroups() {
     if(VIRTUES) renderGroup('g-virt-list', null, VIRTUES, 'virtues');
 }
 
-// ... existing renderGroup ...
 function renderGroup(id, title, list, type) {
     const el = document.getElementById(id);
     if(!el) return;
@@ -1069,22 +834,15 @@ function renderGroup(id, title, list, type) {
             const val = activeGhoul[type][item] || 0;
             const dispVal = (type === 'attributes' && val < 1) ? 1 : val;
             
-            // Specialty Check
             let specialtyHtml = '';
             if ((type === 'attributes' || type === 'abilities') && val >= 4) {
                 const specVal = (activeGhoul.specialties && activeGhoul.specialties[item]) || '';
-                
-                // Get relevant options
                 const options = (SPECIALTIES && SPECIALTIES[item]) ? SPECIALTIES[item] : [];
                 const datalistId = `spec-list-${item.replace(/\s/g, '-')}`;
-                const datalistHtml = `
+                specialtyHtml = `
                     <datalist id="${datalistId}">
                         ${options.map(opt => `<option value="${opt}">`).join('')}
                     </datalist>
-                `;
-
-                specialtyHtml = `
-                    ${datalistHtml}
                     <input type="text" 
                         class="specialty-input bg-transparent border-b border-[#333] text-[9px] text-[#d4af37] w-20 ml-2 focus:outline-none focus:border-[#d4af37] placeholder-gray-600" 
                         placeholder="Specialty" 
@@ -1110,13 +868,11 @@ function renderGroup(id, title, list, type) {
     el.innerHTML = html;
 }
 
-// ... existing renderDynamicLists ...
 function renderDynamicLists() {
     renderDisciplines();
     renderBackgrounds();
 }
 
-// ... existing renderDisciplines ...
 function renderDisciplines() {
     const el = document.getElementById('g-disc-list');
     if(!el) return;
@@ -1138,7 +894,6 @@ function renderDisciplines() {
     }
 }
 
-// ... existing renderBackgrounds ...
 function renderBackgrounds() {
     const el = document.getElementById('g-back-list');
     if(!el) return;
@@ -1159,33 +914,30 @@ function renderBackgrounds() {
     }
 }
 
-// ... existing removeGhoulItem ...
 window.removeGhoulItem = function(type, key) {
     if (type === 'disciplines' && key === 'Potence') return; 
     
     if (type === 'merits') {
         delete activeGhoul.merits[key];
         renderMeritsFlaws();
-        updateTracker();
+        updateFreebieSidebar();
         return;
     }
     if (type === 'flaws') {
         delete activeGhoul.flaws[key];
         renderMeritsFlaws();
-        updateTracker();
+        updateFreebieSidebar();
         return;
     }
 
     if (activeGhoul[type] && activeGhoul[type][key] !== undefined) {
         delete activeGhoul[type][key];
         renderDynamicLists();
-        renderFreebieLists(); // Update step 5 too
         updateCounters();
         bindDotClicks(document.getElementById('ghoul-modal'));
     }
 };
 
-// ... existing setupActionListeners ...
 function setupActionListeners(modal) {
     const close = () => {
         modal.style.display = 'none';
@@ -1224,7 +976,6 @@ function setupActionListeners(modal) {
 
         activeGhoul.bloodPool = parseInt(document.getElementById('g-blood').value) || 10;
         
-        // SAVE PRIORITIES (Critical for Freebie calculation on reload)
         activeGhoul.priorities = JSON.parse(JSON.stringify(localPriorities));
 
         if (!window.state.retainers) window.state.retainers = [];
@@ -1234,10 +985,8 @@ function setupActionListeners(modal) {
         if(window.renderRetainersTab) window.renderRetainersTab(document.getElementById('play-content'));
         
         if (typeof showNotification === 'function') {
-            showNotification("Retainer Added. Please save your character.");
-        } else if (window.showNotification) {
-            window.showNotification("Retainer Added. Please save your character.");
-        }
+            showNotification("Retainer Saved.");
+        } 
         
         close();
     };
@@ -1248,7 +997,6 @@ function setupActionListeners(modal) {
             const val = e.target.value;
             activeGhoul.type = val;
             
-            // Toggle UI visibility
             const isRevenant = val === 'Revenant';
             document.getElementById('div-domitor-clan').className = isRevenant ? 'hidden' : 'block';
             document.getElementById('div-family').className = isRevenant ? 'block' : 'hidden';
@@ -1258,7 +1006,6 @@ function setupActionListeners(modal) {
         };
     }
 
-    // Clan Change Listener (Just saves state, no autofill)
     const clanSelect = document.getElementById('g-domitor-clan');
     if(clanSelect) {
         clanSelect.onchange = (e) => {
@@ -1275,7 +1022,7 @@ function setupActionListeners(modal) {
             if(!activeGhoul.merits) activeGhoul.merits = {};
             activeGhoul.merits[name] = parseInt(cost);
             renderMeritsFlaws();
-            updateTracker();
+            updateFreebieSidebar();
             e.target.value = "";
         };
     }
@@ -1289,12 +1036,11 @@ function setupActionListeners(modal) {
             if(!activeGhoul.flaws) activeGhoul.flaws = {};
             activeGhoul.flaws[name] = parseInt(bonus);
             renderMeritsFlaws();
-            updateTracker();
+            updateFreebieSidebar();
             e.target.value = "";
         };
     }
 
-    // Specialty Inputs
     modal.addEventListener('change', (e) => {
         if(e.target.classList.contains('specialty-input')) {
             const key = e.target.dataset.key;
@@ -1303,11 +1049,11 @@ function setupActionListeners(modal) {
         }
     });
 
-    // XP Toggle
     const xpBtn = document.getElementById('toggle-xp-mode');
-    if (xpBtn) {
-        xpBtn.onclick = toggleXpMode;
-    }
+    if (xpBtn) xpBtn.onclick = toggleXpMode;
+
+    const fbBtn = document.getElementById('toggle-fb-mode');
+    if (fbBtn) fbBtn.onclick = toggleFreebieMode;
 
     const setupDrop = (id, type, renderFn) => {
         const sel = document.getElementById(id);
@@ -1317,15 +1063,11 @@ function setupActionListeners(modal) {
             if(val) {
                 if(!activeGhoul[type]) activeGhoul[type] = {};
                 
-                // XP MODE NEW DISCIPLINE ADD
-                if (xpMode && type === 'disciplines' && activeGhoul[type][val] === undefined) {
-                    // Start at 0? No, V20 says learn new discipline = 10xp for first dot (or 20 for non-physical).
-                    // We'll init at 0 and let user click dot 1 to buy it.
-                    activeGhoul[type][val] = 0;
+                if ((xpMode || freebieMode) && type === 'disciplines' && activeGhoul[type][val] === undefined) {
+                    activeGhoul[type][val] = 0; 
                     renderFn();
                     bindDotClicks(modal);
                 }
-                // CREATION MODE
                 else if(activeGhoul[type][val] === undefined) {
                     if (!validateChange(type, val, 1, 0)) {
                         e.target.value = "";
@@ -1333,7 +1075,6 @@ function setupActionListeners(modal) {
                     }
                     activeGhoul[type][val] = 1;
                     renderFn();
-                    renderFreebieLists(); // Update step 5 too
                     updateCounters();
                     bindDotClicks(modal);
                 }
@@ -1345,20 +1086,28 @@ function setupActionListeners(modal) {
     setupDrop('g-back-select', 'backgrounds', renderBackgrounds);
 }
 
-// --- XP LOGIC ---
+// --- MODE TOGGLES ---
 
 function toggleXpMode() {
     xpMode = !xpMode;
+    if (xpMode) freebieMode = false;
+    refreshModalUI();
+}
+
+function toggleFreebieMode() {
+    freebieMode = !freebieMode;
+    if (freebieMode) xpMode = false;
+    refreshModalUI();
+}
+
+function refreshModalUI() {
     const modal = document.getElementById('ghoul-modal');
     if(modal) {
-        // Redraw to show/hide panels
-        // Ideally we just toggle classes but strict re-render is safer for bindings
         renderEditorModal();
-        switchTab(currentTab); // Return to current tab
+        switchTab(currentTab);
     }
 }
 
-// Global hook for the XP total input
 window.updateGhoulTotalXP = function(val) {
     if (activeGhoul && activeGhoul.experience) {
         activeGhoul.experience.total = parseInt(val) || 0;
@@ -1366,10 +1115,11 @@ window.updateGhoulTotalXP = function(val) {
     }
 }
 
+// --- SPEND LOGIC ---
+
 function handleXpSpend(type, key, newVal, currentVal) {
-    if (newVal <= currentVal) return; // Only buying up allowed easily
+    if (newVal <= currentVal) return; 
     
-    // Safety check: One dot at a time
     if (newVal > currentVal + 1) {
         showNotification("Please purchase dots one at a time with XP.");
         return;
@@ -1378,36 +1128,15 @@ function handleXpSpend(type, key, newVal, currentVal) {
     let cost = 0;
     const target = newVal;
 
-    if (type === 'attributes') {
-        cost = target * XP_COSTS.attribute;
-    } else if (type === 'abilities') {
-        // New ability (0->1) cost is 3, otherwise New x 2
-        if (currentVal === 0) cost = XP_COSTS.newAbility;
-        else cost = target * XP_COSTS.ability;
-    } else if (type === 'virtues') {
-        cost = target * XP_COSTS.virtue;
-    } else if (type === 'willpower') {
-        cost = currentVal; // Cost is current rating (V20 p499 says "current rating" to raise)
-        // Wait, V20 Chart says "Current Rating". So if raising 4 to 5, cost is 4.
-        cost = currentVal; 
-        if (cost === 0) cost = 1; // Fallback
-    } else if (type === 'humanity') {
-        cost = target * XP_COSTS.humanity;
-    } else if (type === 'disciplines') {
-        // Is it physical?
+    if (type === 'attributes') cost = target * XP_COSTS.attribute;
+    else if (type === 'abilities') cost = (currentVal === 0) ? XP_COSTS.newAbility : target * XP_COSTS.ability;
+    else if (type === 'virtues') cost = target * XP_COSTS.virtue;
+    else if (type === 'willpower') cost = currentVal || 1; 
+    else if (type === 'humanity') cost = target * XP_COSTS.humanity;
+    else if (type === 'disciplines') {
         const phys = ['Celerity', 'Fortitude', 'Potence'];
-        // Or Domitor's clan discipline (complicated to track). 
-        // We'll simplify: Physicals are cheap (x10), others expensive (x20).
-        // V20 Ghouls: New x 10 for Phys, New x 20 for others.
-        if (phys.includes(key)) {
-            cost = target * XP_COSTS.discipline_phys;
-        } else {
-            cost = target * XP_COSTS.discipline_other;
-        }
-        // First dot? V20 doesn't explicitly discount first dot for ghouls, just New Rating. 1*10 = 10.
-    } else if (type === 'backgrounds') {
-        cost = XP_COSTS.background; // Usually 3xp per dot or flat
-    }
+        cost = phys.includes(key) ? target * XP_COSTS.discipline_phys : target * XP_COSTS.discipline_other;
+    } else if (type === 'backgrounds') cost = XP_COSTS.background;
 
     const rem = activeGhoul.experience.total - activeGhoul.experience.spent;
     
@@ -1424,30 +1153,51 @@ function handleXpSpend(type, key, newVal, currentVal) {
             from: currentVal,
             to: newVal,
             cost: cost,
-            type: type // Save Type for categorization
+            type: type 
         });
         
-        // Apply change
-        if (type === 'attributes' || type === 'abilities' || type === 'virtues' || type === 'disciplines' || type === 'backgrounds') {
+        if (['attributes', 'abilities', 'virtues', 'disciplines', 'backgrounds'].includes(type)) {
             activeGhoul[type][key] = newVal;
-        } else if (type === 'humanity') {
-            activeGhoul.humanity = newVal;
-        } else if (type === 'willpower') {
-            activeGhoul.willpower = newVal;
-        }
+        } else if (type === 'humanity') activeGhoul.humanity = newVal;
+        else if (type === 'willpower') activeGhoul.willpower = newVal;
 
-        renderGhoulXpSidebar(); // Update specific Sidebar function
+        renderGhoulXpSidebar();
         
-        // Re-render dots
         renderDotGroups();
         renderDynamicLists();
-        renderFreebieLists();
-        
-        // Re-bind needed?
-        // Since we re-rendered dots, we need to rebind
         bindDotClicks(document.getElementById('ghoul-modal'));
-        
         showNotification(`Spent ${cost} XP.`);
+    }
+}
+
+function handleFreebieSpend(type, key, newVal, currentVal) {
+    // Allows spending or refunding, as long as logic permits
+    // We use "Calculated Cost" model, so we don't need a transactional log
+    // Just update the value and update the sidebar
+    
+    if (newVal === currentVal) return;
+    
+    // Safety check for Priority Floors
+    // We don't want people to sell back base dots to buy other things inappropriately
+    // But for now, we trust the "Calculated Cost" to show if they are "Over budget" or not.
+    // If they lower attributes below priority, they will just have extra freebies which is technically allowed
+    // if using flaws, but V20 generally says you can't lower below 1.
+    // Our min-value logic in bindDotClicks handles the 1-dot floor.
+
+    // Apply
+    if (['attributes', 'abilities', 'virtues', 'disciplines', 'backgrounds'].includes(type)) {
+        activeGhoul[type][key] = newVal;
+    } else if (type === 'humanity') activeGhoul.humanity = newVal;
+    else if (type === 'willpower') activeGhoul.willpower = newVal;
+
+    updateCounters(); 
+    renderDotGroups();
+    renderDynamicLists();
+    bindDotClicks(document.getElementById('ghoul-modal'));
+    
+    const fbEl = document.getElementById('final-freebie-disp');
+    if (fbEl && parseInt(fbEl.innerText) < 0) {
+        showNotification("Warning: You have exceeded available Freebie Points.");
     }
 }
 
@@ -1468,27 +1218,18 @@ function bindDotClicks(modal) {
         if(!el) return;
         el.onclick = (e) => {
             if (!e.target.classList.contains('dot')) return;
-            // Mode Check
             const newVal = parseInt(e.target.dataset.v);
             let currentVal = activeGhoul[type];
             
             if (xpMode) {
-                handleXpSpend(type, type, newVal, currentVal); // Key is same as type for hum/will
+                handleXpSpend(type, type, newVal, currentVal); 
                 return;
             }
-
-            if (currentTab !== 'step5') return;
-            
-            let finalVal = newVal;
-            if (newVal === currentVal) finalVal = newVal - 1;
-            if (finalVal < 1) finalVal = 1;
-            
-            // Validate Logic for Derived traits
-            if (!validateChange(type, null, finalVal, currentVal)) return;
-
-            activeGhoul[type] = finalVal;
-            el.innerHTML = renderDots(finalVal, 10);
-            updateCounters();
+            if (freebieMode) {
+                handleFreebieSpend(type, type, newVal, currentVal);
+                return;
+            }
+            showNotification("Enable Freebie Mode or XP Mode to modify this trait.");
         };
     };
 
@@ -1508,12 +1249,16 @@ function bindDotClicks(modal) {
             let currentVal = activeGhoul[type][key] || 0;
             if ((type === 'attributes' || type === 'virtues') && activeGhoul[type][key] === undefined) currentVal = 1;
 
-            // XP BRANCH
             if (xpMode) {
                 handleXpSpend(type, key, newVal, currentVal);
                 return;
             }
+            if (freebieMode) {
+                handleFreebieSpend(type, key, newVal, currentVal);
+                return;
+            }
 
+            // Normal Mode
             let finalVal = newVal;
             if (newVal === currentVal) finalVal = newVal - 1;
             
@@ -1526,8 +1271,6 @@ function bindDotClicks(modal) {
             
             renderDotGroups();
             renderDynamicLists();
-            renderFreebieLists();
-            
             bindDotClicks(modal);
 
             if (type === 'virtues') {
@@ -1537,13 +1280,12 @@ function bindDotClicks(modal) {
                 if(hDots) hDots.innerHTML = renderDots(activeGhoul.humanity, 10);
                 if(wDots) wDots.innerHTML = renderDots(activeGhoul.willpower, 10);
             }
-
             updateCounters();
         };
     });
 }
 
-function updateTracker() {
+function updateFreebieSidebar() {
     let spent = {
         attr: { Physical: 0, Social: 0, Mental: 0 },
         abil: { Talents: 0, Skills: 0, Knowledges: 0 },
@@ -1580,7 +1322,7 @@ function updateTracker() {
             
             const cap = limit || 0; 
             if (s > cap) {
-                const multiplier = (cat === 'attr') ? 5 : 2;
+                const multiplier = (cat === 'attr') ? FB_COSTS.attribute : FB_COSTS.ability;
                 if (cat === 'attr') costs.attr += (s - cap) * multiplier;
                 else costs.abil += (s - cap) * multiplier;
             }
@@ -1591,40 +1333,34 @@ function updateTracker() {
     if(activeGhoul.disciplines) {
         Object.values(activeGhoul.disciplines).forEach(v => totalDiscDots += v);
     }
-    const freeDiscDots = 2; 
+    const freeDiscDots = 2; // Potence 1 + 1 Free
     if (totalDiscDots > freeDiscDots) {
-        costs.disc = (totalDiscDots - freeDiscDots) * 10;
+        costs.disc = (totalDiscDots - freeDiscDots) * FB_COSTS.discipline;
     }
 
     let backDots = 0;
     if(activeGhoul.backgrounds) Object.values(activeGhoul.backgrounds).forEach(v => backDots += v);
-    if (backDots > 5) costs.back = (backDots - 5) * 1;
+    if (backDots > 5) costs.back = (backDots - 5) * FB_COSTS.background;
 
     let virtDots = 0;
     if(VIRTUES && activeGhoul.virtues) VIRTUES.forEach(v => virtDots += Math.max(0, (activeGhoul.virtues[v]||1)-1));
     const virtLimit = (activeGhoul.type === 'Revenant') ? 5 : 7;
-    if (virtDots > virtLimit) costs.virt = (virtDots - virtLimit) * 2;
+    if (virtDots > virtLimit) costs.virt = (virtDots - virtLimit) * FB_COSTS.virtue;
 
     const baseHum = (activeGhoul.virtues.Conscience||1) + (activeGhoul.virtues["Self-Control"]||1);
     if (activeGhoul.humanity > baseHum) {
-        costs.hum = (activeGhoul.humanity - baseHum) * 1;
+        costs.hum = (activeGhoul.humanity - baseHum) * FB_COSTS.humanity;
     }
 
     const baseWill = (activeGhoul.virtues.Courage||1);
     if (activeGhoul.willpower > baseWill) {
-        costs.will = (activeGhoul.willpower - baseWill) * 1;
+        costs.will = (activeGhoul.willpower - baseWill) * FB_COSTS.willpower;
     }
 
-    // Merits Cost
-    if (activeGhoul.merits) {
-        Object.values(activeGhoul.merits).forEach(v => costs.merit += v);
-    }
+    if (activeGhoul.merits) Object.values(activeGhoul.merits).forEach(v => costs.merit += v);
 
-    // Flaws Bonus (Capped at 7)
     let flawTotal = 0;
-    if (activeGhoul.flaws) {
-        Object.values(activeGhoul.flaws).forEach(v => flawTotal += v);
-    }
+    if (activeGhoul.flaws) Object.values(activeGhoul.flaws).forEach(v => flawTotal += v);
     costs.flaw = Math.min(7, flawTotal);
 
     const setCost = (id, val) => {
@@ -1644,7 +1380,6 @@ function updateTracker() {
     setCost('fb-cost-will', costs.will);
     setCost('fb-cost-merit', costs.merit);
     
-    // Update Flaw Display
     const flawEl = document.getElementById('fb-cost-flaw');
     if(flawEl) {
         flawEl.innerText = costs.flaw;
