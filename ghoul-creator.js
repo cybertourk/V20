@@ -482,8 +482,8 @@ function renderEditorModal() {
                                     <h3 class="column-title">Virtues <span id="g-virtue-header-limit" class="text-gray-500 text-xs"></span></h3>
                                     <div id="g-virt-list" class="space-y-3 mt-4 mb-4"></div>
                                     <div class="border border-[#333] bg-black/40 p-4 grid grid-cols-2 gap-4 mt-8">
-                                        <div class="flex justify-between items-center text-xs"><span class="font-bold text-[#d4af37] uppercase">Humanity</span><div class="dot-row cursor-pointer" id="g-humanity-row">${renderDots(activeGhoul.humanity, 10)}</div></div>
-                                        <div class="flex justify-between items-center text-xs"><span class="font-bold text-[#d4af37] uppercase">Willpower</span><div class="dot-row cursor-pointer" id="g-willpower-row">${renderDots(activeGhoul.willpower, 10)}</div></div>
+                                        <div class="flex justify-between items-center text-xs"><span class="font-bold text-[#d4af37] uppercase">Humanity</span><div class="dot-row cursor-pointer dot-row-interactive" id="g-humanity-row">${renderDots(activeGhoul.humanity, 10)}</div></div>
+                                        <div class="flex justify-between items-center text-xs"><span class="font-bold text-[#d4af37] uppercase">Willpower</span><div class="dot-row cursor-pointer dot-row-interactive" id="g-willpower-row">${renderDots(activeGhoul.willpower, 10)}</div></div>
                                         <div class="flex justify-between items-center text-xs col-span-2 border-t border-[#333] pt-2"><span class="font-bold text-[#d4af37] uppercase">Blood Pool (Vitae)</span><input type="number" id="g-blood" value="${activeGhoul.bloodPool}" class="w-12 bg-transparent border-b border-[#444] text-center text-white p-1 font-bold text-lg focus:border-[#d4af37] outline-none"></div>
                                     </div>
                                 </div>
@@ -767,28 +767,27 @@ function handleXpSpend(type, key, clickedVal, currentVal) {
         return;
     }
 
-    if (confirm(`Spend ${cost} XP to raise ${key || type} to ${targetVal}?`)) {
-        activeGhoul.experience.spent += cost;
-        activeGhoul.experience.log.push({
-            date: Date.now(),
-            trait: key || type,
-            from: currentVal,
-            to: targetVal,
-            cost: cost,
-            type: type
-        });
-        
-        if (type === 'humanity') activeGhoul.humanity = targetVal;
-        else if (type === 'willpower') activeGhoul.willpower = targetVal;
-        else activeGhoul[type][key] = targetVal;
+    // Removed confirmation dialog
+    activeGhoul.experience.spent += cost;
+    activeGhoul.experience.log.push({
+        date: Date.now(),
+        trait: key || type,
+        from: currentVal,
+        to: targetVal,
+        cost: cost,
+        type: type
+    });
+    
+    if (type === 'humanity') activeGhoul.humanity = targetVal;
+    else if (type === 'willpower') activeGhoul.willpower = targetVal;
+    else activeGhoul[type][key] = targetVal;
 
-        renderDotGroups();
-        renderDynamicLists();
-        renderGhoulXpSidebar();
-        updateTracker();
-        bindDotClicks(document.getElementById('ghoul-modal'));
-        showNotification("XP Spent.");
-    }
+    renderDotGroups();
+    renderDynamicLists();
+    renderGhoulXpSidebar();
+    updateTracker();
+    bindDotClicks(document.getElementById('ghoul-modal'));
+    showNotification("XP Spent.");
 }
 
 function renderGhoulFreebieSidebar() {
@@ -937,6 +936,13 @@ function updateValue(type, key, val) {
     renderDotGroups();
     renderDynamicLists();
     renderFreebieLists();
+    
+    // Explicitly re-render Humanity/Willpower rows since they aren't covered by renderGroup/DynamicLists
+    const hDots = document.getElementById('g-humanity-row');
+    const wDots = document.getElementById('g-willpower-row');
+    if(hDots) hDots.innerHTML = renderDots(activeGhoul.humanity, 10);
+    if(wDots) wDots.innerHTML = renderDots(activeGhoul.willpower, 10);
+
     bindDotClicks(document.getElementById('ghoul-modal'));
 }
 
