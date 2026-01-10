@@ -146,9 +146,6 @@ function autoDetectPriorities() {
 }
 
 function recalcStatus() {
-    // Only recalc if we haven't manually set them (simple check)
-    // Actually for ghouls, just default recalc unless overrides exist?
-    // We'll trust the stored value if it's higher than base.
     const baseHum = (activeGhoul.virtues.Conscience || 1) + (activeGhoul.virtues["Self-Control"] || 1);
     const baseWill = activeGhoul.virtues.Courage || 1;
     
@@ -601,7 +598,7 @@ function renderGhoulXpSidebar() {
         
         if (type === 'attributes' || type === 'attr') buckets.attr += cost;
         else if (type === 'abilities' || type === 'abil') {
-            if (entry.from === 0) buckets.newAbil += cost;
+            if (entry.from === 0 && entry.cost > 0) buckets.newAbil += cost; // Only count buying new ability here
             else buckets.abil += cost;
         }
         else if (type === 'disciplines' || type === 'disc') buckets.disc += cost;
@@ -639,18 +636,23 @@ function renderGhoulXpSidebar() {
         if (log.length === 0) {
             logList.innerHTML = '<div class="text-center italic opacity-50 mt-4">No XP spent yet.</div>';
         } else {
-            logList.innerHTML = log.slice().reverse().map(entry => `
+            logList.innerHTML = log.slice().reverse().map(entry => {
+                const isRefund = entry.cost < 0;
+                const costDisp = isRefund ? `+${Math.abs(entry.cost)}` : `-${entry.cost}`;
+                const color = isRefund ? 'text-green-400' : 'text-purple-400';
+                
+                return `
                 <div class="border-b border-[#222] pb-1 mb-1">
                     <div class="flex justify-between text-white">
                         <span class="font-bold">${entry.trait}</span>
-                        <span class="text-purple-400">-${entry.cost}</span>
+                        <span class="${color}">${costDisp}</span>
                     </div>
                     <div class="flex justify-between text-[8px] text-gray-500">
                         <span>${entry.from} &rarr; ${entry.to}</span>
                         <span>${new Date(entry.date).toLocaleDateString()}</span>
                     </div>
-                </div>
-            `).join('');
+                </div>`;
+            }).join('');
         }
     }
 
@@ -1366,89 +1368,138 @@ window.updateGhoulTotalXP = function(val) {
     }
 }
 
-function handleXpSpend(type, key, newVal, currentVal) {
-    if (newVal <= currentVal) return; // Only buying up allowed easily
-    
-    // Safety check: One dot at a time
-    if (newVal > currentVal + 1) {
-        showNotification("Please purchase dots one at a time with XP.");
-        return;
-    }
-
-    let cost = 0;
-    const target = newVal;
-
+// Calculate cost for a single dot purchase/refund
+function calculateXpCost(type, key, targetLevel, currentLevel) {
+    // Basic checks
     if (type === 'attributes') {
-        cost = target * XP_COSTS.attribute;
-    } else if (type === 'abilities') {
-        // New ability (0->1) cost is 3, otherwise New x 2
-        if (currentVal === 0) cost = XP_COSTS.newAbility;
-        else cost = target * XP_COSTS.ability;
-    } else if (type === 'virtues') {
-        cost = target * XP_COSTS.virtue;
-    } else if (type === 'willpower') {
-        cost = currentVal; // Cost is current rating (V20 p499 says "current rating" to raise)
-        // Wait, V20 Chart says "Current Rating". So if raising 4 to 5, cost is 4.
-        cost = currentVal; 
-        if (cost === 0) cost = 1; // Fallback
-    } else if (type === 'humanity') {
-        cost = target * XP_COSTS.humanity;
-    } else if (type === 'disciplines') {
-        // Is it physical?
+        // New Rating x 4
+        return targetLevel * XP_COSTS.attribute;
+    } 
+    else if (type === 'abilities') {
+        // First dot (0 -> 1) is 3 XP.
+        // If we are looking at level 1 (targetLevel=1), cost is 3.
+        if (targetLevel === 1) return XP_COSTS.newAbility;
+        // Else New Rating x 2
+        return targetLevel * XP_COSTS.ability;
+    }
+    else if (type === 'virtues') {
+        // New Rating x 2
+        return targetLevel * XP_COSTS.virtue;
+    }
+    else if (type === 'willpower') {
+        // Current Rating (to raise).
+        // If raising 4 -> 5, cost is 4. (Target 5, cost 4).
+        // If refunding 5 -> 4, we refund cost of 5 (which was 4).
+        // So cost is always (targetLevel - 1) * 1?
+        // Wait, V20 Ghouls p499: "Current Rating".
+        // To buy dot 5, you have rating 4. Cost is 4.
+        // To buy dot 2, you have rating 1. Cost is 1.
+        let c = targetLevel - 1; 
+        if (c < 1) c = 1; // Fallback safety
+        return c * XP_COSTS.willpower;
+    }
+    else if (type === 'humanity') {
+        // New Rating x 2
+        return targetLevel * XP_COSTS.humanity;
+    }
+    else if (type === 'disciplines') {
+        // Phys x 10, Other x 20. New Rating.
         const phys = ['Celerity', 'Fortitude', 'Potence'];
-        // Or Domitor's clan discipline (complicated to track). 
-        // We'll simplify: Physicals are cheap (x10), others expensive (x20).
-        // V20 Ghouls: New x 10 for Phys, New x 20 for others.
-        if (phys.includes(key)) {
-            cost = target * XP_COSTS.discipline_phys;
-        } else {
-            cost = target * XP_COSTS.discipline_other;
+        let multiplier = phys.includes(key) ? XP_COSTS.discipline_phys : XP_COSTS.discipline_other;
+        return targetLevel * multiplier;
+    }
+    else if (type === 'backgrounds') {
+        return XP_COSTS.background;
+    }
+    return 0;
+}
+
+function handleXpSpend(type, key, newVal, currentVal) {
+    let targetVal = newVal;
+    // Toggle logic: If clicking the dot corresponding to current rating, treat as removing that dot
+    if (newVal === currentVal) {
+        targetVal = currentVal - 1;
+    }
+
+    if (targetVal === currentVal) return; // No change
+
+    // BUYING
+    if (targetVal > currentVal) {
+        if (targetVal > currentVal + 1) {
+             showNotification("Please purchase dots one at a time.");
+             return;
         }
-        // First dot? V20 doesn't explicitly discount first dot for ghouls, just New Rating. 1*10 = 10.
-    } else if (type === 'backgrounds') {
-        cost = XP_COSTS.background; // Usually 3xp per dot or flat
-    }
+        
+        // Calculate Cost for next dot (the dot we are buying is targetVal)
+        let cost = calculateXpCost(type, key, targetVal, currentVal); 
+        
+        // Check Funds
+        const rem = activeGhoul.experience.total - activeGhoul.experience.spent;
+        if (cost > rem) {
+            showNotification("Not enough XP!");
+            return;
+        }
 
-    const rem = activeGhoul.experience.total - activeGhoul.experience.spent;
-    
-    if (cost > rem) {
-        showNotification(`Not enough XP! Cost: ${cost}, Remaining: ${rem}`);
-        return;
-    }
-
-    if (confirm(`Spend ${cost} XP to raise ${key} to ${newVal}?`)) {
+        // Execute without confirm
         activeGhoul.experience.spent += cost;
         activeGhoul.experience.log.push({
             date: Date.now(),
             trait: key,
             from: currentVal,
-            to: newVal,
+            to: targetVal,
             cost: cost,
-            type: type // Save Type for categorization
+            type: type
         });
         
-        // Apply change
-        if (type === 'attributes' || type === 'abilities' || type === 'virtues' || type === 'disciplines' || type === 'backgrounds') {
-            activeGhoul[type][key] = newVal;
-        } else if (type === 'humanity') {
-            activeGhoul.humanity = newVal;
-        } else if (type === 'willpower') {
-            activeGhoul.willpower = newVal;
+        updateValue(type, key, targetVal);
+        showNotification(`Spent ${cost} XP`);
+    } 
+    // REFUNDING
+    else {
+        // Iterate down from currentVal to targetVal
+        // e.g. Current 3, Target 2. Loop v=3. Cost(3).
+        let totalRefund = 0;
+        
+        for (let v = currentVal; v > targetVal; v--) {
+            // Removing dot 'v'.
+            totalRefund += calculateXpCost(type, key, v, v-1); 
         }
 
-        renderGhoulXpSidebar(); // Update specific Sidebar function
-        
-        // Re-render dots
-        renderDotGroups();
-        renderDynamicLists();
-        renderFreebieLists();
-        
-        // Re-bind needed?
-        // Since we re-rendered dots, we need to rebind
-        bindDotClicks(document.getElementById('ghoul-modal'));
-        
-        showNotification(`Spent ${cost} XP.`);
+        activeGhoul.experience.spent -= totalRefund;
+        if (activeGhoul.experience.spent < 0) activeGhoul.experience.spent = 0; // Safety
+
+        activeGhoul.experience.log.push({
+            date: Date.now(),
+            trait: key,
+            from: currentVal,
+            to: targetVal,
+            cost: -totalRefund, // Negative cost implies refund
+            type: type
+        });
+
+        updateValue(type, key, targetVal);
+        showNotification(`Refunded ${totalRefund} XP`);
     }
+
+    renderGhoulXpSidebar(); // Update sidebar immediately
+}
+
+function updateValue(type, key, val) {
+    if (type === 'attributes' || type === 'abilities' || type === 'virtues' || type === 'disciplines' || type === 'backgrounds') {
+        activeGhoul[type][key] = val;
+    } else if (type === 'humanity') {
+        activeGhoul.humanity = val;
+    } else if (type === 'willpower') {
+        activeGhoul.willpower = val;
+    }
+    
+    // Refresh visual dots
+    renderDotGroups();
+    renderDynamicLists();
+    renderFreebieLists();
+    
+    // Rebind since DOM changed
+    bindDotClicks(document.getElementById('ghoul-modal'));
 }
 
 function updateVirtueHeader() {
