@@ -512,8 +512,16 @@ function renderEditorModal() {
                             <span class="text-gray-400">Total XP</span>
                             <input type="number" id="xp-total-input" value="${activeGhoul.experience.total}" onchange="window.updateGhoulTotalXP(this.value)" class="w-16 bg-black border border-[#333] text-purple-400 text-center font-bold focus:border-purple-500 outline-none">
                         </div>
+                    </div>
+
+                    <!-- CATEGORIZED COSTS -->
+                    <div id="xp-breakdown-list" class="space-y-2 text-xs p-3 border-b border-[#333]">
+                        <!-- Injected via JS -->
+                    </div>
+
+                    <div class="p-3 border-b border-[#333] bg-[#111]">
                         <div class="flex justify-between items-center text-xs">
-                            <span class="text-gray-400">Spent XP</span>
+                            <span class="text-gray-400">Total Spent</span>
                             <span id="xp-spent-disp" class="text-white font-bold">${activeGhoul.experience.spent}</span>
                         </div>
                         <div class="flex justify-between items-center text-xs mt-1 pt-1 border-t border-[#333]">
@@ -522,8 +530,11 @@ function renderEditorModal() {
                         </div>
                     </div>
 
-                    <div id="xp-log-list" class="flex-1 overflow-y-auto p-2 space-y-1 font-mono text-[9px]">
-                        <!-- Log entries injected here -->
+                    <div class="mt-2 px-3">
+                        <h4 class="text-[9px] uppercase text-gray-500 font-bold mb-1 tracking-wider">Session Log</h4>
+                        <div id="xp-log-list" class="text-[9px] text-gray-400 h-40 overflow-y-auto border border-[#333] p-1 font-mono bg-white/5">
+                            <!-- Log entries injected here -->
+                        </div>
                     </div>
                 </div>
 
@@ -558,7 +569,7 @@ function renderEditorModal() {
     renderMeritsFlaws(); 
     updatePriorityUI(); 
     renderFreebieLists();
-    renderXpLog(); // New
+    renderGhoulXpSidebar(); // New Renderer
 
     setupNavListeners(modal);
     setupActionListeners(modal);
@@ -567,10 +578,94 @@ function renderEditorModal() {
     updateVirtueHeader();
 }
 
-function updateWeaknessDisplay(clan) {
-    // No-op 
+// ... existing helpers ...
+
+function renderGhoulXpSidebar() {
+    // 1. Calculate Buckets
+    const log = activeGhoul.experience.log || [];
+    let buckets = {
+        newAbil: 0,
+        attr: 0,
+        abil: 0,
+        disc: 0,
+        virt: 0,
+        humanity: 0,
+        willpower: 0,
+        background: 0
+    };
+
+    log.forEach(entry => {
+        // Use type stored in log, fallback to detection if missing
+        const type = entry.type; 
+        const cost = entry.cost;
+        
+        if (type === 'attributes' || type === 'attr') buckets.attr += cost;
+        else if (type === 'abilities' || type === 'abil') {
+            if (entry.from === 0) buckets.newAbil += cost;
+            else buckets.abil += cost;
+        }
+        else if (type === 'disciplines' || type === 'disc') buckets.disc += cost;
+        else if (type === 'virtues' || type === 'virt') buckets.virt += cost;
+        else if (type === 'humanity') buckets.humanity += cost;
+        else if (type === 'willpower') buckets.willpower += cost;
+        else if (type === 'backgrounds' || type === 'back') buckets.background += cost;
+    });
+
+    // 2. Render Breakdown List
+    const breakdown = document.getElementById('xp-breakdown-list');
+    if (breakdown) {
+        breakdown.innerHTML = '';
+        const addRow = (label, val) => {
+            const row = document.createElement('div');
+            row.className = "flex justify-between items-center gap-1";
+            // Match main app style: Label gray, value colored
+            row.innerHTML = `<span class="text-gray-400 truncate">${label}</span><span class="text-purple-400 font-bold bg-black/95 z-10 shrink-0">${val}</span>`;
+            breakdown.appendChild(row);
+        };
+
+        addRow("New Ability (3)", buckets.newAbil);
+        addRow("Attributes (x4)", buckets.attr);
+        addRow("Abilities (x2)", buckets.abil);
+        addRow("Disciplines (x10/20)", buckets.disc);
+        addRow("Virtues (x2)", buckets.virt);
+        addRow("Humanity (x2)", buckets.humanity);
+        addRow("Willpower (x1)", buckets.willpower);
+        addRow("Backgrounds (3)", buckets.background);
+    }
+
+    // 3. Render Log List
+    const logList = document.getElementById('xp-log-list');
+    if (logList) {
+        if (log.length === 0) {
+            logList.innerHTML = '<div class="text-center italic opacity-50 mt-4">No XP spent yet.</div>';
+        } else {
+            logList.innerHTML = log.slice().reverse().map(entry => `
+                <div class="border-b border-[#222] pb-1 mb-1">
+                    <div class="flex justify-between text-white">
+                        <span class="font-bold">${entry.trait}</span>
+                        <span class="text-purple-400">-${entry.cost}</span>
+                    </div>
+                    <div class="flex justify-between text-[8px] text-gray-500">
+                        <span>${entry.from} &rarr; ${entry.to}</span>
+                        <span>${new Date(entry.date).toLocaleDateString()}</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+    }
+
+    // 4. Update Totals
+    const spentEl = document.getElementById('xp-spent-disp');
+    const remEl = document.getElementById('xp-rem-disp');
+    
+    if (spentEl) spentEl.innerText = activeGhoul.experience.spent;
+    if (remEl) remEl.innerText = activeGhoul.experience.total - activeGhoul.experience.spent;
 }
 
+// ... existing updateWeaknessDisplay ...
+function updateWeaknessDisplay(clan) {}
+
+// ... existing renderFreebieLists ...
 function renderFreebieLists() {
     if(ATTRIBUTES) {
         renderGroup('fb-attr-phys', 'Physical', ATTRIBUTES.Physical, 'attributes');
@@ -586,6 +681,7 @@ function renderFreebieLists() {
     if(VIRTUES) renderGroup('fb-virt-list', null, VIRTUES, 'virtues');
 }
 
+// ... existing renderDynamicListsForFreebies ...
 function renderDynamicListsForFreebies() {
     const dEl = document.getElementById('fb-disc-list');
     const bEl = document.getElementById('fb-back-list');
@@ -614,6 +710,7 @@ function renderDynamicListsForFreebies() {
     }
 }
 
+// ... existing renderMeritsFlaws ...
 function renderMeritsFlaws() {
     const mList = document.getElementById('g-merits-list');
     const fList = document.getElementById('g-flaws-list');
@@ -637,6 +734,7 @@ function renderMeritsFlaws() {
     }
 }
 
+// ... existing validateChange ...
 function validateChange(type, key, newVal, currentVal) {
     if (xpMode) return true; // XP Mode has its own validation
 
@@ -829,7 +927,7 @@ function validateChange(type, key, newVal, currentVal) {
     return true;
 }
 
-// --- PRIORITY HELPERS ---
+// ... existing renderPrioButtons ...
 function renderPrioButtons(cat, group) {
     const vals = PRIO_CONFIG[cat];
     return vals.map(v => `
@@ -841,6 +939,7 @@ function renderPrioButtons(cat, group) {
     `).join('');
 }
 
+// ... existing handlePrioClick ...
 function handlePrioClick(e) {
     if (xpMode) return; // Disable priority switching in XP mode
     const btn = e.target;
@@ -864,6 +963,7 @@ function handlePrioClick(e) {
     updateCounters();
 }
 
+// ... existing updatePriorityUI ...
 function updatePriorityUI() {
     document.querySelectorAll('.ghoul-prio-btn').forEach(btn => {
         const { cat, group, val } = btn.dataset;
@@ -888,6 +988,7 @@ function updatePriorityUI() {
     });
 }
 
+// ... existing updateCounters ...
 function updateCounters() {
     ['attr', 'abil'].forEach(cat => {
         Object.entries(localPriorities[cat]).forEach(([group, limit]) => {
@@ -916,7 +1017,7 @@ function updateCounters() {
     updateTracker();
 }
 
-// --- TABS ---
+// ... existing switchTab ...
 function switchTab(tabId) {
     currentTab = tabId;
     document.querySelectorAll('.ghoul-step').forEach(el => el.classList.add('hidden'));
@@ -937,12 +1038,13 @@ function switchTab(tabId) {
     if(modal) bindDotClicks(modal);
 }
 
+// ... existing setupNavListeners ...
 function setupNavListeners(modal) {
     const tabs = modal.querySelectorAll('.ghoul-tab');
     tabs.forEach(t => t.onclick = () => switchTab(t.dataset.tab));
 }
 
-// --- RENDER HELPERS ---
+// ... existing renderDotGroups ...
 function renderDotGroups() {
     if(ATTRIBUTES) {
         renderGroup('g-attr-phys', 'Physical', ATTRIBUTES.Physical, 'attributes');
@@ -957,6 +1059,7 @@ function renderDotGroups() {
     if(VIRTUES) renderGroup('g-virt-list', null, VIRTUES, 'virtues');
 }
 
+// ... existing renderGroup ...
 function renderGroup(id, title, list, type) {
     const el = document.getElementById(id);
     if(!el) return;
@@ -1007,11 +1110,13 @@ function renderGroup(id, title, list, type) {
     el.innerHTML = html;
 }
 
+// ... existing renderDynamicLists ...
 function renderDynamicLists() {
     renderDisciplines();
     renderBackgrounds();
 }
 
+// ... existing renderDisciplines ...
 function renderDisciplines() {
     const el = document.getElementById('g-disc-list');
     if(!el) return;
@@ -1033,6 +1138,7 @@ function renderDisciplines() {
     }
 }
 
+// ... existing renderBackgrounds ...
 function renderBackgrounds() {
     const el = document.getElementById('g-back-list');
     if(!el) return;
@@ -1053,6 +1159,7 @@ function renderBackgrounds() {
     }
 }
 
+// ... existing removeGhoulItem ...
 window.removeGhoulItem = function(type, key) {
     if (type === 'disciplines' && key === 'Potence') return; 
     
@@ -1078,6 +1185,7 @@ window.removeGhoulItem = function(type, key) {
     }
 };
 
+// ... existing setupActionListeners ...
 function setupActionListeners(modal) {
     const close = () => {
         modal.style.display = 'none';
@@ -1315,7 +1423,8 @@ function handleXpSpend(type, key, newVal, currentVal) {
             trait: key,
             from: currentVal,
             to: newVal,
-            cost: cost
+            cost: cost,
+            type: type // Save Type for categorization
         });
         
         // Apply change
@@ -1327,9 +1436,7 @@ function handleXpSpend(type, key, newVal, currentVal) {
             activeGhoul.willpower = newVal;
         }
 
-        renderXpLog();
-        document.getElementById('xp-spent-disp').innerText = activeGhoul.experience.spent;
-        document.getElementById('xp-rem-disp').innerText = activeGhoul.experience.total - activeGhoul.experience.spent;
+        renderGhoulXpSidebar(); // Update specific Sidebar function
         
         // Re-render dots
         renderDotGroups();
@@ -1343,25 +1450,6 @@ function handleXpSpend(type, key, newVal, currentVal) {
         showNotification(`Spent ${cost} XP.`);
     }
 }
-
-function renderXpLog() {
-    const list = document.getElementById('xp-log-list');
-    if (!list || !activeGhoul.experience || !activeGhoul.experience.log) return;
-    
-    list.innerHTML = activeGhoul.experience.log.slice().reverse().map(l => `
-        <div class="border-b border-[#222] pb-1 mb-1 text-gray-400">
-            <div class="flex justify-between">
-                <span class="text-white font-bold">${l.trait}</span>
-                <span class="text-purple-400">-${l.cost}</span>
-            </div>
-            <div class="text-[8px] flex justify-between opacity-70">
-                <span>${l.from} &rarr; ${l.to}</span>
-                <span>${new Date(l.date).toLocaleDateString()}</span>
-            </div>
-        </div>
-    `).join('');
-}
-
 
 function updateVirtueHeader() {
     const header = document.getElementById('g-virtue-header-limit');
