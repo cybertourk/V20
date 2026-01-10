@@ -502,7 +502,7 @@ function renderEditorModal() {
                 </div> <!-- End Main Scroll Area -->
 
                 <!-- RIGHT SIDEBAR: XP LEDGER (Visible in XP Mode) -->
-                <div id="xp-ledger-panel" class="hidden w-64 bg-[#080808] border-l border-[#333] flex-col shrink-0 transition-all">
+                <div id="xp-ledger-panel" class="${xpMode ? 'flex' : 'hidden'} w-64 bg-[#080808] border-l border-[#333] flex-col shrink-0 transition-all">
                     <div class="p-3 border-b border-[#333] bg-[#111]">
                         <h3 class="text-purple-400 font-cinzel font-bold text-center">XP Log</h3>
                     </div>
