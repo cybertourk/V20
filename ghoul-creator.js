@@ -674,37 +674,54 @@ window.updateGhoulTotalXP = function(val) {
 function handleXpSpend(type, key, clickedVal, currentVal) {
     let targetVal = clickedVal;
     
-    // Toggle logic: if clicking the current max dot, assume desire to step down
+    // Toggle logic: If clicking the *exact same* dot (e.g. clicking 8 when you have 8), 
+    // it implies wanting to step down to 7. 
+    // However, if clicking any other existing dot (e.g. clicking 1 when you have 8), 
+    // it normally means setting value to 1.
+    // In XP/Freebie mode, setting to 1 implies refunding everything from 8 down to 1.
     if (clickedVal === currentVal) {
         targetVal = currentVal - 1;
     }
 
     // --- REFUND / UNDO LOGIC ---
     if (targetVal < currentVal) {
-        // Find the specific log entry that raised this trait to currentVal
-        // We look for the most recent entry matching trait and 'to' value
-        const logIndex = activeGhoul.experience.log.findIndex(l => 
-            (l.type === type && (l.trait === key || (!key && l.type === l.trait))) &&
-            l.to === currentVal
-        );
+        // We need to undo purchases step-by-step from currentVal down to targetVal
+        let stepsToUndo = currentVal - targetVal;
+        let totalRefund = 0;
+        let entriesRemoved = 0;
 
-        if (logIndex === -1) {
-            showNotification("Cannot refund: This dot was not purchased with XP.");
-            return;
+        // Loop to remove the most recent relevant log entries until we reach target or run out
+        while (stepsToUndo > 0) {
+            // Look for the specific log entry that raised value to `currentVal`
+            const logIndex = activeGhoul.experience.log.findIndex(l => 
+                (l.type === type && (l.trait === key || (!key && l.type === l.trait))) &&
+                l.to === currentVal
+            );
+
+            if (logIndex !== -1) {
+                const entry = activeGhoul.experience.log[logIndex];
+                totalRefund += entry.cost;
+                activeGhoul.experience.spent -= entry.cost;
+                activeGhoul.experience.log.splice(logIndex, 1);
+                
+                // Update local tracking vars
+                entriesRemoved++;
+                stepsToUndo--;
+                currentVal--; // Effectively stepping down logic
+            } else {
+                // If we can't find a log entry for this level, we can't refund it (it was base/creation dots)
+                if (entriesRemoved === 0) {
+                    showNotification("Cannot refund: This dot was not purchased with XP.");
+                    return; 
+                }
+                break; // Stop looking if we hit base dots
+            }
         }
 
-        const entry = activeGhoul.experience.log[logIndex];
-
-        // Refund the specific cost found in the log
-        activeGhoul.experience.spent -= entry.cost;
-        
-        // Remove the entry completely
-        activeGhoul.experience.log.splice(logIndex, 1);
-
-        // Update the stat to its previous value (from the log entry)
-        if (type === 'humanity') activeGhoul.humanity = entry.from;
-        else if (type === 'willpower') activeGhoul.willpower = entry.from;
-        else activeGhoul[type][key] = entry.from;
+        // Apply final value based on how many steps we successfully undid
+        if (type === 'humanity') activeGhoul.humanity = currentVal;
+        else if (type === 'willpower') activeGhoul.willpower = currentVal;
+        else activeGhoul[type][key] = currentVal;
 
         // Re-render
         renderDotGroups();
@@ -712,11 +729,21 @@ function handleXpSpend(type, key, clickedVal, currentVal) {
         renderGhoulXpSidebar();
         updateTracker();
         bindDotClicks(document.getElementById('ghoul-modal'));
-        showNotification(`Refunded ${entry.cost} XP.`);
+        
+        // Explicitly re-render Humanity/Willpower rows
+        const hDots = document.getElementById('g-humanity-row');
+        const wDots = document.getElementById('g-willpower-row');
+        if(hDots) hDots.innerHTML = renderDots(activeGhoul.humanity, 10);
+        if(wDots) wDots.innerHTML = renderDots(activeGhoul.willpower, 10);
+
+        showNotification(`Refunded ${totalRefund} XP.`);
         return;
     }
 
     // --- SPEND LOGIC ---
+    // Fix for the "+1" validation error:
+    // If user clicks 9 and current is 8, targetVal is 9. 
+    // 9 > 8 + 1 is false (9 is not > 9), so this check passes.
     if (targetVal > currentVal + 1) {
         showNotification("XP Mode: Please purchase one dot at a time.");
         return;
@@ -892,25 +919,38 @@ function handleFreebieSpend(type, key, clickedVal, currentVal) {
 
     // --- REFUND / UNDO LOGIC ---
     if (targetVal < currentVal) {
-        // Find specific log entry
-        const logIndex = activeGhoul.freebies.log.findIndex(l => 
-            (l.type === type && (l.trait === key || (!key && l.type === l.trait))) &&
-            l.to === currentVal
-        );
+        // Multi-step refund logic like XP
+        let stepsToUndo = currentVal - targetVal;
+        let totalRefund = 0;
+        let entriesRemoved = 0;
 
-        if (logIndex === -1) {
-             showNotification("Cannot refund: This dot was not purchased with Freebies.");
-             return;
+        while (stepsToUndo > 0) {
+            // Find specific log entry for this level
+            const logIndex = activeGhoul.freebies.log.findIndex(l => 
+                (l.type === type && (l.trait === key || (!key && l.type === l.trait))) &&
+                l.to === currentVal
+            );
+
+            if (logIndex !== -1) {
+                const entry = activeGhoul.freebies.log[logIndex];
+                totalRefund += entry.cost;
+                activeGhoul.freebies.spent -= entry.cost;
+                activeGhoul.freebies.log.splice(logIndex, 1);
+                
+                entriesRemoved++;
+                stepsToUndo--;
+                currentVal--;
+            } else {
+                if (entriesRemoved === 0) {
+                    showNotification("Cannot refund: This dot was not purchased with Freebies.");
+                    return;
+                }
+                break;
+            }
         }
-
-        const entry = activeGhoul.freebies.log[logIndex];
         
-        // Remove entry
-        activeGhoul.freebies.spent -= entry.cost;
-        activeGhoul.freebies.log.splice(logIndex, 1);
-        
-        updateValue(type, key, entry.from);
-        showNotification(`Refunded ${entry.cost} Freebies`);
+        updateValue(type, key, currentVal);
+        showNotification(`Refunded ${totalRefund} Freebies`);
         renderGhoulFreebieSidebar();
         return;
     }
@@ -1160,237 +1200,6 @@ function renderBackgrounds() {
                     <div class="dot-row cursor-pointer hover:opacity-80">${renderDots(val, 5)}</div>
                 </div>
             `;
-        });
-    }
-}
-
-window.removeGhoulItem = function(type, key) {
-    if (type === 'disciplines' && key === 'Potence') return; 
-    
-    if (type === 'merits') {
-        delete activeGhoul.merits[key];
-        renderMeritsFlaws();
-        updateTracker(); 
-        return;
-    }
-    if (type === 'flaws') {
-        delete activeGhoul.flaws[key];
-        renderMeritsFlaws();
-        updateTracker(); 
-        return;
-    }
-
-    if (activeGhoul[type] && activeGhoul[type][key] !== undefined) {
-        delete activeGhoul[type][key];
-        renderDynamicLists();
-        renderFreebieLists(); 
-        updateTracker(); 
-        bindDotClicks(document.getElementById('ghoul-modal'));
-    }
-};
-
-function setupActionListeners(modal) {
-    const close = () => {
-        modal.style.display = 'none';
-        modal.classList.add('hidden');
-    };
-    
-    document.getElementById('close-ghoul-modal').onclick = close;
-    document.getElementById('cancel-ghoul').onclick = close;
-    
-    document.getElementById('save-ghoul').onclick = () => {
-        activeGhoul.name = document.getElementById('g-name').value;
-        activeGhoul.domitor = document.getElementById('g-domitor').value;
-        activeGhoul.concept = document.getElementById('g-concept').value;
-        activeGhoul.type = document.getElementById('g-type').value;
-        activeGhoul.player = document.getElementById('g-player').value;
-        activeGhoul.weakness = document.getElementById('g-weakness').value;
-        
-        const natureEl = document.getElementById('g-nature');
-        const demeanorEl = document.getElementById('g-demeanor');
-        const clanEl = document.getElementById('g-domitor-clan');
-        const famEl = document.getElementById('g-family');
-
-        if(natureEl) activeGhoul.nature = natureEl.value;
-        if(demeanorEl) activeGhoul.demeanor = demeanorEl.value;
-        if(clanEl) activeGhoul.domitorClan = clanEl.value;
-        if(famEl) activeGhoul.family = famEl.value;
-
-        const bioInputs = modal.querySelectorAll('.bio-input');
-        if(!activeGhoul.bio) activeGhoul.bio = {};
-        bioInputs.forEach(input => {
-            activeGhoul.bio[input.dataset.field] = input.value;
-        });
-        activeGhoul.bio.Description = document.getElementById('g-bio-desc').value;
-        activeGhoul.bio.Notes = document.getElementById('g-bio-notes').value;
-
-        activeGhoul.bloodPool = parseInt(document.getElementById('g-blood').value) || 10;
-        
-        activeGhoul.priorities = JSON.parse(JSON.stringify(localPriorities));
-
-        if (!window.state.retainers) window.state.retainers = [];
-        if (activeIndex !== null && activeIndex >= 0) window.state.retainers[activeIndex] = activeGhoul;
-        else window.state.retainers.push(activeGhoul);
-
-        if(window.renderRetainersTab) window.renderRetainersTab(document.getElementById('play-content'));
-        
-        if (typeof showNotification === 'function') {
-            showNotification("Retainer Saved.");
-        } else if (window.showNotification) {
-            window.showNotification("Retainer Saved.");
-        }
-        
-        close();
-    };
-
-    const typeSelect = document.getElementById('g-type');
-    if(typeSelect) {
-        typeSelect.onchange = (e) => {
-            const val = e.target.value;
-            activeGhoul.type = val;
-            const isRevenant = val === 'Revenant';
-            document.getElementById('div-domitor-clan').className = isRevenant ? 'hidden' : 'block';
-            document.getElementById('div-family').className = isRevenant ? 'block' : 'hidden';
-            updateVirtueHeader();
-            updateTracker(); 
-        };
-    }
-
-    const clanSelect = document.getElementById('g-domitor-clan');
-    if(clanSelect) clanSelect.onchange = (e) => activeGhoul.domitorClan = e.target.value;
-
-    const meritSel = document.getElementById('g-merit-select');
-    if(meritSel) {
-        meritSel.onchange = (e) => {
-            const val = e.target.value;
-            if(!val) return;
-            const [name, cost] = val.split('|');
-            if(!activeGhoul.merits) activeGhoul.merits = {};
-            activeGhoul.merits[name] = parseInt(cost);
-            renderMeritsFlaws();
-            updateTracker();
-            e.target.value = "";
-        };
-    }
-
-    const flawSel = document.getElementById('g-flaw-select');
-    if(flawSel) {
-        flawSel.onchange = (e) => {
-            const val = e.target.value;
-            if(!val) return;
-            const [name, bonus] = val.split('|');
-            if(!activeGhoul.flaws) activeGhoul.flaws = {};
-            activeGhoul.flaws[name] = parseInt(bonus);
-            renderMeritsFlaws();
-            updateTracker();
-            e.target.value = "";
-        };
-    }
-
-    modal.addEventListener('change', (e) => {
-        if(e.target.classList.contains('specialty-input')) {
-            const key = e.target.dataset.key;
-            if(!activeGhoul.specialties) activeGhoul.specialties = {};
-            activeGhoul.specialties[key] = e.target.value;
-        }
-    });
-
-    const xpBtn = document.getElementById('toggle-xp-mode');
-    if (xpBtn) xpBtn.onclick = toggleXpMode;
-
-    const fbBtn = document.getElementById('toggle-freebie-mode');
-    if (fbBtn) fbBtn.onclick = toggleFreebieMode;
-
-    const setupDrop = (id, type, renderFn) => {
-        const sel = document.getElementById(id);
-        if(!sel) return;
-        sel.onchange = (e) => {
-            const val = e.target.value;
-            if(val) {
-                if(!activeGhoul[type]) activeGhoul[type] = {};
-                
-                if (xpMode && type === 'disciplines' && activeGhoul[type][val] === undefined) {
-                    activeGhoul[type][val] = 0;
-                    renderFn();
-                    bindDotClicks(modal);
-                }
-                else if (freebieMode && type === 'disciplines' && activeGhoul[type][val] === undefined) {
-                    activeGhoul[type][val] = 0;
-                    renderFn();
-                    bindDotClicks(modal);
-                }
-                else if(activeGhoul[type][val] === undefined) {
-                    if (!validateChange(type, val, 1, 0)) {
-                        e.target.value = "";
-                        return;
-                    }
-                    activeGhoul[type][val] = 1;
-                    renderFn();
-                    renderFreebieLists(); 
-                    updateTracker(); 
-                    bindDotClicks(modal);
-                }
-                e.target.value = "";
-            }
-        };
-    };
-    setupDrop('g-disc-select', 'disciplines', renderDisciplines);
-    setupDrop('g-back-select', 'backgrounds', renderBackgrounds);
-}
-
-function toggleXpMode() {
-    xpMode = !xpMode;
-    if(xpMode) freebieMode = false; 
-    renderEditorModal();
-    switchTab(currentTab);
-}
-
-function toggleFreebieMode() {
-    freebieMode = !freebieMode;
-    if(freebieMode) xpMode = false; 
-    renderEditorModal();
-    switchTab(currentTab);
-}
-
-function renderFreebieLists() {
-    if(ATTRIBUTES) {
-        renderGroup('fb-attr-phys', 'Physical', ATTRIBUTES.Physical, 'attributes');
-        renderGroup('fb-attr-soc', 'Social', ATTRIBUTES.Social, 'attributes');
-        renderGroup('fb-attr-men', 'Mental', ATTRIBUTES.Mental, 'attributes');
-    }
-    if(ABILITIES) {
-        renderGroup('fb-abil-tal', 'Talents', ABILITIES.Talents, 'abilities');
-        renderGroup('fb-abil-ski', 'Skills', ABILITIES.Skills, 'abilities');
-        renderGroup('fb-abil-kno', 'Knowledges', ABILITIES.Knowledges, 'abilities');
-    }
-    renderDynamicListsForFreebies();
-    if(VIRTUES) renderGroup('fb-virt-list', null, VIRTUES, 'virtues');
-}
-
-function renderDynamicListsForFreebies() {
-    const dEl = document.getElementById('fb-disc-list');
-    const bEl = document.getElementById('fb-back-list');
-    
-    if(dEl && activeGhoul.disciplines) {
-        dEl.innerHTML = '';
-        Object.entries(activeGhoul.disciplines).forEach(([name, val]) => {
-            const isAuto = name === 'Potence';
-            dEl.innerHTML += `
-                <div class="flex justify-between items-center mb-1 dot-row-interactive" data-type="disciplines" data-key="${name}">
-                    <span class="text-[10px] uppercase font-bold ${isAuto ? 'text-[#d4af37]' : 'text-white'}">${name}</span>
-                    <div class="dot-row cursor-pointer hover:opacity-80">${renderDots(val, 5)}</div>
-                </div>`;
-        });
-    }
-
-    if(bEl && activeGhoul.backgrounds) {
-        bEl.innerHTML = '';
-        Object.entries(activeGhoul.backgrounds).forEach(([name, val]) => {
-            bEl.innerHTML += `
-                <div class="flex justify-between items-center mb-1 dot-row-interactive" data-type="backgrounds" data-key="${name}">
-                    <span class="text-[10px] uppercase font-bold text-white">${name}</span>
-                    <div class="dot-row cursor-pointer hover:opacity-80">${renderDots(val, 5)}</div>
-                </div>`;
         });
     }
 }
