@@ -133,7 +133,7 @@ function handlePrioClick(e) {
     }
 
     updatePriorityUI();
-    updateCounters();
+    updateTracker(); // Corrected from updateCounters()
 }
 
 function renderGroup(id, title, list, type) {
@@ -563,7 +563,7 @@ function renderEditorModal() {
     setupNavListeners(modal);
     setupActionListeners(modal);
     bindDotClicks(modal);
-    updateTracker(); 
+    updateTracker(); // Corrected from updateCounters()
     updateVirtueHeader();
 }
 
@@ -800,7 +800,7 @@ function bindDotClicks(modal) {
             if (!validateChange(type, null, finalVal, currentVal)) return;
             activeGhoul[type] = finalVal;
             el.innerHTML = renderDots(finalVal, 10);
-            updateCounters();
+            updateTracker(); // Corrected from updateCounters()
         };
     };
 
@@ -841,7 +841,7 @@ function bindDotClicks(modal) {
                 if(hDots) hDots.innerHTML = renderDots(activeGhoul.humanity, 10);
                 if(wDots) wDots.innerHTML = renderDots(activeGhoul.willpower, 10);
             }
-            updateCounters();
+            updateTracker(); // Corrected from updateCounters()
         };
     });
 }
@@ -982,13 +982,13 @@ window.removeGhoulItem = function(type, key) {
     if (type === 'merits') {
         delete activeGhoul.merits[key];
         renderMeritsFlaws();
-        updateTracker();
+        updateTracker(); // Corrected from updateCounters()
         return;
     }
     if (type === 'flaws') {
         delete activeGhoul.flaws[key];
         renderMeritsFlaws();
-        updateTracker();
+        updateTracker(); // Corrected from updateCounters()
         return;
     }
 
@@ -996,7 +996,7 @@ window.removeGhoulItem = function(type, key) {
         delete activeGhoul[type][key];
         renderDynamicLists();
         renderFreebieLists(); 
-        updateCounters();
+        updateTracker(); // Corrected from updateCounters()
         bindDotClicks(document.getElementById('ghoul-modal'));
     }
 };
@@ -1064,7 +1064,7 @@ function setupActionListeners(modal) {
             document.getElementById('div-domitor-clan').className = isRevenant ? 'hidden' : 'block';
             document.getElementById('div-family').className = isRevenant ? 'block' : 'hidden';
             updateVirtueHeader();
-            updateCounters(); 
+            updateTracker(); // Corrected from updateCounters() 
         };
     }
 
@@ -1139,7 +1139,7 @@ function setupActionListeners(modal) {
                     activeGhoul[type][val] = 1;
                     renderFn();
                     renderFreebieLists(); 
-                    updateCounters();
+                    updateTracker(); // Corrected from updateCounters()
                     bindDotClicks(modal);
                 }
                 e.target.value = "";
