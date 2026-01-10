@@ -8,17 +8,47 @@ import { renderDots, showNotification } from "./ui-common.js";
 // Revenant Families (Not currently in data.js, so kept local)
 const REVENANT_FAMILIES = ["Bratovitch", "Grimaldi", "Obertus", "Zantosa"];
 
+// Standard V20 Clan Disciplines for Vassal Discounts
+const CLAN_DISCIPLINES = {
+    "Assamite": ["Celerity", "Obfuscate", "Quietus"],
+    "Brujah": ["Celerity", "Potence", "Presence"],
+    "Followers of Set": ["Obfuscate", "Presence", "Serpentis"],
+    "Gangrel": ["Animalism", "Fortitude", "Protean"],
+    "Giovanni": ["Dominate", "Necromancy", "Potence"],
+    "Lasombra": ["Dominate", "Obtenebration", "Potence"],
+    "Malkavian": ["Auspex", "Dominate", "Obfuscate"],
+    "Nosferatu": ["Animalism", "Obfuscate", "Potence"],
+    "Ravnos": ["Animalism", "Chimerstry", "Fortitude"],
+    "Toreador": ["Auspex", "Celerity", "Presence"],
+    "Tremere": ["Auspex", "Dominate", "Thaumaturgy"],
+    "Tzimisce": ["Animalism", "Auspex", "Vicissitude"],
+    "Ventrue": ["Dominate", "Fortitude", "Presence"],
+    "Caitiff": [],
+    "Baali": ["Demonism", "Obfuscate", "Presence"], // Optional extra
+    "Cappadocian": ["Auspex", "Fortitude", "Necromancy"] // Optional extra
+};
+
+// Family Disciplines for Revenants
+const FAMILY_DISCIPLINES = {
+    "Bratovitch": ["Animalism", "Potence", "Vicissitude"],
+    "Grimaldi": ["Celerity", "Dominate", "Fortitude"],
+    "Obertus": ["Auspex", "Obfuscate", "Vicissitude"],
+    "Zantosa": ["Auspex", "Presence", "Vicissitude"]
+};
+
 // --- XP COSTS (V20 Ghouls p. 499) ---
+// Note: Costs use "Current Rating" multiplier, not "Target Rating".
 const XP_COSTS = {
-    attribute: 4,      // Current Rating x 4
-    ability: 2,        // Current Rating x 2
-    newAbility: 3,     // 3 points for first dot
-    virtue: 2,         // Current Rating x 2
-    willpower: 1,      // Current Rating
-    humanity: 2,       // Current Rating x 2
-    discipline_phys: 10, // Current Rating x 10 (Celerity, Fortitude, Potence)
-    discipline_other: 20, // Current Rating x 20
-    background: 3        // Ghouls usually buy backgrounds with 3 XP (Storyteller discretion)
+    newAbility: 3,         // Flat cost for first dot
+    newDiscipline: 20,     // Flat cost for first dot
+    attribute: 4,          // Current Rating x 4
+    ability: 2,            // Current Rating x 2
+    clanDiscipline: 15,    // Current Level x 15 (In-Clan/Family)
+    otherDiscipline: 25,   // Current Level x 25 (Out-of-Clan)
+    virtue: 2,             // Current Rating x 2
+    humanity: 2,           // Current Rating x 2
+    willpower: 1,          // Current Rating x 1
+    background: 3          // Storyteller discretion (usually 3)
 };
 
 // --- STATE ---
@@ -623,7 +653,7 @@ function renderGhoulXpSidebar() {
         addRow("New Ability (3)", buckets.newAbil);
         addRow("Attributes (x4)", buckets.attr);
         addRow("Abilities (x2)", buckets.abil);
-        addRow("Disciplines (x10/20)", buckets.disc);
+        addRow("Disciplines (x15/25)", buckets.disc);
         addRow("Virtues (x2)", buckets.virt);
         addRow("Humanity (x2)", buckets.humanity);
         addRow("Willpower (x1)", buckets.willpower);
@@ -1370,43 +1400,59 @@ window.updateGhoulTotalXP = function(val) {
 
 // Calculate cost for a single dot purchase/refund
 function calculateXpCost(type, key, targetLevel, currentLevel) {
+    const current = targetLevel - 1; // "Current Rating" before purchase
+
     // Basic checks
     if (type === 'attributes') {
-        // New Rating x 4
-        return targetLevel * XP_COSTS.attribute;
+        // Current Rating x 4
+        // If current is 0 (impossible for attributes), handle gracefully.
+        return Math.max(1, current) * XP_COSTS.attribute;
     } 
     else if (type === 'abilities') {
         // First dot (0 -> 1) is 3 XP.
-        // If we are looking at level 1 (targetLevel=1), cost is 3.
         if (targetLevel === 1) return XP_COSTS.newAbility;
-        // Else New Rating x 2
-        return targetLevel * XP_COSTS.ability;
+        // Else Current Rating x 2
+        return current * XP_COSTS.ability;
     }
     else if (type === 'virtues') {
-        // New Rating x 2
-        return targetLevel * XP_COSTS.virtue;
+        // Current Rating x 2
+        return current * XP_COSTS.virtue;
     }
     else if (type === 'willpower') {
-        // Current Rating (to raise).
-        // If raising 4 -> 5, cost is 4. (Target 5, cost 4).
-        // If refunding 5 -> 4, we refund cost of 5 (which was 4).
-        // So cost is always (targetLevel - 1) * 1?
-        // Wait, V20 Ghouls p499: "Current Rating".
-        // To buy dot 5, you have rating 4. Cost is 4.
-        // To buy dot 2, you have rating 1. Cost is 1.
-        let c = targetLevel - 1; 
-        if (c < 1) c = 1; // Fallback safety
-        return c * XP_COSTS.willpower;
+        // Current Rating
+        return current * XP_COSTS.willpower;
     }
     else if (type === 'humanity') {
-        // New Rating x 2
-        return targetLevel * XP_COSTS.humanity;
+        // Current Rating x 2
+        return current * XP_COSTS.humanity;
     }
     else if (type === 'disciplines') {
-        // Phys x 10, Other x 20. New Rating.
-        const phys = ['Celerity', 'Fortitude', 'Potence'];
-        let multiplier = phys.includes(key) ? XP_COSTS.discipline_phys : XP_COSTS.discipline_other;
-        return targetLevel * multiplier;
+        // First Dot?
+        if (targetLevel === 1) return XP_COSTS.newDiscipline;
+
+        // Multiplier: 15 (In-Clan) or 25 (Out-of-Clan)
+        let multiplier = XP_COSTS.otherDiscipline; // Default 25
+
+        // Check In-Clan Status
+        let isInClan = false;
+        
+        if (activeGhoul.type === 'Independent') {
+            // Independent cost break on Celerity, Fortitude, Potence
+            if (['Celerity', 'Fortitude', 'Potence'].includes(key)) isInClan = true;
+        } 
+        else if (activeGhoul.type === 'Revenant') {
+            const fam = activeGhoul.family;
+            if (fam && FAMILY_DISCIPLINES[fam] && FAMILY_DISCIPLINES[fam].includes(key)) isInClan = true;
+        }
+        else if (activeGhoul.type === 'Vassal') {
+            const clan = activeGhoul.domitorClan;
+            // Vassal cost break on Domitor's Clan Disciplines
+            if (clan && CLAN_DISCIPLINES[clan] && CLAN_DISCIPLINES[clan].includes(key)) isInClan = true;
+        }
+        
+        if (isInClan) multiplier = XP_COSTS.clanDiscipline; // 15
+        
+        return current * multiplier;
     }
     else if (type === 'backgrounds') {
         return XP_COSTS.background;
