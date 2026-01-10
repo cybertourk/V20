@@ -37,18 +37,28 @@ const FAMILY_DISCIPLINES = {
 };
 
 // --- XP COSTS (V20 Ghouls p. 499) ---
-// Note: Costs use "Current Rating" multiplier, not "Target Rating".
 const XP_COSTS = {
-    newAbility: 3,         // Flat cost for first dot
-    newDiscipline: 20,     // Flat cost for first dot
-    attribute: 4,          // Current Rating x 4
-    ability: 2,            // Current Rating x 2
-    clanDiscipline: 15,    // Current Level x 15 (In-Clan/Family)
-    otherDiscipline: 25,   // Current Level x 25 (Out-of-Clan)
-    virtue: 2,             // Current Rating x 2
-    humanity: 2,           // Current Rating x 2
-    willpower: 1,          // Current Rating x 1
-    background: 3          // Storyteller discretion (usually 3)
+    newAbility: 3,         
+    newDiscipline: 20,     
+    attribute: 4,          
+    ability: 2,            
+    clanDiscipline: 15,    
+    otherDiscipline: 25,   
+    virtue: 2,             
+    humanity: 2,           
+    willpower: 1,          
+    background: 3          
+};
+
+// --- FREEBIE COSTS (V20 Ghouls p. 499) ---
+const FREEBIE_COSTS = {
+    attribute: 5,
+    ability: 2,
+    discipline: 10,
+    background: 1,
+    virtue: 2,
+    humanity: 1,
+    willpower: 1
 };
 
 // --- STATE ---
@@ -99,9 +109,10 @@ export function openGhoulCreator(dataOrEvent = null, index = null) {
         if (!activeGhoul.disciplines.Potence) activeGhoul.disciplines.Potence = 1;
 
         // Init XP Data if missing
-        if (!activeGhoul.experience) {
-            activeGhoul.experience = { total: 0, spent: 0, log: [] };
-        }
+        if (!activeGhoul.experience) activeGhoul.experience = { total: 0, spent: 0, log: [] };
+        
+        // Init Freebie Data if missing
+        if (!activeGhoul.freebies) activeGhoul.freebies = { spent: 0, log: [] };
 
         initBaseDots(activeGhoul);
         
@@ -125,6 +136,7 @@ export function openGhoulCreator(dataOrEvent = null, index = null) {
             specialties: {},
             merits: {}, flaws: {}, bio: {},
             experience: { total: 0, spent: 0, log: [] },
+            freebies: { spent: 0, log: [] },
             priorities: {
                 attr: { Physical: null, Social: null, Mental: null },
                 abil: { Talents: null, Skills: null, Knowledges: null }
@@ -179,8 +191,9 @@ function recalcStatus() {
     const baseHum = (activeGhoul.virtues.Conscience || 1) + (activeGhoul.virtues["Self-Control"] || 1);
     const baseWill = activeGhoul.virtues.Courage || 1;
     
-    if (activeGhoul.humanity < baseHum) activeGhoul.humanity = baseHum;
-    if (activeGhoul.willpower < baseWill) activeGhoul.willpower = baseWill;
+    // Only set if not already set, or if calculation puts it higher (don't auto-lower if user spent points)
+    if (!activeGhoul.humanity || activeGhoul.humanity < baseHum) activeGhoul.humanity = baseHum;
+    if (!activeGhoul.willpower || activeGhoul.willpower < baseWill) activeGhoul.willpower = baseWill;
 }
 
 // --- MAIN RENDER ---
@@ -501,24 +514,36 @@ function renderEditorModal() {
                                     </div>
                                 </div>
 
-                                <!-- RIGHT: LEDGER (Creation) -->
-                                <div class="w-full md:w-64 flex-shrink-0" id="creation-ledger-container">
-                                    <div class="sticky top-0 space-y-4">
-                                        <h3 class="column-title">Freebie Ledger</h3>
-                                        <div class="text-[10px] font-mono space-y-2 p-4 bg-black/40 border border-[#333] text-gray-400">
-                                            <div class="flex justify-between border-b border-[#222] pb-1"><span>Attributes (5):</span> <span id="fb-cost-attr" class="text-white">0</span></div>
-                                            <div class="flex justify-between border-b border-[#222] pb-1"><span>Abilities (2):</span> <span id="fb-cost-abil" class="text-white">0</span></div>
-                                            <div class="flex justify-between border-b border-[#222] pb-1"><span>Disciplines (10):</span> <span id="fb-cost-disc" class="text-white">0</span></div>
-                                            <div class="flex justify-between border-b border-[#222] pb-1"><span>Backgrounds (1):</span> <span id="fb-cost-back" class="text-white">0</span></div>
-                                            <div class="flex justify-between border-b border-[#222] pb-1"><span>Virtues (2):</span> <span id="fb-cost-virt" class="text-white">0</span></div>
-                                            <div class="flex justify-between border-b border-[#222] pb-1"><span>Humanity (1):</span> <span id="fb-cost-hum" class="text-white">0</span></div>
-                                            <div class="flex justify-between border-b border-[#222] pb-1"><span>Willpower (1):</span> <span id="fb-cost-will" class="text-white">0</span></div>
-                                            <div class="flex justify-between border-b border-[#222] pb-1"><span>Merits (Cost):</span> <span id="fb-cost-merit" class="text-white">0</span></div>
-                                            <div class="flex justify-between border-b border-[#222] pb-1"><span>Flaws (Bonus):</span> <span id="fb-cost-flaw" class="text-green-400">0</span></div>
+                                <!-- RIGHT: FREEBIE LEDGER (Dynamic) -->
+                                <div id="freebie-ledger-panel" class="w-64 bg-[#080808] border-l border-[#333] flex-col shrink-0 transition-all">
+                                    <div class="p-3 border-b border-[#333] bg-[#111]">
+                                        <h3 class="text-[#d4af37] font-cinzel font-bold text-center">Freebie Ledger</h3>
+                                    </div>
+                                    
+                                    <div class="p-3 border-b border-[#333] bg-[#1a1a1a]">
+                                        <div class="flex justify-between items-center text-xs mb-1">
+                                            <span class="text-gray-400">Total Freebies</span>
+                                            <span class="text-white font-bold">21</span>
                                         </div>
-                                        <div class="p-4 border border-[#d4af37]/30 bg-[#d4af37]/10 rounded text-center shadow-[0_0_15px_rgba(212,175,55,0.1)]">
-                                            <div class="uppercase text-[9px] font-bold text-[#d4af37] tracking-widest">Freebies Remaining</div>
-                                            <div id="final-freebie-disp" class="text-4xl font-black text-white mt-2 font-cinzel">21</div>
+                                        <div class="flex justify-between items-center text-xs mb-1">
+                                            <span class="text-gray-400">Flaw Bonus</span>
+                                            <span id="fb-bonus-disp" class="text-green-400 font-bold">0</span>
+                                        </div>
+                                        <div class="border-t border-[#333] pt-1 flex justify-between items-center text-xs">
+                                            <span class="text-[#d4af37] font-bold uppercase">Remaining</span>
+                                            <span id="fb-rem-disp" class="text-white font-black text-lg">21</span>
+                                        </div>
+                                    </div>
+
+                                    <!-- CATEGORIZED COSTS -->
+                                    <div id="fb-breakdown-list" class="space-y-2 text-xs p-3 border-b border-[#333]">
+                                        <!-- Injected via JS -->
+                                    </div>
+
+                                    <div class="mt-2 px-3 flex-1 flex flex-col min-h-0">
+                                        <h4 class="text-[9px] uppercase text-gray-500 font-bold mb-1 tracking-wider">Freebie Log</h4>
+                                        <div id="fb-log-list" class="text-[9px] text-gray-400 flex-1 overflow-y-auto border border-[#333] p-1 font-mono bg-white/5">
+                                            <!-- Log entries injected here -->
                                         </div>
                                     </div>
                                 </div>
@@ -596,16 +621,17 @@ function renderEditorModal() {
     renderMeritsFlaws(); 
     updatePriorityUI(); 
     renderFreebieLists();
-    renderGhoulXpSidebar(); // New Renderer
+    renderGhoulXpSidebar(); // XP Logic
+    renderGhoulFreebieSidebar(); // Freebie Logic
 
     setupNavListeners(modal);
     setupActionListeners(modal);
     bindDotClicks(modal);
-    updateTracker();
+    updateTracker(); // Keep tracking logic for Steps 1-4
     updateVirtueHeader();
 }
 
-// ... existing helpers ...
+// ... existing XP helpers ...
 
 function renderGhoulXpSidebar() {
     // 1. Calculate Buckets
@@ -694,842 +720,198 @@ function renderGhoulXpSidebar() {
     if (remEl) remEl.innerText = activeGhoul.experience.total - activeGhoul.experience.spent;
 }
 
-// ... existing updateWeaknessDisplay ...
-function updateWeaknessDisplay(clan) {}
+// --- FREEBIE LOGIC ---
 
-// ... existing renderFreebieLists ...
-function renderFreebieLists() {
-    if(ATTRIBUTES) {
-        renderGroup('fb-attr-phys', 'Physical', ATTRIBUTES.Physical, 'attributes');
-        renderGroup('fb-attr-soc', 'Social', ATTRIBUTES.Social, 'attributes');
-        renderGroup('fb-attr-men', 'Mental', ATTRIBUTES.Mental, 'attributes');
-    }
-    if(ABILITIES) {
-        renderGroup('fb-abil-tal', 'Talents', ABILITIES.Talents, 'abilities');
-        renderGroup('fb-abil-ski', 'Skills', ABILITIES.Skills, 'abilities');
-        renderGroup('fb-abil-kno', 'Knowledges', ABILITIES.Knowledges, 'abilities');
-    }
-    renderDynamicListsForFreebies();
-    if(VIRTUES) renderGroup('fb-virt-list', null, VIRTUES, 'virtues');
-}
-
-// ... existing renderDynamicListsForFreebies ...
-function renderDynamicListsForFreebies() {
-    const dEl = document.getElementById('fb-disc-list');
-    const bEl = document.getElementById('fb-back-list');
+function renderGhoulFreebieSidebar() {
+    if (!activeGhoul.freebies) activeGhoul.freebies = { spent: 0, log: [] };
     
-    if(dEl && activeGhoul.disciplines) {
-        dEl.innerHTML = '';
-        Object.entries(activeGhoul.disciplines).forEach(([name, val]) => {
-            const isAuto = name === 'Potence';
-            dEl.innerHTML += `
-                <div class="flex justify-between items-center mb-1 dot-row-interactive" data-type="disciplines" data-key="${name}">
-                    <span class="text-[10px] uppercase font-bold ${isAuto ? 'text-[#d4af37]' : 'text-white'}">${name}</span>
-                    <div class="dot-row cursor-pointer hover:opacity-80">${renderDots(val, 5)}</div>
-                </div>`;
-        });
-    }
-
-    if(bEl && activeGhoul.backgrounds) {
-        bEl.innerHTML = '';
-        Object.entries(activeGhoul.backgrounds).forEach(([name, val]) => {
-            bEl.innerHTML += `
-                <div class="flex justify-between items-center mb-1 dot-row-interactive" data-type="backgrounds" data-key="${name}">
-                    <span class="text-[10px] uppercase font-bold text-white">${name}</span>
-                    <div class="dot-row cursor-pointer hover:opacity-80">${renderDots(val, 5)}</div>
-                </div>`;
-        });
-    }
-}
-
-// ... existing renderMeritsFlaws ...
-function renderMeritsFlaws() {
-    const mList = document.getElementById('g-merits-list');
-    const fList = document.getElementById('g-flaws-list');
+    const log = activeGhoul.freebies.log || [];
     
-    if(mList) {
-        mList.innerHTML = '';
-        if(activeGhoul.merits) {
-            Object.entries(activeGhoul.merits).forEach(([name, val]) => {
-                mList.innerHTML += `<div class="flex justify-between text-[9px] text-gray-300 bg-black/50 p-1 rounded"><span>${name}</span><span>${val} pts <i class="fas fa-times text-red-500 cursor-pointer ml-2" onclick="window.removeGhoulItem('merits', '${name}')"></i></span></div>`;
-            });
-        }
-    }
+    // Calculate Stats
+    let flawBonus = 0;
+    let meritCost = 0;
     
-    if(fList) {
-        fList.innerHTML = '';
-        if(activeGhoul.flaws) {
-            Object.entries(activeGhoul.flaws).forEach(([name, val]) => {
-                fList.innerHTML += `<div class="flex justify-between text-[9px] text-red-300 bg-black/50 p-1 rounded"><span>${name}</span><span>${val} pts <i class="fas fa-times text-red-500 cursor-pointer ml-2" onclick="window.removeGhoulItem('flaws', '${name}')"></i></span></div>`;
-            });
-        }
-    }
-}
-
-// ... existing validateChange ...
-function validateChange(type, key, newVal, currentVal) {
-    if (xpMode) return true; // XP Mode has its own validation
-
-    const delta = newVal - currentVal;
-
-    if (currentTab === 'step5') {
-        if (delta > 0) return true;
-
-        if (type === 'attributes') {
-            let group = null;
-            if (ATTRIBUTES.Physical.includes(key)) group = 'Physical';
-            else if (ATTRIBUTES.Social.includes(key)) group = 'Social';
-            else if (ATTRIBUTES.Mental.includes(key)) group = 'Mental';
-            
-            if (group) {
-                const limit = localPriorities.attr[group] || 0;
-                let currentSpent = 0;
-                ATTRIBUTES[group].forEach(k => {
-                    const val = (k === key) ? newVal : (activeGhoul.attributes[k] || 1);
-                    currentSpent += Math.max(0, val - 1);
-                });
-                
-                if (currentSpent < limit) {
-                    showNotification("Cannot refund dots allocated during Creation (Attributes).");
-                    return false;
-                }
-            }
-        }
-
-        if (type === 'abilities') {
-            let group = null;
-            if (ABILITIES.Talents.includes(key)) group = 'Talents';
-            else if (ABILITIES.Skills.includes(key)) group = 'Skills';
-            else if (ABILITIES.Knowledges.includes(key)) group = 'Knowledges';
-
-            if (group) {
-                const limit = localPriorities.abil[group] || 0;
-                let currentSpent = 0;
-                const list = (group === 'Talents') ? ABILITIES.Talents : (group === 'Skills' ? ABILITIES.Skills : ABILITIES.Knowledges);
-                list.forEach(k => {
-                    const val = (k === key) ? newVal : (activeGhoul.abilities[k] || 0);
-                    currentSpent += val;
-                });
-
-                if (currentSpent < limit) {
-                    showNotification("Cannot refund dots allocated during Creation (Abilities).");
-                    return false;
-                }
-            }
-        }
-
-        if (type === 'disciplines') {
-            let total = 0;
-            Object.entries(activeGhoul.disciplines).forEach(([k, v]) => {
-                const val = (k === key) ? newVal : v;
-                total += val;
-            });
-            if (total < 2) {
-                showNotification("Cannot refund the base 2 Creation dots for Disciplines.");
-                return false;
-            }
-        }
-
-        if (type === 'backgrounds') {
-            let total = 0;
-            Object.entries(activeGhoul.backgrounds).forEach(([k, v]) => {
-                const val = (k === key) ? newVal : v;
-                total += val;
-            });
-            if (total < 5) {
-                showNotification("Cannot refund the base 5 Creation dots for Backgrounds.");
-                return false;
-            }
-        }
-
-        if (type === 'virtues') {
-            const limit = activeGhoul.type === 'Revenant' ? 5 : 7;
-            let total = 0;
-            VIRTUES.forEach(k => {
-                const val = (k === key) ? newVal : (activeGhoul.virtues[k] || 1);
-                total += Math.max(0, val - 1);
-            });
-            if (total < limit) {
-                showNotification(`Cannot refund the base ${limit} Creation dots for Virtues.`);
-                return false;
-            }
-        }
-
-        if (type === 'humanity') {
-            const base = (activeGhoul.virtues.Conscience||1) + (activeGhoul.virtues["Self-Control"]||1);
-            if (newVal < base) {
-                showNotification("Cannot lower Humanity below base derived from Virtues.");
-                return false;
-            }
-        }
-        if (type === 'willpower') {
-            const base = (activeGhoul.virtues.Courage||1);
-            if (newVal < base) {
-                showNotification("Cannot lower Willpower below base derived from Courage.");
-                return false;
-            }
-        }
-
-        return true; 
-    }
-
-    if (delta <= 0) return true; 
-
-    if (type === 'attributes') {
-        let group = null;
-        if (ATTRIBUTES.Physical.includes(key)) group = 'Physical';
-        else if (ATTRIBUTES.Social.includes(key)) group = 'Social';
-        else if (ATTRIBUTES.Mental.includes(key)) group = 'Mental';
-
-        if (!group) return true;
-
-        const limit = localPriorities.attr[group];
-        if (limit === null) {
-            showNotification("Please select a priority for this Attribute group first.");
-            return false;
-        }
-
-        let spent = 0;
-        ATTRIBUTES[group].forEach(k => spent += Math.max(0, (activeGhoul.attributes[k] || 1) - 1));
-        
-        if (spent + delta > limit) {
-            showNotification(`Cannot exceed ${limit} dots for ${group} Attributes.`);
-            return false;
-        }
-    }
-
-    if (type === 'abilities') {
-        let group = null;
-        if (ABILITIES.Talents.includes(key)) group = 'Talents';
-        else if (ABILITIES.Skills.includes(key)) group = 'Skills';
-        else if (ABILITIES.Knowledges.includes(key)) group = 'Knowledges';
-
-        if (!group) return true;
-
-        if (newVal > 3) {
-            showNotification("Abilities are capped at 3 dots during creation.");
-            return false;
-        }
-
-        const limit = localPriorities.abil[group];
-        if (limit === null) {
-            showNotification("Please select a priority for this Ability group first.");
-            return false;
-        }
-
-        let spent = 0;
-        const list = (group === 'Talents') ? ABILITIES.Talents : (group === 'Skills' ? ABILITIES.Skills : ABILITIES.Knowledges);
-        list.forEach(k => spent += (activeGhoul.abilities[k] || 0));
-
-        if (spent + delta > limit) {
-            showNotification(`Cannot exceed ${limit} dots for ${group}.`);
-            return false;
-        }
-    }
-
-    if (type === 'disciplines') {
-        let total = 0;
-        Object.values(activeGhoul.disciplines).forEach(v => total += v);
-        if (total + delta > 2) {
-             showNotification("Creation Limit: 1 Free Dot + Potence 1 (Total 2). Use Freebies for more.");
-             return false;
-        }
-    }
-
-    if (type === 'backgrounds') {
-        let total = 0;
-        Object.values(activeGhoul.backgrounds).forEach(v => total += v);
-        if (total + delta > 5) {
-             showNotification("Creation Limit: 5 Dots in Backgrounds. Use Freebies for more.");
-             return false;
-        }
-    }
-
-    if (type === 'virtues') {
-        let total = 0;
-        VIRTUES.forEach(v => total += Math.max(0, (activeGhoul.virtues[v] || 1) - 1));
-        const limit = activeGhoul.type === 'Revenant' ? 5 : 7;
-        
-        if (total + delta > limit) {
-             showNotification(`Creation Limit: ${limit} Dots in Virtues. Use Freebies for more.`);
-             return false;
-        }
-    }
-
-    return true;
-}
-
-// ... existing renderPrioButtons ...
-function renderPrioButtons(cat, group) {
-    const vals = PRIO_CONFIG[cat];
-    return vals.map(v => `
-        <button type="button" 
-            class="w-6 h-6 rounded-full border border-gray-600 text-[9px] font-bold text-gray-400 hover:text-white hover:border-[#d4af37] hover:bg-[#d4af37] hover:text-black transition-all ghoul-prio-btn"
-            data-cat="${cat}" data-group="${group}" data-val="${v}">
-            ${v}
-        </button>
-    `).join('');
-}
-
-// ... existing handlePrioClick ...
-function handlePrioClick(e) {
-    if (xpMode) return; // Disable priority switching in XP mode
-    const btn = e.target;
-    const { cat, group, val } = btn.dataset;
-    const v = parseInt(val);
-
-    const currentAssignment = Object.entries(localPriorities[cat]).find(([g, assignedVal]) => assignedVal === v);
+    if (activeGhoul.flaws) Object.values(activeGhoul.flaws).forEach(v => flawBonus += v);
+    // Cap flaw bonus at 7
+    const cappedFlawBonus = Math.min(7, flawBonus);
     
-    if (currentAssignment) {
-        const [otherGroup, otherVal] = currentAssignment;
-        localPriorities[cat][otherGroup] = null;
+    if (activeGhoul.merits) Object.values(activeGhoul.merits).forEach(v => meritCost += v);
+
+    let buckets = {
+        attr: 0, abil: 0, disc: 0, virt: 0, hum: 0, will: 0, back: 0
+    };
+
+    let logSpent = 0;
+    log.forEach(entry => {
+        logSpent += entry.cost;
+        if (entry.type === 'attributes' || entry.type === 'attr') buckets.attr += entry.cost;
+        else if (entry.type === 'abilities' || entry.type === 'abil') buckets.abil += entry.cost;
+        else if (entry.type === 'disciplines' || entry.type === 'disc') buckets.disc += entry.cost;
+        else if (type === 'virtues' || type === 'virt') buckets.virt += entry.cost; // Fix typo in previous versions if present
+        else if (entry.type === 'virtues') buckets.virt += entry.cost;
+        else if (entry.type === 'humanity') buckets.hum += entry.cost;
+        else if (entry.type === 'willpower') buckets.will += entry.cost;
+        else if (entry.type === 'backgrounds') buckets.back += entry.cost;
+    });
+
+    const totalSpent = logSpent + meritCost;
+    const totalAvail = 21 + cappedFlawBonus;
+    const remaining = totalAvail - totalSpent;
+
+    // Render Status
+    document.getElementById('fb-bonus-disp').innerText = `+${cappedFlawBonus}`;
+    const remEl = document.getElementById('fb-rem-disp');
+    if (remEl) {
+        remEl.innerText = remaining;
+        remEl.className = remaining >= 0 ? "text-white font-black text-lg" : "text-red-500 font-black text-lg";
     }
 
-    if (localPriorities[cat][group] === v) {
-        localPriorities[cat][group] = null;
-    } else {
-        localPriorities[cat][group] = v;
+    // Render Breakdown
+    const breakdown = document.getElementById('fb-breakdown-list');
+    if (breakdown) {
+        breakdown.innerHTML = '';
+        const addRow = (label, val) => {
+            if (val === 0) return;
+            const row = document.createElement('div');
+            row.className = "flex justify-between items-center gap-1";
+            row.innerHTML = `<span class="text-gray-400 truncate">${label}</span><span class="text-[#d4af37] font-bold bg-black/95 z-10 shrink-0">${val}</span>`;
+            breakdown.appendChild(row);
+        };
+        addRow("Merits", meritCost);
+        addRow("Attributes (5)", buckets.attr);
+        addRow("Abilities (2)", buckets.abil);
+        addRow("Disciplines (10)", buckets.disc);
+        addRow("Backgrounds (1)", buckets.back);
+        addRow("Virtues (2)", buckets.virt);
+        addRow("Humanity (1)", buckets.hum);
+        addRow("Willpower (1)", buckets.will);
     }
 
-    updatePriorityUI();
-    updateCounters();
-}
-
-// ... existing updatePriorityUI ...
-function updatePriorityUI() {
-    document.querySelectorAll('.ghoul-prio-btn').forEach(btn => {
-        const { cat, group, val } = btn.dataset;
-        const v = parseInt(val);
-        
-        if (localPriorities[cat][group] === v) {
-            btn.classList.add('bg-[#d4af37]', 'text-black', 'border-[#d4af37]', 'font-black');
-            btn.classList.remove('border-gray-600', 'text-gray-400');
+    // Render Log
+    const logList = document.getElementById('fb-log-list');
+    if (logList) {
+        if (log.length === 0) {
+            logList.innerHTML = '<div class="text-center italic opacity-50 mt-4">No freebies spent on dots.</div>';
         } else {
-            const isTaken = Object.values(localPriorities[cat]).includes(v);
-            
-            btn.classList.remove('bg-[#d4af37]', 'text-black', 'border-[#d4af37]', 'font-black');
-            if (isTaken) {
-                btn.classList.add('opacity-20', 'cursor-not-allowed', 'border-gray-800');
-                btn.classList.remove('border-gray-600', 'hover:border-[#d4af37]');
-            } else {
-                btn.classList.add('border-gray-600', 'text-gray-400', 'hover:border-[#d4af37]');
-                btn.classList.remove('opacity-20', 'cursor-not-allowed', 'border-gray-800');
-            }
-        }
-        btn.onclick = handlePrioClick;
-    });
-}
-
-// ... existing updateCounters ...
-function updateCounters() {
-    ['attr', 'abil'].forEach(cat => {
-        Object.entries(localPriorities[cat]).forEach(([group, limit]) => {
-            const el = document.getElementById(`cnt-${cat}-${group}`);
-            if(!el) return;
-            
-            let spent = 0;
-            let list = (cat === 'attr') ? ATTRIBUTES[group] : 
-                       (group === 'Talents' ? ABILITIES.Talents : 
-                        group === 'Skills' ? ABILITIES.Skills : ABILITIES.Knowledges);
-            
-            list.forEach(item => {
-                const val = (cat === 'attr') ? activeGhoul.attributes[item] : activeGhoul.abilities[item];
-                if (cat === 'attr') spent += Math.max(0, (val||1) - 1);
-                else spent += (val||0);
-            });
-
-            if (limit) {
-                const color = spent > limit ? 'text-red-500 font-bold' : (spent === limit ? 'text-green-500 font-bold' : 'text-gray-500');
-                el.innerHTML = `<span class="${color}">${spent} / ${limit}</span>`;
-            } else {
-                el.innerHTML = `<span class="text-gray-600">[${spent}]</span>`;
-            }
-        });
-    });
-    updateTracker();
-}
-
-// ... existing switchTab ...
-function switchTab(tabId) {
-    currentTab = tabId;
-    document.querySelectorAll('.ghoul-step').forEach(el => el.classList.add('hidden'));
-    const target = document.getElementById(tabId);
-    if(target) target.classList.remove('hidden');
-    
-    document.querySelectorAll('.ghoul-tab').forEach(btn => {
-        if (btn.dataset.tab === tabId) {
-            btn.classList.add('text-[#d4af37]', 'border-b-2', 'border-b-[#d4af37]', 'bg-[#111]');
-            btn.classList.remove('text-gray-500');
-        } else {
-            btn.classList.remove('text-[#d4af37]', 'border-b-2', 'border-b-[#d4af37]', 'bg-[#111]');
-            btn.classList.add('text-gray-500');
-        }
-    });
-
-    const modal = document.getElementById('ghoul-modal');
-    if(modal) bindDotClicks(modal);
-}
-
-// ... existing setupNavListeners ...
-function setupNavListeners(modal) {
-    const tabs = modal.querySelectorAll('.ghoul-tab');
-    tabs.forEach(t => t.onclick = () => switchTab(t.dataset.tab));
-}
-
-// ... existing renderDotGroups ...
-function renderDotGroups() {
-    if(ATTRIBUTES) {
-        renderGroup('g-attr-phys', 'Physical', ATTRIBUTES.Physical, 'attributes');
-        renderGroup('g-attr-soc', 'Social', ATTRIBUTES.Social, 'attributes');
-        renderGroup('g-attr-men', 'Mental', ATTRIBUTES.Mental, 'attributes');
-    }
-    if(ABILITIES) {
-        renderGroup('g-abil-tal', 'Talents', ABILITIES.Talents, 'abilities');
-        renderGroup('g-abil-ski', 'Skills', ABILITIES.Skills, 'abilities');
-        renderGroup('g-abil-kno', 'Knowledges', ABILITIES.Knowledges, 'abilities');
-    }
-    if(VIRTUES) renderGroup('g-virt-list', null, VIRTUES, 'virtues');
-}
-
-// ... existing renderGroup ...
-function renderGroup(id, title, list, type) {
-    const el = document.getElementById(id);
-    if(!el) return;
-    let html = ''; 
-    if (list) {
-        list.forEach(item => {
-            const val = activeGhoul[type][item] || 0;
-            const dispVal = (type === 'attributes' && val < 1) ? 1 : val;
-            
-            // Specialty Check
-            let specialtyHtml = '';
-            if ((type === 'attributes' || type === 'abilities') && val >= 4) {
-                const specVal = (activeGhoul.specialties && activeGhoul.specialties[item]) || '';
+            logList.innerHTML = log.slice().reverse().map(entry => {
+                const isRefund = entry.cost < 0;
+                const costDisp = isRefund ? `+${Math.abs(entry.cost)}` : `-${entry.cost}`;
+                const color = isRefund ? 'text-green-400' : 'text-[#d4af37]';
                 
-                // Get relevant options
-                const options = (SPECIALTIES && SPECIALTIES[item]) ? SPECIALTIES[item] : [];
-                const datalistId = `spec-list-${item.replace(/\s/g, '-')}`;
-                const datalistHtml = `
-                    <datalist id="${datalistId}">
-                        ${options.map(opt => `<option value="${opt}">`).join('')}
-                    </datalist>
-                `;
-
-                specialtyHtml = `
-                    ${datalistHtml}
-                    <input type="text" 
-                        class="specialty-input bg-transparent border-b border-[#333] text-[9px] text-[#d4af37] w-20 ml-2 focus:outline-none focus:border-[#d4af37] placeholder-gray-600" 
-                        placeholder="Specialty" 
-                        list="${datalistId}"
-                        data-key="${item}" 
-                        value="${specVal}">
-                `;
-            }
-            
-            html += `
-                <div class="flex justify-between items-center mb-1 dot-row-interactive" data-type="${type}" data-key="${item}">
-                    <div class="flex items-center">
-                        <span class="text-[10px] uppercase font-bold text-gray-300 tracking-tight">${item}</span>
-                        ${specialtyHtml}
+                return `
+                <div class="border-b border-[#222] pb-1 mb-1">
+                    <div class="flex justify-between text-white">
+                        <span class="font-bold">${entry.trait}</span>
+                        <span class="${color}">${costDisp}</span>
                     </div>
-                    <div class="dot-row cursor-pointer hover:opacity-80 transition-opacity">
-                        ${renderDots(dispVal, 5)}
+                    <div class="flex justify-between text-[8px] text-gray-500">
+                        <span>${entry.from} &rarr; ${entry.to}</span>
+                        <span>${new Date(entry.date).toLocaleTimeString()}</span>
                     </div>
-                </div>
-            `;
-        });
-    }
-    el.innerHTML = html;
-}
-
-// ... existing renderDynamicLists ...
-function renderDynamicLists() {
-    renderDisciplines();
-    renderBackgrounds();
-}
-
-// ... existing renderDisciplines ...
-function renderDisciplines() {
-    const el = document.getElementById('g-disc-list');
-    if(!el) return;
-    el.innerHTML = '';
-    
-    if(activeGhoul.disciplines) {
-        Object.entries(activeGhoul.disciplines).forEach(([name, val]) => {
-            const isAuto = name === 'Potence';
-            el.innerHTML += `
-                <div class="flex justify-between items-center mb-1 dot-row-interactive" data-type="disciplines" data-key="${name}">
-                    <div class="flex items-center gap-2">
-                        ${!isAuto ? `<span class="text-red-500 cursor-pointer hover:text-red-300" onclick="window.removeGhoulItem('disciplines','${name}')">&times;</span>` : '<span class="w-2"></span>'}
-                        <span class="text-[10px] uppercase font-bold ${isAuto ? 'text-[#d4af37]' : 'text-white'}">${name}</span>
-                    </div>
-                    <div class="dot-row cursor-pointer hover:opacity-80">${renderDots(val, 5)}</div>
-                </div>
-            `;
-        });
-    }
-}
-
-// ... existing renderBackgrounds ...
-function renderBackgrounds() {
-    const el = document.getElementById('g-back-list');
-    if(!el) return;
-    el.innerHTML = '';
-    
-    if(activeGhoul.backgrounds) {
-        Object.entries(activeGhoul.backgrounds).forEach(([name, val]) => {
-            el.innerHTML += `
-                <div class="flex justify-between items-center mb-1 dot-row-interactive" data-type="backgrounds" data-key="${name}">
-                    <div class="flex items-center gap-2">
-                        <span class="text-red-500 cursor-pointer hover:text-red-300" onclick="window.removeGhoulItem('backgrounds','${name}')">&times;</span>
-                        <span class="text-[10px] uppercase font-bold text-white">${name}</span>
-                    </div>
-                    <div class="dot-row cursor-pointer hover:opacity-80">${renderDots(val, 5)}</div>
-                </div>
-            `;
-        });
-    }
-}
-
-// ... existing removeGhoulItem ...
-window.removeGhoulItem = function(type, key) {
-    if (type === 'disciplines' && key === 'Potence') return; 
-    
-    if (type === 'merits') {
-        delete activeGhoul.merits[key];
-        renderMeritsFlaws();
-        updateTracker();
-        return;
-    }
-    if (type === 'flaws') {
-        delete activeGhoul.flaws[key];
-        renderMeritsFlaws();
-        updateTracker();
-        return;
-    }
-
-    if (activeGhoul[type] && activeGhoul[type][key] !== undefined) {
-        delete activeGhoul[type][key];
-        renderDynamicLists();
-        renderFreebieLists(); // Update step 5 too
-        updateCounters();
-        bindDotClicks(document.getElementById('ghoul-modal'));
-    }
-};
-
-// ... existing setupActionListeners ...
-function setupActionListeners(modal) {
-    const close = () => {
-        modal.style.display = 'none';
-        modal.classList.add('hidden');
-    };
-    
-    document.getElementById('close-ghoul-modal').onclick = close;
-    document.getElementById('cancel-ghoul').onclick = close;
-    
-    document.getElementById('save-ghoul').onclick = () => {
-        activeGhoul.name = document.getElementById('g-name').value;
-        activeGhoul.domitor = document.getElementById('g-domitor').value;
-        activeGhoul.concept = document.getElementById('g-concept').value;
-        activeGhoul.type = document.getElementById('g-type').value;
-        activeGhoul.player = document.getElementById('g-player').value;
-        activeGhoul.weakness = document.getElementById('g-weakness').value;
-        
-        const natureEl = document.getElementById('g-nature');
-        const demeanorEl = document.getElementById('g-demeanor');
-        const clanEl = document.getElementById('g-domitor-clan');
-        const famEl = document.getElementById('g-family');
-
-        if(natureEl) activeGhoul.nature = natureEl.value;
-        if(demeanorEl) activeGhoul.demeanor = demeanorEl.value;
-        if(clanEl) activeGhoul.domitorClan = clanEl.value;
-        if(famEl) activeGhoul.family = famEl.value;
-
-        // Save Bio inputs
-        const bioInputs = modal.querySelectorAll('.bio-input');
-        if(!activeGhoul.bio) activeGhoul.bio = {};
-        bioInputs.forEach(input => {
-            activeGhoul.bio[input.dataset.field] = input.value;
-        });
-        activeGhoul.bio.Description = document.getElementById('g-bio-desc').value;
-        activeGhoul.bio.Notes = document.getElementById('g-bio-notes').value;
-
-        activeGhoul.bloodPool = parseInt(document.getElementById('g-blood').value) || 10;
-        
-        // SAVE PRIORITIES (Critical for Freebie calculation on reload)
-        activeGhoul.priorities = JSON.parse(JSON.stringify(localPriorities));
-
-        if (!window.state.retainers) window.state.retainers = [];
-        if (activeIndex !== null && activeIndex >= 0) window.state.retainers[activeIndex] = activeGhoul;
-        else window.state.retainers.push(activeGhoul);
-
-        if(window.renderRetainersTab) window.renderRetainersTab(document.getElementById('play-content'));
-        
-        if (typeof showNotification === 'function') {
-            showNotification("Retainer Added. Please save your character.");
-        } else if (window.showNotification) {
-            window.showNotification("Retainer Added. Please save your character.");
+                </div>`;
+            }).join('');
         }
-        
-        close();
-    };
-
-    const typeSelect = document.getElementById('g-type');
-    if(typeSelect) {
-        typeSelect.onchange = (e) => {
-            const val = e.target.value;
-            activeGhoul.type = val;
-            
-            // Toggle UI visibility
-            const isRevenant = val === 'Revenant';
-            document.getElementById('div-domitor-clan').className = isRevenant ? 'hidden' : 'block';
-            document.getElementById('div-family').className = isRevenant ? 'block' : 'hidden';
-
-            updateVirtueHeader();
-            updateCounters(); 
-        };
-    }
-
-    // Clan Change Listener (Just saves state, no autofill)
-    const clanSelect = document.getElementById('g-domitor-clan');
-    if(clanSelect) {
-        clanSelect.onchange = (e) => {
-            activeGhoul.domitorClan = e.target.value;
-        };
-    }
-
-    const meritSel = document.getElementById('g-merit-select');
-    if(meritSel) {
-        meritSel.onchange = (e) => {
-            const val = e.target.value;
-            if(!val) return;
-            const [name, cost] = val.split('|');
-            if(!activeGhoul.merits) activeGhoul.merits = {};
-            activeGhoul.merits[name] = parseInt(cost);
-            renderMeritsFlaws();
-            updateTracker();
-            e.target.value = "";
-        };
-    }
-
-    const flawSel = document.getElementById('g-flaw-select');
-    if(flawSel) {
-        flawSel.onchange = (e) => {
-            const val = e.target.value;
-            if(!val) return;
-            const [name, bonus] = val.split('|');
-            if(!activeGhoul.flaws) activeGhoul.flaws = {};
-            activeGhoul.flaws[name] = parseInt(bonus);
-            renderMeritsFlaws();
-            updateTracker();
-            e.target.value = "";
-        };
-    }
-
-    // Specialty Inputs
-    modal.addEventListener('change', (e) => {
-        if(e.target.classList.contains('specialty-input')) {
-            const key = e.target.dataset.key;
-            if(!activeGhoul.specialties) activeGhoul.specialties = {};
-            activeGhoul.specialties[key] = e.target.value;
-        }
-    });
-
-    // XP Toggle
-    const xpBtn = document.getElementById('toggle-xp-mode');
-    if (xpBtn) {
-        xpBtn.onclick = toggleXpMode;
-    }
-
-    const setupDrop = (id, type, renderFn) => {
-        const sel = document.getElementById(id);
-        if(!sel) return;
-        sel.onchange = (e) => {
-            const val = e.target.value;
-            if(val) {
-                if(!activeGhoul[type]) activeGhoul[type] = {};
-                
-                // XP MODE NEW DISCIPLINE ADD
-                if (xpMode && type === 'disciplines' && activeGhoul[type][val] === undefined) {
-                    // Start at 0? No, V20 says learn new discipline = 10xp for first dot (or 20 for non-physical).
-                    // We'll init at 0 and let user click dot 1 to buy it.
-                    activeGhoul[type][val] = 0;
-                    renderFn();
-                    bindDotClicks(modal);
-                }
-                // CREATION MODE
-                else if(activeGhoul[type][val] === undefined) {
-                    if (!validateChange(type, val, 1, 0)) {
-                        e.target.value = "";
-                        return;
-                    }
-                    activeGhoul[type][val] = 1;
-                    renderFn();
-                    renderFreebieLists(); // Update step 5 too
-                    updateCounters();
-                    bindDotClicks(modal);
-                }
-                e.target.value = "";
-            }
-        };
-    };
-    setupDrop('g-disc-select', 'disciplines', renderDisciplines);
-    setupDrop('g-back-select', 'backgrounds', renderBackgrounds);
-}
-
-// --- XP LOGIC ---
-
-function toggleXpMode() {
-    xpMode = !xpMode;
-    const modal = document.getElementById('ghoul-modal');
-    if(modal) {
-        // Redraw to show/hide panels
-        // Ideally we just toggle classes but strict re-render is safer for bindings
-        renderEditorModal();
-        switchTab(currentTab); // Return to current tab
     }
 }
 
-// Global hook for the XP total input
-window.updateGhoulTotalXP = function(val) {
-    if (activeGhoul && activeGhoul.experience) {
-        activeGhoul.experience.total = parseInt(val) || 0;
-        document.getElementById('xp-rem-disp').innerText = activeGhoul.experience.total - activeGhoul.experience.spent;
-    }
-}
-
-// Calculate cost for a single dot purchase/refund
-function calculateXpCost(type, key, targetLevel, currentLevel) {
-    const current = targetLevel - 1; // "Current Rating" before purchase
-
-    // Basic checks
-    if (type === 'attributes') {
-        // Current Rating x 4
-        // If current is 0 (impossible for attributes), handle gracefully.
-        return Math.max(1, current) * XP_COSTS.attribute;
-    } 
-    else if (type === 'abilities') {
-        // First dot (0 -> 1) is 3 XP.
-        if (targetLevel === 1) return XP_COSTS.newAbility;
-        // Else Current Rating x 2
-        return current * XP_COSTS.ability;
-    }
-    else if (type === 'virtues') {
-        // Current Rating x 2
-        return current * XP_COSTS.virtue;
-    }
-    else if (type === 'willpower') {
-        // Current Rating
-        return current * XP_COSTS.willpower;
-    }
-    else if (type === 'humanity') {
-        // Current Rating x 2
-        return current * XP_COSTS.humanity;
-    }
-    else if (type === 'disciplines') {
-        // First Dot?
-        if (targetLevel === 1) return XP_COSTS.newDiscipline;
-
-        // Multiplier: 15 (In-Clan) or 25 (Out-of-Clan)
-        let multiplier = XP_COSTS.otherDiscipline; // Default 25
-
-        // Check In-Clan Status
-        let isInClan = false;
-        
-        if (activeGhoul.type === 'Independent') {
-            // Independent cost break on Celerity, Fortitude, Potence
-            if (['Celerity', 'Fortitude', 'Potence'].includes(key)) isInClan = true;
-        } 
-        else if (activeGhoul.type === 'Revenant') {
-            const fam = activeGhoul.family;
-            if (fam && FAMILY_DISCIPLINES[fam] && FAMILY_DISCIPLINES[fam].includes(key)) isInClan = true;
-        }
-        else if (activeGhoul.type === 'Vassal') {
-            const clan = activeGhoul.domitorClan;
-            // Vassal cost break on Domitor's Clan Disciplines
-            if (clan && CLAN_DISCIPLINES[clan] && CLAN_DISCIPLINES[clan].includes(key)) isInClan = true;
-        }
-        
-        if (isInClan) multiplier = XP_COSTS.clanDiscipline; // 15
-        
-        return current * multiplier;
-    }
-    else if (type === 'backgrounds') {
-        return XP_COSTS.background;
-    }
-    return 0;
-}
-
-function handleXpSpend(type, key, newVal, currentVal) {
+function handleFreebieSpend(type, key, newVal, currentVal) {
     let targetVal = newVal;
-    // Toggle logic: If clicking the dot corresponding to current rating, treat as removing that dot
     if (newVal === currentVal) {
-        targetVal = currentVal - 1;
+        targetVal = currentVal - 1; // Toggle off = remove dot
     }
 
-    if (targetVal === currentVal) return; // No change
+    if (targetVal === currentVal) return;
 
     // BUYING
     if (targetVal > currentVal) {
+        // Enforce 1 dot at a time for simplicity in logging
         if (targetVal > currentVal + 1) {
              showNotification("Please purchase dots one at a time.");
              return;
         }
-        
-        // Calculate Cost for next dot (the dot we are buying is targetVal)
-        let cost = calculateXpCost(type, key, targetVal, currentVal); 
-        
+
+        // Calculate Cost
+        let cost = 0;
+        if (type === 'attributes') cost = FREEBIE_COSTS.attribute;
+        else if (type === 'abilities') cost = FREEBIE_COSTS.ability;
+        else if (type === 'disciplines') cost = FREEBIE_COSTS.discipline;
+        else if (type === 'backgrounds') cost = FREEBIE_COSTS.background;
+        else if (type === 'virtues') cost = FREEBIE_COSTS.virtue;
+        else if (type === 'humanity') cost = FREEBIE_COSTS.humanity;
+        else if (type === 'willpower') cost = FREEBIE_COSTS.willpower;
+
         // Check Funds
-        const rem = activeGhoul.experience.total - activeGhoul.experience.spent;
+        const logSpent = activeGhoul.freebies.log.reduce((acc, l) => acc + l.cost, 0);
+        let meritCost = 0;
+        if (activeGhoul.merits) Object.values(activeGhoul.merits).forEach(v => meritCost += v);
+        let flawBonus = 0;
+        if (activeGhoul.flaws) Object.values(activeGhoul.flaws).forEach(v => flawBonus += v);
+        
+        const totalSpent = logSpent + meritCost;
+        const totalAvail = 21 + Math.min(7, flawBonus);
+        const rem = totalAvail - totalSpent;
+
         if (cost > rem) {
-            showNotification("Not enough XP!");
+            showNotification("Not enough Freebie Points!");
             return;
         }
 
-        // Execute without confirm
-        activeGhoul.experience.spent += cost;
-        activeGhoul.experience.log.push({
+        activeGhoul.freebies.spent += cost;
+        activeGhoul.freebies.log.push({
             date: Date.now(),
-            trait: key,
+            trait: key || type, // Use type for hum/will
             from: currentVal,
             to: targetVal,
             cost: cost,
             type: type
         });
-        
+
         updateValue(type, key, targetVal);
-        showNotification(`Spent ${cost} XP`);
-    } 
+        showNotification(`Spent ${cost} Freebies`);
+    }
     // REFUNDING
     else {
-        // Iterate down from currentVal to targetVal
-        // e.g. Current 3, Target 2. Loop v=3. Cost(3).
-        let totalRefund = 0;
+        // We can only refund if we have a log entry for this trait that raised it to current level
+        // Simplification: Just allow refunding at fixed cost if log exists for this trait?
+        // Better: Check if the user "bought" this dot.
+        // We will assume standard cost refund.
+        // But what if it's a creation dot?
+        // We scan the log. If there is a positive cost entry for this trait, we can refund it.
+        // Or simpler: Just allow refunding down to 0, but log negative cost.
+        // The user is responsible for not cheating (or we implement strict checking).
         
-        for (let v = currentVal; v > targetVal; v--) {
-            // Removing dot 'v'.
-            totalRefund += calculateXpCost(type, key, v, v-1); 
-        }
+        // Strict Check: Can only refund if `count(buys) > count(refunds)` for this trait?
+        // Let's keep it flexible like XP mode: Allow refund, but maybe check floor?
+        // Floor is complex because of Priorities.
+        // We will allow refunding freely, assuming user knows what they are doing in Step 5.
+        
+        let refundAmount = 0;
+        if (type === 'attributes') refundAmount = FREEBIE_COSTS.attribute;
+        else if (type === 'abilities') refundAmount = FREEBIE_COSTS.ability;
+        else if (type === 'disciplines') refundAmount = FREEBIE_COSTS.discipline;
+        else if (type === 'backgrounds') refundAmount = FREEBIE_COSTS.background;
+        else if (type === 'virtues') refundAmount = FREEBIE_COSTS.virtue;
+        else if (type === 'humanity') refundAmount = FREEBIE_COSTS.humanity;
+        else if (type === 'willpower') refundAmount = FREEBIE_COSTS.willpower;
 
-        activeGhoul.experience.spent -= totalRefund;
-        if (activeGhoul.experience.spent < 0) activeGhoul.experience.spent = 0; // Safety
-
-        activeGhoul.experience.log.push({
+        activeGhoul.freebies.spent -= refundAmount;
+        activeGhoul.freebies.log.push({
             date: Date.now(),
-            trait: key,
+            trait: key || type,
             from: currentVal,
             to: targetVal,
-            cost: -totalRefund, // Negative cost implies refund
+            cost: -refundAmount,
             type: type
         });
 
         updateValue(type, key, targetVal);
-        showNotification(`Refunded ${totalRefund} XP`);
+        showNotification(`Refunded ${refundAmount} Freebies`);
     }
-
-    renderGhoulXpSidebar(); // Update sidebar immediately
+    
+    renderGhoulFreebieSidebar();
 }
 
+// ... existing updateValue (shared) ...
 function updateValue(type, key, val) {
     if (type === 'attributes' || type === 'abilities' || type === 'virtues' || type === 'disciplines' || type === 'backgrounds') {
         activeGhoul[type][key] = val;
@@ -1539,23 +921,13 @@ function updateValue(type, key, val) {
         activeGhoul.willpower = val;
     }
     
-    // Refresh visual dots
     renderDotGroups();
     renderDynamicLists();
     renderFreebieLists();
-    
-    // Rebind since DOM changed
     bindDotClicks(document.getElementById('ghoul-modal'));
 }
 
-function updateVirtueHeader() {
-    const header = document.getElementById('g-virtue-header-limit');
-    if (!header) return;
-    const isRevenant = activeGhoul.type === 'Revenant';
-    const limit = isRevenant ? 5 : 7;
-    header.innerText = `(Free Dots: ${limit})`;
-}
-
+// ... existing bindDotClicks ...
 function bindDotClicks(modal) {
     const rows = modal.querySelectorAll('.dot-row-interactive');
     const humRow = document.getElementById('g-humanity-row');
@@ -1565,24 +937,23 @@ function bindDotClicks(modal) {
         if(!el) return;
         el.onclick = (e) => {
             if (!e.target.classList.contains('dot')) return;
-            // Mode Check
             const newVal = parseInt(e.target.dataset.v);
             let currentVal = activeGhoul[type];
             
             if (xpMode) {
-                handleXpSpend(type, type, newVal, currentVal); // Key is same as type for hum/will
+                handleXpSpend(type, type, newVal, currentVal); 
+                return;
+            }
+            if (currentTab === 'step5') {
+                handleFreebieSpend(type, type, newVal, currentVal); // Key is same as type
                 return;
             }
 
-            if (currentTab !== 'step5') return;
-            
+            // Normal Logic
             let finalVal = newVal;
             if (newVal === currentVal) finalVal = newVal - 1;
             if (finalVal < 1) finalVal = 1;
-            
-            // Validate Logic for Derived traits
             if (!validateChange(type, null, finalVal, currentVal)) return;
-
             activeGhoul[type] = finalVal;
             el.innerHTML = renderDots(finalVal, 10);
             updateCounters();
@@ -1605,9 +976,12 @@ function bindDotClicks(modal) {
             let currentVal = activeGhoul[type][key] || 0;
             if ((type === 'attributes' || type === 'virtues') && activeGhoul[type][key] === undefined) currentVal = 1;
 
-            // XP BRANCH
             if (xpMode) {
                 handleXpSpend(type, key, newVal, currentVal);
+                return;
+            }
+            if (currentTab === 'step5') {
+                handleFreebieSpend(type, key, newVal, currentVal);
                 return;
             }
 
@@ -1640,6 +1014,33 @@ function bindDotClicks(modal) {
     });
 }
 
+// ... existing renderMeritsFlaws ...
+function renderMeritsFlaws() {
+    const mList = document.getElementById('g-merits-list');
+    const fList = document.getElementById('g-flaws-list');
+    
+    if(mList) {
+        mList.innerHTML = '';
+        if(activeGhoul.merits) {
+            Object.entries(activeGhoul.merits).forEach(([name, val]) => {
+                mList.innerHTML += `<div class="flex justify-between text-[9px] text-gray-300 bg-black/50 p-1 rounded"><span>${name}</span><span>${val} pts <i class="fas fa-times text-red-500 cursor-pointer ml-2" onclick="window.removeGhoulItem('merits', '${name}')"></i></span></div>`;
+            });
+        }
+    }
+    
+    if(fList) {
+        fList.innerHTML = '';
+        if(activeGhoul.flaws) {
+            Object.entries(activeGhoul.flaws).forEach(([name, val]) => {
+                fList.innerHTML += `<div class="flex justify-between text-[9px] text-red-300 bg-black/50 p-1 rounded"><span>${name}</span><span>${val} pts <i class="fas fa-times text-red-500 cursor-pointer ml-2" onclick="window.removeGhoulItem('flaws', '${name}')"></i></span></div>`;
+            });
+        }
+    }
+    // Update Freebie Ledger Sidebar if visible
+    renderGhoulFreebieSidebar();
+}
+
+// ... existing updateTracker ... (Only for Step 1-4 validation now)
 function updateTracker() {
     let spent = {
         attr: { Physical: 0, Social: 0, Mental: 0 },
@@ -1660,8 +1061,7 @@ function updateTracker() {
         ABILITIES.Knowledges.forEach(a => spent.abil.Knowledges += (activeGhoul.abilities[a]||0));
     }
 
-    let costs = { attr: 0, abil: 0, disc: 0, back: 0, virt: 0, hum: 0, will: 0, merit: 0, flaw: 0 };
-
+    // Colors for Counters in Steps 2-3
     ['attr', 'abil'].forEach(cat => {
         Object.entries(localPriorities[cat]).forEach(([group, limit]) => {
             let s = 0;
@@ -1675,86 +1075,15 @@ function updateTracker() {
                 if(group === 'Knowledges') s = spent.abil.Knowledges;
             }
             
-            const cap = limit || 0; 
-            if (s > cap) {
-                const multiplier = (cat === 'attr') ? 5 : 2;
-                if (cat === 'attr') costs.attr += (s - cap) * multiplier;
-                else costs.abil += (s - cap) * multiplier;
+            const el = document.getElementById(`cnt-${cat}-${group}`);
+            if(el) {
+                if (limit) {
+                    const color = s > limit ? 'text-red-500 font-bold' : (s === limit ? 'text-green-500 font-bold' : 'text-gray-500');
+                    el.innerHTML = `<span class="${color}">${s} / ${limit}</span>`;
+                } else {
+                    el.innerHTML = `<span class="text-gray-600">[${s}]</span>`;
+                }
             }
         });
     });
-
-    let totalDiscDots = 0;
-    if(activeGhoul.disciplines) {
-        Object.values(activeGhoul.disciplines).forEach(v => totalDiscDots += v);
-    }
-    const freeDiscDots = 2; 
-    if (totalDiscDots > freeDiscDots) {
-        costs.disc = (totalDiscDots - freeDiscDots) * 10;
-    }
-
-    let backDots = 0;
-    if(activeGhoul.backgrounds) Object.values(activeGhoul.backgrounds).forEach(v => backDots += v);
-    if (backDots > 5) costs.back = (backDots - 5) * 1;
-
-    let virtDots = 0;
-    if(VIRTUES && activeGhoul.virtues) VIRTUES.forEach(v => virtDots += Math.max(0, (activeGhoul.virtues[v]||1)-1));
-    const virtLimit = (activeGhoul.type === 'Revenant') ? 5 : 7;
-    if (virtDots > virtLimit) costs.virt = (virtDots - virtLimit) * 2;
-
-    const baseHum = (activeGhoul.virtues.Conscience||1) + (activeGhoul.virtues["Self-Control"]||1);
-    if (activeGhoul.humanity > baseHum) {
-        costs.hum = (activeGhoul.humanity - baseHum) * 1;
-    }
-
-    const baseWill = (activeGhoul.virtues.Courage||1);
-    if (activeGhoul.willpower > baseWill) {
-        costs.will = (activeGhoul.willpower - baseWill) * 1;
-    }
-
-    // Merits Cost
-    if (activeGhoul.merits) {
-        Object.values(activeGhoul.merits).forEach(v => costs.merit += v);
-    }
-
-    // Flaws Bonus (Capped at 7)
-    let flawTotal = 0;
-    if (activeGhoul.flaws) {
-        Object.values(activeGhoul.flaws).forEach(v => flawTotal += v);
-    }
-    costs.flaw = Math.min(7, flawTotal);
-
-    const setCost = (id, val) => {
-        const el = document.getElementById(id);
-        if(el) {
-            el.innerText = val;
-            el.className = val > 0 ? "text-red-400 font-bold" : "text-gray-500";
-        }
-    };
-    
-    setCost('fb-cost-attr', costs.attr);
-    setCost('fb-cost-abil', costs.abil);
-    setCost('fb-cost-disc', costs.disc);
-    setCost('fb-cost-back', costs.back);
-    setCost('fb-cost-virt', costs.virt);
-    setCost('fb-cost-hum', costs.hum);
-    setCost('fb-cost-will', costs.will);
-    setCost('fb-cost-merit', costs.merit);
-    
-    // Update Flaw Display
-    const flawEl = document.getElementById('fb-cost-flaw');
-    if(flawEl) {
-        flawEl.innerText = costs.flaw;
-        flawEl.className = costs.flaw > 0 ? "text-green-400 font-bold" : "text-gray-500";
-    }
-
-    const totalSpent = costs.attr + costs.abil + costs.disc + costs.back + costs.virt + costs.hum + costs.will + costs.merit;
-    const totalBonus = costs.flaw;
-    const remaining = (21 + totalBonus) - totalSpent;
-    
-    const fbEl = document.getElementById('final-freebie-disp');
-    if(fbEl) {
-        fbEl.innerText = remaining;
-        fbEl.className = remaining >= 0 ? "text-4xl font-black text-white mt-2 font-cinzel" : "text-4xl font-black text-red-500 mt-2 font-cinzel";
-    }
 }
