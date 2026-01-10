@@ -597,6 +597,9 @@ function renderGhoulXpSidebar() {
     let buckets = { newAbil: 0, attr: 0, abil: 0, disc: 0, virt: 0, humanity: 0, willpower: 0, background: 0 };
 
     log.forEach(entry => {
+        // Safe check for entry structure
+        if (!entry || !entry.type || typeof entry.cost !== 'number') return;
+
         const type = entry.type; 
         const cost = entry.cost;
         if (type === 'attributes' || type === 'attr') buckets.attr += cost;
@@ -639,7 +642,19 @@ function renderGhoulXpSidebar() {
                 const isRefund = entry.cost < 0;
                 const costDisp = isRefund ? `+${Math.abs(entry.cost)}` : `-${entry.cost}`;
                 const color = isRefund ? 'text-green-400' : 'text-purple-400';
-                return `<div class="border-b border-[#222] pb-1 mb-1"><div class="flex justify-between text-white"><span class="font-bold">${entry.trait}</span><span class="${color}">${costDisp}</span></div><div class="flex justify-between text-[8px] text-gray-500"><span>${entry.from} &rarr; ${entry.to}</span><span>${new Date(entry.date).toLocaleDateString()}</span></div></div>`;
+                const traitName = entry.trait || "Unknown";
+                const dateStr = entry.date ? new Date(entry.date).toLocaleDateString() : "-";
+                
+                return `<div class="border-b border-[#222] pb-1 mb-1">
+                    <div class="flex justify-between text-white">
+                        <span class="font-bold">${traitName}</span>
+                        <span class="${color}">${costDisp}</span>
+                    </div>
+                    <div class="flex justify-between text-[8px] text-gray-500">
+                        <span>${entry.from} &rarr; ${entry.to}</span>
+                        <span>${dateStr}</span>
+                    </div>
+                </div>`;
             }).join('');
         }
     }
@@ -771,7 +786,7 @@ function handleXpSpend(type, key, clickedVal, currentVal) {
     activeGhoul.experience.spent += cost;
     activeGhoul.experience.log.push({
         date: Date.now(),
-        trait: key || type,
+        trait: key || type, // Explicitly set trait name for logging
         from: currentVal,
         to: targetVal,
         cost: cost,
@@ -786,6 +801,13 @@ function handleXpSpend(type, key, clickedVal, currentVal) {
     renderDynamicLists();
     renderGhoulXpSidebar();
     updateTracker();
+    
+    // Explicitly re-render Humanity/Willpower rows
+    const hDots = document.getElementById('g-humanity-row');
+    const wDots = document.getElementById('g-willpower-row');
+    if(hDots) hDots.innerHTML = renderDots(activeGhoul.humanity, 10);
+    if(wDots) wDots.innerHTML = renderDots(activeGhoul.willpower, 10);
+
     bindDotClicks(document.getElementById('ghoul-modal'));
     showNotification("XP Spent.");
 }
