@@ -108,8 +108,23 @@ function recalcStatus() {
     const baseHum = (activeNpc.virtues.Conscience || 1) + (activeNpc.virtues["Self-Control"] || 1);
     const baseWill = activeNpc.virtues.Courage || 1;
     
-    if (activeNpc.humanity < baseHum) activeNpc.humanity = baseHum;
-    if (activeNpc.willpower < baseWill) activeNpc.willpower = baseWill;
+    // Check if modified via XP/Freebie
+    const hasHumMod = activeNpc.experience?.log.some(l => l.type === 'humanity' || l.trait === 'Humanity') || activeNpc.freebieLog?.some(l => l.type === 'humanity' || l.trait === 'humanity');
+    const hasWillMod = activeNpc.experience?.log.some(l => l.type === 'willpower' || l.trait === 'Willpower') || activeNpc.freebieLog?.some(l => l.type === 'willpower' || l.trait === 'willpower');
+
+    // If no manual points spent, strictly sync to base
+    if (!hasHumMod) {
+        activeNpc.humanity = baseHum;
+    } else if (activeNpc.humanity < baseHum) {
+        // Even if points spent, ensure floor is respected
+        activeNpc.humanity = baseHum;
+    }
+
+    if (!hasWillMod) {
+        activeNpc.willpower = baseWill;
+    } else if (activeNpc.willpower < baseWill) {
+        activeNpc.willpower = baseWill;
+    }
 }
 
 // --- RENDER UI ---
@@ -272,7 +287,7 @@ function renderEditorModal() {
                     </div>
                 </div>
 
-                <!-- SIDEBAR: XP LEDGER -->
+                <!-- SIDEBAR: XP LEDGER (Renamed ID to avoid collision) -->
                 <div id="npc-xp-sidebar" class="hidden w-64 bg-[#080808] border-l border-[#333] flex-col shrink-0">
                     <div class="p-3 bg-[#111] border-b border-[#333] text-center"><h3 class="text-purple-400 font-cinzel font-bold">XP Ledger</h3></div>
                     
@@ -305,7 +320,7 @@ function renderEditorModal() {
                     </div>
                 </div>
 
-                <!-- SIDEBAR: FREEBIE LEDGER -->
+                <!-- SIDEBAR: FREEBIE LEDGER (Renamed ID to avoid collision) -->
                 <div id="npc-fb-sidebar" class="hidden w-64 bg-[#080808] border-l border-[#333] flex-col shrink-0 transition-all flex flex-col">
                     <div class="p-3 bg-[#111] border-b border-[#333] text-center"><h3 class="text-[#d4af37] font-cinzel font-bold">Freebie Ledger</h3></div>
                     
@@ -549,11 +564,14 @@ function handleValueChange(type, key, newVal) {
 
         } else if (finalVal < currentVal) {
             // UNDO / REFUND
+            // Find the most recent log entry for this trait that resulted in the current value
+            // Iterating backwards
             let logIdx = -1;
             const targetTrait = key || type;
             
             for (let i = activeNpc.experience.log.length - 1; i >= 0; i--) {
                 const entry = activeNpc.experience.log[i];
+                // Check if this entry is for the trait and matches the "Buy" we are undoing
                 if (entry.trait === targetTrait && entry.to === currentVal && entry.from === finalVal) {
                     logIdx = i;
                     break;
@@ -640,6 +658,13 @@ function handleValueChange(type, key, newVal) {
     } 
     else {
         // Normal Creation Mode
+        
+        // Prevent direct modification of derived traits
+        if (type === 'humanity' || type === 'willpower') {
+            showNotification("Derived trait. Modify Virtues or use Freebie/XP mode.");
+            return;
+        }
+
         if (newVal === currentVal) newVal = newVal - 1;
         if ((type === 'attributes' || type === 'virtues') && newVal < 1) return;
         if (newVal < 0) return;
