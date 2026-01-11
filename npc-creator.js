@@ -31,7 +31,9 @@ let localPriorities = {
 export function openNpcCreator(typeKey = 'mortal', dataOrEvent = null, index = null) {
     console.log(`Opening NPC Creator for type: ${typeKey}`);
     
+    // Default to Mortal if invalid type passed
     if (!TEMPLATES[typeKey]) typeKey = 'mortal';
+    
     currentTemplate = TEMPLATES[typeKey];
 
     let incomingData = null;
@@ -44,7 +46,9 @@ export function openNpcCreator(typeKey = 'mortal', dataOrEvent = null, index = n
     resetPriorities();
 
     if (incomingData) {
+        // Edit Mode
         activeNpc = JSON.parse(JSON.stringify(incomingData));
+        // Ensure template matches data if data has a type recorded
         if (activeNpc.template && TEMPLATES[activeNpc.template]) {
             currentTemplate = TEMPLATES[activeNpc.template];
         }
@@ -52,6 +56,7 @@ export function openNpcCreator(typeKey = 'mortal', dataOrEvent = null, index = n
         if (activeNpc.priorities) localPriorities = JSON.parse(JSON.stringify(activeNpc.priorities));
         else autoDetectPriorities();
     } else {
+        // Create Mode
         activeNpc = JSON.parse(JSON.stringify(currentTemplate.defaults));
         activeNpc.template = typeKey;
         sanitizeNpcData(activeNpc);
@@ -68,6 +73,7 @@ function sanitizeNpcData(npc) {
     if (!npc.experience) npc.experience = { total: 0, spent: 0, log: [] };
     if (!npc.freebieLog) npc.freebieLog = []; 
     
+    // Ensure defaults from global data exist (unless Animal which has specific defaults)
     if (npc.template !== 'animal') {
         if (ATTRIBUTES) Object.values(ATTRIBUTES).flat().forEach(a => { if (npc.attributes[a] === undefined) npc.attributes[a] = 1; });
         if (ABILITIES) Object.values(ABILITIES).flat().forEach(a => { if (npc.abilities[a] === undefined) npc.abilities[a] = 0; });
@@ -77,6 +83,7 @@ function sanitizeNpcData(npc) {
 function switchTemplate(newType) {
     if (!TEMPLATES[newType]) return;
     
+    // Preserve Identity Info
     const preserved = {
         name: activeNpc.name,
         player: activeNpc.player,
@@ -88,15 +95,19 @@ function switchTemplate(newType) {
     };
 
     currentTemplate = TEMPLATES[newType];
+    
+    // Load Defaults for the new type
     activeNpc = JSON.parse(JSON.stringify(currentTemplate.defaults));
     activeNpc.template = newType;
     
+    // Restore Identity
     Object.assign(activeNpc, preserved);
     
     sanitizeNpcData(activeNpc);
     resetPriorities();
     recalcStatus();
     
+    // Reset Modes
     modes.xp = false; 
     modes.freebie = false;
     
@@ -139,7 +150,7 @@ function autoDetectPriorities() {
 }
 
 function recalcStatus() {
-    if (activeNpc.template === 'animal') return;
+    if (activeNpc.template === 'animal') return; // Animals don't derive logic the same way
 
     const baseHum = (activeNpc.virtues.Conscience || 1) + (activeNpc.virtues["Self-Control"] || 1);
     const baseWill = activeNpc.virtues.Courage || 1;
@@ -168,8 +179,10 @@ function renderEditorModal() {
     const archOptions = (ARCHETYPES || []).sort().map(a => `<option value="${a}">${a}</option>`).join('');
     const clanOptions = (CLANS || []).sort().map(c => `<option value="${c}">${c}</option>`).join('');
     
+    // Determine which extras to show
     const extrasHtml = currentTemplate.renderIdentityExtras ? currentTemplate.renderIdentityExtras(activeNpc, clanOptions) : '';
     
+    // Feature Flags
     const f = currentTemplate.features || { disciplines: true, bloodPool: true, virtues: true, backgrounds: true, humanity: true };
 
     modal.innerHTML = `
@@ -980,9 +993,7 @@ function renderMeritsFlaws() {
 }
 
 window.removeNpcItem = function(type, key) {
-    // Log removal for Freebie Mode if applicable
     if (modes.freebie) {
-        // Find if this item was bought in freebie mode log
         const logIdx = activeNpc.freebieLog.findIndex(l => l.type === (type==='merits'?'merit':'flaw') && l.trait === key);
         if (logIdx !== -1) activeNpc.freebieLog.splice(logIdx, 1);
     }
@@ -1273,9 +1284,12 @@ function saveNpc() {
     const ghoulToggle = document.getElementById('npc-ghoul-toggle');
     if (ghoulToggle) activeNpc.ghouled = ghoulToggle.checked;
 
+    // SANITIZATION: Clean undefined values before saving to prevent Firebase errors
+    const cleanNpc = JSON.parse(JSON.stringify(activeNpc));
+
     if (!window.state.retainers) window.state.retainers = [];
-    if (activeIndex !== null && activeIndex >= 0) window.state.retainers[activeIndex] = activeNpc;
-    else window.state.retainers.push(activeNpc);
+    if (activeIndex !== null && activeIndex >= 0) window.state.retainers[activeIndex] = cleanNpc;
+    else window.state.retainers.push(cleanNpc);
 
     if (window.renderNpcTab) window.renderNpcTab();
     showNotification(`${currentTemplate.label} Saved.`);
