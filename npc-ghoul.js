@@ -1,23 +1,31 @@
 import { 
     ATTRIBUTES, ABILITIES, VIRTUES, BACKGROUNDS, 
-    V20_MERITS_LIST, V20_FLAWS_LIST 
+    CLAN_DISCIPLINES, CLANS 
 } from "./data.js";
 
-// --- CONSTANTS ---
-const REVENANT_FAMILIES = ["Bratovitch", "Grimaldi", "Obertus", "Zantosa"];
-
-const XP_COSTS = {
-    attribute: 4,       
-    ability: 2,         
-    newAbility: 3,      
-    virtue: 2,          
-    willpower: 1,       
-    humanity: 2,        
-    discipline_phys: 10, // Celerity, Fortitude, Potence
-    discipline_other: 20, 
-    background: 3        
+// --- REVENANT FAMILIES & DISCIPLINES ---
+const REVENANT_FAMILIES = {
+    "Bratovitch": ["Animalism", "Potence", "Vicissitude"],
+    "Grimaldi": ["Celerity", "Dominate", "Fortitude"],
+    "Obertus": ["Auspex", "Obfuscate", "Vicissitude"],
+    "Zantosa": ["Auspex", "Presence", "Vicissitude"]
 };
 
+// --- XP COSTS (V20 Ghouls p. 499) ---
+const XP_COSTS = {
+    attribute: 4,       // Current Rating x 4
+    ability: 2,         // Current Rating x 2
+    newAbility: 3,      // 3 points for first dot
+    virtue: 2,          // Current Rating x 2
+    willpower: 1,       // Current Rating
+    humanity: 2,        // Current Rating x 2
+    background: 3,      // Storyteller discretion (standard 3)
+    newDiscipline: 20,  // Flat 20 for new dot
+    disc_clan: 15,      // Current Level x 15 (Clan/Family/Phys)
+    disc_other: 25      // Current Level x 25
+};
+
+// --- FREEBIE COSTS (V20 Ghouls p. 498) ---
 const FB_COSTS = {
     attribute: 5,
     ability: 2,
@@ -28,9 +36,10 @@ const FB_COSTS = {
     willpower: 1
 };
 
+// --- CREATION PRIORITIES ---
 const PRIORITY_SPREADS = {
-    attr: [6, 4, 3],
-    abil: [11, 7, 4]
+    attr: [6, 4, 3], // Start with 1 free dot in each, distribute 6/4/3
+    abil: [11, 7, 4] // No ability > 3 at this stage
 };
 
 // --- TEMPLATE DEFINITION ---
@@ -38,43 +47,59 @@ export const GhoulTemplate = {
     type: "Ghoul",
     label: "Ghoul / Revenant",
     
-    // Initial Data Structure
+    features: {
+        disciplines: true,
+        bloodPool: true,
+        virtues: true,
+        backgrounds: true,
+        humanity: true
+    },
+
     defaults: {
-        type: "Vassal", // Sub-type (Vassal, Independent, Revenant)
+        type: "Vassal", // Vassal, Independent, Revenant
         domitor: "", 
         domitorClan: "", 
         family: "", 
         weakness: "",
-        disciplines: { Potence: 1 }, // Ghouls always start with Potence
-        bloodPool: 10,
+        // Ghouls start with Potence 1 automatically (V20 p. 499)
+        disciplines: { Potence: 1 }, 
+        attributes: { 
+            Strength: 1, Dexterity: 1, Stamina: 1, 
+            Charisma: 1, Manipulation: 1, Appearance: 1, 
+            Perception: 1, Intelligence: 1, Wits: 1 
+        },
+        abilities: {},
         virtues: { Conscience: 1, "Self-Control": 1, Courage: 1 },
         humanity: 1,
-        willpower: 1
+        willpower: 1,
+        bloodPool: 10, // Max capacity (human), though can overdose based on Stamina
+        backgrounds: {},
+        merits: {},
+        flaws: {}
     },
 
-    // HTML Snippets for Step 1 (Identity)
-    // This allows us to inject Domitor/Family fields only for Ghouls
     renderIdentityExtras: (data, clanOptions) => {
-        const revOptions = REVENANT_FAMILIES.map(r => `<option value="${r}">${r}</option>`).join('');
+        const revOptions = Object.keys(REVENANT_FAMILIES).map(r => `<option value="${r}">${r}</option>`).join('');
         
         return `
             <div class="space-y-6">
                 <div>
                     <label class="label-text text-[#d4af37]">Ghoul Type</label>
                     <select id="npc-subtype" class="w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] focus:outline-none transition-colors">
-                        <option value="Vassal" ${data.type === 'Vassal' ? 'selected' : ''} class="bg-black">Vassal (7 Virtue Dots)</option>
-                        <option value="Independent" ${data.type === 'Independent' ? 'selected' : ''} class="bg-black">Independent (7 Virtue Dots)</option>
-                        <option value="Revenant" ${data.type === 'Revenant' ? 'selected' : ''} class="bg-black">Revenant (5 Virtue Dots)</option>
+                        <option value="Vassal" ${data.type === 'Vassal' ? 'selected' : ''} class="bg-black">Vassal (Bound to Master)</option>
+                        <option value="Independent" ${data.type === 'Independent' ? 'selected' : ''} class="bg-black">Independent (Masterless)</option>
+                        <option value="Revenant" ${data.type === 'Revenant' ? 'selected' : ''} class="bg-black">Revenant (Hereditary)</option>
                     </select>
                 </div>
                 
                 <!-- Domitor Clan (Hidden for Revenants) -->
                 <div id="div-extra-clan" class="${data.type === 'Revenant' ? 'hidden' : 'block'}">
-                    <label class="label-text text-[#d4af37]">Domitor Clan</label>
+                    <label class="label-text text-[#d4af37]">Domitor's Clan</label>
                     <select id="npc-extra-clan" class="w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] focus:outline-none transition-colors">
-                        <option value="" class="bg-black">Unknown/None</option>
+                        <option value="" class="bg-black">Unknown / None</option>
                         ${clanOptions}
                     </select>
+                    <p class="text-[9px] text-gray-500 mt-1 italic">Vassals get XP cost breaks on their Domitor's Clan disciplines.</p>
                 </div>
 
                 <!-- Revenant Family (Hidden for others) -->
@@ -86,53 +111,55 @@ export const GhoulTemplate = {
                     </select>
                 </div>
 
-                <!-- Weakness Box -->
-                <div class="mt-4 p-4 bg-red-900/10 border border-red-900/30 rounded">
-                    <label class="label-text text-red-400">Weakness (Conditional)</label>
-                    <textarea id="npc-weakness" class="w-full h-20 bg-transparent border-b border-[#444] text-white p-1 text-xs focus:border-red-500 focus:outline-none transition-colors" placeholder="Enter specific weakness details...">${data.weakness || ''}</textarea>
+                <div class="p-4 bg-red-900/10 border border-red-900/30 rounded">
+                    <div class="text-[10px] text-red-300 mb-1 font-bold uppercase"><i class="fas fa-info-circle mr-1"></i> V20 Ghoul Rules</div>
+                    <ul class="text-[9px] text-gray-400 list-disc list-inside space-y-1">
+                        <li><strong>Attributes:</strong> 6 / 4 / 3</li>
+                        <li><strong>Abilities:</strong> 11 / 7 / 4 (Max 3)</li>
+                        <li><strong>Disciplines:</strong> Potence 1 + 1 Dot</li>
+                        <li><strong>Virtues:</strong> 7 Dots (5 for Revenant)</li>
+                        <li><strong>Freebies:</strong> 21 Points</li>
+                        <li><strong>XP:</strong> 15x (Clan/Phys), 25x (Other)</li>
+                    </ul>
                 </div>
             </div>
         `;
     },
 
-    // Handle events for the specific HTML above
     setupListeners: (parent, data, updateCallback) => {
         const subtypeEl = parent.querySelector('#npc-subtype');
         const clanEl = parent.querySelector('#npc-extra-clan');
         const famEl = parent.querySelector('#npc-extra-family');
-        const weakEl = parent.querySelector('#npc-weakness');
 
         if (subtypeEl) {
             subtypeEl.onchange = (e) => {
                 data.type = e.target.value;
-                const isRevenant = data.type === 'Revenant';
+                const isRev = data.type === 'Revenant';
                 
                 const divClan = parent.querySelector('#div-extra-clan');
                 const divFam = parent.querySelector('#div-extra-family');
-                if(divClan) divClan.className = isRevenant ? 'hidden' : 'block';
-                if(divFam) divFam.className = isRevenant ? 'block' : 'hidden';
+                if(divClan) divClan.className = isRev ? 'hidden' : 'block';
+                if(divFam) divFam.className = isRev ? 'block' : 'hidden';
 
-                updateCallback(); // Triggers UI refresh for Virtue limits etc.
+                updateCallback(); // Refresh UI for Virtue limits etc.
             };
         }
         if (clanEl) clanEl.onchange = (e) => data.domitorClan = e.target.value;
         if (famEl) famEl.onchange = (e) => data.family = e.target.value;
-        if (weakEl) weakEl.onchange = (e) => data.weakness = e.target.value;
     },
-
-    // --- LOGIC ---
 
     getPriorities: () => PRIORITY_SPREADS,
 
     getVirtueLimit: (data) => {
+        // V20 p. 499: 5 for revenants and Sabbat ghouls, 7 for all others.
+        // Assuming "Independent" or "Vassal" defaults to 7 unless specified otherwise.
         return data.type === 'Revenant' ? 5 : 7;
     },
 
-    // Check if a change is valid based on Creation Rules
     validateChange: (type, key, newVal, currentVal, data, priorities) => {
         const delta = newVal - currentVal;
         
-        // Attributes
+        // Attributes (6/4/3)
         if (type === 'attributes') {
             let group = null;
             if (ATTRIBUTES.Physical.includes(key)) group = 'Physical';
@@ -141,14 +168,14 @@ export const GhoulTemplate = {
 
             if (!group) return true;
             const limit = priorities.attr[group];
-            if (limit === null) return "Please select a priority for this Attribute group.";
+            if (limit === null) return "Select Priority for this Attribute group.";
             
             let spent = 0;
             ATTRIBUTES[group].forEach(k => spent += Math.max(0, (data.attributes[k] || 1) - 1));
-            if (spent + delta > limit) return `Cannot exceed ${limit} dots for ${group} Attributes.`;
+            if (spent + delta > limit) return `Limit ${limit} dots for ${group} Attributes.`;
         }
 
-        // Abilities
+        // Abilities (11/7/4)
         if (type === 'abilities') {
             let group = null;
             if (ABILITIES.Talents.includes(key)) group = 'Talents';
@@ -156,15 +183,15 @@ export const GhoulTemplate = {
             else if (ABILITIES.Knowledges.includes(key)) group = 'Knowledges';
 
             if (!group) return true;
-            if (newVal > 3) return "Abilities are capped at 3 dots during creation.";
+            if (newVal > 3) return "Abilities capped at 3 during creation.";
             
             const limit = priorities.abil[group];
-            if (limit === null) return "Please select a priority for this Ability group.";
+            if (limit === null) return "Select Priority for this Ability group.";
 
             let spent = 0;
             const list = (group === 'Talents') ? ABILITIES.Talents : (group === 'Skills' ? ABILITIES.Skills : ABILITIES.Knowledges);
             list.forEach(k => spent += (data.abilities[k] || 0));
-            if (spent + delta > limit) return `Cannot exceed ${limit} dots for ${group}.`;
+            if (spent + delta > limit) return `Limit ${limit} dots for ${group}.`;
         }
 
         // Advantages
@@ -172,7 +199,7 @@ export const GhoulTemplate = {
             let total = 0;
             Object.values(data.disciplines).forEach(v => total += v);
             // 2 Dots total (Potence 1 + 1 Free)
-            if (total + delta > 2) return "Creation Limit: 1 Free Dot + Potence 1 (Total 2).";
+            if (total + delta > 2) return "Limit: Potence 1 + 1 Free Dot. Use Freebie Mode for more.";
         }
         if (type === 'backgrounds') {
             let total = 0;
@@ -184,35 +211,64 @@ export const GhoulTemplate = {
         if (type === 'virtues') {
             let total = 0;
             VIRTUES.forEach(v => total += Math.max(0, (data.virtues[v] || 1) - 1));
-            const limit = (data.type === 'Revenant') ? 5 : 7;
+            const limit = data.type === 'Revenant' ? 5 : 7;
             if (total + delta > limit) return `Creation Limit: ${limit} Dots in Virtues.`;
         }
 
-        return true; // Valid
+        return true;
     },
 
-    // Calculate Costs for XP/Freebies
     getCost: (mode, type, key, current, target, data) => {
         const delta = target - current;
         if (delta <= 0) return 0;
 
         if (mode === 'xp') {
-            // Incremental cost for XP
-            if (delta > 1) return -1; // Can only buy 1 dot at a time usually
+            // Incremental XP cost
+            if (delta > 1) return -1; // Buy 1 at a time
             
             if (type === 'attributes') return target * XP_COSTS.attribute;
-            if (type === 'abilities') return (current === 0) ? XP_COSTS.newAbility : target * XP_COSTS.ability;
+            
+            if (type === 'abilities') {
+                return (current === 0) ? XP_COSTS.newAbility : target * XP_COSTS.ability;
+            }
+            
             if (type === 'virtues') return target * XP_COSTS.virtue;
-            if (type === 'willpower') return current || 1; 
+            if (type === 'willpower') return current; // Current Rating
             if (type === 'humanity') return target * XP_COSTS.humanity;
             if (type === 'backgrounds') return XP_COSTS.background;
+            
             if (type === 'disciplines') {
-                const phys = ['Celerity', 'Fortitude', 'Potence'];
-                return phys.includes(key) ? target * XP_COSTS.discipline_phys : target * XP_COSTS.discipline_other;
+                if (current === 0) return XP_COSTS.newDiscipline; // 20 for New
+
+                // Determine Multiplier (15 vs 25)
+                // Vassal: Domitor's Clan Disciplines = 15.
+                // Independent: Celerity, Fortitude, Potence = 15.
+                // Revenant: Family Disciplines = 15.
+                
+                let isFavored = false;
+                
+                if (data.type === 'Vassal') {
+                    const domitorClan = data.domitorClan || "";
+                    // Check global CLAN_DISCIPLINES data
+                    if (CLAN_DISCIPLINES[domitorClan] && CLAN_DISCIPLINES[domitorClan].includes(key)) {
+                        isFavored = true;
+                    }
+                } else if (data.type === 'Independent') {
+                    if (["Celerity", "Fortitude", "Potence"].includes(key)) {
+                        isFavored = true;
+                    }
+                } else if (data.type === 'Revenant') {
+                    const family = data.family || "";
+                    if (REVENANT_FAMILIES[family] && REVENANT_FAMILIES[family].includes(key)) {
+                        isFavored = true;
+                    }
+                }
+
+                const mult = isFavored ? XP_COSTS.disc_clan : XP_COSTS.disc_other;
+                return current * mult;
             }
         } 
         else if (mode === 'freebie') {
-            // Bulk cost for Freebies
             let mult = 0;
             if (type === 'attributes') mult = FB_COSTS.attribute;
             else if (type === 'abilities') mult = FB_COSTS.ability;
