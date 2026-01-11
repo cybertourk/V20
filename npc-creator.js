@@ -133,6 +133,7 @@ function autoDetectPriorities() {
     };
 
     const pConfig = currentTemplate.getPriorities();
+    if (!pConfig.attr || !pConfig.abil) return; // Safety check
 
     ['attr', 'abil'].forEach(cat => {
         const groups = cat === 'attr' ? ['Physical', 'Social', 'Mental'] : ['Talents', 'Skills', 'Knowledges'];
@@ -185,249 +186,254 @@ function renderEditorModal() {
     // Feature Flags
     const f = currentTemplate.features || { disciplines: true, bloodPool: true, virtues: true, backgrounds: true, humanity: true };
 
-    modal.innerHTML = `
-        <div class="w-[95%] max-w-7xl h-[95%] bg-[#0a0a0a] border-2 border-[#8b0000] shadow-[0_0_50px_rgba(139,0,0,0.5)] flex flex-col relative font-serif">
-            
-            <!-- HEADER -->
-            <div class="bg-[#1a0505] p-4 border-b border-[#444] flex justify-between items-center shrink-0">
-                <div class="flex items-center gap-4">
-                    <h2 class="text-2xl font-cinzel text-[#d4af37] font-bold tracking-widest uppercase shadow-black drop-shadow-md flex items-center">
-                        <i class="fas fa-user-edit mr-3 text-[#8b0000]"></i>
-                        <select id="npc-type-selector" class="bg-transparent border-none text-[#d4af37] font-bold uppercase focus:outline-none cursor-pointer hover:text-white transition-colors appearance-none">
-                            <option value="mortal" ${activeNpc.template === 'mortal' ? 'selected' : ''}>Mortal</option>
-                            <option value="ghoul" ${activeNpc.template === 'ghoul' ? 'selected' : ''}>Ghoul / Revenant</option>
-                            <option value="animal" ${activeNpc.template === 'animal' ? 'selected' : ''}>Animal</option>
-                        </select>
-                        <i class="fas fa-caret-down text-xs ml-2 opacity-50"></i>
-                    </h2>
-                    <div class="ml-6 flex items-center gap-2 border-l border-[#444] pl-4">
-                         <button id="toggle-fb-mode" class="text-[10px] uppercase font-bold px-3 py-1 border border-[#444] rounded transition-all">
-                            <i class="fas fa-star mr-1"></i> Freebie Mode
-                        </button>
-                        <button id="toggle-xp-mode" class="text-[10px] uppercase font-bold px-3 py-1 border border-[#444] rounded transition-all">
-                            <i class="fas fa-hourglass-half mr-1"></i> XP Mode
-                        </button>
-                    </div>
-                </div>
-                <button id="close-npc-modal" class="text-gray-400 hover:text-white text-xl px-2"><i class="fas fa-times"></i></button>
-            </div>
-
-            <!-- TABS -->
-            <div class="flex border-b border-[#333] bg-[#050505] text-[10px] uppercase font-bold text-gray-500 tracking-wider">
-                ${renderTabButton('step1', '1. Concept')}
-                ${renderTabButton('step2', '2. Attributes')}
-                ${renderTabButton('step3', '3. Abilities')}
-                ${renderTabButton('step4', '4. Advantages')}
-                ${renderTabButton('stepBio', '5. Biography')}
-            </div>
-
-            <!-- CONTENT AREA -->
-            <div class="flex-1 overflow-hidden relative flex">
-                <div class="flex-1 overflow-y-auto p-8 space-y-6 no-scrollbar bg-[#050505] bg-[url('https://www.transparenttextures.com/patterns/black-linen.png')]">
-                    
-                    <!-- STEP 1: IDENTITY -->
-                    <div id="step1" class="npc-step hidden">
-                        <div class="sheet-section !mt-0">
-                            <div class="section-title">Concept & Identity</div>
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-                                <div class="space-y-6">
-                                    <div><label class="label-text text-[#d4af37]">Name</label><input type="text" id="npc-name" value="${activeNpc.name || ''}" class="npc-input w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] outline-none"></div>
-                                    <div><label class="label-text text-[#d4af37]">Player</label><input type="text" id="npc-player" value="${activeNpc.player || ''}" class="npc-input w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] outline-none"></div>
-                                    <div><label class="label-text text-[#d4af37]">Domitor Name</label><input type="text" id="npc-domitor" value="${activeNpc.domitor || ''}" class="npc-input w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] outline-none"></div>
-                                </div>
-                                <div class="space-y-6">
-                                    <div>
-                                        <label class="label-text text-[#d4af37]">Nature</label>
-                                        <select id="npc-nature" class="npc-input w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] outline-none"><option value="">Select...</option>${archOptions}</select>
-                                    </div>
-                                    <div>
-                                        <label class="label-text text-[#d4af37]">Demeanor</label>
-                                        <select id="npc-demeanor" class="npc-input w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] outline-none"><option value="">Select...</option>${archOptions}</select>
-                                    </div>
-                                    <div><label class="label-text text-[#d4af37]">Concept</label><input type="text" id="npc-concept" value="${activeNpc.concept || ''}" class="npc-input w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] outline-none"></div>
-                                </div>
-                                ${extrasHtml}
-                            </div>
+    try {
+        modal.innerHTML = `
+            <div class="w-[95%] max-w-7xl h-[95%] bg-[#0a0a0a] border-2 border-[#8b0000] shadow-[0_0_50px_rgba(139,0,0,0.5)] flex flex-col relative font-serif">
+                
+                <!-- HEADER -->
+                <div class="bg-[#1a0505] p-4 border-b border-[#444] flex justify-between items-center shrink-0">
+                    <div class="flex items-center gap-4">
+                        <h2 class="text-2xl font-cinzel text-[#d4af37] font-bold tracking-widest uppercase shadow-black drop-shadow-md flex items-center">
+                            <i class="fas fa-user-edit mr-3 text-[#8b0000]"></i>
+                            <select id="npc-type-selector" class="bg-transparent border-none text-[#d4af37] font-bold uppercase focus:outline-none cursor-pointer hover:text-white transition-colors appearance-none">
+                                <option value="mortal" ${activeNpc.template === 'mortal' ? 'selected' : ''}>Mortal</option>
+                                <option value="ghoul" ${activeNpc.template === 'ghoul' ? 'selected' : ''}>Ghoul / Revenant</option>
+                                <option value="animal" ${activeNpc.template === 'animal' ? 'selected' : ''}>Animal</option>
+                            </select>
+                            <i class="fas fa-caret-down text-xs ml-2 opacity-50"></i>
+                        </h2>
+                        <div class="ml-6 flex items-center gap-2 border-l border-[#444] pl-4">
+                             <button id="toggle-fb-mode" class="text-[10px] uppercase font-bold px-3 py-1 border border-[#444] rounded transition-all">
+                                <i class="fas fa-star mr-1"></i> Freebie Mode
+                            </button>
+                            <button id="toggle-xp-mode" class="text-[10px] uppercase font-bold px-3 py-1 border border-[#444] rounded transition-all">
+                                <i class="fas fa-hourglass-half mr-1"></i> XP Mode
+                            </button>
                         </div>
                     </div>
-
-                    <!-- STEP 2: ATTRIBUTES -->
-                    <div id="step2" class="npc-step hidden">
-                        <div class="sheet-section !mt-0">
-                            <div class="section-title">Attributes</div>
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-10">
-                                ${renderAttributeColumn('Physical')}
-                                ${renderAttributeColumn('Social')}
-                                ${renderAttributeColumn('Mental')}
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- STEP 3: ABILITIES -->
-                    <div id="step3" class="npc-step hidden">
-                        <div class="sheet-section !mt-0">
-                            <div class="section-title">Abilities</div>
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-10">
-                                ${renderAbilityColumn('Talents')}
-                                ${renderAbilityColumn('Skills')}
-                                ${renderAbilityColumn('Knowledges')}
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- STEP 4: ADVANTAGES -->
-                    <div id="step4" class="npc-step hidden">
-                        <div class="sheet-section !mt-0">
-                            <div class="section-title">Advantages</div>
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-10">
-                                <!-- Col 1: Disciplines & Backgrounds -->
-                                <div>
-                                    ${f.disciplines ? `
-                                        <h3 class="column-title">Disciplines</h3>
-                                        <div id="npc-disc-list" class="space-y-1 mt-2"></div>
-                                        <div class="mt-3"><select id="npc-disc-select" class="w-full bg-transparent border border-[#444] text-[10px] text-gray-300 p-2 uppercase font-bold"><option value="">+ Add Discipline</option>${(DISCIPLINES||[]).map(d=>`<option value="${d}">${d}</option>`).join('')}</select></div>
-                                    ` : '<div class="opacity-30 italic text-xs text-center mt-10">Disciplines Unavailable</div>'}
-                                    
-                                    ${f.backgrounds ? `
-                                        <h3 class="column-title mt-8">Backgrounds</h3>
-                                        <div id="npc-back-list" class="space-y-1 mt-2"></div>
-                                        <div class="mt-3"><select id="npc-back-select" class="w-full bg-transparent border border-[#444] text-[10px] text-gray-300 p-2 uppercase font-bold"><option value="">+ Add Background</option>${(BACKGROUNDS||[]).map(b=>`<option value="${b}">${b}</option>`).join('')}</select></div>
-                                    ` : ''}
-                                </div>
-                                
-                                <!-- Col 2: Virtues & Vitals -->
-                                <div>
-                                    ${f.virtues ? `
-                                        <h3 class="column-title">Virtues <span id="virtue-limit-display" class="text-xs text-gray-500"></span></h3>
-                                        <div id="npc-virtue-list" class="space-y-3 mt-4 mb-4"></div>
-                                        
-                                        <div class="mt-8 border-t border-[#333] pt-4">
-                                            ${f.humanity ? `
-                                            <div class="flex justify-between items-center text-xs mb-4">
-                                                <span class="font-bold text-[#d4af37]">HUMANITY</span>
-                                                <div class="dot-row-direct cursor-pointer" id="npc-humanity-row">${renderDots(activeNpc.humanity, 10)}</div>
-                                            </div>` : ''}
-                                    ` : ''}
-                                    
-                                    <div class="flex justify-between items-center text-xs mb-4">
-                                        <span class="font-bold text-[#d4af37]">WILLPOWER</span>
-                                        <div class="dot-row-direct cursor-pointer" id="npc-willpower-row">${renderDots(activeNpc.willpower, 10)}</div>
-                                    </div>
-                                    
-                                    ${f.bloodPool ? `
-                                        <div class="flex justify-between items-center text-xs">
-                                            <span class="font-bold text-[#d4af37]">BLOOD POOL</span>
-                                            <input type="number" id="npc-blood" value="${activeNpc.bloodPool}" class="w-12 bg-transparent border-b border-[#444] text-center text-white p-1 font-bold text-lg focus:border-[#d4af37] outline-none">
-                                        </div>
-                                    ` : ''}
-                                    ${f.virtues ? `</div>` : ''} 
-                                </div>
-                                
-                                <!-- Col 3: Merits/Flaws -->
-                                <div>
-                                    <h3 class="column-title">Merits & Flaws</h3>
-                                    <select id="npc-merit-select" class="w-full bg-transparent border-b border-[#444] text-[10px] text-gray-300 p-1 mb-2"><option value="">Add Merit...</option>${(V20_MERITS_LIST||[]).map(m=>`<option value="${m.n}|${m.v}">${m.n} (${m.v})</option>`).join('')}</select>
-                                    <div id="npc-merits-list" class="space-y-1"></div>
-                                    
-                                    <select id="npc-flaw-select" class="w-full bg-transparent border-b border-[#444] text-[10px] text-gray-300 p-1 mb-2 mt-4"><option value="">Add Flaw...</option>${(V20_FLAWS_LIST||[]).map(f=>`<option value="${f.n}|${f.v}">${f.n} (${f.v})</option>`).join('')}</select>
-                                    <div id="npc-flaws-list" class="space-y-1"></div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- STEP 5: BIO -->
-                    <div id="stepBio" class="npc-step hidden">
-                        <div class="sheet-section !mt-0">
-                            <div class="section-title">Biography</div>
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                <div class="space-y-4">
-                                    ${VIT.map(v => `<div class="flex justify-between items-center border-b border-[#333] pb-1"><label class="label-text text-[#d4af37] w-1/3">${v}</label><input type="text" class="npc-bio w-2/3 bg-transparent text-white text-xs text-right focus:outline-none" data-field="${v}" value="${activeNpc.bio[v]||''}"></div>`).join('')}
-                                </div>
-                                <div class="space-y-4">
-                                    <div><label class="label-text text-[#d4af37] mb-2">Description</label><textarea id="npc-desc" class="w-full h-32 bg-transparent border border-[#444] text-white p-2 text-xs focus:border-[#d4af37] outline-none resize-none">${activeNpc.bio.Description||''}</textarea></div>
-                                    <div><label class="label-text text-[#d4af37] mb-2">Notes</label><textarea id="npc-notes" class="w-full h-32 bg-transparent border border-[#444] text-white p-2 text-xs focus:border-[#d4af37] outline-none resize-none">${activeNpc.bio.Notes||''}</textarea></div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                    <button id="close-npc-modal" class="text-gray-400 hover:text-white text-xl px-2"><i class="fas fa-times"></i></button>
                 </div>
 
-                <!-- SIDEBAR: XP LEDGER -->
-                <div id="npc-xp-sidebar" class="hidden w-64 bg-[#080808] border-l border-[#333] flex-col shrink-0">
-                    <div class="p-3 bg-[#111] border-b border-[#333] text-center"><h3 class="text-purple-400 font-cinzel font-bold">XP Ledger</h3></div>
-                    
-                    <div class="text-[10px] font-mono space-y-2 p-4 bg-black/40 text-gray-400 flex-none border-b border-[#333]">
-                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Attributes:</span> <span id="npc-xp-cost-attr" class="text-white">0</span></div>
-                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Abilities:</span> <span id="npc-xp-cost-abil" class="text-white">0</span></div>
-                        ${f.disciplines ? `<div class="flex justify-between border-b border-[#222] pb-1"><span>Disciplines:</span> <span id="npc-xp-cost-disc" class="text-white">0</span></div>` : ''}
-                        ${f.backgrounds ? `<div class="flex justify-between border-b border-[#222] pb-1"><span>Backgrounds:</span> <span id="npc-xp-cost-back" class="text-white">0</span></div>` : ''}
-                        ${f.virtues ? `<div class="flex justify-between border-b border-[#222] pb-1"><span>Virtues:</span> <span id="npc-xp-cost-virt" class="text-white">0</span></div>` : ''}
-                        ${f.humanity ? `<div class="flex justify-between border-b border-[#222] pb-1"><span>Humanity:</span> <span id="npc-xp-cost-hum" class="text-white">0</span></div>` : ''}
-                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Willpower:</span> <span id="npc-xp-cost-will" class="text-white">0</span></div>
+                <!-- TABS -->
+                <div class="flex border-b border-[#333] bg-[#050505] text-[10px] uppercase font-bold text-gray-500 tracking-wider">
+                    ${renderTabButton('step1', '1. Concept')}
+                    ${renderTabButton('step2', '2. Attributes')}
+                    ${renderTabButton('step3', '3. Abilities')}
+                    ${renderTabButton('step4', '4. Advantages')}
+                    ${renderTabButton('stepBio', '5. Biography')}
+                </div>
+
+                <!-- CONTENT AREA -->
+                <div class="flex-1 overflow-hidden relative flex">
+                    <div class="flex-1 overflow-y-auto p-8 space-y-6 no-scrollbar bg-[#050505] bg-[url('https://www.transparenttextures.com/patterns/black-linen.png')]">
                         
-                        <div class="mt-4 pt-2 border-t border-[#444]">
-                            <div class="flex justify-between items-center mb-2">
-                                <span class="text-gray-500">Total XP</span>
-                                <input type="number" id="npc-xp-total" value="${activeNpc.experience.total}" class="w-16 bg-black border border-[#333] text-purple-400 text-center font-bold">
+                        <!-- STEP 1: IDENTITY -->
+                        <div id="step1" class="npc-step hidden">
+                            <div class="sheet-section !mt-0">
+                                <div class="section-title">Concept & Identity</div>
+                                <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                                    <div class="space-y-6">
+                                        <div><label class="label-text text-[#d4af37]">Name</label><input type="text" id="npc-name" value="${activeNpc.name || ''}" class="npc-input w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] outline-none"></div>
+                                        <div><label class="label-text text-[#d4af37]">Player</label><input type="text" id="npc-player" value="${activeNpc.player || ''}" class="npc-input w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] outline-none"></div>
+                                        <div><label class="label-text text-[#d4af37]">Domitor Name</label><input type="text" id="npc-domitor" value="${activeNpc.domitor || ''}" class="npc-input w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] outline-none"></div>
+                                    </div>
+                                    <div class="space-y-6">
+                                        <div>
+                                            <label class="label-text text-[#d4af37]">Nature</label>
+                                            <select id="npc-nature" class="npc-input w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] outline-none"><option value="">Select...</option>${archOptions}</select>
+                                        </div>
+                                        <div>
+                                            <label class="label-text text-[#d4af37]">Demeanor</label>
+                                            <select id="npc-demeanor" class="npc-input w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] outline-none"><option value="">Select...</option>${archOptions}</select>
+                                        </div>
+                                        <div><label class="label-text text-[#d4af37]">Concept</label><input type="text" id="npc-concept" value="${activeNpc.concept || ''}" class="npc-input w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] outline-none"></div>
+                                    </div>
+                                    ${extrasHtml}
+                                </div>
                             </div>
-                            <div class="flex justify-between font-bold text-xs text-white">
+                        </div>
+
+                        <!-- STEP 2: ATTRIBUTES -->
+                        <div id="step2" class="npc-step hidden">
+                            <div class="sheet-section !mt-0">
+                                <div class="section-title">Attributes</div>
+                                <div class="grid grid-cols-1 md:grid-cols-3 gap-10">
+                                    ${renderAttributeColumn('Physical')}
+                                    ${renderAttributeColumn('Social')}
+                                    ${renderAttributeColumn('Mental')}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- STEP 3: ABILITIES -->
+                        <div id="step3" class="npc-step hidden">
+                            <div class="sheet-section !mt-0">
+                                <div class="section-title">Abilities</div>
+                                <div class="grid grid-cols-1 md:grid-cols-3 gap-10">
+                                    ${renderAbilityColumn('Talents')}
+                                    ${renderAbilityColumn('Skills')}
+                                    ${renderAbilityColumn('Knowledges')}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- STEP 4: ADVANTAGES -->
+                        <div id="step4" class="npc-step hidden">
+                            <div class="sheet-section !mt-0">
+                                <div class="section-title">Advantages</div>
+                                <div class="grid grid-cols-1 md:grid-cols-3 gap-10">
+                                    <!-- Col 1: Disciplines & Backgrounds -->
+                                    <div>
+                                        ${f.disciplines ? `
+                                            <h3 class="column-title">Disciplines</h3>
+                                            <div id="npc-disc-list" class="space-y-1 mt-2"></div>
+                                            <div class="mt-3"><select id="npc-disc-select" class="w-full bg-transparent border border-[#444] text-[10px] text-gray-300 p-2 uppercase font-bold"><option value="">+ Add Discipline</option>${(DISCIPLINES||[]).map(d=>`<option value="${d}">${d}</option>`).join('')}</select></div>
+                                        ` : '<div class="opacity-30 italic text-xs text-center mt-10">Disciplines Unavailable</div>'}
+                                        
+                                        ${f.backgrounds ? `
+                                            <h3 class="column-title mt-8">Backgrounds</h3>
+                                            <div id="npc-back-list" class="space-y-1 mt-2"></div>
+                                            <div class="mt-3"><select id="npc-back-select" class="w-full bg-transparent border border-[#444] text-[10px] text-gray-300 p-2 uppercase font-bold"><option value="">+ Add Background</option>${(BACKGROUNDS||[]).map(b=>`<option value="${b}">${b}</option>`).join('')}</select></div>
+                                        ` : ''}
+                                    </div>
+                                    
+                                    <!-- Col 2: Virtues & Vitals -->
+                                    <div>
+                                        ${f.virtues ? `
+                                            <h3 class="column-title">Virtues <span id="virtue-limit-display" class="text-xs text-gray-500"></span></h3>
+                                            <div id="npc-virtue-list" class="space-y-3 mt-4 mb-4"></div>
+                                            
+                                            <div class="mt-8 border-t border-[#333] pt-4">
+                                                ${f.humanity ? `
+                                                <div class="flex justify-between items-center text-xs mb-4">
+                                                    <span class="font-bold text-[#d4af37]">HUMANITY</span>
+                                                    <div class="dot-row-direct cursor-pointer" id="npc-humanity-row">${renderDots(activeNpc.humanity, 10)}</div>
+                                                </div>` : ''}
+                                        ` : ''}
+                                        
+                                        <div class="flex justify-between items-center text-xs mb-4">
+                                            <span class="font-bold text-[#d4af37]">WILLPOWER</span>
+                                            <div class="dot-row-direct cursor-pointer" id="npc-willpower-row">${renderDots(activeNpc.willpower, 10)}</div>
+                                        </div>
+                                        
+                                        ${f.bloodPool ? `
+                                            <div class="flex justify-between items-center text-xs">
+                                                <span class="font-bold text-[#d4af37]">BLOOD POOL</span>
+                                                <input type="number" id="npc-blood" value="${activeNpc.bloodPool}" class="w-12 bg-transparent border-b border-[#444] text-center text-white p-1 font-bold text-lg focus:border-[#d4af37] outline-none">
+                                            </div>
+                                        ` : ''}
+                                        ${f.virtues ? `</div>` : ''} 
+                                    </div>
+                                    
+                                    <!-- Col 3: Merits/Flaws -->
+                                    <div>
+                                        <h3 class="column-title">Merits & Flaws</h3>
+                                        <select id="npc-merit-select" class="w-full bg-transparent border-b border-[#444] text-[10px] text-gray-300 p-1 mb-2"><option value="">Add Merit...</option>${(V20_MERITS_LIST||[]).map(m=>`<option value="${m.n}|${m.v}">${m.n} (${m.v})</option>`).join('')}</select>
+                                        <div id="npc-merits-list" class="space-y-1"></div>
+                                        
+                                        <select id="npc-flaw-select" class="w-full bg-transparent border-b border-[#444] text-[10px] text-gray-300 p-1 mb-2 mt-4"><option value="">Add Flaw...</option>${(V20_FLAWS_LIST||[]).map(f=>`<option value="${f.n}|${f.v}">${f.n} (${f.v})</option>`).join('')}</select>
+                                        <div id="npc-flaws-list" class="space-y-1"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- STEP 5: BIO -->
+                        <div id="stepBio" class="npc-step hidden">
+                            <div class="sheet-section !mt-0">
+                                <div class="section-title">Biography</div>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                    <div class="space-y-4">
+                                        ${VIT.map(v => `<div class="flex justify-between items-center border-b border-[#333] pb-1"><label class="label-text text-[#d4af37] w-1/3">${v}</label><input type="text" class="npc-bio w-2/3 bg-transparent text-white text-xs text-right focus:outline-none" data-field="${v}" value="${activeNpc.bio[v]||''}"></div>`).join('')}
+                                    </div>
+                                    <div class="space-y-4">
+                                        <div><label class="label-text text-[#d4af37] mb-2">Description</label><textarea id="npc-desc" class="w-full h-32 bg-transparent border border-[#444] text-white p-2 text-xs focus:border-[#d4af37] outline-none resize-none">${activeNpc.bio.Description||''}</textarea></div>
+                                        <div><label class="label-text text-[#d4af37] mb-2">Notes</label><textarea id="npc-notes" class="w-full h-32 bg-transparent border border-[#444] text-white p-2 text-xs focus:border-[#d4af37] outline-none resize-none">${activeNpc.bio.Notes||''}</textarea></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SIDEBAR: XP LEDGER -->
+                    <div id="npc-xp-sidebar" class="hidden w-64 bg-[#080808] border-l border-[#333] flex-col shrink-0">
+                        <div class="p-3 bg-[#111] border-b border-[#333] text-center"><h3 class="text-purple-400 font-cinzel font-bold">XP Ledger</h3></div>
+                        
+                        <div class="text-[10px] font-mono space-y-2 p-4 bg-black/40 text-gray-400 flex-none border-b border-[#333]">
+                            <div class="flex justify-between border-b border-[#222] pb-1"><span>Attributes:</span> <span id="npc-xp-cost-attr" class="text-white">0</span></div>
+                            <div class="flex justify-between border-b border-[#222] pb-1"><span>Abilities:</span> <span id="npc-xp-cost-abil" class="text-white">0</span></div>
+                            ${f.disciplines ? `<div class="flex justify-between border-b border-[#222] pb-1"><span>Disciplines:</span> <span id="npc-xp-cost-disc" class="text-white">0</span></div>` : ''}
+                            ${f.backgrounds ? `<div class="flex justify-between border-b border-[#222] pb-1"><span>Backgrounds:</span> <span id="npc-xp-cost-back" class="text-white">0</span></div>` : ''}
+                            ${f.virtues ? `<div class="flex justify-between border-b border-[#222] pb-1"><span>Virtues:</span> <span id="npc-xp-cost-virt" class="text-white">0</span></div>` : ''}
+                            ${f.humanity ? `<div class="flex justify-between border-b border-[#222] pb-1"><span>Humanity:</span> <span id="npc-xp-cost-hum" class="text-white">0</span></div>` : ''}
+                            <div class="flex justify-between border-b border-[#222] pb-1"><span>Willpower:</span> <span id="npc-xp-cost-will" class="text-white">0</span></div>
+                            
+                            <div class="mt-4 pt-2 border-t border-[#444]">
+                                <div class="flex justify-between items-center mb-2">
+                                    <span class="text-gray-500">Total XP</span>
+                                    <input type="number" id="npc-xp-total" value="${activeNpc.experience.total}" class="w-16 bg-black border border-[#333] text-purple-400 text-center font-bold">
+                                </div>
+                                <div class="flex justify-between font-bold text-xs text-white">
+                                    <span>Remaining:</span>
+                                    <span id="npc-xp-remain" class="text-purple-400">0</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex-1 overflow-y-auto p-2 border-t border-[#333] bg-[#0a0a0a]">
+                            <h4 class="text-[9px] uppercase text-gray-500 font-bold mb-1 tracking-wider sticky top-0 bg-[#0a0a0a] pb-1">Session Log</h4>
+                            <div id="npc-xp-list" class="text-[9px] font-mono text-gray-400 space-y-1"></div>
+                        </div>
+                    </div>
+
+                    <!-- SIDEBAR: FREEBIE LEDGER -->
+                    <div id="npc-fb-sidebar" class="hidden w-64 bg-[#080808] border-l border-[#333] flex-col shrink-0 transition-all flex flex-col">
+                        <div class="p-3 bg-[#111] border-b border-[#333] text-center"><h3 class="text-[#d4af37] font-cinzel font-bold">Freebie Ledger</h3></div>
+                        
+                        <div class="text-[10px] font-mono space-y-2 p-4 bg-black/40 text-gray-400 flex-none border-b border-[#333]">
+                            <div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-attr">Attributes (5):</span> <span id="npc-fb-cost-attr" class="text-white">0</span></div>
+                            <div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-abil">Abilities (2):</span> <span id="npc-fb-cost-abil" class="text-white">0</span></div>
+                            ${f.disciplines ? `<div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-disc">Disciplines (10):</span> <span id="npc-fb-cost-disc" class="text-white">0</span></div>` : ''}
+                            ${f.backgrounds ? `<div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-back">Backgrounds (1):</span> <span id="npc-fb-cost-back" class="text-white">0</span></div>` : ''}
+                            ${f.virtues ? `<div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-virt">Virtues (2):</span> <span id="npc-fb-cost-virt" class="text-white">0</span></div>` : ''}
+                            ${f.humanity ? `<div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-human">Humanity (1):</span> <span id="npc-fb-cost-hum" class="text-white">0</span></div>` : ''}
+                            <div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-will">Willpower (1):</span> <span id="npc-fb-cost-will" class="text-white">0</span></div>
+                            <div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-merit">Merits (Cost):</span> <span id="npc-fb-cost-merit" class="text-white">0</span></div>
+                            <div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-flaw">Flaws (Bonus):</span> <span id="npc-fb-cost-flaw" class="text-green-400">0</span></div>
+                            <div class="mt-4 flex justify-between font-bold text-xs text-white">
                                 <span>Remaining:</span>
-                                <span id="npc-xp-remain" class="text-purple-400">0</span>
+                                <span id="npc-fb-total-calc" class="text-green-400">15</span>
                             </div>
                         </div>
-                    </div>
 
-                    <div class="flex-1 overflow-y-auto p-2 border-t border-[#333] bg-[#0a0a0a]">
-                        <h4 class="text-[9px] uppercase text-gray-500 font-bold mb-1 tracking-wider sticky top-0 bg-[#0a0a0a] pb-1">Session Log</h4>
-                        <div id="npc-xp-list" class="text-[9px] font-mono text-gray-400 space-y-1"></div>
-                    </div>
-                </div>
+                        <div class="flex-1 overflow-y-auto p-2 border-t border-[#333] bg-[#0a0a0a]">
+                            <h4 class="text-[9px] uppercase text-gray-500 font-bold mb-1 tracking-wider sticky top-0 bg-[#0a0a0a] pb-1">Spending Log</h4>
+                            <div id="npc-fb-log-list" class="text-[9px] font-mono text-gray-400 space-y-1"></div>
+                        </div>
 
-                <!-- SIDEBAR: FREEBIE LEDGER -->
-                <div id="npc-fb-sidebar" class="hidden w-64 bg-[#080808] border-l border-[#333] flex-col shrink-0 transition-all flex flex-col">
-                    <div class="p-3 bg-[#111] border-b border-[#333] text-center"><h3 class="text-[#d4af37] font-cinzel font-bold">Freebie Ledger</h3></div>
-                    
-                    <div class="text-[10px] font-mono space-y-2 p-4 bg-black/40 text-gray-400 flex-none border-b border-[#333]">
-                        <div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-attr">Attributes (5):</span> <span id="npc-fb-cost-attr" class="text-white">0</span></div>
-                        <div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-abil">Abilities (2):</span> <span id="npc-fb-cost-abil" class="text-white">0</span></div>
-                        ${f.disciplines ? `<div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-disc">Disciplines (10):</span> <span id="npc-fb-cost-disc" class="text-white">0</span></div>` : ''}
-                        ${f.backgrounds ? `<div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-back">Backgrounds (1):</span> <span id="npc-fb-cost-back" class="text-white">0</span></div>` : ''}
-                        ${f.virtues ? `<div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-virt">Virtues (2):</span> <span id="npc-fb-cost-virt" class="text-white">0</span></div>` : ''}
-                        ${f.humanity ? `<div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-human">Humanity (1):</span> <span id="npc-fb-cost-hum" class="text-white">0</span></div>` : ''}
-                        <div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-will">Willpower (1):</span> <span id="npc-fb-cost-will" class="text-white">0</span></div>
-                        <div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-merit">Merits (Cost):</span> <span id="npc-fb-cost-merit" class="text-white">0</span></div>
-                        <div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-flaw">Flaws (Bonus):</span> <span id="npc-fb-cost-flaw" class="text-green-400">0</span></div>
-                        <div class="mt-4 flex justify-between font-bold text-xs text-white">
-                            <span>Remaining:</span>
-                            <span id="npc-fb-total-calc" class="text-green-400">15</span>
+                        <div class="p-4 bg-[#d4af37]/10 border-t border-[#d4af37]/30 text-center flex-none">
+                            <div class="uppercase text-[9px] font-bold text-[#d4af37]">Freebies Remaining</div>
+                            <div id="npc-fb-final" class="text-4xl font-black text-white mt-2 font-cinzel">21</div>
                         </div>
                     </div>
+                </div>
 
-                    <div class="flex-1 overflow-y-auto p-2 border-t border-[#333] bg-[#0a0a0a]">
-                        <h4 class="text-[9px] uppercase text-gray-500 font-bold mb-1 tracking-wider sticky top-0 bg-[#0a0a0a] pb-1">Spending Log</h4>
-                        <div id="npc-fb-log-list" class="text-[9px] font-mono text-gray-400 space-y-1"></div>
-                    </div>
-
-                    <div class="p-4 bg-[#d4af37]/10 border-t border-[#d4af37]/30 text-center flex-none">
-                        <div class="uppercase text-[9px] font-bold text-[#d4af37]">Freebies Remaining</div>
-                        <div id="npc-fb-final" class="text-4xl font-black text-white mt-2 font-cinzel">21</div>
+                <!-- FOOTER -->
+                <div class="p-4 border-t border-[#444] bg-[#050505] flex justify-between items-center shrink-0">
+                    <div class="text-[10px] text-gray-500 italic">Mode: ${currentTemplate.label}</div>
+                    <div class="flex gap-4">
+                        <button id="npc-cancel" class="border border-[#444] text-gray-400 px-6 py-2 uppercase font-bold text-xs hover:bg-[#222] hover:text-white transition">Cancel</button>
+                        <button id="npc-save" class="bg-[#8b0000] text-white px-8 py-2 uppercase font-bold text-xs hover:bg-red-700 shadow-lg tracking-widest transition flex items-center gap-2">
+                            <i class="fas fa-check"></i> Save & Close
+                        </button>
                     </div>
                 </div>
             </div>
-
-            <!-- FOOTER -->
-            <div class="p-4 border-t border-[#444] bg-[#050505] flex justify-between items-center shrink-0">
-                <div class="text-[10px] text-gray-500 italic">Mode: ${currentTemplate.label}</div>
-                <div class="flex gap-4">
-                    <button id="npc-cancel" class="border border-[#444] text-gray-400 px-6 py-2 uppercase font-bold text-xs hover:bg-[#222] hover:text-white transition">Cancel</button>
-                    <button id="npc-save" class="bg-[#8b0000] text-white px-8 py-2 uppercase font-bold text-xs hover:bg-red-700 shadow-lg tracking-widest transition flex items-center gap-2">
-                        <i class="fas fa-check"></i> Save & Close
-                    </button>
-                </div>
-            </div>
-        </div>
-    `;
+        `;
+    } catch (err) {
+        console.error("Critical error building NPC Modal:", err);
+        return; // Abort cleanly if string build fails
+    }
 
     modal.style.display = 'flex';
     modal.classList.remove('hidden');
@@ -438,14 +444,17 @@ function renderEditorModal() {
     // --- SETUP LISTENERS ---
     
     // TEMPLATE SWITCHER
-    document.getElementById('npc-type-selector').onchange = (e) => switchTemplate(e.target.value);
+    const ts = document.getElementById('npc-type-selector');
+    if(ts) ts.onchange = (e) => switchTemplate(e.target.value);
 
     // Tab Switching
     modal.querySelectorAll('.npc-tab').forEach(b => b.onclick = () => switchTab(b.dataset.tab));
     
     // Mode Toggles
-    document.getElementById('toggle-xp-mode').onclick = () => toggleMode('xp');
-    document.getElementById('toggle-fb-mode').onclick = () => toggleMode('freebie');
+    const bxp = document.getElementById('toggle-xp-mode');
+    const bfb = document.getElementById('toggle-fb-mode');
+    if(bxp) bxp.onclick = () => toggleMode('xp');
+    if(bfb) bfb.onclick = () => toggleMode('freebie');
     
     // Save/Cancel
     document.getElementById('npc-cancel').onclick = () => { modal.style.display = 'none'; };
@@ -458,7 +467,6 @@ function renderEditorModal() {
             const val = e.target.value;
             if(val) {
                 if(!activeNpc[type]) activeNpc[type] = {};
-                // If strictly in a mode, allow 0 dot add. Else default 1.
                 activeNpc[type][val] = (modes.xp || modes.freebie) ? 0 : 1;
                 renderFn();
                 bindDotClicks();
@@ -505,14 +513,14 @@ function renderEditorModal() {
     setupMF('npc-merit-select', 'merits');
     setupMF('npc-flaw-select', 'flaws');
 
-    document.getElementById('npc-xp-total').onchange = (e) => {
+    const xpTot = document.getElementById('npc-xp-total');
+    if(xpTot) xpTot.onchange = (e) => {
         activeNpc.experience.total = parseInt(e.target.value) || 0;
         updateXpLog();
     };
 
     if (currentTemplate.setupListeners) {
         currentTemplate.setupListeners(modal, activeNpc, () => {
-             // Callback for UI updates triggered by template logic
              updateVirtueDisplay();
              renderAllDots(); 
         });
@@ -537,7 +545,9 @@ function renderTabButton(id, label) {
 function switchTab(id) {
     currentTab = id;
     document.querySelectorAll('.npc-step').forEach(d => d.classList.add('hidden'));
-    document.getElementById(id).classList.remove('hidden');
+    const tgt = document.getElementById(id);
+    if(tgt) tgt.classList.remove('hidden');
+    
     document.querySelectorAll('.npc-tab').forEach(b => {
         if(b.dataset.tab === id) b.classList.add('text-[#d4af37]', 'bg-[#111]');
         else b.classList.remove('text-[#d4af37]', 'bg-[#111]');
@@ -562,6 +572,7 @@ function updateModeUI() {
     const fbBar = document.getElementById('npc-fb-sidebar');
 
     const setActive = (btn, isActive, color) => {
+        if (!btn) return;
         if (isActive) btn.className = `text-[10px] uppercase font-bold px-3 py-1 border rounded transition-all bg-${color}-900/40 text-${color}-300 border-${color}-500 shadow-[0_0_10px_rgba(255,255,255,0.2)]`;
         else btn.className = "text-[10px] uppercase font-bold px-3 py-1 border border-[#444] rounded transition-all text-gray-500 hover:text-white";
     };
@@ -569,26 +580,29 @@ function updateModeUI() {
     setActive(xpBtn, modes.xp, 'purple');
     setActive(fbBtn, modes.freebie, 'yellow');
 
-    if(modes.xp) {
-        xpBar.classList.remove('hidden');
-        xpBar.classList.add('flex');
-        updateXpLog();
-    } else {
-        xpBar.classList.add('hidden');
-        xpBar.classList.remove('flex');
+    if(xpBar) {
+        if(modes.xp) {
+            xpBar.classList.remove('hidden');
+            xpBar.classList.add('flex');
+            updateXpLog();
+        } else {
+            xpBar.classList.add('hidden');
+            xpBar.classList.remove('flex');
+        }
     }
 
-    if(modes.freebie) {
-        fbBar.classList.remove('hidden');
-        fbBar.classList.add('flex');
-        updateFreebieCalc();
-    } else {
-        fbBar.classList.add('hidden');
-        fbBar.classList.remove('flex');
+    if(fbBar) {
+        if(modes.freebie) {
+            fbBar.classList.remove('hidden');
+            fbBar.classList.add('flex');
+            updateFreebieCalc();
+        } else {
+            fbBar.classList.add('hidden');
+            fbBar.classList.remove('flex');
+        }
     }
 }
 
-// Helper to calc available points
 function getFreebiesAvailable() {
     let spent = 0;
     activeNpc.freebieLog.forEach(l => spent += l.cost);
@@ -900,6 +914,9 @@ function applyChange(type, key, val) {
 // --- DOT RENDERING & INTERACTION ---
 
 function renderAttributeColumn(group) {
+    // SAFEGUARD: Ensure group exists in ATTRIBUTES
+    if (!ATTRIBUTES[group]) return `<div>Error: ${group} undefined</div>`;
+    
     const list = ATTRIBUTES[group];
     return `
         <div>
@@ -911,6 +928,8 @@ function renderAttributeColumn(group) {
 }
 
 function renderAbilityColumn(group) {
+    if (!ABILITIES[group]) return `<div>Error: ${group} undefined</div>`;
+
     const list = ABILITIES[group];
     return `
         <div>
@@ -931,8 +950,19 @@ function renderDotRow(type, key, val, group) {
 }
 
 function renderAllDots() {
-    ['Physical', 'Social', 'Mental'].forEach(g => document.getElementById(`list-attr-${g}`).innerHTML = ATTRIBUTES[g].map(k => renderDotRow('attributes', k, activeNpc.attributes[k], g)).join(''));
-    ['Talents', 'Skills', 'Knowledges'].forEach(g => document.getElementById(`list-abil-${g}`).innerHTML = ABILITIES[g].map(k => renderDotRow('abilities', k, activeNpc.abilities[k], g)).join(''));
+    ['Physical', 'Social', 'Mental'].forEach(g => {
+        const el = document.getElementById(`list-attr-${g}`);
+        if (el && ATTRIBUTES[g]) {
+            el.innerHTML = ATTRIBUTES[g].map(k => renderDotRow('attributes', k, activeNpc.attributes[k], g)).join('');
+        }
+    });
+
+    ['Talents', 'Skills', 'Knowledges'].forEach(g => {
+        const el = document.getElementById(`list-abil-${g}`);
+        if (el && ABILITIES[g]) {
+            el.innerHTML = ABILITIES[g].map(k => renderDotRow('abilities', k, activeNpc.abilities[k], g)).join('');
+        }
+    });
     
     const vList = document.getElementById('npc-virtue-list');
     if(vList) vList.innerHTML = VIRTUES.map(k => `
@@ -942,8 +972,11 @@ function renderAllDots() {
         </div>
     `).join('');
 
-    document.getElementById('npc-humanity-row').innerHTML = renderDots(activeNpc.humanity, 10);
-    document.getElementById('npc-willpower-row').innerHTML = renderDots(activeNpc.willpower, 10);
+    const humRow = document.getElementById('npc-humanity-row');
+    if(humRow) humRow.innerHTML = renderDots(activeNpc.humanity, 10);
+    
+    const willRow = document.getElementById('npc-willpower-row');
+    if(willRow) willRow.innerHTML = renderDots(activeNpc.willpower, 10);
     
     bindDotClicks();
     updatePrioritiesUI();
@@ -993,7 +1026,9 @@ function renderMeritsFlaws() {
 }
 
 window.removeNpcItem = function(type, key) {
+    // Log removal for Freebie Mode if applicable
     if (modes.freebie) {
+        // Find if this item was bought in freebie mode log
         const logIdx = activeNpc.freebieLog.findIndex(l => l.type === (type==='merits'?'merit':'flaw') && l.trait === key);
         if (logIdx !== -1) activeNpc.freebieLog.splice(logIdx, 1);
     }
@@ -1028,6 +1063,8 @@ function bindDotClicks() {
 
 function renderPrioButtons(cat, group) {
     const vals = currentTemplate.getPriorities()[cat];
+    // Safety check if template doesn't use priorities (like Animal)
+    if (!vals) return '';
     return vals.map(v => `
         <button class="npc-prio-btn w-6 h-6 rounded-full border border-gray-600 text-[9px] font-bold text-gray-400 hover:text-white hover:border-[#d4af37] transition-all"
             data-cat="${cat}" data-group="${group}" data-val="${v}">${v}</button>
