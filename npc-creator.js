@@ -272,28 +272,28 @@ function renderEditorModal() {
                     </div>
                 </div>
 
-                <!-- SIDEBAR: XP LEDGER -->
-                <div id="xp-sidebar" class="hidden w-64 bg-[#080808] border-l border-[#333] flex-col shrink-0 transition-all flex flex-col">
+                <!-- SIDEBAR: XP LEDGER (Renamed ID to avoid collision) -->
+                <div id="npc-xp-sidebar" class="hidden w-64 bg-[#080808] border-l border-[#333] flex-col shrink-0">
                     <div class="p-3 bg-[#111] border-b border-[#333] text-center"><h3 class="text-purple-400 font-cinzel font-bold">XP Ledger</h3></div>
                     
                     <!-- XP Categories -->
                     <div class="text-[10px] font-mono space-y-2 p-4 bg-black/40 text-gray-400 flex-none border-b border-[#333]">
-                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Attributes:</span> <span id="xp-cost-attr" class="text-white">0</span></div>
-                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Abilities:</span> <span id="xp-cost-abil" class="text-white">0</span></div>
-                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Disciplines:</span> <span id="xp-cost-disc" class="text-white">0</span></div>
-                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Backgrounds:</span> <span id="xp-cost-back" class="text-white">0</span></div>
-                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Virtues:</span> <span id="xp-cost-virt" class="text-white">0</span></div>
-                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Humanity:</span> <span id="xp-cost-hum" class="text-white">0</span></div>
-                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Willpower:</span> <span id="xp-cost-will" class="text-white">0</span></div>
+                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Attributes:</span> <span id="npc-xp-cost-attr" class="text-white">0</span></div>
+                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Abilities:</span> <span id="npc-xp-cost-abil" class="text-white">0</span></div>
+                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Disciplines:</span> <span id="npc-xp-cost-disc" class="text-white">0</span></div>
+                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Backgrounds:</span> <span id="npc-xp-cost-back" class="text-white">0</span></div>
+                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Virtues:</span> <span id="npc-xp-cost-virt" class="text-white">0</span></div>
+                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Humanity:</span> <span id="npc-xp-cost-hum" class="text-white">0</span></div>
+                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Willpower:</span> <span id="npc-xp-cost-will" class="text-white">0</span></div>
                         
                         <div class="mt-4 pt-2 border-t border-[#444]">
                             <div class="flex justify-between items-center mb-2">
                                 <span class="text-gray-500">Total XP</span>
-                                <input type="number" id="xp-total" value="${activeNpc.experience.total}" class="w-16 bg-black border border-[#333] text-purple-400 text-center font-bold">
+                                <input type="number" id="npc-xp-total" value="${activeNpc.experience.total}" class="w-16 bg-black border border-[#333] text-purple-400 text-center font-bold">
                             </div>
                             <div class="flex justify-between font-bold text-xs text-white">
                                 <span>Remaining:</span>
-                                <span id="xp-remain" class="text-purple-400">0</span>
+                                <span id="npc-xp-remain" class="text-purple-400">0</span>
                             </div>
                         </div>
                     </div>
@@ -301,38 +301,38 @@ function renderEditorModal() {
                     <!-- XP Log -->
                     <div class="flex-1 overflow-y-auto p-2 border-t border-[#333] bg-[#0a0a0a]">
                         <h4 class="text-[9px] uppercase text-gray-500 font-bold mb-1 tracking-wider sticky top-0 bg-[#0a0a0a] pb-1">Session Log</h4>
-                        <div id="xp-list" class="text-[9px] font-mono text-gray-400 space-y-1"></div>
+                        <div id="npc-xp-list" class="text-[9px] font-mono text-gray-400 space-y-1"></div>
                     </div>
                 </div>
 
-                <!-- SIDEBAR: FREEBIE LEDGER -->
-                <div id="fb-sidebar" class="hidden w-64 bg-[#080808] border-l border-[#333] flex-col shrink-0 transition-all flex flex-col">
+                <!-- SIDEBAR: FREEBIE LEDGER (Renamed ID to avoid collision) -->
+                <div id="npc-fb-sidebar" class="hidden w-64 bg-[#080808] border-l border-[#333] flex-col shrink-0 transition-all flex flex-col">
                     <div class="p-3 bg-[#111] border-b border-[#333] text-center"><h3 class="text-[#d4af37] font-cinzel font-bold">Freebie Ledger</h3></div>
                     
                     <div class="text-[10px] font-mono space-y-2 p-4 bg-black/40 text-gray-400 flex-none border-b border-[#333]">
-                        <div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-attr">Attributes (5):</span> <span id="fb-cost-attr" class="text-white">0</span></div>
-                        <div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-abil">Abilities (2):</span> <span id="fb-cost-abil" class="text-white">0</span></div>
-                        <div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-disc">Disciplines (10):</span> <span id="fb-cost-disc" class="text-white">0</span></div>
-                        <div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-back">Backgrounds (1):</span> <span id="fb-cost-back" class="text-white">0</span></div>
-                        <div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-virt">Virtues (2):</span> <span id="fb-cost-virt" class="text-white">0</span></div>
-                        <div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-human">Humanity (1):</span> <span id="fb-cost-hum" class="text-white">0</span></div>
-                        <div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-will">Willpower (1):</span> <span id="fb-cost-will" class="text-white">0</span></div>
-                        <div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-merit">Merits (Cost):</span> <span id="fb-cost-merit" class="text-white">0</span></div>
-                        <div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-flaw">Flaws (Bonus):</span> <span id="fb-cost-flaw" class="text-green-400">0</span></div>
+                        <div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-attr">Attributes (5):</span> <span id="npc-fb-cost-attr" class="text-white">0</span></div>
+                        <div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-abil">Abilities (2):</span> <span id="npc-fb-cost-abil" class="text-white">0</span></div>
+                        <div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-disc">Disciplines (10):</span> <span id="npc-fb-cost-disc" class="text-white">0</span></div>
+                        <div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-back">Backgrounds (1):</span> <span id="npc-fb-cost-back" class="text-white">0</span></div>
+                        <div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-virt">Virtues (2):</span> <span id="npc-fb-cost-virt" class="text-white">0</span></div>
+                        <div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-human">Humanity (1):</span> <span id="npc-fb-cost-hum" class="text-white">0</span></div>
+                        <div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-will">Willpower (1):</span> <span id="npc-fb-cost-will" class="text-white">0</span></div>
+                        <div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-merit">Merits (Cost):</span> <span id="npc-fb-cost-merit" class="text-white">0</span></div>
+                        <div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-flaw">Flaws (Bonus):</span> <span id="npc-fb-cost-flaw" class="text-green-400">0</span></div>
                         <div class="mt-4 flex justify-between font-bold text-xs text-white">
                             <span>Remaining:</span>
-                            <span id="fb-total-calc" class="text-green-400">15</span>
+                            <span id="npc-fb-total-calc" class="text-green-400">15</span>
                         </div>
                     </div>
 
                     <div class="flex-1 overflow-y-auto p-2 border-t border-[#333] bg-[#0a0a0a]">
                         <h4 class="text-[9px] uppercase text-gray-500 font-bold mb-1 tracking-wider sticky top-0 bg-[#0a0a0a] pb-1">Spending Log</h4>
-                        <div id="fb-log-list" class="text-[9px] font-mono text-gray-400 space-y-1"></div>
+                        <div id="npc-fb-log-list" class="text-[9px] font-mono text-gray-400 space-y-1"></div>
                     </div>
 
                     <div class="p-4 bg-[#d4af37]/10 border-t border-[#d4af37]/30 text-center flex-none">
                         <div class="uppercase text-[9px] font-bold text-[#d4af37]">Freebies Remaining</div>
-                        <div id="fb-final" class="text-4xl font-black text-white mt-2 font-cinzel">21</div>
+                        <div id="npc-fb-final" class="text-4xl font-black text-white mt-2 font-cinzel">21</div>
                     </div>
                 </div>
             </div>
@@ -394,7 +394,7 @@ function renderEditorModal() {
     setupMF('npc-merit-select', 'merits');
     setupMF('npc-flaw-select', 'flaws');
 
-    document.getElementById('xp-total').onchange = (e) => {
+    document.getElementById('npc-xp-total').onchange = (e) => {
         activeNpc.experience.total = parseInt(e.target.value) || 0;
         updateXpLog();
     };
@@ -446,8 +446,8 @@ function toggleMode(mode) {
 function updateModeUI() {
     const xpBtn = document.getElementById('toggle-xp-mode');
     const fbBtn = document.getElementById('toggle-fb-mode');
-    const xpBar = document.getElementById('xp-sidebar');
-    const fbBar = document.getElementById('fb-sidebar');
+    const xpBar = document.getElementById('npc-xp-sidebar');
+    const fbBar = document.getElementById('npc-fb-sidebar');
 
     const setActive = (btn, isActive, color) => {
         if (isActive) btn.className = `text-[10px] uppercase font-bold px-3 py-1 border rounded transition-all bg-${color}-900/40 text-${color}-300 border-${color}-500 shadow-[0_0_10px_rgba(255,255,255,0.2)]`;
@@ -828,8 +828,8 @@ function updateVirtueDisplay() {
 
 function updateXpLog() {
     if(!modes.xp) return;
-    const spentDiv = document.getElementById('xp-spent');
-    const remDiv = document.getElementById('xp-remain');
+    const spentDiv = document.getElementById('npc-xp-spent');
+    const remDiv = document.getElementById('npc-xp-remain');
     
     // Recalculate totals from log
     let costs = { attr: 0, abil: 0, disc: 0, back: 0, virt: 0, hum: 0, will: 0, merit: 0, flaw: 0 };
@@ -863,16 +863,16 @@ function updateXpLog() {
         }
     };
     
-    setXpCost('xp-cost-attr', costs.attr);
-    setXpCost('xp-cost-abil', costs.abil);
-    setXpCost('xp-cost-disc', costs.disc);
-    setXpCost('xp-cost-back', costs.back);
-    setXpCost('xp-cost-virt', costs.virt);
-    setXpCost('xp-cost-hum', costs.hum);
-    setXpCost('xp-cost-will', costs.will);
+    setXpCost('npc-xp-cost-attr', costs.attr);
+    setXpCost('npc-xp-cost-abil', costs.abil);
+    setXpCost('npc-xp-cost-disc', costs.disc);
+    setXpCost('npc-xp-cost-back', costs.back);
+    setXpCost('npc-xp-cost-virt', costs.virt);
+    setXpCost('npc-xp-cost-hum', costs.hum);
+    setXpCost('npc-xp-cost-will', costs.will);
 
     // Update Log
-    const logDiv = document.getElementById('xp-list');
+    const logDiv = document.getElementById('npc-xp-list');
     if(logDiv) {
         if(activeNpc.experience.log.length === 0) {
             logDiv.innerHTML = '<div class="italic opacity-50">No XP spent.</div>';
@@ -981,16 +981,16 @@ function updateFreebieCalc() {
         }
     };
     
-    setCost('fb-cost-attr', costs.attr);
-    setCost('fb-cost-abil', costs.abil);
-    setCost('fb-cost-disc', costs.disc);
-    setCost('fb-cost-back', costs.back);
-    setCost('fb-cost-virt', costs.virt);
-    setCost('fb-cost-hum', costs.hum);
-    setCost('fb-cost-will', costs.will);
-    setCost('fb-cost-merit', costs.merit);
+    setCost('npc-fb-cost-attr', costs.attr);
+    setCost('npc-fb-cost-abil', costs.abil);
+    setCost('npc-fb-cost-disc', costs.disc);
+    setCost('npc-fb-cost-back', costs.back);
+    setCost('npc-fb-cost-virt', costs.virt);
+    setCost('npc-fb-cost-hum', costs.hum);
+    setCost('npc-fb-cost-will', costs.will);
+    setCost('npc-fb-cost-merit', costs.merit);
     
-    const flawEl = document.getElementById('fb-cost-flaw');
+    const flawEl = document.getElementById('npc-fb-cost-flaw');
     if(flawEl) {
         flawEl.innerText = costs.flaw;
         flawEl.className = costs.flaw > 0 ? "text-green-400 font-bold" : "text-gray-500";
@@ -999,19 +999,19 @@ function updateFreebieCalc() {
     const totalSpent = costs.attr + costs.abil + costs.disc + costs.back + costs.virt + costs.hum + costs.will + costs.merit;
     const remaining = (21 + costs.flaw) - totalSpent;
     
-    const fbEl = document.getElementById('fb-final');
+    const fbEl = document.getElementById('npc-fb-final');
     if(fbEl) {
         fbEl.innerText = remaining;
         fbEl.className = remaining >= 0 ? "text-4xl font-black text-white mt-2 font-cinzel" : "text-4xl font-black text-red-500 mt-2 font-cinzel";
     }
     
-    const fbTotalCalc = document.getElementById('fb-total-calc');
+    const fbTotalCalc = document.getElementById('npc-fb-total-calc');
     if(fbTotalCalc) {
         fbTotalCalc.innerText = remaining;
         fbTotalCalc.className = remaining >= 0 ? "text-green-400" : "text-red-500";
     }
 
-    const logEl = document.getElementById('fb-log-list');
+    const logEl = document.getElementById('npc-fb-log-list');
     if(logEl) {
         if (logs.length === 0) logEl.innerHTML = '<div class="italic opacity-50">No freebie points spent.</div>';
         else logEl.innerHTML = logs.map(l => `<div>${l}</div>`).join('');
