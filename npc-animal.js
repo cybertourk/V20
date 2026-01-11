@@ -13,7 +13,7 @@ const SPECIES_DB = {
     "Bat": {
         attr: { Strength: 1, Dexterity: 3, Stamina: 2, Perception: 3, Intelligence: 1, Wits: 2 },
         abil: { Alertness: 3, Athletics: 3, Stealth: 2 },
-        wp: 2, bp: 1, // 1/4 really, but min 1 for mechanics
+        wp: 2, bp: 1, 
         note: "Health: 3 Levels (OK, -1, -3). Fly: 25mph. Attack: Bite (1 die). 4 Bats = 1 BP."
     },
     "Bear": {
@@ -53,7 +53,7 @@ const SPECIES_DB = {
         note: "Health: 7 Levels. Attack: Bite (5 dice), Claw (4 dice)."
     },
     "Cat (Tiger/Lion)": {
-        attr: { Strength: 5, Dexterity: 4, Stamina: 4, Perception: 4, Intelligence: 3, Wits 3: 3 },
+        attr: { Strength: 5, Dexterity: 4, Stamina: 4, Perception: 4, Intelligence: 3, Wits: 3 },
         abil: { Alertness: 3, Athletics: 3, Brawl: 3, Intimidation: 4, Stealth: 3 },
         wp: 5, bp: 5,
         note: "Health: 7 Levels. Attack: Bite (6 dice), Claw (5 dice)."
@@ -91,7 +91,7 @@ const SPECIES_DB = {
     "Rat (Swarm)": {
         attr: { Strength: 1, Dexterity: 2, Stamina: 3, Perception: 2, Intelligence: 1, Wits: 1 },
         abil: { Alertness: 2, Athletics: 3, Brawl: 1, Stealth: 3 },
-        wp: 4, bp: 1, // 1/4
+        wp: 4, bp: 1, 
         note: "Health: 3 Levels. Attack: Bite (1 die). 4 Rats = 1 BP."
     },
     "Wolf": {
