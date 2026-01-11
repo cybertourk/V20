@@ -19,6 +19,12 @@ import {
 // --- IMPORT JOURNAL MODULE ---
 import { renderJournalTab } from "./ui-journal.js";
 
+// --- IMPORT NPC CREATOR ---
+import { openNpcCreator } from "./npc-creator.js";
+
+// Ensure Global Access for HTML Strings
+window.openNpcCreator = openNpcCreator;
+
 // --- DYNAMIC ADVANTAGES (Disciplines, Backgrounds, etc.) ---
 
 export function renderDynamicAdvantageRow(containerId, type, list, isAbil = false) {
@@ -746,7 +752,7 @@ export function changeStep(s) {
         renderJournalTab();
     }
 
-    // --- NEW: SPECIAL RETAINERS INJECTION FOR PLAY MODE ---
+    // --- NEW: SPECIAL NPC INJECTION FOR PLAY MODE ---
     if (window.state.isPlayMode && s === 6) {
         let pm6 = document.getElementById('play-mode-6');
         if (!pm6) {
@@ -755,7 +761,7 @@ export function changeStep(s) {
             pm6.className = 'step-container p-4 hidden';
             document.getElementById('play-mode-sheet').appendChild(pm6);
         }
-        renderRetainersTab();
+        renderNpcTab();
     }
 
     const target = document.getElementById(prefix + s);
@@ -766,8 +772,8 @@ export function changeStep(s) {
     if (nav) {
         nav.innerHTML = '';
         if (window.state.isPlayMode) {
-             // ADDED "Retainers" to the Play Mode navigation list
-             const steps = ["Sheet", "Traits", "Social", "Biography", "Journal", "Retainers"];
+             // RENAMED "Retainers" to "NPCs"
+             const steps = ["Sheet", "Traits", "Social", "Biography", "Journal", "NPCs"];
              steps.forEach((text, i) => {
                  const it = document.createElement('div'); it.className = `nav-item ${window.state.currentPhase === (i+1) ? 'active' : ''}`;
                  it.innerHTML = `<i class="fas fa-scroll"></i><span style="display:block; font-size:9px; margin-top:2px;">${text}</span>`;
@@ -1294,9 +1300,9 @@ export function renderMovementSection() {
 }
 window.renderMovementSection = renderMovementSection;
 
-// --- RETAINERS RENDERER (NEW) ---
+// --- NPC TAB RENDERER (Was Retainers) ---
 
-export function renderRetainersTab() {
+export function renderNpcTab() {
     const container = document.getElementById('play-mode-6');
     if (!container) return;
     
@@ -1306,9 +1312,9 @@ export function renderRetainersTab() {
     let html = `
         <div class="max-w-3xl mx-auto">
             <div class="flex justify-between items-center mb-6">
-                <h2 class="text-2xl font-serif text-red-500">Retainers & Ghouls</h2>
-                <button onclick="window.openGhoulCreator()" class="bg-red-900 hover:bg-red-800 text-white px-4 py-2 rounded text-sm flex items-center gap-2">
-                    <span>+</span> Create New
+                <h2 class="text-2xl font-serif text-red-500">NPCs & Retainers</h2>
+                <button onclick="window.openNpcCreator('ghoul')" class="bg-red-900 hover:bg-red-800 text-white px-4 py-2 rounded text-sm flex items-center gap-2">
+                    <span>+</span> Add NPC
                 </button>
             </div>
     `;
@@ -1316,8 +1322,8 @@ export function renderRetainersTab() {
     if (retainers.length === 0) {
         html += `
             <div class="text-center p-8 border border-dashed border-gray-700 rounded bg-gray-900/50">
-                <p class="text-gray-400 mb-4">You have no recorded retainers.</p>
-                <button onclick="window.openGhoulCreator()" class="text-red-400 hover:text-red-300 underline">Add one now</button>
+                <p class="text-gray-400 mb-4">You have no recorded NPCs or Retainers.</p>
+                <button onclick="window.openNpcCreator('ghoul')" class="text-red-400 hover:text-red-300 underline">Add one now</button>
             </div>
         </div>`;
         container.innerHTML = html;
@@ -1326,16 +1332,16 @@ export function renderRetainersTab() {
 
     html += `<div class="grid grid-cols-1 gap-4">`;
 
-    retainers.forEach((ghoul, index) => {
+    retainers.forEach((npc, index) => {
         // Safely handle potentially missing fields
-        const name = ghoul.name || "Unnamed";
-        const type = ghoul.type || "Ghoul";
-        const concept = ghoul.concept || "";
+        const name = npc.name || "Unnamed";
+        const type = npc.type || "Ghoul";
+        const concept = npc.concept || "";
         
         // Quick stats for summary
-        const potence = ghoul.disciplines?.Potence || 0;
-        const celerity = ghoul.disciplines?.Celerity || 0;
-        const fortitude = ghoul.disciplines?.Fortitude || 0;
+        const potence = npc.disciplines?.Potence || 0;
+        const celerity = npc.disciplines?.Celerity || 0;
+        const fortitude = npc.disciplines?.Fortitude || 0;
 
         html += `
             <div class="bg-gray-900 border border-gray-700 rounded p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 hover:border-red-900/50 transition-colors">
@@ -1350,11 +1356,11 @@ export function renderRetainersTab() {
                 </div>
                 
                 <div class="flex items-center gap-2 w-full md:w-auto mt-2 md:mt-0">
-                    <button onclick="window.editRetainer(${index})" 
+                    <button onclick="window.editNpc(${index})" 
                         class="flex-1 md:flex-none bg-gray-700 hover:bg-gray-600 text-white px-3 py-1 rounded text-sm">
                         Edit / View
                     </button>
-                    <button onclick="window.deleteRetainer(${index})" 
+                    <button onclick="window.deleteNpc(${index})" 
                         class="flex-1 md:flex-none bg-red-900/20 hover:bg-red-900/50 text-red-500 border border-red-900/30 px-3 py-1 rounded text-sm" title="Delete">
                         &times;
                     </button>
@@ -1366,27 +1372,36 @@ export function renderRetainersTab() {
     html += `</div></div>`;
     container.innerHTML = html;
 }
-window.renderRetainersTab = renderRetainersTab;
+window.renderNpcTab = renderNpcTab; // Assign to window for call by changeStep
+// Backwards compatibility alias if needed by other modules
+window.renderRetainersTab = renderNpcTab; 
 
-// --- RETAINER HELPERS ---
-window.editRetainer = function(index) {
+// --- NPC HELPERS ---
+window.editNpc = function(index) {
     if (window.state.retainers && window.state.retainers[index]) {
         // Pass the actual object and the index
-        if(window.openGhoulCreator) window.openGhoulCreator(window.state.retainers[index], index);
+        // Default to 'ghoul' template if not specified (backward compatibility)
+        const npc = window.state.retainers[index];
+        const type = npc.template || 'ghoul';
+        if(window.openNpcCreator) window.openNpcCreator(type, npc, index);
     }
 };
+// Backward compat alias
+window.editRetainer = window.editNpc;
 
-window.deleteRetainer = function(index) {
-    if(confirm("Permanently release this retainer? This cannot be undone.")) {
+window.deleteNpc = function(index) {
+    if(confirm("Permanently release this NPC? This cannot be undone.")) {
         if(window.state.retainers) {
             window.state.retainers.splice(index, 1);
             // Re-render
-            renderRetainersTab();
+            renderNpcTab();
             // Trigger auto-save if available
             if(window.performSave) window.performSave(true); 
         }
     }
 };
+// Backward compat alias
+window.deleteRetainer = window.deleteNpc;
 
 // --- PRINT SHEET RENDERER ---
 
