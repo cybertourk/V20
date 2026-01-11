@@ -287,7 +287,7 @@ function renderEditorModal() {
                         <input type="number" id="xp-total" value="${activeNpc.experience.total}" class="w-16 bg-black border border-[#333] text-purple-400 text-center font-bold">
                     </div>
                     
-                    <!-- NEW: Detailed Breakdown Area -->
+                    <!-- XP Breakdown Area -->
                     <div id="xp-breakdown-list" class="space-y-2 text-xs p-3 border-b border-[#333]"></div>
 
                     <div class="p-3 bg-[#111] border-b border-[#333] text-xs">
@@ -301,23 +301,33 @@ function renderEditorModal() {
                 </div>
 
                 <!-- SIDEBAR: FREEBIE LEDGER -->
-                <div id="fb-sidebar" class="hidden w-64 bg-[#080808] border-l border-[#333] flex-col shrink-0 transition-all">
+                <div id="fb-sidebar" class="hidden w-64 bg-[#080808] border-l border-[#333] flex-col shrink-0 transition-all flex flex-col">
                     <div class="p-3 bg-[#111] border-b border-[#333] text-center"><h3 class="text-[#d4af37] font-cinzel font-bold">Freebie Ledger</h3></div>
                     
-                    <!-- Structured List (matches original) -->
-                    <div class="text-[10px] font-mono space-y-2 p-4 bg-black/40 text-gray-400 flex-1">
-                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Attributes:</span> <span id="fb-cost-attr" class="text-white">0</span></div>
-                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Abilities:</span> <span id="fb-cost-abil" class="text-white">0</span></div>
-                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Disciplines:</span> <span id="fb-cost-disc" class="text-white">0</span></div>
-                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Backgrounds:</span> <span id="fb-cost-back" class="text-white">0</span></div>
-                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Virtues:</span> <span id="fb-cost-virt" class="text-white">0</span></div>
-                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Humanity:</span> <span id="fb-cost-hum" class="text-white">0</span></div>
-                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Willpower:</span> <span id="fb-cost-will" class="text-white">0</span></div>
-                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Merits:</span> <span id="fb-cost-merit" class="text-white">0</span></div>
-                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Flaws:</span> <span id="fb-cost-flaw" class="text-green-400">0</span></div>
+                    <!-- Detailed Category Ledger -->
+                    <div class="text-[10px] font-mono space-y-2 p-4 bg-black/40 text-gray-400 flex-none border-b border-[#333]">
+                        <div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-attr">Attributes (5):</span> <span id="fb-cost-attr" class="text-white">0</span></div>
+                        <div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-abil">Abilities (2):</span> <span id="fb-cost-abil" class="text-white">0</span></div>
+                        <div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-disc">Disciplines (10):</span> <span id="fb-cost-disc" class="text-white">0</span></div>
+                        <div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-back">Backgrounds (1):</span> <span id="fb-cost-back" class="text-white">0</span></div>
+                        <div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-virt">Virtues (2):</span> <span id="fb-cost-virt" class="text-white">0</span></div>
+                        <div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-human">Humanity (1):</span> <span id="fb-cost-hum" class="text-white">0</span></div>
+                        <div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-will">Willpower (1):</span> <span id="fb-cost-will" class="text-white">0</span></div>
+                        <div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-merit">Merits (Cost):</span> <span id="fb-cost-merit" class="text-white">0</span></div>
+                        <div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-flaw">Flaws (Bonus):</span> <span id="fb-cost-flaw" class="text-green-400">0</span></div>
+                        <div class="mt-4 flex justify-between font-bold text-xs text-white">
+                            <span>Remaining:</span>
+                            <span id="fb-total-calc" class="text-green-400">15</span>
+                        </div>
                     </div>
 
-                    <div class="p-4 bg-[#d4af37]/10 border-t border-[#d4af37]/30 text-center mb-4 mx-4 rounded shadow-[0_0_15px_rgba(212,175,55,0.1)]">
+                    <!-- Spending Log Container -->
+                    <div class="flex-1 overflow-y-auto p-2 border-t border-[#333] bg-[#0a0a0a]">
+                        <h4 class="text-[9px] uppercase text-gray-500 font-bold mb-1 tracking-wider sticky top-0 bg-[#0a0a0a] pb-1">Spending Log</h4>
+                        <div id="fb-log-list" class="text-[9px] font-mono text-gray-400 space-y-1"></div>
+                    </div>
+
+                    <div class="p-4 bg-[#d4af37]/10 border-t border-[#d4af37]/30 text-center flex-none">
                         <div class="uppercase text-[9px] font-bold text-[#d4af37]">Freebies Remaining</div>
                         <div id="fb-final" class="text-4xl font-black text-white mt-2 font-cinzel">21</div>
                     </div>
@@ -626,8 +636,24 @@ function handleValueChange(type, key, newVal) {
         }
     } 
     else if (modes.freebie) {
-        // Just apply, update loop will handle calculation
-        applyChange(type, key, newVal);
+        let finalVal = newVal;
+        // Undo/Refund logic: if clicking existing val, lower by 1
+        if (newVal === currentVal) finalVal = newVal - 1; 
+        
+        // Strict Validation: Cannot refund points not bought with Freebies
+        if (finalVal < currentVal) {
+            // We are reducing. Check if this reduction dips into "Creation Base" points.
+            if (!validateFreebieRefund(type, key, finalVal)) {
+                showNotification("Cannot refund base dots (Creation points).");
+                return;
+            }
+        }
+
+        // Basic Floors
+        if (type === 'attributes' && finalVal < 1) return;
+        if (finalVal < 0) return;
+
+        applyChange(type, key, finalVal);
     } 
     else {
         const valid = currentTemplate.validateChange(type, key, newVal, currentVal, activeNpc, localPriorities);
@@ -637,6 +663,87 @@ function handleValueChange(type, key, newVal) {
             showNotification(valid);
         }
     }
+}
+
+// Helper to validate if a refund is legal in Freebie mode
+function validateFreebieRefund(type, key, newVal) {
+    // 1. Attributes & Abilities - Check against Priority Limit
+    if (type === 'attributes' || type === 'abilities') {
+        let group = null;
+        const list = (type === 'attributes') ? ATTRIBUTES : ABILITIES;
+        
+        if (list.Physical && list.Physical.includes(key)) group = 'Physical';
+        else if (list.Social && list.Social.includes(key)) group = 'Social';
+        else if (list.Mental && list.Mental.includes(key)) group = 'Mental';
+        else if (list.Talents && list.Talents.includes(key)) group = 'Talents';
+        else if (list.Skills && list.Skills.includes(key)) group = 'Skills';
+        else if (list.Knowledges && list.Knowledges.includes(key)) group = 'Knowledges';
+
+        if (!group) return true; // Fallback
+
+        const priorities = (type === 'attributes') ? localPriorities.attr : localPriorities.abil;
+        const limit = priorities[group];
+        
+        if (limit === null) return true; // No limit set, assume safe?
+
+        // Calculate hypothetical total after reduction
+        let total = 0;
+        const groupList = list[group];
+        
+        groupList.forEach(k => {
+            const v = (k === key) ? newVal : (activeNpc[type][k] || 0);
+            if (type === 'attributes') total += Math.max(0, (v||1) - 1);
+            else total += v;
+        });
+
+        // If new total drops below the Creation Limit, forbid it.
+        return total >= limit;
+    }
+
+    // 2. Disciplines (Base 2)
+    if (type === 'disciplines') {
+        let total = 0;
+        Object.keys(activeNpc.disciplines).forEach(k => {
+            const v = (k === key) ? newVal : activeNpc.disciplines[k];
+            total += v;
+        });
+        return total >= 2; 
+    }
+
+    // 3. Backgrounds (Base 5)
+    if (type === 'backgrounds') {
+        let total = 0;
+        Object.keys(activeNpc.backgrounds).forEach(k => {
+            const v = (k === key) ? newVal : activeNpc.backgrounds[k];
+            total += v;
+        });
+        return total >= 5;
+    }
+
+    // 4. Virtues (Base 5 or 7)
+    if (type === 'virtues') {
+        let total = 0;
+        VIRTUES.forEach(k => {
+            const v = (k === key) ? newVal : (activeNpc.virtues[k] || 1);
+            total += Math.max(0, v - 1);
+        });
+        const limit = currentTemplate.getVirtueLimit(activeNpc);
+        return total >= limit;
+    }
+
+    // 5. Humanity
+    if (type === 'humanity') {
+        const base = (activeNpc.virtues.Conscience||1) + (activeNpc.virtues["Self-Control"]||1);
+        return newVal >= base;
+    }
+
+    // 6. Willpower
+    if (type === 'willpower') {
+        const base = (activeNpc.virtues.Courage||1);
+        return newVal >= base;
+    }
+
+    return true;
 }
 
 function applyChange(type, key, val) {
@@ -728,7 +835,7 @@ function updateXpLog() {
     if(spentDiv) spentDiv.innerText = activeNpc.experience.spent;
     if(remDiv) remDiv.innerText = activeNpc.experience.total - activeNpc.experience.spent;
 
-    // Detailed Breakdown (Ported from ghoul-creator.js)
+    // Detailed Breakdown
     const breakdown = document.getElementById('xp-breakdown-list');
     if (breakdown) {
         breakdown.innerHTML = '';
@@ -779,61 +886,94 @@ function updateXpLog() {
 function updateFreebieCalc() {
     if(!modes.freebie) return;
     
-    // High-Fidelity Update logic (Ported from ghoul-creator.js)
+    // High-Fidelity Update logic with LOGGING
     let costs = { attr: 0, abil: 0, disc: 0, back: 0, virt: 0, hum: 0, will: 0, merit: 0, flaw: 0 };
+    let logs = []; // Accumulate log entries here
 
-    // 1. Attributes & Abilities (Relative to Priority Caps)
-    ['attr', 'abil'].forEach(cat => {
-        Object.entries(localPriorities[cat]).forEach(([group, limit]) => {
-            let spent = 0;
-            const list = (cat === 'attr') ? ATTRIBUTES[group] : ABILITIES[group];
-            list.forEach(k => {
-                if (cat === 'attr') spent += Math.max(0, (activeNpc.attributes[k]||1)-1);
-                else spent += (activeNpc.abilities[k]||0);
-            });
-            
-            const cap = limit || 0;
-            if (spent > cap) {
-                // Use getCost with delta
-                const cost = currentTemplate.getCost('freebie', cat === 'attr' ? 'attributes' : 'abilities', null, 0, spent - cap, activeNpc);
-                if (cat === 'attr') costs.attr += cost;
-                else costs.abil += cost;
-            }
-        });
+    // 1. Attributes
+    ['Physical', 'Social', 'Mental'].forEach(grp => {
+        const limit = localPriorities.attr[grp];
+        let spent = 0;
+        ATTRIBUTES[grp].forEach(k => spent += Math.max(0, (activeNpc.attributes[k]||1)-1));
+        const cap = limit || 0;
+        if (spent > cap) {
+            const cost = currentTemplate.getCost('freebie', 'attributes', null, 0, spent - cap, activeNpc);
+            costs.attr += cost;
+            logs.push(`${grp} Attr (+${spent - cap} dots): ${cost} pts`);
+        }
     });
 
-    // 2. Disciplines
+    // 2. Abilities
+    ['Talents', 'Skills', 'Knowledges'].forEach(grp => {
+        const limit = localPriorities.abil[grp];
+        let spent = 0;
+        ABILITIES[grp].forEach(k => spent += (activeNpc.abilities[k]||0));
+        const cap = limit || 0;
+        if (spent > cap) {
+            const cost = currentTemplate.getCost('freebie', 'abilities', null, 0, spent - cap, activeNpc);
+            costs.abil += cost;
+            logs.push(`${grp} (+${spent - cap} dots): ${cost} pts`);
+        }
+    });
+
+    // 3. Disciplines
     let discTotal = 0;
     Object.values(activeNpc.disciplines).forEach(v => discTotal += v);
-    // Base 2 dots are free (Potence + 1)
-    if (discTotal > 2) costs.disc = currentTemplate.getCost('freebie', 'disciplines', null, 0, discTotal - 2, activeNpc);
+    if (discTotal > 2) {
+        const cost = currentTemplate.getCost('freebie', 'disciplines', null, 0, discTotal - 2, activeNpc);
+        costs.disc = cost;
+        logs.push(`Disciplines (+${discTotal - 2} dots): ${cost} pts`);
+    }
 
-    // 3. Backgrounds
+    // 4. Backgrounds
     let bgTotal = 0;
     Object.values(activeNpc.backgrounds).forEach(v => bgTotal += v);
-    if (bgTotal > 5) costs.back = currentTemplate.getCost('freebie', 'backgrounds', null, 0, bgTotal - 5, activeNpc);
+    if (bgTotal > 5) {
+        const cost = currentTemplate.getCost('freebie', 'backgrounds', null, 0, bgTotal - 5, activeNpc);
+        costs.back = cost;
+        logs.push(`Backgrounds (+${bgTotal - 5} dots): ${cost} pts`);
+    }
 
-    // 4. Virtues
+    // 5. Virtues
     let virtTotal = 0;
     VIRTUES.forEach(v => virtTotal += Math.max(0, (activeNpc.virtues[v]||1)-1));
     const vLimit = currentTemplate.getVirtueLimit(activeNpc);
-    if (virtTotal > vLimit) costs.virt = currentTemplate.getCost('freebie', 'virtues', null, 0, virtTotal - vLimit, activeNpc);
+    if (virtTotal > vLimit) {
+        const cost = currentTemplate.getCost('freebie', 'virtues', null, 0, virtTotal - vLimit, activeNpc);
+        costs.virt = cost;
+        logs.push(`Virtues (+${virtTotal - vLimit} dots): ${cost} pts`);
+    }
 
-    // 5. Humanity
+    // 6. Humanity
     const baseHum = (activeNpc.virtues.Conscience||1) + (activeNpc.virtues["Self-Control"]||1);
-    if (activeNpc.humanity > baseHum) costs.hum = currentTemplate.getCost('freebie', 'humanity', null, 0, activeNpc.humanity - baseHum, activeNpc);
+    if (activeNpc.humanity > baseHum) {
+        const cost = currentTemplate.getCost('freebie', 'humanity', null, 0, activeNpc.humanity - baseHum, activeNpc);
+        costs.hum = cost;
+        logs.push(`Humanity (+${activeNpc.humanity - baseHum}): ${cost} pts`);
+    }
 
-    // 6. Willpower
+    // 7. Willpower
     const baseWill = (activeNpc.virtues.Courage||1);
-    if (activeNpc.willpower > baseWill) costs.will = currentTemplate.getCost('freebie', 'willpower', null, 0, activeNpc.willpower - baseWill, activeNpc);
+    if (activeNpc.willpower > baseWill) {
+        const cost = currentTemplate.getCost('freebie', 'willpower', null, 0, activeNpc.willpower - baseWill, activeNpc);
+        costs.will = cost;
+        logs.push(`Willpower (+${activeNpc.willpower - baseWill}): ${cost} pts`);
+    }
 
-    // 7. Merits/Flaws
-    if (activeNpc.merits) Object.values(activeNpc.merits).forEach(v => costs.merit += v);
+    // 8. Merits/Flaws
+    if (activeNpc.merits) Object.entries(activeNpc.merits).forEach(([k,v]) => {
+        costs.merit += v;
+        logs.push(`Merit: ${k} (${v} pts)`);
+    });
+    
     let flawTotal = 0;
-    if (activeNpc.flaws) Object.values(activeNpc.flaws).forEach(v => flawTotal += v);
+    if (activeNpc.flaws) Object.entries(activeNpc.flaws).forEach(([k,v]) => {
+        flawTotal += v;
+        logs.push(`Flaw: ${k} (-${v} pts)`);
+    });
     costs.flaw = Math.min(7, flawTotal);
 
-    // Update UI elements by ID (Ported IDs)
+    // Update UI elements by ID
     const setCost = (id, val) => {
         const el = document.getElementById(id);
         if(el) {
@@ -864,6 +1004,19 @@ function updateFreebieCalc() {
     if(fbEl) {
         fbEl.innerText = remaining;
         fbEl.className = remaining >= 0 ? "text-4xl font-black text-white mt-2 font-cinzel" : "text-4xl font-black text-red-500 mt-2 font-cinzel";
+    }
+    
+    const fbTotalCalc = document.getElementById('fb-total-calc');
+    if(fbTotalCalc) {
+        fbTotalCalc.innerText = remaining;
+        fbTotalCalc.className = remaining >= 0 ? "text-green-400" : "text-red-500";
+    }
+
+    // Render Log
+    const logEl = document.getElementById('fb-log-list');
+    if(logEl) {
+        if (logs.length === 0) logEl.innerHTML = '<div class="italic opacity-50">No freebie points spent.</div>';
+        else logEl.innerHTML = logs.map(l => `<div>${l}</div>`).join('');
     }
 }
 
