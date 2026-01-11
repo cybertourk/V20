@@ -1,4 +1,6 @@
 import { GhoulTemplate } from "./npc-ghoul.js";
+import { MortalTemplate } from "./npc-mortal.js";
+import { AnimalTemplate } from "./npc-animal.js";
 import { 
     ATTRIBUTES, ABILITIES, VIRTUES, DISCIPLINES, BACKGROUNDS, 
     ARCHETYPES, CLANS, SPECIALTY_EXAMPLES as SPECIALTIES,
@@ -8,7 +10,9 @@ import { renderDots, showNotification } from "./ui-common.js";
 
 // Registry of available templates
 const TEMPLATES = {
-    'ghoul': GhoulTemplate
+    'mortal': MortalTemplate,
+    'ghoul': GhoulTemplate,
+    'animal': AnimalTemplate
 };
 
 // State
@@ -24,14 +28,13 @@ let localPriorities = {
 
 // --- INITIALIZATION ---
 
-export function openNpcCreator(typeKey = 'ghoul', dataOrEvent = null, index = null) {
+export function openNpcCreator(typeKey = 'mortal', dataOrEvent = null, index = null) {
     console.log(`Opening NPC Creator for type: ${typeKey}`);
     
+    // Default to Mortal if invalid type passed
+    if (!TEMPLATES[typeKey]) typeKey = 'mortal';
+    
     currentTemplate = TEMPLATES[typeKey];
-    if (!currentTemplate) {
-        console.error("Unknown NPC Template:", typeKey);
-        return;
-    }
 
     let incomingData = null;
     const isEvent = dataOrEvent && (typeof dataOrEvent.preventDefault === 'function');
@@ -45,6 +48,10 @@ export function openNpcCreator(typeKey = 'ghoul', dataOrEvent = null, index = nu
     if (incomingData) {
         // Edit Mode
         activeNpc = JSON.parse(JSON.stringify(incomingData));
+        // Ensure template matches data if data has a type recorded
+        if (activeNpc.template && TEMPLATES[activeNpc.template]) {
+            currentTemplate = TEMPLATES[activeNpc.template];
+        }
         sanitizeNpcData(activeNpc);
         if (activeNpc.priorities) localPriorities = JSON.parse(JSON.stringify(activeNpc.priorities));
         else autoDetectPriorities();
@@ -66,8 +73,46 @@ function sanitizeNpcData(npc) {
     if (!npc.experience) npc.experience = { total: 0, spent: 0, log: [] };
     if (!npc.freebieLog) npc.freebieLog = []; 
     
-    if (ATTRIBUTES) Object.values(ATTRIBUTES).flat().forEach(a => { if (npc.attributes[a] === undefined) npc.attributes[a] = 1; });
-    if (ABILITIES) Object.values(ABILITIES).flat().forEach(a => { if (npc.abilities[a] === undefined) npc.abilities[a] = 0; });
+    // Ensure defaults from global data exist (unless Animal which has specific defaults)
+    if (npc.template !== 'animal') {
+        if (ATTRIBUTES) Object.values(ATTRIBUTES).flat().forEach(a => { if (npc.attributes[a] === undefined) npc.attributes[a] = 1; });
+        if (ABILITIES) Object.values(ABILITIES).flat().forEach(a => { if (npc.abilities[a] === undefined) npc.abilities[a] = 0; });
+    }
+}
+
+function switchTemplate(newType) {
+    if (!TEMPLATES[newType]) return;
+    
+    // Preserve Identity Info
+    const preserved = {
+        name: activeNpc.name,
+        player: activeNpc.player,
+        chronicle: activeNpc.chronicle,
+        concept: activeNpc.concept,
+        nature: activeNpc.nature,
+        demeanor: activeNpc.demeanor,
+        bio: JSON.parse(JSON.stringify(activeNpc.bio || {}))
+    };
+
+    currentTemplate = TEMPLATES[newType];
+    
+    // Load Defaults for the new type
+    activeNpc = JSON.parse(JSON.stringify(currentTemplate.defaults));
+    activeNpc.template = newType;
+    
+    // Restore Identity
+    Object.assign(activeNpc, preserved);
+    
+    sanitizeNpcData(activeNpc);
+    resetPriorities();
+    recalcStatus();
+    
+    // Reset Modes
+    modes.xp = false; 
+    modes.freebie = false;
+    
+    renderEditorModal();
+    showNotification(`Switched to ${currentTemplate.label} template.`);
 }
 
 function resetPriorities() {
@@ -105,26 +150,19 @@ function autoDetectPriorities() {
 }
 
 function recalcStatus() {
+    if (activeNpc.template === 'animal') return; // Animals don't derive logic the same way
+
     const baseHum = (activeNpc.virtues.Conscience || 1) + (activeNpc.virtues["Self-Control"] || 1);
     const baseWill = activeNpc.virtues.Courage || 1;
     
-    // Check if modified via XP/Freebie
     const hasHumMod = activeNpc.experience?.log.some(l => l.type === 'humanity' || l.trait === 'Humanity') || activeNpc.freebieLog?.some(l => l.type === 'humanity' || l.trait === 'humanity');
     const hasWillMod = activeNpc.experience?.log.some(l => l.type === 'willpower' || l.trait === 'Willpower') || activeNpc.freebieLog?.some(l => l.type === 'willpower' || l.trait === 'willpower');
 
-    // If no manual points spent, strictly sync to base
-    if (!hasHumMod) {
-        activeNpc.humanity = baseHum;
-    } else if (activeNpc.humanity < baseHum) {
-        // Even if points spent, ensure floor is respected
-        activeNpc.humanity = baseHum;
-    }
+    if (!hasHumMod) activeNpc.humanity = baseHum;
+    else if (activeNpc.humanity < baseHum) activeNpc.humanity = baseHum;
 
-    if (!hasWillMod) {
-        activeNpc.willpower = baseWill;
-    } else if (activeNpc.willpower < baseWill) {
-        activeNpc.willpower = baseWill;
-    }
+    if (!hasWillMod) activeNpc.willpower = baseWill;
+    else if (activeNpc.willpower < baseWill) activeNpc.willpower = baseWill;
 }
 
 // --- RENDER UI ---
@@ -140,7 +178,12 @@ function renderEditorModal() {
 
     const archOptions = (ARCHETYPES || []).sort().map(a => `<option value="${a}">${a}</option>`).join('');
     const clanOptions = (CLANS || []).sort().map(c => `<option value="${c}">${c}</option>`).join('');
+    
+    // Determine which extras to show
     const extrasHtml = currentTemplate.renderIdentityExtras ? currentTemplate.renderIdentityExtras(activeNpc, clanOptions) : '';
+    
+    // Feature Flags
+    const f = currentTemplate.features || { disciplines: true, bloodPool: true, virtues: true, backgrounds: true, humanity: true };
 
     modal.innerHTML = `
         <div class="w-[95%] max-w-7xl h-[95%] bg-[#0a0a0a] border-2 border-[#8b0000] shadow-[0_0_50px_rgba(139,0,0,0.5)] flex flex-col relative font-serif">
@@ -148,8 +191,14 @@ function renderEditorModal() {
             <!-- HEADER -->
             <div class="bg-[#1a0505] p-4 border-b border-[#444] flex justify-between items-center shrink-0">
                 <div class="flex items-center gap-4">
-                    <h2 class="text-2xl font-cinzel text-[#d4af37] font-bold tracking-widest uppercase shadow-black drop-shadow-md">
-                        <i class="fas fa-user-edit mr-2 text-[#8b0000]"></i>${currentTemplate.label}
+                    <h2 class="text-2xl font-cinzel text-[#d4af37] font-bold tracking-widest uppercase shadow-black drop-shadow-md flex items-center">
+                        <i class="fas fa-user-edit mr-3 text-[#8b0000]"></i>
+                        <select id="npc-type-selector" class="bg-transparent border-none text-[#d4af37] font-bold uppercase focus:outline-none cursor-pointer hover:text-white transition-colors appearance-none">
+                            <option value="mortal" ${activeNpc.template === 'mortal' ? 'selected' : ''}>Mortal</option>
+                            <option value="ghoul" ${activeNpc.template === 'ghoul' ? 'selected' : ''}>Ghoul / Revenant</option>
+                            <option value="animal" ${activeNpc.template === 'animal' ? 'selected' : ''}>Animal</option>
+                        </select>
+                        <i class="fas fa-caret-down text-xs ml-2 opacity-50"></i>
                     </h2>
                     <div class="ml-6 flex items-center gap-2 border-l border-[#444] pl-4">
                          <button id="toggle-fb-mode" class="text-[10px] uppercase font-bold px-3 py-1 border border-[#444] rounded transition-all">
@@ -231,33 +280,50 @@ function renderEditorModal() {
                         <div class="sheet-section !mt-0">
                             <div class="section-title">Advantages</div>
                             <div class="grid grid-cols-1 md:grid-cols-3 gap-10">
+                                <!-- Col 1: Disciplines & Backgrounds -->
                                 <div>
-                                    <h3 class="column-title">Disciplines</h3>
-                                    <div id="npc-disc-list" class="space-y-1 mt-2"></div>
-                                    <div class="mt-3"><select id="npc-disc-select" class="w-full bg-transparent border border-[#444] text-[10px] text-gray-300 p-2 uppercase font-bold"><option value="">+ Add Discipline</option>${(DISCIPLINES||[]).map(d=>`<option value="${d}">${d}</option>`).join('')}</select></div>
+                                    ${f.disciplines ? `
+                                        <h3 class="column-title">Disciplines</h3>
+                                        <div id="npc-disc-list" class="space-y-1 mt-2"></div>
+                                        <div class="mt-3"><select id="npc-disc-select" class="w-full bg-transparent border border-[#444] text-[10px] text-gray-300 p-2 uppercase font-bold"><option value="">+ Add Discipline</option>${(DISCIPLINES||[]).map(d=>`<option value="${d}">${d}</option>`).join('')}</select></div>
+                                    ` : '<div class="opacity-30 italic text-xs text-center mt-10">Disciplines Unavailable</div>'}
                                     
-                                    <h3 class="column-title mt-8">Backgrounds</h3>
-                                    <div id="npc-back-list" class="space-y-1 mt-2"></div>
-                                    <div class="mt-3"><select id="npc-back-select" class="w-full bg-transparent border border-[#444] text-[10px] text-gray-300 p-2 uppercase font-bold"><option value="">+ Add Background</option>${(BACKGROUNDS||[]).map(b=>`<option value="${b}">${b}</option>`).join('')}</select></div>
+                                    ${f.backgrounds ? `
+                                        <h3 class="column-title mt-8">Backgrounds</h3>
+                                        <div id="npc-back-list" class="space-y-1 mt-2"></div>
+                                        <div class="mt-3"><select id="npc-back-select" class="w-full bg-transparent border border-[#444] text-[10px] text-gray-300 p-2 uppercase font-bold"><option value="">+ Add Background</option>${(BACKGROUNDS||[]).map(b=>`<option value="${b}">${b}</option>`).join('')}</select></div>
+                                    ` : ''}
                                 </div>
+                                
+                                <!-- Col 2: Virtues & Vitals -->
                                 <div>
-                                    <h3 class="column-title">Virtues <span id="virtue-limit-display" class="text-xs text-gray-500"></span></h3>
-                                    <div id="npc-virtue-list" class="space-y-3 mt-4 mb-4"></div>
-                                    <div class="mt-8 border-t border-[#333] pt-4">
-                                        <div class="flex justify-between items-center text-xs mb-4">
-                                            <span class="font-bold text-[#d4af37]">HUMANITY</span>
-                                            <div class="dot-row-direct cursor-pointer" id="npc-humanity-row">${renderDots(activeNpc.humanity, 10)}</div>
-                                        </div>
-                                        <div class="flex justify-between items-center text-xs mb-4">
-                                            <span class="font-bold text-[#d4af37]">WILLPOWER</span>
-                                            <div class="dot-row-direct cursor-pointer" id="npc-willpower-row">${renderDots(activeNpc.willpower, 10)}</div>
-                                        </div>
+                                    ${f.virtues ? `
+                                        <h3 class="column-title">Virtues <span id="virtue-limit-display" class="text-xs text-gray-500"></span></h3>
+                                        <div id="npc-virtue-list" class="space-y-3 mt-4 mb-4"></div>
+                                        
+                                        <div class="mt-8 border-t border-[#333] pt-4">
+                                            ${f.humanity ? `
+                                            <div class="flex justify-between items-center text-xs mb-4">
+                                                <span class="font-bold text-[#d4af37]">HUMANITY</span>
+                                                <div class="dot-row-direct cursor-pointer" id="npc-humanity-row">${renderDots(activeNpc.humanity, 10)}</div>
+                                            </div>` : ''}
+                                    ` : ''}
+                                    
+                                    <div class="flex justify-between items-center text-xs mb-4">
+                                        <span class="font-bold text-[#d4af37]">WILLPOWER</span>
+                                        <div class="dot-row-direct cursor-pointer" id="npc-willpower-row">${renderDots(activeNpc.willpower, 10)}</div>
+                                    </div>
+                                    
+                                    ${f.bloodPool ? `
                                         <div class="flex justify-between items-center text-xs">
                                             <span class="font-bold text-[#d4af37]">BLOOD POOL</span>
                                             <input type="number" id="npc-blood" value="${activeNpc.bloodPool}" class="w-12 bg-transparent border-b border-[#444] text-center text-white p-1 font-bold text-lg focus:border-[#d4af37] outline-none">
                                         </div>
-                                    </div>
+                                    ` : ''}
+                                    ${f.virtues ? `</div>` : ''} <!-- Close wrapper if opened -->
                                 </div>
+                                
+                                <!-- Col 3: Merits/Flaws -->
                                 <div>
                                     <h3 class="column-title">Merits & Flaws</h3>
                                     <select id="npc-merit-select" class="w-full bg-transparent border-b border-[#444] text-[10px] text-gray-300 p-1 mb-2"><option value="">Add Merit...</option>${(V20_MERITS_LIST||[]).map(m=>`<option value="${m.n}|${m.v}">${m.n} (${m.v})</option>`).join('')}</select>
@@ -287,18 +353,17 @@ function renderEditorModal() {
                     </div>
                 </div>
 
-                <!-- SIDEBAR: XP LEDGER (Renamed ID to avoid collision) -->
+                <!-- SIDEBAR: XP LEDGER -->
                 <div id="npc-xp-sidebar" class="hidden w-64 bg-[#080808] border-l border-[#333] flex-col shrink-0">
                     <div class="p-3 bg-[#111] border-b border-[#333] text-center"><h3 class="text-purple-400 font-cinzel font-bold">XP Ledger</h3></div>
                     
-                    <!-- XP Categories -->
                     <div class="text-[10px] font-mono space-y-2 p-4 bg-black/40 text-gray-400 flex-none border-b border-[#333]">
                         <div class="flex justify-between border-b border-[#222] pb-1"><span>Attributes:</span> <span id="npc-xp-cost-attr" class="text-white">0</span></div>
                         <div class="flex justify-between border-b border-[#222] pb-1"><span>Abilities:</span> <span id="npc-xp-cost-abil" class="text-white">0</span></div>
-                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Disciplines:</span> <span id="npc-xp-cost-disc" class="text-white">0</span></div>
-                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Backgrounds:</span> <span id="npc-xp-cost-back" class="text-white">0</span></div>
-                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Virtues:</span> <span id="npc-xp-cost-virt" class="text-white">0</span></div>
-                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Humanity:</span> <span id="npc-xp-cost-hum" class="text-white">0</span></div>
+                        ${f.disciplines ? `<div class="flex justify-between border-b border-[#222] pb-1"><span>Disciplines:</span> <span id="npc-xp-cost-disc" class="text-white">0</span></div>` : ''}
+                        ${f.backgrounds ? `<div class="flex justify-between border-b border-[#222] pb-1"><span>Backgrounds:</span> <span id="npc-xp-cost-back" class="text-white">0</span></div>` : ''}
+                        ${f.virtues ? `<div class="flex justify-between border-b border-[#222] pb-1"><span>Virtues:</span> <span id="npc-xp-cost-virt" class="text-white">0</span></div>` : ''}
+                        ${f.humanity ? `<div class="flex justify-between border-b border-[#222] pb-1"><span>Humanity:</span> <span id="npc-xp-cost-hum" class="text-white">0</span></div>` : ''}
                         <div class="flex justify-between border-b border-[#222] pb-1"><span>Willpower:</span> <span id="npc-xp-cost-will" class="text-white">0</span></div>
                         
                         <div class="mt-4 pt-2 border-t border-[#444]">
@@ -313,24 +378,23 @@ function renderEditorModal() {
                         </div>
                     </div>
 
-                    <!-- XP Log -->
                     <div class="flex-1 overflow-y-auto p-2 border-t border-[#333] bg-[#0a0a0a]">
                         <h4 class="text-[9px] uppercase text-gray-500 font-bold mb-1 tracking-wider sticky top-0 bg-[#0a0a0a] pb-1">Session Log</h4>
                         <div id="npc-xp-list" class="text-[9px] font-mono text-gray-400 space-y-1"></div>
                     </div>
                 </div>
 
-                <!-- SIDEBAR: FREEBIE LEDGER (Renamed ID to avoid collision) -->
+                <!-- SIDEBAR: FREEBIE LEDGER -->
                 <div id="npc-fb-sidebar" class="hidden w-64 bg-[#080808] border-l border-[#333] flex-col shrink-0 transition-all flex flex-col">
                     <div class="p-3 bg-[#111] border-b border-[#333] text-center"><h3 class="text-[#d4af37] font-cinzel font-bold">Freebie Ledger</h3></div>
                     
                     <div class="text-[10px] font-mono space-y-2 p-4 bg-black/40 text-gray-400 flex-none border-b border-[#333]">
                         <div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-attr">Attributes (5):</span> <span id="npc-fb-cost-attr" class="text-white">0</span></div>
                         <div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-abil">Abilities (2):</span> <span id="npc-fb-cost-abil" class="text-white">0</span></div>
-                        <div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-disc">Disciplines (10):</span> <span id="npc-fb-cost-disc" class="text-white">0</span></div>
-                        <div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-back">Backgrounds (1):</span> <span id="npc-fb-cost-back" class="text-white">0</span></div>
-                        <div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-virt">Virtues (2):</span> <span id="npc-fb-cost-virt" class="text-white">0</span></div>
-                        <div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-human">Humanity (1):</span> <span id="npc-fb-cost-hum" class="text-white">0</span></div>
+                        ${f.disciplines ? `<div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-disc">Disciplines (10):</span> <span id="npc-fb-cost-disc" class="text-white">0</span></div>` : ''}
+                        ${f.backgrounds ? `<div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-back">Backgrounds (1):</span> <span id="npc-fb-cost-back" class="text-white">0</span></div>` : ''}
+                        ${f.virtues ? `<div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-virt">Virtues (2):</span> <span id="npc-fb-cost-virt" class="text-white">0</span></div>` : ''}
+                        ${f.humanity ? `<div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-human">Humanity (1):</span> <span id="npc-fb-cost-hum" class="text-white">0</span></div>` : ''}
                         <div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-will">Willpower (1):</span> <span id="npc-fb-cost-will" class="text-white">0</span></div>
                         <div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-merit">Merits (Cost):</span> <span id="npc-fb-cost-merit" class="text-white">0</span></div>
                         <div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-flaw">Flaws (Bonus):</span> <span id="npc-fb-cost-flaw" class="text-green-400">0</span></div>
@@ -354,7 +418,7 @@ function renderEditorModal() {
 
             <!-- FOOTER -->
             <div class="p-4 border-t border-[#444] bg-[#050505] flex justify-between items-center shrink-0">
-                <div class="text-[10px] text-gray-500 italic">Mode: ${activeNpc.type} Template</div>
+                <div class="text-[10px] text-gray-500 italic">Mode: ${currentTemplate.label}</div>
                 <div class="flex gap-4">
                     <button id="npc-cancel" class="border border-[#444] text-gray-400 px-6 py-2 uppercase font-bold text-xs hover:bg-[#222] hover:text-white transition">Cancel</button>
                     <button id="npc-save" class="bg-[#8b0000] text-white px-8 py-2 uppercase font-bold text-xs hover:bg-red-700 shadow-lg tracking-widest transition flex items-center gap-2">
@@ -368,12 +432,14 @@ function renderEditorModal() {
     modal.style.display = 'flex';
     modal.classList.remove('hidden');
 
-    // Populate standard Selects
     if(activeNpc.nature) document.getElementById('npc-nature').value = activeNpc.nature;
     if(activeNpc.demeanor) document.getElementById('npc-demeanor').value = activeNpc.demeanor;
 
     // --- SETUP LISTENERS ---
     
+    // TEMPLATE SWITCHER
+    document.getElementById('npc-type-selector').onchange = (e) => switchTemplate(e.target.value);
+
     // Tab Switching
     modal.querySelectorAll('.npc-tab').forEach(b => b.onclick = () => switchTab(b.dataset.tab));
     
@@ -439,13 +505,11 @@ function renderEditorModal() {
     setupMF('npc-merit-select', 'merits');
     setupMF('npc-flaw-select', 'flaws');
 
-    // XP Total Input
     document.getElementById('npc-xp-total').onchange = (e) => {
         activeNpc.experience.total = parseInt(e.target.value) || 0;
         updateXpLog();
     };
 
-    // Template Specific Listeners (Delegated)
     if (currentTemplate.setupListeners) {
         currentTemplate.setupListeners(modal, activeNpc, () => {
              // Callback for UI updates triggered by template logic
@@ -454,7 +518,6 @@ function renderEditorModal() {
         });
     }
 
-    // Initial Renders
     switchTab('step1');
     updateModeUI();
     renderAllDots();
@@ -564,14 +627,11 @@ function handleValueChange(type, key, newVal) {
 
         } else if (finalVal < currentVal) {
             // UNDO / REFUND
-            // Find the most recent log entry for this trait that resulted in the current value
-            // Iterating backwards
             let logIdx = -1;
             const targetTrait = key || type;
             
             for (let i = activeNpc.experience.log.length - 1; i >= 0; i--) {
                 const entry = activeNpc.experience.log[i];
-                // Check if this entry is for the trait and matches the "Buy" we are undoing
                 if (entry.trait === targetTrait && entry.to === currentVal && entry.from === finalVal) {
                     logIdx = i;
                     break;
@@ -626,27 +686,18 @@ function handleValueChange(type, key, newVal) {
             }
         } else {
             // Selling (Smart Refund)
-            // Identify range being removed: finalVal -> currentVal
-            // Find ALL logs that contributed to this range and trim/remove them.
-            
             let rangeTop = currentVal;
             const rangeBottom = finalVal;
             const traitName = key || type;
 
-            // Iterate backwards to find logs overlapping this upper range
             for (let i = activeNpc.freebieLog.length - 1; i >= 0; i--) {
                 const entry = activeNpc.freebieLog[i];
                 if (entry.trait !== traitName) continue;
 
-                // Case A: Log is fully within removal range (e.g. Log 4->5, removing 5->3)
                 if (entry.from >= rangeBottom) {
                     activeNpc.freebieLog.splice(i, 1);
                 }
-                // Case B: Log spans the boundary (e.g. Log 1->5, removing 5->3)
-                // We need to keep 1->3 part.
                 else if (entry.to > rangeBottom) {
-                    // Recalculate cost for retained part
-                    // Override activeNpc value to simulate the state of 3 for calculation
                     const retainedCost = calculateMarginalFreebieCost(type, key, entry.from, rangeBottom, rangeBottom);
                     entry.to = rangeBottom;
                     entry.cost = retainedCost;
@@ -658,7 +709,6 @@ function handleValueChange(type, key, newVal) {
     } 
     else {
         // Normal Creation Mode
-        
         // Prevent direct modification of derived traits
         if (type === 'humanity' || type === 'willpower') {
             showNotification("Derived trait. Modify Virtues or use Freebie/XP mode.");
@@ -678,7 +728,7 @@ function handleValueChange(type, key, newVal) {
     }
 }
 
-// Helper: Calculate marginal cost. Optional 'simulatedCapVal' overrides current activeNpc value for calculation.
+// Helper: Calculate marginal cost
 function calculateMarginalFreebieCost(type, key, startVal, endVal, simulatedVal = null) {
     let group = null;
     let cap = 0;
@@ -700,7 +750,6 @@ function calculateMarginalFreebieCost(type, key, startVal, endVal, simulatedVal 
             const groupList = list[group];
             groupList.forEach(k => {
                 let v = (activeNpc[type][k] || (type === 'attributes' ? 1 : 0));
-                // Override if this is the key we are simulating
                 if (simulatedVal !== null && k === key) v = simulatedVal;
                 
                 if (type === 'attributes') spent += Math.max(0, v - 1);
@@ -746,25 +795,12 @@ function calculateMarginalFreebieCost(type, key, startVal, endVal, simulatedVal 
         spent = simulatedVal !== null ? simulatedVal : activeNpc.willpower;
     }
 
-    // Determine how many of the added dots are above the cap
-    // Note: 'spent' is based on the *base* state before adding the new range
-    // But `startVal` -> `endVal` is the range we are analyzing.
-    // If we passed `simulatedVal`, `spent` already reflects that value.
-    // If we didn't, `spent` reflects `activeNpc` (which is `startVal` usually).
-    
-    // Correct Logic:
-    // We want to know cost of moving from `startVal` to `endVal`.
-    // The "base spent" excluding the trait being modified is `spent - (currentTraitContribution)`.
-    // Then we see where `startVal` sits relative to cap, and where `endVal` sits.
-    
-    // 1. Strip current trait contribution from `spent`
     let currentTraitContrib = 0;
     let currentValForCalc = simulatedVal !== null ? simulatedVal : (key ? activeNpc[type][key] : activeNpc[type]);
     if(type === 'attributes' || type === 'virtues') currentValForCalc = Math.max(0, currentValForCalc - 1);
     
     let baseSpent = spent - currentValForCalc;
     
-    // 2. Add start and end range
     let startContrib = type === 'attributes' || type === 'virtues' ? Math.max(0, startVal - 1) : startVal;
     let endContrib = type === 'attributes' || type === 'virtues' ? Math.max(0, endVal - 1) : endVal;
     
@@ -906,8 +942,12 @@ function renderAllDots() {
         </div>
     `).join('');
 
-    document.getElementById('npc-humanity-row').innerHTML = renderDots(activeNpc.humanity, 10);
-    document.getElementById('npc-willpower-row').innerHTML = renderDots(activeNpc.willpower, 10);
+    // Conditional Rendering of Humanity/Willpower based on template features
+    const humRow = document.getElementById('npc-humanity-row');
+    if(humRow) humRow.innerHTML = renderDots(activeNpc.humanity, 10);
+    
+    const willRow = document.getElementById('npc-willpower-row');
+    if(willRow) willRow.innerHTML = renderDots(activeNpc.willpower, 10);
     
     bindDotClicks();
     updatePrioritiesUI();
@@ -957,9 +997,7 @@ function renderMeritsFlaws() {
 }
 
 window.removeNpcItem = function(type, key) {
-    // Log removal for Freebie Mode if applicable
     if (modes.freebie) {
-        // Find if this item was bought in freebie mode log
         const logIdx = activeNpc.freebieLog.findIndex(l => l.type === (type==='merits'?'merit':'flaw') && l.trait === key);
         if (logIdx !== -1) activeNpc.freebieLog.splice(logIdx, 1);
     }
@@ -1218,7 +1256,9 @@ function saveNpc() {
     bioInputs.forEach(i => activeNpc.bio[i.dataset.field] = i.value);
     activeNpc.bio.Description = document.getElementById('npc-desc').value;
     activeNpc.bio.Notes = document.getElementById('npc-notes').value;
-    activeNpc.bloodPool = parseInt(document.getElementById('npc-blood').value) || 10;
+    
+    const bloodInput = document.getElementById('npc-blood');
+    activeNpc.bloodPool = bloodInput ? parseInt(bloodInput.value) || 10 : 10;
 
     activeNpc.priorities = JSON.parse(JSON.stringify(localPriorities));
 
