@@ -78,7 +78,6 @@ function resetPriorities() {
 }
 
 function autoDetectPriorities() {
-    // Helper to reverse engineer priorities from existing data
     const sumGroup = (cat, groupList, isAttr) => {
         let sum = 0;
         groupList.forEach(k => {
@@ -106,11 +105,9 @@ function autoDetectPriorities() {
 }
 
 function recalcStatus() {
-    // Basic sync for Conscience/Self-Control -> Humanity
     const baseHum = (activeNpc.virtues.Conscience || 1) + (activeNpc.virtues["Self-Control"] || 1);
     const baseWill = activeNpc.virtues.Courage || 1;
     
-    // Only raise floor, don't lower if bought higher
     if (activeNpc.humanity < baseHum) activeNpc.humanity = baseHum;
     if (activeNpc.willpower < baseWill) activeNpc.willpower = baseWill;
 }
@@ -126,11 +123,8 @@ function renderEditorModal() {
         document.body.appendChild(modal);
     }
 
-    // Common Options
     const archOptions = (ARCHETYPES || []).sort().map(a => `<option value="${a}">${a}</option>`).join('');
     const clanOptions = (CLANS || []).sort().map(c => `<option value="${c}">${c}</option>`).join('');
-
-    // Specific Template HTML
     const extrasHtml = currentTemplate.renderIdentityExtras ? currentTemplate.renderIdentityExtras(activeNpc, clanOptions) : '';
 
     modal.innerHTML = `
@@ -188,7 +182,6 @@ function renderEditorModal() {
                                     </div>
                                     <div><label class="label-text text-[#d4af37]">Concept</label><input type="text" id="npc-concept" value="${activeNpc.concept || ''}" class="npc-input w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] outline-none"></div>
                                 </div>
-                                <!-- Template Extras -->
                                 ${extrasHtml}
                             </div>
                         </div>
@@ -280,22 +273,34 @@ function renderEditorModal() {
                 </div>
 
                 <!-- SIDEBAR: XP LEDGER -->
-                <div id="xp-sidebar" class="hidden w-64 bg-[#080808] border-l border-[#333] flex-col shrink-0">
-                    <div class="p-3 bg-[#111] border-b border-[#333] text-center"><h3 class="text-purple-400 font-cinzel font-bold">XP Log</h3></div>
-                    <div class="p-3 text-xs flex justify-between bg-[#1a1a1a] border-b border-[#333]">
-                        <span class="text-gray-400">Total XP</span>
-                        <input type="number" id="xp-total" value="${activeNpc.experience.total}" class="w-16 bg-black border border-[#333] text-purple-400 text-center font-bold">
-                    </div>
+                <div id="xp-sidebar" class="hidden w-64 bg-[#080808] border-l border-[#333] flex-col shrink-0 transition-all flex flex-col">
+                    <div class="p-3 bg-[#111] border-b border-[#333] text-center"><h3 class="text-purple-400 font-cinzel font-bold">XP Ledger</h3></div>
                     
-                    <!-- XP Breakdown Area -->
-                    <div id="xp-breakdown-list" class="space-y-2 text-xs p-3 border-b border-[#333]"></div>
-
-                    <div class="p-3 bg-[#111] border-b border-[#333] text-xs">
-                        <div class="flex justify-between"><span>Total Spent</span><span id="xp-spent">0</span></div>
-                        <div class="flex justify-between mt-1 pt-1 border-t border-[#333]"><span>Remaining</span><span id="xp-remain" class="text-green-400">0</span></div>
+                    <!-- XP Categories -->
+                    <div class="text-[10px] font-mono space-y-2 p-4 bg-black/40 text-gray-400 flex-none border-b border-[#333]">
+                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Attributes:</span> <span id="xp-cost-attr" class="text-white">0</span></div>
+                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Abilities:</span> <span id="xp-cost-abil" class="text-white">0</span></div>
+                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Disciplines:</span> <span id="xp-cost-disc" class="text-white">0</span></div>
+                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Backgrounds:</span> <span id="xp-cost-back" class="text-white">0</span></div>
+                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Virtues:</span> <span id="xp-cost-virt" class="text-white">0</span></div>
+                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Humanity:</span> <span id="xp-cost-hum" class="text-white">0</span></div>
+                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Willpower:</span> <span id="xp-cost-will" class="text-white">0</span></div>
+                        
+                        <div class="mt-4 pt-2 border-t border-[#444]">
+                            <div class="flex justify-between items-center mb-2">
+                                <span class="text-gray-500">Total XP</span>
+                                <input type="number" id="xp-total" value="${activeNpc.experience.total}" class="w-16 bg-black border border-[#333] text-purple-400 text-center font-bold">
+                            </div>
+                            <div class="flex justify-between font-bold text-xs text-white">
+                                <span>Remaining:</span>
+                                <span id="xp-remain" class="text-purple-400">0</span>
+                            </div>
+                        </div>
                     </div>
-                    <div class="flex-1 overflow-y-auto p-2">
-                        <h4 class="text-[9px] uppercase text-gray-500 font-bold mb-1 tracking-wider">Log</h4>
+
+                    <!-- XP Log -->
+                    <div class="flex-1 overflow-y-auto p-2 border-t border-[#333] bg-[#0a0a0a]">
+                        <h4 class="text-[9px] uppercase text-gray-500 font-bold mb-1 tracking-wider sticky top-0 bg-[#0a0a0a] pb-1">Session Log</h4>
                         <div id="xp-list" class="text-[9px] font-mono text-gray-400 space-y-1"></div>
                     </div>
                 </div>
@@ -304,7 +309,6 @@ function renderEditorModal() {
                 <div id="fb-sidebar" class="hidden w-64 bg-[#080808] border-l border-[#333] flex-col shrink-0 transition-all flex flex-col">
                     <div class="p-3 bg-[#111] border-b border-[#333] text-center"><h3 class="text-[#d4af37] font-cinzel font-bold">Freebie Ledger</h3></div>
                     
-                    <!-- Detailed Category Ledger -->
                     <div class="text-[10px] font-mono space-y-2 p-4 bg-black/40 text-gray-400 flex-none border-b border-[#333]">
                         <div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-attr">Attributes (5):</span> <span id="fb-cost-attr" class="text-white">0</span></div>
                         <div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-abil">Abilities (2):</span> <span id="fb-cost-abil" class="text-white">0</span></div>
@@ -321,7 +325,6 @@ function renderEditorModal() {
                         </div>
                     </div>
 
-                    <!-- Spending Log Container -->
                     <div class="flex-1 overflow-y-auto p-2 border-t border-[#333] bg-[#0a0a0a]">
                         <h4 class="text-[9px] uppercase text-gray-500 font-bold mb-1 tracking-wider sticky top-0 bg-[#0a0a0a] pb-1">Spending Log</h4>
                         <div id="fb-log-list" class="text-[9px] font-mono text-gray-400 space-y-1"></div>
@@ -350,31 +353,23 @@ function renderEditorModal() {
     modal.style.display = 'flex';
     modal.classList.remove('hidden');
 
-    // Populate standard Selects
     if(activeNpc.nature) document.getElementById('npc-nature').value = activeNpc.nature;
     if(activeNpc.demeanor) document.getElementById('npc-demeanor').value = activeNpc.demeanor;
 
-    // --- SETUP LISTENERS ---
-    
-    // Tab Switching
     modal.querySelectorAll('.npc-tab').forEach(b => b.onclick = () => switchTab(b.dataset.tab));
     
-    // Mode Toggles
     document.getElementById('toggle-xp-mode').onclick = () => toggleMode('xp');
     document.getElementById('toggle-fb-mode').onclick = () => toggleMode('freebie');
     
-    // Save/Cancel
     document.getElementById('npc-cancel').onclick = () => { modal.style.display = 'none'; };
     document.getElementById('npc-save').onclick = saveNpc;
 
-    // Dynamic Adders
     const setupAdd = (id, type, renderFn) => {
         const el = document.getElementById(id);
         if(el) el.onchange = (e) => {
             const val = e.target.value;
             if(val) {
                 if(!activeNpc[type]) activeNpc[type] = {};
-                // If strictly in a mode, allow 0 dot add. Else default 1.
                 activeNpc[type][val] = (modes.xp || modes.freebie) ? 0 : 1;
                 renderFn();
                 bindDotClicks();
@@ -385,7 +380,6 @@ function renderEditorModal() {
     setupAdd('npc-disc-select', 'disciplines', renderDisciplines);
     setupAdd('npc-back-select', 'backgrounds', renderBackgrounds);
 
-    // Merits/Flaws
     const setupMF = (id, type) => {
         const el = document.getElementById(id);
         if(el) el.onchange = (e) => {
@@ -400,22 +394,18 @@ function renderEditorModal() {
     setupMF('npc-merit-select', 'merits');
     setupMF('npc-flaw-select', 'flaws');
 
-    // XP Total Input
     document.getElementById('xp-total').onchange = (e) => {
         activeNpc.experience.total = parseInt(e.target.value) || 0;
         updateXpLog();
     };
 
-    // Template Specific Listeners (Delegated)
     if (currentTemplate.setupListeners) {
         currentTemplate.setupListeners(modal, activeNpc, () => {
-             // Callback for UI updates triggered by template logic
              updateVirtueDisplay();
              renderAllDots(); 
         });
     }
 
-    // Initial Renders
     switchTab('step1');
     updateModeUI();
     renderAllDots();
@@ -465,7 +455,7 @@ function updateModeUI() {
     };
 
     setActive(xpBtn, modes.xp, 'purple');
-    setActive(fbBtn, modes.freebie, 'yellow'); // approximation
+    setActive(fbBtn, modes.freebie, 'yellow');
 
     if(modes.xp) {
         xpBar.classList.remove('hidden');
@@ -484,6 +474,170 @@ function updateModeUI() {
         fbBar.classList.add('hidden');
         fbBar.classList.remove('flex');
     }
+}
+
+// --- LOGIC HUB ---
+
+function handleValueChange(type, key, newVal) {
+    let currentVal = (key) ? (activeNpc[type][key] || 0) : activeNpc[type];
+    
+    // Mode Checks (XP or Freebie)
+    if (modes.xp) {
+        let finalVal = newVal;
+        // Toggle logic: If clicking current value, assume decrement (Undo)
+        if (newVal === currentVal) finalVal = newVal - 1;
+
+        if (finalVal > currentVal) {
+            // BUY
+            const cost = currentTemplate.getCost('xp', type, key, currentVal, finalVal, activeNpc);
+            if (cost <= 0) { showNotification("XP cost invalid/zero."); return; }
+            
+            const rem = activeNpc.experience.total - activeNpc.experience.spent;
+            if (cost > rem) { showNotification(`Not enough XP. Need ${cost}, Have ${rem}`); return; }
+
+            activeNpc.experience.spent += cost;
+            activeNpc.experience.log.push({ 
+                date: Date.now(), 
+                trait: key || type, 
+                type: type, 
+                from: currentVal, 
+                to: finalVal, 
+                cost: cost 
+            });
+            applyChange(type, key, finalVal);
+
+        } else if (finalVal < currentVal) {
+            // UNDO / REFUND
+            // Find the most recent log entry for this trait that resulted in the current value
+            // Iterating backwards
+            let logIdx = -1;
+            const targetTrait = key || type;
+            
+            for (let i = activeNpc.experience.log.length - 1; i >= 0; i--) {
+                const entry = activeNpc.experience.log[i];
+                // Check if this entry is for the trait and matches the "Buy" we are undoing
+                if (entry.trait === targetTrait && entry.to === currentVal && entry.from === finalVal) {
+                    logIdx = i;
+                    break;
+                }
+            }
+
+            if (logIdx !== -1) {
+                const entry = activeNpc.experience.log[logIdx];
+                activeNpc.experience.spent -= entry.cost;
+                activeNpc.experience.log.splice(logIdx, 1);
+                applyChange(type, key, finalVal);
+            } else {
+                showNotification("Cannot refund points not spent in this session/log.");
+            }
+        }
+    } 
+    else if (modes.freebie) {
+        let finalVal = newVal;
+        if (newVal === currentVal) finalVal = newVal - 1; 
+        
+        if (finalVal < currentVal) {
+            if (!validateFreebieRefund(type, key, finalVal)) {
+                showNotification("Cannot refund base dots (Creation points).");
+                return;
+            }
+        }
+
+        if (type === 'attributes' && finalVal < 1) return;
+        if (finalVal < 0) return;
+
+        applyChange(type, key, finalVal);
+    } 
+    else {
+        // Normal Creation Mode
+        if (newVal === currentVal) newVal = newVal - 1;
+        if ((type === 'attributes' || type === 'virtues') && newVal < 1) return;
+        if (newVal < 0) return;
+
+        const valid = currentTemplate.validateChange(type, key, newVal, currentVal, activeNpc, localPriorities);
+        if (valid === true) {
+            applyChange(type, key, newVal);
+        } else {
+            showNotification(valid);
+        }
+    }
+}
+
+function validateFreebieRefund(type, key, newVal) {
+    if (type === 'attributes' || type === 'abilities') {
+        let group = null;
+        const list = (type === 'attributes') ? ATTRIBUTES : ABILITIES;
+        
+        if (list.Physical && list.Physical.includes(key)) group = 'Physical';
+        else if (list.Social && list.Social.includes(key)) group = 'Social';
+        else if (list.Mental && list.Mental.includes(key)) group = 'Mental';
+        else if (list.Talents && list.Talents.includes(key)) group = 'Talents';
+        else if (list.Skills && list.Skills.includes(key)) group = 'Skills';
+        else if (list.Knowledges && list.Knowledges.includes(key)) group = 'Knowledges';
+
+        if (!group) return true;
+
+        const priorities = (type === 'attributes') ? localPriorities.attr : localPriorities.abil;
+        const limit = priorities[group];
+        if (limit === null) return true;
+
+        let total = 0;
+        const groupList = list[group];
+        groupList.forEach(k => {
+            const v = (k === key) ? newVal : (activeNpc[type][k] || 0);
+            if (type === 'attributes') total += Math.max(0, (v||1) - 1);
+            else total += v;
+        });
+
+        return total >= limit;
+    }
+    if (type === 'disciplines') {
+        let total = 0;
+        Object.keys(activeNpc.disciplines).forEach(k => {
+            const v = (k === key) ? newVal : activeNpc.disciplines[k];
+            total += v;
+        });
+        return total >= 2; 
+    }
+    if (type === 'backgrounds') {
+        let total = 0;
+        Object.keys(activeNpc.backgrounds).forEach(k => {
+            const v = (k === key) ? newVal : activeNpc.backgrounds[k];
+            total += v;
+        });
+        return total >= 5;
+    }
+    if (type === 'virtues') {
+        let total = 0;
+        VIRTUES.forEach(k => {
+            const v = (k === key) ? newVal : (activeNpc.virtues[k] || 1);
+            total += Math.max(0, v - 1);
+        });
+        const limit = currentTemplate.getVirtueLimit(activeNpc);
+        return total >= limit;
+    }
+    if (type === 'humanity') {
+        const base = (activeNpc.virtues.Conscience||1) + (activeNpc.virtues["Self-Control"]||1);
+        return newVal >= base;
+    }
+    if (type === 'willpower') {
+        const base = (activeNpc.virtues.Courage||1);
+        return newVal >= base;
+    }
+    return true;
+}
+
+function applyChange(type, key, val) {
+    if (key) activeNpc[type][key] = val;
+    else activeNpc[type] = val;
+
+    if (type === 'virtues') recalcStatus();
+
+    renderAllDots();
+    renderDisciplines();
+    renderBackgrounds();
+    updateXpLog();
+    updateFreebieCalc();
 }
 
 // --- DOT RENDERING & INTERACTION ---
@@ -521,7 +675,6 @@ function renderDotRow(type, key, val, group) {
 
 function renderAllDots() {
     ['Physical', 'Social', 'Mental'].forEach(g => document.getElementById(`list-attr-${g}`).innerHTML = ATTRIBUTES[g].map(k => renderDotRow('attributes', k, activeNpc.attributes[k], g)).join(''));
-    
     ['Talents', 'Skills', 'Knowledges'].forEach(g => document.getElementById(`list-abil-${g}`).innerHTML = ABILITIES[g].map(k => renderDotRow('abilities', k, activeNpc.abilities[k], g)).join(''));
     
     const vList = document.getElementById('npc-virtue-list');
@@ -611,156 +764,6 @@ function bindDotClicks() {
     bindDirect('npc-willpower-row', 'willpower');
 }
 
-// --- LOGIC HUB ---
-
-function handleValueChange(type, key, newVal) {
-    let currentVal = (key) ? (activeNpc[type][key] || 0) : activeNpc[type];
-    
-    if (!modes.xp && !modes.freebie) {
-        if ((type === 'attributes' || type === 'virtues') && newVal < 1) return;
-        if (newVal === currentVal) newVal = newVal - 1;
-    }
-
-    if (modes.xp) {
-        const cost = currentTemplate.getCost('xp', type, key, currentVal, newVal, activeNpc);
-        if (cost === -1) { showNotification("XP purchase invalid (one dot at a time?)"); return; }
-        if (cost === 0) return;
-        
-        const rem = activeNpc.experience.total - activeNpc.experience.spent;
-        if (cost > rem) { showNotification(`Not enough XP. Need ${cost}, Have ${rem}`); return; }
-
-        if(confirm(`Spend ${cost} XP for ${key||type} ${newVal}?`)) {
-            activeNpc.experience.spent += cost;
-            activeNpc.experience.log.push({ date: Date.now(), trait: key||type, from: currentVal, to: newVal, cost, type });
-            applyChange(type, key, newVal);
-        }
-    } 
-    else if (modes.freebie) {
-        let finalVal = newVal;
-        // Undo/Refund logic: if clicking existing val, lower by 1
-        if (newVal === currentVal) finalVal = newVal - 1; 
-        
-        // Strict Validation: Cannot refund points not bought with Freebies
-        if (finalVal < currentVal) {
-            // We are reducing. Check if this reduction dips into "Creation Base" points.
-            if (!validateFreebieRefund(type, key, finalVal)) {
-                showNotification("Cannot refund base dots (Creation points).");
-                return;
-            }
-        }
-
-        // Basic Floors
-        if (type === 'attributes' && finalVal < 1) return;
-        if (finalVal < 0) return;
-
-        applyChange(type, key, finalVal);
-    } 
-    else {
-        const valid = currentTemplate.validateChange(type, key, newVal, currentVal, activeNpc, localPriorities);
-        if (valid === true) {
-            applyChange(type, key, newVal);
-        } else {
-            showNotification(valid);
-        }
-    }
-}
-
-// Helper to validate if a refund is legal in Freebie mode
-function validateFreebieRefund(type, key, newVal) {
-    // 1. Attributes & Abilities - Check against Priority Limit
-    if (type === 'attributes' || type === 'abilities') {
-        let group = null;
-        const list = (type === 'attributes') ? ATTRIBUTES : ABILITIES;
-        
-        if (list.Physical && list.Physical.includes(key)) group = 'Physical';
-        else if (list.Social && list.Social.includes(key)) group = 'Social';
-        else if (list.Mental && list.Mental.includes(key)) group = 'Mental';
-        else if (list.Talents && list.Talents.includes(key)) group = 'Talents';
-        else if (list.Skills && list.Skills.includes(key)) group = 'Skills';
-        else if (list.Knowledges && list.Knowledges.includes(key)) group = 'Knowledges';
-
-        if (!group) return true; // Fallback
-
-        const priorities = (type === 'attributes') ? localPriorities.attr : localPriorities.abil;
-        const limit = priorities[group];
-        
-        if (limit === null) return true; // No limit set, assume safe?
-
-        // Calculate hypothetical total after reduction
-        let total = 0;
-        const groupList = list[group];
-        
-        groupList.forEach(k => {
-            const v = (k === key) ? newVal : (activeNpc[type][k] || 0);
-            if (type === 'attributes') total += Math.max(0, (v||1) - 1);
-            else total += v;
-        });
-
-        // If new total drops below the Creation Limit, forbid it.
-        return total >= limit;
-    }
-
-    // 2. Disciplines (Base 2)
-    if (type === 'disciplines') {
-        let total = 0;
-        Object.keys(activeNpc.disciplines).forEach(k => {
-            const v = (k === key) ? newVal : activeNpc.disciplines[k];
-            total += v;
-        });
-        return total >= 2; 
-    }
-
-    // 3. Backgrounds (Base 5)
-    if (type === 'backgrounds') {
-        let total = 0;
-        Object.keys(activeNpc.backgrounds).forEach(k => {
-            const v = (k === key) ? newVal : activeNpc.backgrounds[k];
-            total += v;
-        });
-        return total >= 5;
-    }
-
-    // 4. Virtues (Base 5 or 7)
-    if (type === 'virtues') {
-        let total = 0;
-        VIRTUES.forEach(k => {
-            const v = (k === key) ? newVal : (activeNpc.virtues[k] || 1);
-            total += Math.max(0, v - 1);
-        });
-        const limit = currentTemplate.getVirtueLimit(activeNpc);
-        return total >= limit;
-    }
-
-    // 5. Humanity
-    if (type === 'humanity') {
-        const base = (activeNpc.virtues.Conscience||1) + (activeNpc.virtues["Self-Control"]||1);
-        return newVal >= base;
-    }
-
-    // 6. Willpower
-    if (type === 'willpower') {
-        const base = (activeNpc.virtues.Courage||1);
-        return newVal >= base;
-    }
-
-    return true;
-}
-
-function applyChange(type, key, val) {
-    if (key) activeNpc[type][key] = val;
-    else activeNpc[type] = val;
-
-    if (type === 'virtues') recalcStatus();
-
-    renderAllDots();
-    renderDisciplines();
-    renderBackgrounds();
-    updateXpLog();
-    updateFreebieCalc();
-}
-
-// --- PRIORITIES UI ---
-
 function renderPrioButtons(cat, group) {
     const vals = currentTemplate.getPriorities()[cat];
     return vals.map(v => `
@@ -777,7 +780,6 @@ function updatePrioritiesUI() {
         const current = localPriorities[cat][group];
 
         btn.className = "npc-prio-btn w-6 h-6 rounded-full border text-[9px] font-bold transition-all mr-1 ";
-        
         if (current === v) {
             btn.classList.add('bg-[#d4af37]', 'text-black', 'border-[#d4af37]');
         } else if (Object.values(localPriorities[cat]).includes(v)) {
@@ -788,7 +790,6 @@ function updatePrioritiesUI() {
                 if(modes.xp || modes.freebie) return;
                 const existingOwner = Object.keys(localPriorities[cat]).find(k => localPriorities[cat][k] === v);
                 if(existingOwner) localPriorities[cat][existingOwner] = null;
-                
                 localPriorities[cat][group] = v;
                 updatePrioritiesUI();
                 renderAllDots();
@@ -801,14 +802,12 @@ function updatePrioritiesUI() {
             const limit = localPriorities[cat][grp];
             const el = document.getElementById(`cnt-${cat}-${grp}`);
             if(!el) return;
-            
             let spent = 0;
             const list = (cat === 'attr') ? ATTRIBUTES[grp] : ABILITIES[grp];
             list.forEach(k => {
                 const val = (cat === 'attr') ? activeNpc.attributes[k] : activeNpc.abilities[k];
                 spent += (cat === 'attr') ? Math.max(0, (val||1)-1) : (val||0);
             });
-
             if (limit) {
                 const color = spent > limit ? 'text-red-500' : (spent === limit ? 'text-green-500' : 'text-gray-500');
                 el.innerHTML = `<span class="${color}">${spent}/${limit}</span>`;
@@ -832,65 +831,73 @@ function updateXpLog() {
     const spentDiv = document.getElementById('xp-spent');
     const remDiv = document.getElementById('xp-remain');
     
+    // Recalculate totals from log
+    let costs = { attr: 0, abil: 0, disc: 0, back: 0, virt: 0, hum: 0, will: 0, merit: 0, flaw: 0 };
+    let spentTotal = 0;
+
+    activeNpc.experience.log.forEach(entry => {
+        const type = entry.type; 
+        const cost = entry.cost;
+        spentTotal += cost;
+
+        if (type === 'attributes') costs.attr += cost;
+        else if (type === 'abilities') costs.abil += cost;
+        else if (type === 'disciplines') costs.disc += cost;
+        else if (type === 'backgrounds') costs.back += cost;
+        else if (type === 'virtues') costs.virt += cost;
+        else if (type === 'humanity') costs.hum += cost;
+        else if (type === 'willpower') costs.will += cost;
+    });
+
+    activeNpc.experience.spent = spentTotal; // Sync state
+    
     if(spentDiv) spentDiv.innerText = activeNpc.experience.spent;
     if(remDiv) remDiv.innerText = activeNpc.experience.total - activeNpc.experience.spent;
 
-    // Detailed Breakdown
-    const breakdown = document.getElementById('xp-breakdown-list');
-    if (breakdown) {
-        breakdown.innerHTML = '';
-        let buckets = { newAbil: 0, attr: 0, abil: 0, disc: 0, virt: 0, humanity: 0, willpower: 0, background: 0 };
-        
-        activeNpc.experience.log.forEach(entry => {
-            const type = entry.type; 
-            const cost = entry.cost;
-            if (type === 'attributes' || type === 'attr') buckets.attr += cost;
-            else if (type === 'abilities' || type === 'abil') {
-                if (entry.from === 0) buckets.newAbil += cost;
-                else buckets.abil += cost;
-            }
-            else if (type === 'disciplines' || type === 'disc') buckets.disc += cost;
-            else if (type === 'virtues' || type === 'virt') buckets.virt += cost;
-            else if (type === 'humanity') buckets.humanity += cost;
-            else if (type === 'willpower') buckets.willpower += cost;
-            else if (type === 'backgrounds' || type === 'back') buckets.background += cost;
-        });
+    // Update Category Breakdown (Matched to Freebie Layout)
+    const setXpCost = (id, val) => {
+        const el = document.getElementById(id);
+        if(el) {
+            el.innerText = val;
+            el.className = val > 0 ? "text-purple-400 font-bold" : "text-gray-500";
+        }
+    };
+    
+    setXpCost('xp-cost-attr', costs.attr);
+    setXpCost('xp-cost-abil', costs.abil);
+    setXpCost('xp-cost-disc', costs.disc);
+    setXpCost('xp-cost-back', costs.back);
+    setXpCost('xp-cost-virt', costs.virt);
+    setXpCost('xp-cost-hum', costs.hum);
+    setXpCost('xp-cost-will', costs.will);
 
-        const addRow = (label, val) => {
-            const row = document.createElement('div');
-            row.className = "flex justify-between items-center gap-1";
-            row.innerHTML = `<span class="text-gray-400 truncate">${label}</span><span class="text-purple-400 font-bold bg-black/95 z-10 shrink-0">${val}</span>`;
-            breakdown.appendChild(row);
-        };
-        addRow("New Ability (3)", buckets.newAbil);
-        addRow("Attributes (x4)", buckets.attr);
-        addRow("Abilities (x2)", buckets.abil);
-        addRow("Disciplines (x10/20)", buckets.disc);
-        addRow("Virtues (x2)", buckets.virt);
-        addRow("Humanity (x2)", buckets.humanity);
-        addRow("Willpower (x1)", buckets.willpower);
-        addRow("Backgrounds (3)", buckets.background);
-    }
-
+    // Update Log
     const logDiv = document.getElementById('xp-list');
     if(logDiv) {
-        logDiv.innerHTML = activeNpc.experience.log.slice().reverse().map(l => `
-            <div class="border-b border-[#222] pb-1">
-                <div class="flex justify-between text-white"><span>${l.trait}</span><span class="text-purple-400">-${l.cost}</span></div>
-                <div class="text-[8px] opacity-50">${l.from} -> ${l.to}</div>
-            </div>
-        `).join('');
+        if(activeNpc.experience.log.length === 0) {
+            logDiv.innerHTML = '<div class="italic opacity-50">No XP spent.</div>';
+        } else {
+            // Newest at top
+            logDiv.innerHTML = activeNpc.experience.log.slice().reverse().map(l => {
+                const date = new Date(l.date).toLocaleDateString(undefined, { month:'short', day:'numeric' });
+                return `
+                    <div class="flex justify-between border-b border-[#222] pb-1 mb-1 text-[9px]">
+                        <div><span class="text-gray-500">[${date}]</span> <span class="text-white font-bold">${l.trait}</span></div>
+                        <div class="text-purple-400 font-bold">-${l.cost}</div>
+                    </div>
+                    <div class="text-[8px] text-gray-600 mb-1 italic">${l.from} &rarr; ${l.to}</div>
+                `;
+            }).join('');
+        }
     }
 }
 
 function updateFreebieCalc() {
     if(!modes.freebie) return;
     
-    // High-Fidelity Update logic with LOGGING
     let costs = { attr: 0, abil: 0, disc: 0, back: 0, virt: 0, hum: 0, will: 0, merit: 0, flaw: 0 };
-    let logs = []; // Accumulate log entries here
+    let logs = []; 
 
-    // 1. Attributes
     ['Physical', 'Social', 'Mental'].forEach(grp => {
         const limit = localPriorities.attr[grp];
         let spent = 0;
@@ -899,11 +906,10 @@ function updateFreebieCalc() {
         if (spent > cap) {
             const cost = currentTemplate.getCost('freebie', 'attributes', null, 0, spent - cap, activeNpc);
             costs.attr += cost;
-            logs.push(`${grp} Attr (+${spent - cap} dots): ${cost} pts`);
+            logs.push(`${grp} Attr (+${spent - cap}): ${cost}`);
         }
     });
 
-    // 2. Abilities
     ['Talents', 'Skills', 'Knowledges'].forEach(grp => {
         const limit = localPriorities.abil[grp];
         let spent = 0;
@@ -912,68 +918,61 @@ function updateFreebieCalc() {
         if (spent > cap) {
             const cost = currentTemplate.getCost('freebie', 'abilities', null, 0, spent - cap, activeNpc);
             costs.abil += cost;
-            logs.push(`${grp} (+${spent - cap} dots): ${cost} pts`);
+            logs.push(`${grp} (+${spent - cap}): ${cost}`);
         }
     });
 
-    // 3. Disciplines
     let discTotal = 0;
     Object.values(activeNpc.disciplines).forEach(v => discTotal += v);
     if (discTotal > 2) {
         const cost = currentTemplate.getCost('freebie', 'disciplines', null, 0, discTotal - 2, activeNpc);
         costs.disc = cost;
-        logs.push(`Disciplines (+${discTotal - 2} dots): ${cost} pts`);
+        logs.push(`Disciplines (+${discTotal - 2}): ${cost}`);
     }
 
-    // 4. Backgrounds
     let bgTotal = 0;
     Object.values(activeNpc.backgrounds).forEach(v => bgTotal += v);
     if (bgTotal > 5) {
         const cost = currentTemplate.getCost('freebie', 'backgrounds', null, 0, bgTotal - 5, activeNpc);
         costs.back = cost;
-        logs.push(`Backgrounds (+${bgTotal - 5} dots): ${cost} pts`);
+        logs.push(`Backgrounds (+${bgTotal - 5}): ${cost}`);
     }
 
-    // 5. Virtues
     let virtTotal = 0;
     VIRTUES.forEach(v => virtTotal += Math.max(0, (activeNpc.virtues[v]||1)-1));
     const vLimit = currentTemplate.getVirtueLimit(activeNpc);
     if (virtTotal > vLimit) {
         const cost = currentTemplate.getCost('freebie', 'virtues', null, 0, virtTotal - vLimit, activeNpc);
         costs.virt = cost;
-        logs.push(`Virtues (+${virtTotal - vLimit} dots): ${cost} pts`);
+        logs.push(`Virtues (+${virtTotal - vLimit}): ${cost}`);
     }
 
-    // 6. Humanity
     const baseHum = (activeNpc.virtues.Conscience||1) + (activeNpc.virtues["Self-Control"]||1);
     if (activeNpc.humanity > baseHum) {
         const cost = currentTemplate.getCost('freebie', 'humanity', null, 0, activeNpc.humanity - baseHum, activeNpc);
         costs.hum = cost;
-        logs.push(`Humanity (+${activeNpc.humanity - baseHum}): ${cost} pts`);
+        logs.push(`Humanity (+${activeNpc.humanity - baseHum}): ${cost}`);
     }
 
-    // 7. Willpower
     const baseWill = (activeNpc.virtues.Courage||1);
     if (activeNpc.willpower > baseWill) {
         const cost = currentTemplate.getCost('freebie', 'willpower', null, 0, activeNpc.willpower - baseWill, activeNpc);
         costs.will = cost;
-        logs.push(`Willpower (+${activeNpc.willpower - baseWill}): ${cost} pts`);
+        logs.push(`Willpower (+${activeNpc.willpower - baseWill}): ${cost}`);
     }
 
-    // 8. Merits/Flaws
     if (activeNpc.merits) Object.entries(activeNpc.merits).forEach(([k,v]) => {
         costs.merit += v;
-        logs.push(`Merit: ${k} (${v} pts)`);
+        logs.push(`Merit: ${k} (${v})`);
     });
     
     let flawTotal = 0;
     if (activeNpc.flaws) Object.entries(activeNpc.flaws).forEach(([k,v]) => {
         flawTotal += v;
-        logs.push(`Flaw: ${k} (-${v} pts)`);
+        logs.push(`Flaw: ${k} (-${v})`);
     });
     costs.flaw = Math.min(7, flawTotal);
 
-    // Update UI elements by ID
     const setCost = (id, val) => {
         const el = document.getElementById(id);
         if(el) {
@@ -1012,7 +1011,6 @@ function updateFreebieCalc() {
         fbTotalCalc.className = remaining >= 0 ? "text-green-400" : "text-red-500";
     }
 
-    // Render Log
     const logEl = document.getElementById('fb-log-list');
     if(logEl) {
         if (logs.length === 0) logEl.innerHTML = '<div class="italic opacity-50">No freebie points spent.</div>';
