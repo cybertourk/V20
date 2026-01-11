@@ -64,9 +64,8 @@ function sanitizeNpcData(npc) {
         if (!npc[k]) npc[k] = {}; 
     });
     if (!npc.experience) npc.experience = { total: 0, spent: 0, log: [] };
-    if (!npc.freebieLog) npc.freebieLog = []; // Init Freebie Log
+    if (!npc.freebieLog) npc.freebieLog = []; 
     
-    // Ensure defaults from global data exist
     if (ATTRIBUTES) Object.values(ATTRIBUTES).flat().forEach(a => { if (npc.attributes[a] === undefined) npc.attributes[a] = 1; });
     if (ABILITIES) Object.values(ABILITIES).flat().forEach(a => { if (npc.abilities[a] === undefined) npc.abilities[a] = 0; });
 }
@@ -273,7 +272,7 @@ function renderEditorModal() {
                     </div>
                 </div>
 
-                <!-- SIDEBAR: XP LEDGER (Renamed ID to avoid collision) -->
+                <!-- SIDEBAR: XP LEDGER -->
                 <div id="npc-xp-sidebar" class="hidden w-64 bg-[#080808] border-l border-[#333] flex-col shrink-0">
                     <div class="p-3 bg-[#111] border-b border-[#333] text-center"><h3 class="text-purple-400 font-cinzel font-bold">XP Ledger</h3></div>
                     
@@ -306,7 +305,7 @@ function renderEditorModal() {
                     </div>
                 </div>
 
-                <!-- SIDEBAR: FREEBIE LEDGER (Renamed ID to avoid collision) -->
+                <!-- SIDEBAR: FREEBIE LEDGER -->
                 <div id="npc-fb-sidebar" class="hidden w-64 bg-[#080808] border-l border-[#333] flex-col shrink-0 transition-all flex flex-col">
                     <div class="p-3 bg-[#111] border-b border-[#333] text-center"><h3 class="text-[#d4af37] font-cinzel font-bold">Freebie Ledger</h3></div>
                     
@@ -397,15 +396,20 @@ function renderEditorModal() {
             const [name, val] = e.target.value.split('|');
             const cost = parseInt(val);
             
-            // FREEBIE LOGGING
             if(modes.freebie) {
-                // Determine if adding or just setting (assuming simple add for now)
+                const avail = getFreebiesAvailable();
+                const realCost = type === 'merits' ? cost : -cost; // Flaw adds points
+                if (realCost > avail) {
+                    showNotification("Not enough Freebie Points!");
+                    e.target.value = "";
+                    return;
+                }
+
                 activeNpc[type][name] = cost;
-                // Add to log
                 activeNpc.freebieLog.push({
                     type: type === 'merits' ? 'merit' : 'flaw',
                     trait: name,
-                    cost: type === 'merits' ? cost : -cost, // Flaws are negative cost (bonus)
+                    cost: realCost,
                     val: cost
                 });
             } else {
@@ -506,6 +510,13 @@ function updateModeUI() {
     }
 }
 
+// Helper to calc available points
+function getFreebiesAvailable() {
+    let spent = 0;
+    activeNpc.freebieLog.forEach(l => spent += l.cost);
+    return 21 - spent;
+}
+
 // --- LOGIC HUB ---
 
 function handleValueChange(type, key, newVal) {
@@ -538,14 +549,11 @@ function handleValueChange(type, key, newVal) {
 
         } else if (finalVal < currentVal) {
             // UNDO / REFUND
-            // Find the most recent log entry for this trait that resulted in the current value
-            // Iterating backwards
             let logIdx = -1;
             const targetTrait = key || type;
             
             for (let i = activeNpc.experience.log.length - 1; i >= 0; i--) {
                 const entry = activeNpc.experience.log[i];
-                // Check if this entry is for the trait and matches the "Buy" we are undoing
                 if (entry.trait === targetTrait && entry.to === currentVal && entry.from === finalVal) {
                     logIdx = i;
                     break;
@@ -566,7 +574,7 @@ function handleValueChange(type, key, newVal) {
         let finalVal = newVal;
         if (newVal === currentVal) finalVal = newVal - 1; 
         
-        // 1. Validate if refund is possible (not below base creation dots)
+        // 1. Refund Validation
         if (finalVal < currentVal) {
             if (!validateFreebieRefund(type, key, finalVal)) {
                 showNotification("Cannot refund base dots (Creation points).");
@@ -578,12 +586,17 @@ function handleValueChange(type, key, newVal) {
         if (type === 'attributes' && finalVal < 1) return;
         if (finalVal < 0) return;
 
-        // 2. Transactional Logging Logic
+        // 2. Spending Logic
         if (finalVal > currentVal) {
-            // Buying
-            // Calculate marginal cost of this specific increase relative to cap
+            // Check Affordability
             const cost = calculateMarginalFreebieCost(type, key, currentVal, finalVal);
+            const avail = getFreebiesAvailable();
             
+            if (cost > avail) {
+                showNotification(`Not enough Freebie Points! Need ${cost}, have ${avail}.`);
+                return;
+            }
+
             if (cost > 0) {
                 activeNpc.freebieLog.push({
                     type: type,
@@ -594,21 +607,32 @@ function handleValueChange(type, key, newVal) {
                 });
             }
         } else {
-            // Selling (Undo)
-            // Look for a log entry that matches this exact step-down
-            // e.g. if going 5 -> 4, look for a log that was 4 -> 5
-            const targetTrait = key || type;
-            let logIdx = -1;
+            // Selling (Smart Refund)
+            // Identify range being removed: finalVal -> currentVal
+            // Find ALL logs that contributed to this range and trim/remove them.
+            
+            let rangeTop = currentVal;
+            const rangeBottom = finalVal;
+            const traitName = key || type;
+
+            // Iterate backwards to find logs overlapping this upper range
             for (let i = activeNpc.freebieLog.length - 1; i >= 0; i--) {
                 const entry = activeNpc.freebieLog[i];
-                if (entry.trait === targetTrait && entry.to === currentVal && entry.from === finalVal) {
-                    logIdx = i;
-                    break;
+                if (entry.trait !== traitName) continue;
+
+                // Case A: Log is fully within removal range (e.g. Log 4->5, removing 5->3)
+                if (entry.from >= rangeBottom) {
+                    activeNpc.freebieLog.splice(i, 1);
                 }
-            }
-            
-            if (logIdx !== -1) {
-                activeNpc.freebieLog.splice(logIdx, 1);
+                // Case B: Log spans the boundary (e.g. Log 1->5, removing 5->3)
+                // We need to keep 1->3 part.
+                else if (entry.to > rangeBottom) {
+                    // Recalculate cost for retained part
+                    // Override activeNpc value to simulate the state of 3 for calculation
+                    const retainedCost = calculateMarginalFreebieCost(type, key, entry.from, rangeBottom, rangeBottom);
+                    entry.to = rangeBottom;
+                    entry.cost = retainedCost;
+                }
             }
         }
 
@@ -629,9 +653,8 @@ function handleValueChange(type, key, newVal) {
     }
 }
 
-// Helper to calculate cost of a specific dot increase considering Priority Cap
-function calculateMarginalFreebieCost(type, key, currentVal, newVal) {
-    // 1. Get current "Spent" vs "Cap" for the group
+// Helper: Calculate marginal cost. Optional 'simulatedCapVal' overrides current activeNpc value for calculation.
+function calculateMarginalFreebieCost(type, key, startVal, endVal, simulatedVal = null) {
     let group = null;
     let cap = 0;
     let spent = 0;
@@ -651,7 +674,10 @@ function calculateMarginalFreebieCost(type, key, currentVal, newVal) {
             cap = priorities[group] || 0;
             const groupList = list[group];
             groupList.forEach(k => {
-                const v = (activeNpc[type][k] || (type === 'attributes' ? 1 : 0));
+                let v = (activeNpc[type][k] || (type === 'attributes' ? 1 : 0));
+                // Override if this is the key we are simulating
+                if (simulatedVal !== null && k === key) v = simulatedVal;
+                
                 if (type === 'attributes') spent += Math.max(0, v - 1);
                 else spent += v;
             });
@@ -659,48 +685,73 @@ function calculateMarginalFreebieCost(type, key, currentVal, newVal) {
     }
     // Disciplines
     else if (type === 'disciplines') {
-        cap = 2; // Base free
-        Object.values(activeNpc.disciplines).forEach(v => spent += v);
+        cap = 2; 
+        Object.keys(activeNpc.disciplines).forEach(k => {
+            let v = activeNpc.disciplines[k];
+            if (simulatedVal !== null && k === key) v = simulatedVal;
+            spent += v;
+        });
     }
     // Backgrounds
     else if (type === 'backgrounds') {
         cap = 5;
-        Object.values(activeNpc.backgrounds).forEach(v => spent += v);
+        Object.keys(activeNpc.backgrounds).forEach(k => {
+            let v = activeNpc.backgrounds[k];
+            if (simulatedVal !== null && k === key) v = simulatedVal;
+            spent += v;
+        });
     }
     // Virtues
     else if (type === 'virtues') {
         cap = currentTemplate.getVirtueLimit(activeNpc);
-        VIRTUES.forEach(k => spent += Math.max(0, (activeNpc.virtues[k]||1)-1));
+        VIRTUES.forEach(k => {
+            let v = (activeNpc.virtues[k] || 1);
+            if (simulatedVal !== null && k === key) v = simulatedVal;
+            spent += Math.max(0, v - 1);
+        });
     }
     // Humanity
     else if (type === 'humanity') {
         cap = (activeNpc.virtues.Conscience||1) + (activeNpc.virtues["Self-Control"]||1);
-        spent = activeNpc.humanity;
+        spent = simulatedVal !== null ? simulatedVal : activeNpc.humanity;
     }
     // Willpower
     else if (type === 'willpower') {
         cap = (activeNpc.virtues.Courage||1);
-        spent = activeNpc.willpower;
+        spent = simulatedVal !== null ? simulatedVal : activeNpc.willpower;
     }
 
-    // Calculate if this increase pushes us (further) over the cap
-    // We are going from currentVal to newVal. This adds (newVal - currentVal) to 'spent'.
-    const delta = newVal - currentVal;
+    // Determine how many of the added dots are above the cap
+    // Note: 'spent' is based on the *base* state before adding the new range
+    // But `startVal` -> `endVal` is the range we are analyzing.
+    // If we passed `simulatedVal`, `spent` already reflects that value.
+    // If we didn't, `spent` reflects `activeNpc` (which is `startVal` usually).
     
-    // Example: Cap 6. Spent 6. Increase 1. New Spent 7.
-    // Overage before: max(0, 6-6) = 0.
-    // Overage after: max(0, 7-6) = 1.
-    // Charged: 1.
+    // Correct Logic:
+    // We want to know cost of moving from `startVal` to `endVal`.
+    // The "base spent" excluding the trait being modified is `spent - (currentTraitContribution)`.
+    // Then we see where `startVal` sits relative to cap, and where `endVal` sits.
     
-    // Example: Cap 6. Spent 5. Increase 1. New Spent 6.
-    // Overage before: 0. Overage after: 0. Charged: 0.
+    // 1. Strip current trait contribution from `spent`
+    let currentTraitContrib = 0;
+    let currentValForCalc = simulatedVal !== null ? simulatedVal : (key ? activeNpc[type][key] : activeNpc[type]);
+    if(type === 'attributes' || type === 'virtues') currentValForCalc = Math.max(0, currentValForCalc - 1);
     
-    const overageBefore = Math.max(0, spent - cap);
-    const overageAfter = Math.max(0, (spent + delta) - cap);
-    const chargedDots = overageAfter - overageBefore;
+    let baseSpent = spent - currentValForCalc;
+    
+    // 2. Add start and end range
+    let startContrib = type === 'attributes' || type === 'virtues' ? Math.max(0, startVal - 1) : startVal;
+    let endContrib = type === 'attributes' || type === 'virtues' ? Math.max(0, endVal - 1) : endVal;
+    
+    let totalStart = baseSpent + startContrib;
+    let totalEnd = baseSpent + endContrib;
+    
+    let overageStart = Math.max(0, totalStart - cap);
+    let overageEnd = Math.max(0, totalEnd - cap);
+    
+    let chargedDots = overageEnd - overageStart;
     
     if (chargedDots > 0) {
-        // Get generic cost per dot
         const costPerDot = currentTemplate.getCost('freebie', type, key, 0, 1, activeNpc);
         return chargedDots * costPerDot;
     }
@@ -709,15 +760,10 @@ function calculateMarginalFreebieCost(type, key, currentVal, newVal) {
 }
 
 function validateFreebieRefund(type, key, newVal) {
-    // Re-use marginal calculation logic but checking for floor instead of cost
-    // If the reduction drops 'spent' below 'cap', it means we are refunding Base dots.
-    
-    let group = null;
-    let cap = 0;
-    let spent = 0;
-
     if (type === 'attributes' || type === 'abilities') {
+        let group = null;
         const list = (type === 'attributes') ? ATTRIBUTES : ABILITIES;
+        
         if (list.Physical && list.Physical.includes(key)) group = 'Physical';
         else if (list.Social && list.Social.includes(key)) group = 'Social';
         else if (list.Mental && list.Mental.includes(key)) group = 'Mental';
@@ -725,52 +771,56 @@ function validateFreebieRefund(type, key, newVal) {
         else if (list.Skills && list.Skills.includes(key)) group = 'Skills';
         else if (list.Knowledges && list.Knowledges.includes(key)) group = 'Knowledges';
 
-        if (group) {
-            const priorities = (type === 'attributes') ? localPriorities.attr : localPriorities.abil;
-            cap = priorities[group];
-            if (cap === null) return true; // No priority set? safe to modify?
-            const groupList = list[group];
-            groupList.forEach(k => {
-                // Calculate Hypothetical New Total
-                const v = (k === key) ? newVal : (activeNpc[type][k] || (type==='attributes'?1:0));
-                if (type === 'attributes') spent += Math.max(0, v - 1);
-                else spent += v;
-            });
-        }
+        if (!group) return true;
+
+        const priorities = (type === 'attributes') ? localPriorities.attr : localPriorities.abil;
+        const limit = priorities[group];
+        if (limit === null) return true;
+
+        let total = 0;
+        const groupList = list[group];
+        groupList.forEach(k => {
+            const v = (k === key) ? newVal : (activeNpc[type][k] || (type==='attributes'?1:0));
+            if (type === 'attributes') total += Math.max(0, (v||1) - 1);
+            else total += v;
+        });
+
+        return total >= limit;
     }
-    // Simply check if New Total < Cap. If so, forbidden.
-    else if (type === 'disciplines') {
+    if (type === 'disciplines') {
+        let total = 0;
         Object.keys(activeNpc.disciplines).forEach(k => {
             const v = (k === key) ? newVal : activeNpc.disciplines[k];
-            spent += v;
+            total += v;
         });
-        cap = 2;
+        return total >= 2; 
     }
-    else if (type === 'backgrounds') {
+    if (type === 'backgrounds') {
+        let total = 0;
         Object.keys(activeNpc.backgrounds).forEach(k => {
             const v = (k === key) ? newVal : activeNpc.backgrounds[k];
-            spent += v;
+            total += v;
         });
-        cap = 5;
+        return total >= 5;
     }
-    else if (type === 'virtues') {
+    if (type === 'virtues') {
+        let total = 0;
         VIRTUES.forEach(k => {
             const v = (k === key) ? newVal : (activeNpc.virtues[k] || 1);
-            spent += Math.max(0, v - 1);
+            total += Math.max(0, v - 1);
         });
-        cap = currentTemplate.getVirtueLimit(activeNpc);
+        const limit = currentTemplate.getVirtueLimit(activeNpc);
+        return total >= limit;
     }
-    else if (type === 'humanity') {
-        cap = (activeNpc.virtues.Conscience||1) + (activeNpc.virtues["Self-Control"]||1);
-        spent = newVal;
+    if (type === 'humanity') {
+        const base = (activeNpc.virtues.Conscience||1) + (activeNpc.virtues["Self-Control"]||1);
+        return newVal >= base;
     }
-    else if (type === 'willpower') {
-        cap = (activeNpc.virtues.Courage||1);
-        spent = newVal;
+    if (type === 'willpower') {
+        const base = (activeNpc.virtues.Courage||1);
+        return newVal >= base;
     }
-    else return true; // Merits/Flaws always refundable
-
-    return spent >= cap;
+    return true;
 }
 
 function applyChange(type, key, val) {
@@ -1048,8 +1098,6 @@ function updateXpLog() {
 function updateFreebieCalc() {
     if(!modes.freebie) return;
     
-    // We are now deriving totals primarily from the LOG for visual consistency,
-    // but we need to bucket them for the Category View.
     let costs = { attr: 0, abil: 0, disc: 0, back: 0, virt: 0, hum: 0, will: 0, merit: 0, flaw: 0 };
     let totalSpent = 0;
     
@@ -1066,11 +1114,6 @@ function updateFreebieCalc() {
         else if (l.type === 'flaw') costs.flaw += Math.abs(l.cost); // Flaws are usually bonus, so track magnitude here
     });
 
-    // Flaws grant bonus points (negative cost in log, so subtract from total spent which reduces spend, increasing remaining)
-    // Wait, log cost for flaw is negative. So totalSpent decreases. 
-    // Remaining = 21 - totalSpent. 
-    // If I have a flaw -3 cost. Total Spent is -3. Remaining = 24. Correct.
-    
     const remaining = 21 - totalSpent;
 
     const setCost = (id, val) => {
@@ -1117,7 +1160,6 @@ function updateFreebieCalc() {
                 const costDisplay = isBonus ? `+${Math.abs(l.cost)}` : `-${l.cost}`;
                 const color = isBonus ? 'text-green-400' : 'text-red-400';
                 
-                // Construct detailed label
                 let detail = "";
                 if (l.from !== undefined && l.to !== undefined) {
                     detail = `${l.from} &rarr; ${l.to}`;
