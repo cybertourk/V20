@@ -616,8 +616,8 @@
         </div>
     </div>
     
-    <!-- GHOUL CREATOR MODAL -->
-    <div id="ghoul-modal" class="fixed inset-0 bg-black/90 z-[100] flex items-center justify-center hidden"></div>
+    <!-- NPC CREATOR MODAL -->
+    <div id="npc-modal" class="fixed inset-0 bg-black/90 z-[100] flex items-center justify-center hidden"></div>
 
     <div id="save-modal" class="modal-overlay">
         <div class="modal-box">
@@ -865,6 +865,21 @@
         </div>
     </div>
 
+    <!-- Scripts restored from original config -->
+    <script src="data.js"></script>
+    <script src="v20-rules.js"></script>
+    <script src="ui-common.js"></script>
+    <script src="ui-renderer.js"></script>
+    <script src="ui-mechanics.js"></script>
+    <script src="ui-nav.js"></script>
+    <script src="ui-journal.js"></script>
+    <script src="firebase-config.js"></script>
+    <script src="firebase-manager.js"></script>
+
+    <!-- NEW NPC SYSTEM -->
+    <script type="module" src="npc-creator.js"></script>
+    
+    <!-- MAIN ENTRY -->
     <script type="module" src="main.js"></script>
 
 </body>
