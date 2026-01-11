@@ -9,7 +9,6 @@ import { renderDots, showNotification } from "./ui-common.js";
 // Registry of available templates
 const TEMPLATES = {
     'ghoul': GhoulTemplate
-    // Future: 'mortal': MortalTemplate, 'animal': AnimalTemplate
 };
 
 // State
@@ -111,6 +110,7 @@ function recalcStatus() {
     const baseHum = (activeNpc.virtues.Conscience || 1) + (activeNpc.virtues["Self-Control"] || 1);
     const baseWill = activeNpc.virtues.Courage || 1;
     
+    // Only raise floor, don't lower if bought higher
     if (activeNpc.humanity < baseHum) activeNpc.humanity = baseHum;
     if (activeNpc.willpower < baseWill) activeNpc.willpower = baseWill;
 }
@@ -282,16 +282,42 @@ function renderEditorModal() {
                 <!-- SIDEBAR: XP LEDGER -->
                 <div id="xp-sidebar" class="hidden w-64 bg-[#080808] border-l border-[#333] flex-col shrink-0">
                     <div class="p-3 bg-[#111] border-b border-[#333] text-center"><h3 class="text-purple-400 font-cinzel font-bold">XP Log</h3></div>
-                    <div class="p-3 text-xs flex justify-between"><span>Total XP</span><input type="number" id="xp-total" value="${activeNpc.experience.total}" class="w-16 bg-black border border-[#333] text-purple-400 text-center font-bold"></div>
-                    <div id="xp-list" class="flex-1 overflow-y-auto p-2 text-[9px] font-mono text-gray-400 space-y-1"></div>
-                    <div class="p-3 bg-[#111] border-t border-[#333] text-xs"><div class="flex justify-between"><span>Spent</span><span id="xp-spent">0</span></div><div class="flex justify-between mt-1 pt-1 border-t border-[#333]"><span>Remaining</span><span id="xp-remain" class="text-green-400">0</span></div></div>
+                    <div class="p-3 text-xs flex justify-between bg-[#1a1a1a] border-b border-[#333]">
+                        <span class="text-gray-400">Total XP</span>
+                        <input type="number" id="xp-total" value="${activeNpc.experience.total}" class="w-16 bg-black border border-[#333] text-purple-400 text-center font-bold">
+                    </div>
+                    
+                    <!-- NEW: Detailed Breakdown Area -->
+                    <div id="xp-breakdown-list" class="space-y-2 text-xs p-3 border-b border-[#333]"></div>
+
+                    <div class="p-3 bg-[#111] border-b border-[#333] text-xs">
+                        <div class="flex justify-between"><span>Total Spent</span><span id="xp-spent">0</span></div>
+                        <div class="flex justify-between mt-1 pt-1 border-t border-[#333]"><span>Remaining</span><span id="xp-remain" class="text-green-400">0</span></div>
+                    </div>
+                    <div class="flex-1 overflow-y-auto p-2">
+                        <h4 class="text-[9px] uppercase text-gray-500 font-bold mb-1 tracking-wider">Log</h4>
+                        <div id="xp-list" class="text-[9px] font-mono text-gray-400 space-y-1"></div>
+                    </div>
                 </div>
 
                 <!-- SIDEBAR: FREEBIE LEDGER -->
-                <div id="fb-sidebar" class="hidden w-64 bg-[#080808] border-l border-[#333] flex-col shrink-0">
-                    <div class="p-3 bg-[#111] border-b border-[#333] text-center"><h3 class="text-[#d4af37] font-cinzel font-bold">Freebie Log</h3></div>
-                    <div id="fb-calc-list" class="flex-1 p-4 space-y-2 text-[10px] font-mono text-gray-400"></div>
-                    <div class="p-4 bg-[#d4af37]/10 border-t border-[#d4af37]/30 text-center">
+                <div id="fb-sidebar" class="hidden w-64 bg-[#080808] border-l border-[#333] flex-col shrink-0 transition-all">
+                    <div class="p-3 bg-[#111] border-b border-[#333] text-center"><h3 class="text-[#d4af37] font-cinzel font-bold">Freebie Ledger</h3></div>
+                    
+                    <!-- Structured List (matches original) -->
+                    <div class="text-[10px] font-mono space-y-2 p-4 bg-black/40 text-gray-400 flex-1">
+                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Attributes:</span> <span id="fb-cost-attr" class="text-white">0</span></div>
+                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Abilities:</span> <span id="fb-cost-abil" class="text-white">0</span></div>
+                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Disciplines:</span> <span id="fb-cost-disc" class="text-white">0</span></div>
+                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Backgrounds:</span> <span id="fb-cost-back" class="text-white">0</span></div>
+                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Virtues:</span> <span id="fb-cost-virt" class="text-white">0</span></div>
+                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Humanity:</span> <span id="fb-cost-hum" class="text-white">0</span></div>
+                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Willpower:</span> <span id="fb-cost-will" class="text-white">0</span></div>
+                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Merits:</span> <span id="fb-cost-merit" class="text-white">0</span></div>
+                        <div class="flex justify-between border-b border-[#222] pb-1"><span>Flaws:</span> <span id="fb-cost-flaw" class="text-green-400">0</span></div>
+                    </div>
+
+                    <div class="p-4 bg-[#d4af37]/10 border-t border-[#d4af37]/30 text-center mb-4 mx-4 rounded shadow-[0_0_15px_rgba(212,175,55,0.1)]">
                         <div class="uppercase text-[9px] font-bold text-[#d4af37]">Freebies Remaining</div>
                         <div id="fb-final" class="text-4xl font-black text-white mt-2 font-cinzel">21</div>
                     </div>
@@ -434,6 +460,7 @@ function updateModeUI() {
     if(modes.xp) {
         xpBar.classList.remove('hidden');
         xpBar.classList.add('flex');
+        updateXpLog();
     } else {
         xpBar.classList.add('hidden');
         xpBar.classList.remove('flex');
@@ -483,14 +510,10 @@ function renderDotRow(type, key, val, group) {
 }
 
 function renderAllDots() {
-    // Re-render Attributes/Abilities lists to update visual dots
-    // Note: We are doing full innerHTML replacement for simplicity in this prototype.
-    // In a React app, this would be state-driven.
     ['Physical', 'Social', 'Mental'].forEach(g => document.getElementById(`list-attr-${g}`).innerHTML = ATTRIBUTES[g].map(k => renderDotRow('attributes', k, activeNpc.attributes[k], g)).join(''));
     
     ['Talents', 'Skills', 'Knowledges'].forEach(g => document.getElementById(`list-abil-${g}`).innerHTML = ABILITIES[g].map(k => renderDotRow('abilities', k, activeNpc.abilities[k], g)).join(''));
     
-    // Virtues
     const vList = document.getElementById('npc-virtue-list');
     if(vList) vList.innerHTML = VIRTUES.map(k => `
         <div class="flex justify-between items-center mb-1 dot-interactive" data-type="virtues" data-key="${k}">
@@ -499,7 +522,6 @@ function renderAllDots() {
         </div>
     `).join('');
 
-    // Update Direct Dots (Humanity/Willpower)
     document.getElementById('npc-humanity-row').innerHTML = renderDots(activeNpc.humanity, 10);
     document.getElementById('npc-willpower-row').innerHTML = renderDots(activeNpc.willpower, 10);
     
@@ -584,39 +606,35 @@ function bindDotClicks() {
 function handleValueChange(type, key, newVal) {
     let currentVal = (key) ? (activeNpc[type][key] || 0) : activeNpc[type];
     
-    // Handle Min Values (usually 1 for Attr/Virtue unless XP mode allows 0?)
-    // Standard V20: Attr min 1. Virtue min 1.
     if (!modes.xp && !modes.freebie) {
-        if ((type === 'attributes' || type === 'virtues') && newVal < 1) return; // Cannot go below 1 in creation
-        if (newVal === currentVal) newVal = newVal - 1; // Toggle down
+        if ((type === 'attributes' || type === 'virtues') && newVal < 1) return;
+        if (newVal === currentVal) newVal = newVal - 1;
     }
 
     if (modes.xp) {
-        // XP SPEND
         const cost = currentTemplate.getCost('xp', type, key, currentVal, newVal, activeNpc);
         if (cost === -1) { showNotification("XP purchase invalid (one dot at a time?)"); return; }
-        if (cost === 0) return; // Refund not supported in simple XP mode
+        if (cost === 0) return;
         
         const rem = activeNpc.experience.total - activeNpc.experience.spent;
         if (cost > rem) { showNotification(`Not enough XP. Need ${cost}, Have ${rem}`); return; }
 
         if(confirm(`Spend ${cost} XP for ${key||type} ${newVal}?`)) {
             activeNpc.experience.spent += cost;
-            activeNpc.experience.log.push({ date: Date.now(), trait: key||type, from: currentVal, to: newVal, cost });
+            activeNpc.experience.log.push({ date: Date.now(), trait: key||type, from: currentVal, to: newVal, cost, type });
             applyChange(type, key, newVal);
         }
     } 
     else if (modes.freebie) {
-        // FREEBIE MODE (Calculated, so we just allow it and the sidebar updates)
+        // Just apply, update loop will handle calculation
         applyChange(type, key, newVal);
     } 
     else {
-        // CREATION MODE (Validate against Priorities/Limits)
         const valid = currentTemplate.validateChange(type, key, newVal, currentVal, activeNpc, localPriorities);
         if (valid === true) {
             applyChange(type, key, newVal);
         } else {
-            showNotification(valid); // Error message
+            showNotification(valid);
         }
     }
 }
@@ -625,7 +643,6 @@ function applyChange(type, key, val) {
     if (key) activeNpc[type][key] = val;
     else activeNpc[type] = val;
 
-    // Derived Updates
     if (type === 'virtues') recalcStatus();
 
     renderAllDots();
@@ -652,39 +669,32 @@ function updatePrioritiesUI() {
         const v = parseInt(val);
         const current = localPriorities[cat][group];
 
-        // Reset classes
         btn.className = "npc-prio-btn w-6 h-6 rounded-full border text-[9px] font-bold transition-all mr-1 ";
         
         if (current === v) {
             btn.classList.add('bg-[#d4af37]', 'text-black', 'border-[#d4af37]');
         } else if (Object.values(localPriorities[cat]).includes(v)) {
-            // Taken by someone else
             btn.classList.add('border-gray-800', 'text-gray-600', 'opacity-30', 'cursor-not-allowed');
         } else {
-            // Available
             btn.classList.add('border-gray-600', 'text-gray-400', 'hover:border-[#d4af37]', 'hover:text-white');
             btn.onclick = () => {
                 if(modes.xp || modes.freebie) return;
-                // Logic to swap
                 const existingOwner = Object.keys(localPriorities[cat]).find(k => localPriorities[cat][k] === v);
                 if(existingOwner) localPriorities[cat][existingOwner] = null;
                 
                 localPriorities[cat][group] = v;
                 updatePrioritiesUI();
-                renderAllDots(); // To update counters
+                renderAllDots();
             };
         }
     });
 
-    // Update Counters
     ['attr', 'abil'].forEach(cat => {
-        const spread = currentTemplate.getPriorities()[cat];
         Object.keys(localPriorities[cat]).forEach(grp => {
             const limit = localPriorities[cat][grp];
             const el = document.getElementById(`cnt-${cat}-${grp}`);
             if(!el) return;
             
-            // Calculate spent
             let spent = 0;
             const list = (cat === 'attr') ? ATTRIBUTES[grp] : ABILITIES[grp];
             list.forEach(k => {
@@ -708,17 +718,54 @@ function updateVirtueDisplay() {
     if(el) el.innerText = `(Max ${limit} Dots)`;
 }
 
-// --- LOGGING ---
+// --- LOGGING & SIDEBARS ---
 
 function updateXpLog() {
     if(!modes.xp) return;
-    const logDiv = document.getElementById('xp-list');
     const spentDiv = document.getElementById('xp-spent');
     const remDiv = document.getElementById('xp-remain');
     
     if(spentDiv) spentDiv.innerText = activeNpc.experience.spent;
     if(remDiv) remDiv.innerText = activeNpc.experience.total - activeNpc.experience.spent;
 
+    // Detailed Breakdown (Ported from ghoul-creator.js)
+    const breakdown = document.getElementById('xp-breakdown-list');
+    if (breakdown) {
+        breakdown.innerHTML = '';
+        let buckets = { newAbil: 0, attr: 0, abil: 0, disc: 0, virt: 0, humanity: 0, willpower: 0, background: 0 };
+        
+        activeNpc.experience.log.forEach(entry => {
+            const type = entry.type; 
+            const cost = entry.cost;
+            if (type === 'attributes' || type === 'attr') buckets.attr += cost;
+            else if (type === 'abilities' || type === 'abil') {
+                if (entry.from === 0) buckets.newAbil += cost;
+                else buckets.abil += cost;
+            }
+            else if (type === 'disciplines' || type === 'disc') buckets.disc += cost;
+            else if (type === 'virtues' || type === 'virt') buckets.virt += cost;
+            else if (type === 'humanity') buckets.humanity += cost;
+            else if (type === 'willpower') buckets.willpower += cost;
+            else if (type === 'backgrounds' || type === 'back') buckets.background += cost;
+        });
+
+        const addRow = (label, val) => {
+            const row = document.createElement('div');
+            row.className = "flex justify-between items-center gap-1";
+            row.innerHTML = `<span class="text-gray-400 truncate">${label}</span><span class="text-purple-400 font-bold bg-black/95 z-10 shrink-0">${val}</span>`;
+            breakdown.appendChild(row);
+        };
+        addRow("New Ability (3)", buckets.newAbil);
+        addRow("Attributes (x4)", buckets.attr);
+        addRow("Abilities (x2)", buckets.abil);
+        addRow("Disciplines (x10/20)", buckets.disc);
+        addRow("Virtues (x2)", buckets.virt);
+        addRow("Humanity (x2)", buckets.humanity);
+        addRow("Willpower (x1)", buckets.willpower);
+        addRow("Backgrounds (3)", buckets.background);
+    }
+
+    const logDiv = document.getElementById('xp-list');
     if(logDiv) {
         logDiv.innerHTML = activeNpc.experience.log.slice().reverse().map(l => `
             <div class="border-b border-[#222] pb-1">
@@ -732,92 +779,97 @@ function updateXpLog() {
 function updateFreebieCalc() {
     if(!modes.freebie) return;
     
-    // Calculate costs relative to Creation state (priorities)
-    // This is complex because we need to know what the "Base" was.
-    // For simplicity in this generic engine, we assume anything ABOVE the Priority Limit is a Freebie cost.
-    
-    let totalCost = 0;
-    let report = [];
+    // High-Fidelity Update logic (Ported from ghoul-creator.js)
+    let costs = { attr: 0, abil: 0, disc: 0, back: 0, virt: 0, hum: 0, will: 0, merit: 0, flaw: 0 };
 
-    // Attributes
-    Object.entries(localPriorities.attr).forEach(([grp, limit]) => {
-        if(!limit) return;
-        let spent = 0;
-        ATTRIBUTES[grp].forEach(k => spent += Math.max(0, (activeNpc.attributes[k]||1)-1));
-        if(spent > limit) {
-            const diff = spent - limit;
-            const cost = currentTemplate.getCost('freebie', 'attributes', null, 0, diff, activeNpc);
-            totalCost += cost;
-            report.push(`Attr (${grp}): ${cost}`);
-        }
+    // 1. Attributes & Abilities (Relative to Priority Caps)
+    ['attr', 'abil'].forEach(cat => {
+        Object.entries(localPriorities[cat]).forEach(([group, limit]) => {
+            let spent = 0;
+            const list = (cat === 'attr') ? ATTRIBUTES[group] : ABILITIES[group];
+            list.forEach(k => {
+                if (cat === 'attr') spent += Math.max(0, (activeNpc.attributes[k]||1)-1);
+                else spent += (activeNpc.abilities[k]||0);
+            });
+            
+            const cap = limit || 0;
+            if (spent > cap) {
+                // Use getCost with delta
+                const cost = currentTemplate.getCost('freebie', cat === 'attr' ? 'attributes' : 'abilities', null, 0, spent - cap, activeNpc);
+                if (cat === 'attr') costs.attr += cost;
+                else costs.abil += cost;
+            }
+        });
     });
 
-    // Abilities
-    Object.entries(localPriorities.abil).forEach(([grp, limit]) => {
-        if(!limit) return;
-        let spent = 0;
-        ABILITIES[grp].forEach(k => spent += (activeNpc.abilities[k]||0));
-        if(spent > limit) {
-            const diff = spent - limit;
-            const cost = currentTemplate.getCost('freebie', 'abilities', null, 0, diff, activeNpc);
-            totalCost += cost;
-            report.push(`Abil (${grp}): ${cost}`);
-        }
-    });
-
-    // Backgrounds (Base 5)
-    let bgTotal = 0;
-    Object.values(activeNpc.backgrounds).forEach(v => bgTotal += v);
-    if(bgTotal > 5) {
-        const cost = currentTemplate.getCost('freebie', 'backgrounds', null, 0, bgTotal - 5, activeNpc);
-        totalCost += cost;
-        report.push(`Backgrounds: ${cost}`);
-    }
-
-    // Disciplines (Base 2)
+    // 2. Disciplines
     let discTotal = 0;
     Object.values(activeNpc.disciplines).forEach(v => discTotal += v);
-    if(discTotal > 2) {
-        const cost = currentTemplate.getCost('freebie', 'disciplines', null, 0, discTotal - 2, activeNpc);
-        totalCost += cost;
-        report.push(`Disciplines: ${cost}`);
-    }
+    // Base 2 dots are free (Potence + 1)
+    if (discTotal > 2) costs.disc = currentTemplate.getCost('freebie', 'disciplines', null, 0, discTotal - 2, activeNpc);
 
-    // Virtues
+    // 3. Backgrounds
+    let bgTotal = 0;
+    Object.values(activeNpc.backgrounds).forEach(v => bgTotal += v);
+    if (bgTotal > 5) costs.back = currentTemplate.getCost('freebie', 'backgrounds', null, 0, bgTotal - 5, activeNpc);
+
+    // 4. Virtues
     let virtTotal = 0;
     VIRTUES.forEach(v => virtTotal += Math.max(0, (activeNpc.virtues[v]||1)-1));
     const vLimit = currentTemplate.getVirtueLimit(activeNpc);
-    if(virtTotal > vLimit) {
-        const cost = currentTemplate.getCost('freebie', 'virtues', null, 0, virtTotal - vLimit, activeNpc);
-        totalCost += cost;
-        report.push(`Virtues: ${cost}`);
-    }
+    if (virtTotal > vLimit) costs.virt = currentTemplate.getCost('freebie', 'virtues', null, 0, virtTotal - vLimit, activeNpc);
+
+    // 5. Humanity
+    const baseHum = (activeNpc.virtues.Conscience||1) + (activeNpc.virtues["Self-Control"]||1);
+    if (activeNpc.humanity > baseHum) costs.hum = currentTemplate.getCost('freebie', 'humanity', null, 0, activeNpc.humanity - baseHum, activeNpc);
+
+    // 6. Willpower
+    const baseWill = (activeNpc.virtues.Courage||1);
+    if (activeNpc.willpower > baseWill) costs.will = currentTemplate.getCost('freebie', 'willpower', null, 0, activeNpc.willpower - baseWill, activeNpc);
+
+    // 7. Merits/Flaws
+    if (activeNpc.merits) Object.values(activeNpc.merits).forEach(v => costs.merit += v);
+    let flawTotal = 0;
+    if (activeNpc.flaws) Object.values(activeNpc.flaws).forEach(v => flawTotal += v);
+    costs.flaw = Math.min(7, flawTotal);
+
+    // Update UI elements by ID (Ported IDs)
+    const setCost = (id, val) => {
+        const el = document.getElementById(id);
+        if(el) {
+            el.innerText = val;
+            el.className = val > 0 ? "text-red-400 font-bold" : "text-gray-500";
+        }
+    };
     
-    // Merits/Flaws
-    let meritCost = 0;
-    Object.values(activeNpc.merits).forEach(v => meritCost += v);
-    let flawBonus = 0;
-    Object.values(activeNpc.flaws).forEach(v => flawBonus += v);
-    if(flawBonus > 7) flawBonus = 7; // Cap
+    setCost('fb-cost-attr', costs.attr);
+    setCost('fb-cost-abil', costs.abil);
+    setCost('fb-cost-disc', costs.disc);
+    setCost('fb-cost-back', costs.back);
+    setCost('fb-cost-virt', costs.virt);
+    setCost('fb-cost-hum', costs.hum);
+    setCost('fb-cost-will', costs.will);
+    setCost('fb-cost-merit', costs.merit);
+    
+    const flawEl = document.getElementById('fb-cost-flaw');
+    if(flawEl) {
+        flawEl.innerText = costs.flaw;
+        flawEl.className = costs.flaw > 0 ? "text-green-400 font-bold" : "text-gray-500";
+    }
 
-    totalCost += meritCost;
-    report.push(`Merits: ${meritCost}`);
-    report.push(`Flaws (Bonus): -${flawBonus}`);
-
-    const final = (21 + flawBonus) - totalCost;
-
-    document.getElementById('fb-calc-list').innerHTML = report.map(r => `<div>${r}</div>`).join('');
-    const el = document.getElementById('fb-final');
-    if(el) {
-        el.innerText = final;
-        el.className = final >= 0 ? "text-4xl font-black text-white mt-2 font-cinzel" : "text-4xl font-black text-red-500 mt-2 font-cinzel";
+    const totalSpent = costs.attr + costs.abil + costs.disc + costs.back + costs.virt + costs.hum + costs.will + costs.merit;
+    const remaining = (21 + costs.flaw) - totalSpent;
+    
+    const fbEl = document.getElementById('fb-final');
+    if(fbEl) {
+        fbEl.innerText = remaining;
+        fbEl.className = remaining >= 0 ? "text-4xl font-black text-white mt-2 font-cinzel" : "text-4xl font-black text-red-500 mt-2 font-cinzel";
     }
 }
 
 // --- SAVE ---
 
 function saveNpc() {
-    // Gather Text Inputs
     activeNpc.name = document.getElementById('npc-name').value;
     activeNpc.player = document.getElementById('npc-player').value;
     activeNpc.domitor = document.getElementById('npc-domitor').value;
@@ -833,12 +885,11 @@ function saveNpc() {
 
     activeNpc.priorities = JSON.parse(JSON.stringify(localPriorities));
 
-    // Save to State (Retainers)
     if (!window.state.retainers) window.state.retainers = [];
     if (activeIndex !== null && activeIndex >= 0) window.state.retainers[activeIndex] = activeNpc;
     else window.state.retainers.push(activeNpc);
 
-    if (window.renderRetainersTab) window.renderRetainersTab(document.getElementById('play-content'));
+    if (window.renderNpcTab) window.renderNpcTab();
     showNotification(`${currentTemplate.label} Saved.`);
     document.getElementById('npc-modal').style.display = 'none';
 }
