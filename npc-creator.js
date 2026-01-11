@@ -31,9 +31,7 @@ let localPriorities = {
 export function openNpcCreator(typeKey = 'mortal', dataOrEvent = null, index = null) {
     console.log(`Opening NPC Creator for type: ${typeKey}`);
     
-    // Default to Mortal if invalid type passed
     if (!TEMPLATES[typeKey]) typeKey = 'mortal';
-    
     currentTemplate = TEMPLATES[typeKey];
 
     let incomingData = null;
@@ -46,9 +44,7 @@ export function openNpcCreator(typeKey = 'mortal', dataOrEvent = null, index = n
     resetPriorities();
 
     if (incomingData) {
-        // Edit Mode
         activeNpc = JSON.parse(JSON.stringify(incomingData));
-        // Ensure template matches data if data has a type recorded
         if (activeNpc.template && TEMPLATES[activeNpc.template]) {
             currentTemplate = TEMPLATES[activeNpc.template];
         }
@@ -56,7 +52,6 @@ export function openNpcCreator(typeKey = 'mortal', dataOrEvent = null, index = n
         if (activeNpc.priorities) localPriorities = JSON.parse(JSON.stringify(activeNpc.priorities));
         else autoDetectPriorities();
     } else {
-        // Create Mode
         activeNpc = JSON.parse(JSON.stringify(currentTemplate.defaults));
         activeNpc.template = typeKey;
         sanitizeNpcData(activeNpc);
@@ -73,7 +68,6 @@ function sanitizeNpcData(npc) {
     if (!npc.experience) npc.experience = { total: 0, spent: 0, log: [] };
     if (!npc.freebieLog) npc.freebieLog = []; 
     
-    // Ensure defaults from global data exist (unless Animal which has specific defaults)
     if (npc.template !== 'animal') {
         if (ATTRIBUTES) Object.values(ATTRIBUTES).flat().forEach(a => { if (npc.attributes[a] === undefined) npc.attributes[a] = 1; });
         if (ABILITIES) Object.values(ABILITIES).flat().forEach(a => { if (npc.abilities[a] === undefined) npc.abilities[a] = 0; });
@@ -83,7 +77,6 @@ function sanitizeNpcData(npc) {
 function switchTemplate(newType) {
     if (!TEMPLATES[newType]) return;
     
-    // Preserve Identity Info
     const preserved = {
         name: activeNpc.name,
         player: activeNpc.player,
@@ -95,19 +88,15 @@ function switchTemplate(newType) {
     };
 
     currentTemplate = TEMPLATES[newType];
-    
-    // Load Defaults for the new type
     activeNpc = JSON.parse(JSON.stringify(currentTemplate.defaults));
     activeNpc.template = newType;
     
-    // Restore Identity
     Object.assign(activeNpc, preserved);
     
     sanitizeNpcData(activeNpc);
     resetPriorities();
     recalcStatus();
     
-    // Reset Modes
     modes.xp = false; 
     modes.freebie = false;
     
@@ -150,7 +139,7 @@ function autoDetectPriorities() {
 }
 
 function recalcStatus() {
-    if (activeNpc.template === 'animal') return; // Animals don't derive logic the same way
+    if (activeNpc.template === 'animal') return;
 
     const baseHum = (activeNpc.virtues.Conscience || 1) + (activeNpc.virtues["Self-Control"] || 1);
     const baseWill = activeNpc.virtues.Courage || 1;
@@ -179,10 +168,8 @@ function renderEditorModal() {
     const archOptions = (ARCHETYPES || []).sort().map(a => `<option value="${a}">${a}</option>`).join('');
     const clanOptions = (CLANS || []).sort().map(c => `<option value="${c}">${c}</option>`).join('');
     
-    // Determine which extras to show
     const extrasHtml = currentTemplate.renderIdentityExtras ? currentTemplate.renderIdentityExtras(activeNpc, clanOptions) : '';
     
-    // Feature Flags
     const f = currentTemplate.features || { disciplines: true, bloodPool: true, virtues: true, backgrounds: true, humanity: true };
 
     modal.innerHTML = `
@@ -320,7 +307,7 @@ function renderEditorModal() {
                                             <input type="number" id="npc-blood" value="${activeNpc.bloodPool}" class="w-12 bg-transparent border-b border-[#444] text-center text-white p-1 font-bold text-lg focus:border-[#d4af37] outline-none">
                                         </div>
                                     ` : ''}
-                                    ${f.virtues ? `</div>` : ''} <!-- Close wrapper if opened -->
+                                    ${f.virtues ? `</div>` : ''} 
                                 </div>
                                 
                                 <!-- Col 3: Merits/Flaws -->
@@ -942,12 +929,8 @@ function renderAllDots() {
         </div>
     `).join('');
 
-    // Conditional Rendering of Humanity/Willpower based on template features
-    const humRow = document.getElementById('npc-humanity-row');
-    if(humRow) humRow.innerHTML = renderDots(activeNpc.humanity, 10);
-    
-    const willRow = document.getElementById('npc-willpower-row');
-    if(willRow) willRow.innerHTML = renderDots(activeNpc.willpower, 10);
+    document.getElementById('npc-humanity-row').innerHTML = renderDots(activeNpc.humanity, 10);
+    document.getElementById('npc-willpower-row').innerHTML = renderDots(activeNpc.willpower, 10);
     
     bindDotClicks();
     updatePrioritiesUI();
@@ -997,7 +980,9 @@ function renderMeritsFlaws() {
 }
 
 window.removeNpcItem = function(type, key) {
+    // Log removal for Freebie Mode if applicable
     if (modes.freebie) {
+        // Find if this item was bought in freebie mode log
         const logIdx = activeNpc.freebieLog.findIndex(l => l.type === (type==='merits'?'merit':'flaw') && l.trait === key);
         if (logIdx !== -1) activeNpc.freebieLog.splice(logIdx, 1);
     }
@@ -1261,6 +1246,32 @@ function saveNpc() {
     activeNpc.bloodPool = bloodInput ? parseInt(bloodInput.value) || 10 : 10;
 
     activeNpc.priorities = JSON.parse(JSON.stringify(localPriorities));
+
+    // Explicitly grab dynamic template fields that might not be auto-bound
+    const clanEl = document.getElementById('npc-extra-clan');
+    if (clanEl) activeNpc.domitorClan = clanEl.value;
+
+    const famEl = document.getElementById('npc-extra-family');
+    if (famEl) activeNpc.family = famEl.value;
+
+    const spEl = document.getElementById('npc-species');
+    if (spEl) activeNpc.species = spEl.value;
+
+    const occEl = document.getElementById('npc-occupation');
+    if (occEl) activeNpc.occupation = occEl.value;
+    
+    const subType = document.getElementById('npc-subtype');
+    if (subType) activeNpc.type = subType.value;
+
+    const weak = document.getElementById('g-weakness');
+    if (weak) activeNpc.weakness = weak.value;
+
+    const natW = document.getElementById('npc-nat-weapons');
+    if (natW) activeNpc.naturalWeapons = natW.value;
+
+    // Toggle Check
+    const ghoulToggle = document.getElementById('npc-ghoul-toggle');
+    if (ghoulToggle) activeNpc.ghouled = ghoulToggle.checked;
 
     if (!window.state.retainers) window.state.retainers = [];
     if (activeIndex !== null && activeIndex >= 0) window.state.retainers[activeIndex] = activeNpc;
