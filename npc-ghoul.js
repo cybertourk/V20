@@ -78,8 +78,15 @@ export const GhoulTemplate = {
         flaws: {}
     },
 
-    renderIdentityExtras: (data, clanOptions) => {
-        const revOptions = Object.keys(REVENANT_FAMILIES).map(r => `<option value="${r}">${r}</option>`).join('');
+    renderIdentityExtras: (data) => {
+        // Generate options locally to ensure 'selected' state is applied correctly
+        const revOptions = Object.keys(REVENANT_FAMILIES).map(r => 
+            `<option value="${r}" ${data.family === r ? 'selected' : ''}>${r}</option>`
+        ).join('');
+
+        const domitorOptions = (CLANS || []).sort().map(c => 
+            `<option value="${c}" ${data.domitorClan === c ? 'selected' : ''}>${c}</option>`
+        ).join('');
         
         return `
             <div class="space-y-6">
@@ -97,7 +104,7 @@ export const GhoulTemplate = {
                     <label class="label-text text-[#d4af37]">Domitor's Clan</label>
                     <select id="npc-extra-clan" class="w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] focus:outline-none transition-colors">
                         <option value="" class="bg-black">Unknown / None</option>
-                        ${clanOptions}
+                        ${domitorOptions}
                     </select>
                     <p class="text-[9px] text-gray-500 mt-1 italic">Vassals get XP cost breaks on their Domitor's Clan disciplines.</p>
                 </div>
