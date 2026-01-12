@@ -194,8 +194,9 @@ function renderEditorModal() {
     const isGhouledAnimal = activeNpc.template === 'animal' && activeNpc.ghouled;
     const showDomitor = isGhoul || isGhouledAnimal;
     
-    // Determine initial visibility of Domitor Clan based on type
+    // Determine initial visibility of specific fields
     const showDomitorClan = activeNpc.type === 'Vassal';
+    const showBondLevel = activeNpc.type === 'Vassal';
 
     try {
         modal.innerHTML = `
@@ -243,9 +244,23 @@ function renderEditorModal() {
                             <div class="sheet-section !mt-0">
                                 <div class="section-title">Concept & Identity</div>
                                 <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                                    
+                                    <!-- COLUMN 1: Basic Identity & Ghoul Type -->
                                     <div class="space-y-6">
                                         <div><label class="label-text text-[#d4af37]">Name</label><input type="text" id="npc-name" value="${activeNpc.name || ''}" class="npc-input w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] outline-none"></div>
                                         
+                                        <!-- Ghoul Type (Column 1) -->
+                                        ${isGhoul ? `
+                                            <div>
+                                                <label class="label-text text-[#d4af37]">Ghoul Type</label>
+                                                <select id="npc-subtype" class="npc-input w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] outline-none">
+                                                    <option value="Vassal" ${activeNpc.type === 'Vassal' ? 'selected' : ''}>Vassal (Bound)</option>
+                                                    <option value="Independent" ${activeNpc.type === 'Independent' ? 'selected' : ''}>Independent</option>
+                                                    <option value="Revenant" ${activeNpc.type === 'Revenant' ? 'selected' : ''}>Revenant</option>
+                                                </select>
+                                            </div>
+                                        ` : ''}
+
                                         <!-- Domitor: Only for Ghouls or Ghouled Animals -->
                                         ${showDomitor ? `
                                             <div><label class="label-text text-[#d4af37]">Domitor Name</label><input type="text" id="npc-domitor" value="${activeNpc.domitor || ''}" class="npc-input w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] outline-none"></div>
@@ -261,6 +276,8 @@ function renderEditorModal() {
                                             </div>
                                         ` : ''}
                                     </div>
+                                    
+                                    <!-- COLUMN 2: Psychology & Bond Level -->
                                     <div class="space-y-6">
                                         <div>
                                             <label class="label-text text-[#d4af37]">Nature</label>
@@ -271,8 +288,25 @@ function renderEditorModal() {
                                             <select id="npc-demeanor" class="npc-input w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] outline-none"><option value="">Select...</option>${archOptions}</select>
                                         </div>
                                         <div><label class="label-text text-[#d4af37]">Concept</label><input type="text" id="npc-concept" value="${activeNpc.concept || ''}" class="npc-input w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] outline-none"></div>
+
+                                        <!-- Bond Level (Column 2) -->
+                                        ${isGhoul ? `
+                                            <div id="div-bond-level" class="${showBondLevel ? 'block' : 'hidden'}">
+                                                <label class="label-text text-[#d4af37]">Blood Bond Level</label>
+                                                <select id="npc-bond-level" class="npc-input w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] outline-none">
+                                                    <option value="1" ${activeNpc.bondLevel == 1 ? 'selected' : ''}>Step 1 (First Drink)</option>
+                                                    <option value="2" ${activeNpc.bondLevel == 2 ? 'selected' : ''}>Step 2 (Strong Feelings)</option>
+                                                    <option value="3" ${activeNpc.bondLevel == 3 ? 'selected' : ''}>Step 3 (Full Bond)</option>
+                                                </select>
+                                                <p class="text-[9px] text-gray-500 mt-1 italic">V20 p. 500: Determines loyalty.</p>
+                                            </div>
+                                        ` : ''}
                                     </div>
-                                    ${extrasHtml}
+                                    
+                                    <!-- COLUMN 3: Extras (Revenant Family, Weakness, Rules Box) -->
+                                    <div class="space-y-6">
+                                        ${extrasHtml}
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -1352,6 +1386,10 @@ function saveNpc() {
 
     const natW = document.getElementById('npc-nat-weapons');
     if (natW) activeNpc.naturalWeapons = natW.value;
+
+    // Bond Level
+    const bondEl = document.getElementById('npc-bond-level');
+    if (bondEl) activeNpc.bondLevel = parseInt(bondEl.value) || 0;
 
     // Toggle Check
     const ghoulToggle = document.getElementById('npc-ghoul-toggle');
