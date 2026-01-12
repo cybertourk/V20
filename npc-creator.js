@@ -180,10 +180,11 @@ function renderEditorModal() {
     }
 
     const archOptions = (ARCHETYPES || []).sort().map(a => `<option value="${a}">${a}</option>`).join('');
-    const clanOptions = (CLANS || []).sort().map(c => `<option value="${c}">${c}</option>`).join('');
+    // Ensure the clan stored is marked as selected
+    const clanOptions = (CLANS || []).sort().map(c => `<option value="${c}" ${activeNpc.domitorClan === c ? 'selected' : ''}>${c}</option>`).join('');
     
     // Determine which extras to show
-    const extrasHtml = currentTemplate.renderIdentityExtras ? currentTemplate.renderIdentityExtras(activeNpc, clanOptions) : '';
+    const extrasHtml = currentTemplate.renderIdentityExtras ? currentTemplate.renderIdentityExtras(activeNpc) : '';
     
     // Feature Flags
     const f = currentTemplate.features || { disciplines: true, bloodPool: true, virtues: true, backgrounds: true, humanity: true };
@@ -192,6 +193,9 @@ function renderEditorModal() {
     const isGhoul = activeNpc.template === 'ghoul';
     const isGhouledAnimal = activeNpc.template === 'animal' && activeNpc.ghouled;
     const showDomitor = isGhoul || isGhouledAnimal;
+    
+    // Determine initial visibility of Domitor Clan based on type
+    const showDomitorClan = activeNpc.type === 'Vassal';
 
     try {
         modal.innerHTML = `
@@ -245,6 +249,16 @@ function renderEditorModal() {
                                         <!-- Domitor: Only for Ghouls or Ghouled Animals -->
                                         ${showDomitor ? `
                                             <div><label class="label-text text-[#d4af37]">Domitor Name</label><input type="text" id="npc-domitor" value="${activeNpc.domitor || ''}" class="npc-input w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] outline-none"></div>
+                                            
+                                            <!-- Domitor Clan (Moved from Column 3) -->
+                                            <div id="div-extra-clan" class="${showDomitorClan ? 'block' : 'hidden'} mt-2">
+                                                <label class="label-text text-[#d4af37]">Domitor's Clan</label>
+                                                <select id="npc-extra-clan" class="w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] focus:outline-none transition-colors">
+                                                    <option value="" class="bg-black">Unknown / None</option>
+                                                    ${clanOptions}
+                                                </select>
+                                                <p class="text-[9px] text-gray-500 mt-1 italic">Determines in-clan disciplines.</p>
+                                            </div>
                                         ` : ''}
                                     </div>
                                     <div class="space-y-6">
