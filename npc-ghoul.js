@@ -61,6 +61,7 @@ export const GhoulTemplate = {
         type: "Vassal", // Vassal, Independent, Revenant
         domitor: "", 
         domitorClan: "", 
+        bondLevel: 3, // Default to Full Bond (Step 3)
         family: "", 
         weakness: "",
         // Ghouls start with Potence 1 automatically (V20 p. 499)
@@ -99,6 +100,17 @@ export const GhoulTemplate = {
                             <option value="Revenant" ${data.type === 'Revenant' ? 'selected' : ''} class="bg-black">Revenant (Hereditary)</option>
                         </select>
                     </div>
+
+                    <!-- Bond Level (Vassal Only) -->
+                    <div id="div-bond-level" class="${data.type === 'Vassal' ? 'block' : 'hidden'}">
+                        <label class="label-text text-[#d4af37]">Blood Bond Level</label>
+                        <select id="npc-bond-level" class="w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] focus:outline-none transition-colors">
+                            <option value="1" ${data.bondLevel == 1 ? 'selected' : ''} class="bg-black">Step 1 (First Drink)</option>
+                            <option value="2" ${data.bondLevel == 2 ? 'selected' : ''} class="bg-black">Step 2 (Strong Feelings)</option>
+                            <option value="3" ${data.bondLevel == 3 ? 'selected' : ''} class="bg-black">Step 3 (Full Bond)</option>
+                        </select>
+                        <p class="text-[9px] text-gray-500 mt-1 italic">V20 p. 500: Determines loyalty mechanics.</p>
+                    </div>
                     
                     <!-- Revenant Family (Revenant Only) -->
                     <div id="div-extra-family" class="${data.type === 'Revenant' ? 'block' : 'hidden'}">
@@ -125,7 +137,7 @@ export const GhoulTemplate = {
                         <li><strong>Disciplines:</strong> Potence 1 + 1 Dot</li>
                         <li><strong>Virtues:</strong> 7 Dots (5 for Revenant)</li>
                         <li><strong>Freebies:</strong> 21 Points</li>
-                        <li><strong>XP Costs:</strong> Based on Current Rating.</li>
+                        <li><strong>Bond:</strong> 3 Steps (Full Bond = 3)</li>
                     </ul>
                 </div>
             </div>
@@ -138,6 +150,7 @@ export const GhoulTemplate = {
         const clanEl = parent.querySelector('#npc-extra-clan');
         const famEl = parent.querySelector('#npc-extra-family');
         const weakEl = parent.querySelector('#g-weakness');
+        const bondEl = parent.querySelector('#npc-bond-level');
 
         if (subtypeEl) {
             subtypeEl.onchange = (e) => {
@@ -146,9 +159,9 @@ export const GhoulTemplate = {
                 const isVassal = data.type === 'Vassal';
                 
                 // Toggle visibility of fields based on type
-                // div-extra-clan is now in main column
-                const divClan = parent.querySelector('#div-extra-clan');
+                const divClan = parent.querySelector('#div-extra-clan'); // In main column
                 const divFam = parent.querySelector('#div-extra-family');
+                const divBond = parent.querySelector('#div-bond-level');
                 
                 if(divClan) {
                     divClan.classList.toggle('hidden', !isVassal);
@@ -158,19 +171,22 @@ export const GhoulTemplate = {
                     divFam.classList.toggle('hidden', !isRev);
                     divFam.classList.toggle('block', isRev);
                 }
+                if(divBond) {
+                    divBond.classList.toggle('hidden', !isVassal);
+                    divBond.classList.toggle('block', isVassal);
+                }
 
-                updateCallback(); // Refresh UI for Virtue limits etc.
+                // Auto-set defaults for logic
+                if (isVassal && !data.bondLevel) data.bondLevel = 3; 
+
+                updateCallback(); // Refresh UI
             };
         }
         
-        // Bind the domitor clan dropdown (even though it's outside our render block)
-        if (clanEl) clanEl.onchange = (e) => {
-            data.domitorClan = e.target.value;
-            // No callback needed unless we want to recalc costs immediately, which isn't visual
-        };
-        
+        if (clanEl) clanEl.onchange = (e) => data.domitorClan = e.target.value;
         if (famEl) famEl.onchange = (e) => data.family = e.target.value;
         if (weakEl) weakEl.onchange = (e) => data.weakness = e.target.value;
+        if (bondEl) bondEl.onchange = (e) => data.bondLevel = parseInt(e.target.value) || 3;
     },
 
     getPriorities: () => PRIORITY_SPREADS,
