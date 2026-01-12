@@ -124,11 +124,11 @@ export const AnimalTemplate = {
     label: "Animal / Beast",
     
     features: {
-        disciplines: true, // Only relevant if Ghouled, but we allow UI to show it
-        bloodPool: true,   // Animals have blood
-        virtues: false,    // Animals use Willpower, rarely Virtues
+        disciplines: true, // Only relevant if Ghouled
+        bloodPool: true,
+        virtues: false,     
         backgrounds: false,
-        humanity: false    // Animals do not have Humanity
+        humanity: false     
     },
 
     defaults: {
@@ -178,6 +178,49 @@ export const AnimalTemplate = {
         `;
     },
 
+    // Custom Biography Renderer for Animals
+    renderBio: (data) => {
+        // Safe access helper
+        const getVal = (field) => (data.bio && data.bio[field]) ? data.bio[field] : '';
+        
+        return `
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div class="space-y-4">
+                    <div class="flex justify-between items-center border-b border-[#333] pb-1">
+                        <label class="label-text text-[#d4af37] w-1/3">Scales / Fur / Skin</label>
+                        <input type="text" class="npc-bio w-2/3 bg-transparent text-white text-xs text-right focus:outline-none" data-field="Skin" value="${getVal('Skin')}">
+                    </div>
+                    <div class="flex justify-between items-center border-b border-[#333] pb-1">
+                        <label class="label-text text-[#d4af37] w-1/3">Eye Color</label>
+                        <input type="text" class="npc-bio w-2/3 bg-transparent text-white text-xs text-right focus:outline-none" data-field="Eyes" value="${getVal('Eyes')}">
+                    </div>
+                    <div class="flex justify-between items-center border-b border-[#333] pb-1">
+                        <label class="label-text text-[#d4af37] w-1/3">Height / Length</label>
+                        <input type="text" class="npc-bio w-2/3 bg-transparent text-white text-xs text-right focus:outline-none" data-field="Height" value="${getVal('Height')}">
+                    </div>
+                    <div class="flex justify-between items-center border-b border-[#333] pb-1">
+                        <label class="label-text text-[#d4af37] w-1/3">Weight</label>
+                        <input type="text" class="npc-bio w-2/3 bg-transparent text-white text-xs text-right focus:outline-none" data-field="Weight" value="${getVal('Weight')}">
+                    </div>
+                     <div class="flex justify-between items-center border-b border-[#333] pb-1">
+                        <label class="label-text text-[#d4af37] w-1/3">Sex</label>
+                        <input type="text" class="npc-bio w-2/3 bg-transparent text-white text-xs text-right focus:outline-none" data-field="Sex" value="${getVal('Sex')}">
+                    </div>
+                </div>
+                <div class="space-y-4">
+                    <div>
+                        <label class="label-text text-[#d4af37] mb-2">Description / Markings</label>
+                        <textarea id="npc-desc" class="w-full h-32 bg-transparent border border-[#444] text-white p-2 text-xs focus:border-[#d4af37] outline-none resize-none">${data.bio.Description||''}</textarea>
+                    </div>
+                    <div>
+                        <label class="label-text text-[#d4af37] mb-2">Behavior Notes</label>
+                        <textarea id="npc-notes" class="w-full h-32 bg-transparent border border-[#444] text-white p-2 text-xs focus:border-[#d4af37] outline-none resize-none">${data.bio.Notes||''}</textarea>
+                    </div>
+                </div>
+            </div>
+        `;
+    },
+
     setupListeners: (parent, data, updateCallback) => {
         const specEl = parent.querySelector('#npc-species');
         const weapEl = parent.querySelector('#npc-nat-weapons');
@@ -199,7 +242,7 @@ export const AnimalTemplate = {
                 
                 // 3. Willpower
                 data.willpower = stats.wp;
-                if (data.ghouled) data.willpower += 1; // Maintain ghoul bonus if active
+                if (data.ghouled) data.willpower += 1; 
 
                 // 4. Blood Pool
                 data.bloodPool = stats.bp;
@@ -209,7 +252,7 @@ export const AnimalTemplate = {
                 data.naturalWeapons = stats.note;
                 if (weapEl) weapEl.value = stats.note;
             }
-            updateCallback(); // Re-render dots
+            updateCallback(); 
         };
 
         // --- GHOUL TOGGLE LOGIC ---
@@ -217,23 +260,20 @@ export const AnimalTemplate = {
             data.ghouled = e.target.checked;
             
             if (data.ghouled) {
-                // Apply Ghoul Bonuses
                 if (!data.disciplines.Potence) data.disciplines.Potence = 1;
                 if (data.bloodPool < 2) data.bloodPool = 2;
                 data.willpower = (data.willpower || 1) + 1;
             } else {
-                // Remove Bonuses (Heuristic: subtract 1 WP, remove Potence if 1)
                 if (data.disciplines.Potence === 1) delete data.disciplines.Potence;
                 if (data.willpower > 1) data.willpower -= 1;
                 
-                // Revert Blood Pool if species known
                 if (data.species && SPECIES_DB[data.species]) {
                     data.bloodPool = SPECIES_DB[data.species].bp;
                 } else {
                     if (data.bloodPool > 1) data.bloodPool = 1;
                 }
             }
-            updateCallback(); // Re-render
+            updateCallback(); 
         };
 
         if (weapEl) weapEl.onchange = (e) => data.naturalWeapons = e.target.value;
@@ -244,9 +284,9 @@ export const AnimalTemplate = {
     getVirtueLimit: () => 0, 
 
     validateChange: (type, key, newVal, currentVal) => {
-        if (newVal < 0) return false;
-        // Allow higher stats for monstrous beasts
-        return true; 
+        // STRICT LOCK: Animal stats are fixed by species preset in Creation Mode
+        // Return a string error message to block the change.
+        return "Animal stats are fixed by species preset. Use XP/Freebie Mode to modify.";
     },
 
     getCost: (mode, type, key, current, target, data) => {
