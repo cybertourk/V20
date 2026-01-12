@@ -70,6 +70,26 @@ export function openNpcCreator(typeKey = 'mortal', dataOrEvent = null, index = n
     renderEditorModal();
 }
 
+/**
+ * Open NPC in Read-Only / Play Mode Sheet
+ * @param {Object} npc - The NPC object data
+ * @param {Number} index - The index in the global retainers array (for saving state)
+ */
+export function openNpcSheet(npc, index) {
+    if (!npc) return;
+    activeNpc = npc; // We reference the object directly to allow live updates to state
+    activeIndex = index;
+    
+    // Ensure template loaded for rules checks
+    const typeKey = npc.template || 'mortal';
+    currentTemplate = TEMPLATES[typeKey] || MortalTemplate;
+    
+    // Sanitize to ensure health/willpower fields exist
+    sanitizeNpcData(activeNpc);
+
+    renderPlaySheetModal();
+}
+
 function sanitizeNpcData(npc) {
     ['attributes', 'abilities', 'disciplines', 'backgrounds', 'specialties', 'merits', 'flaws', 'bio'].forEach(k => { 
         if (!npc[k]) npc[k] = {}; 
@@ -82,6 +102,11 @@ function sanitizeNpcData(npc) {
         if (ATTRIBUTES) Object.values(ATTRIBUTES).flat().forEach(a => { if (npc.attributes[a] === undefined) npc.attributes[a] = 1; });
         if (ABILITIES) Object.values(ABILITIES).flat().forEach(a => { if (npc.abilities[a] === undefined) npc.abilities[a] = 0; });
     }
+    
+    // Ensure Vitals exist
+    if (!npc.health) npc.health = { damage: 0, aggravated: 0 }; // Simplified tracking: damage = number of boxes filled
+    if (!npc.tempWillpower) npc.tempWillpower = npc.willpower || 1;
+    if (!npc.currentBlood) npc.currentBlood = npc.bloodPool || 10;
 }
 
 function switchTemplate(newType) {
@@ -168,7 +193,271 @@ function recalcStatus() {
     else if (activeNpc.willpower < baseWill) activeNpc.willpower = baseWill;
 }
 
-// --- RENDER UI ---
+// --- RENDER UI (PLAY SHEET) ---
+
+function renderPlaySheetModal() {
+    let modal = document.getElementById('npc-play-modal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'npc-play-modal';
+        modal.className = 'fixed inset-0 bg-black/95 z-[100] flex items-center justify-center hidden';
+        document.body.appendChild(modal);
+    }
+
+    const typeLabel = activeNpc.template === 'ghoul' 
+        ? `${activeNpc.type || 'Ghoul'} ${activeNpc.domitorClan ? `(${activeNpc.domitorClan})` : ''}` 
+        : (activeNpc.template === 'animal' ? 'Animal' : 'Mortal');
+
+    const html = `
+        <div class="w-[95%] max-w-5xl h-[95%] bg-[#0a0a0a] border border-[#444] shadow-2xl flex flex-col relative font-serif text-white overflow-hidden">
+            <!-- Header -->
+            <div class="bg-[#111] p-4 border-b border-[#333] flex justify-between items-center shrink-0">
+                <div>
+                    <h2 class="text-3xl font-cinzel font-bold text-[#d4af37] leading-none">${activeNpc.name || "Unnamed NPC"}</h2>
+                    <div class="text-xs text-gray-400 uppercase tracking-widest mt-1 font-bold">${typeLabel}</div>
+                </div>
+                <div class="flex items-center gap-4">
+                    <button id="close-play-modal" class="text-gray-500 hover:text-white text-2xl"><i class="fas fa-times"></i></button>
+                </div>
+            </div>
+
+            <!-- Content -->
+            <div class="flex-1 overflow-y-auto p-6 bg-[url('https://www.transparenttextures.com/patterns/black-linen.png')]">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                    
+                    <!-- Col 1: Attributes & Abilities -->
+                    <div class="space-y-6">
+                        <div class="sheet-section bg-black/30 p-4 border border-[#222]">
+                            <h3 class="text-[#8b0000] font-cinzel font-bold border-b border-[#444] mb-2">Attributes</h3>
+                            ${renderSimpleDots(activeNpc.attributes, ATTRIBUTES, 'attributes')}
+                        </div>
+                        <div class="sheet-section bg-black/30 p-4 border border-[#222]">
+                            <h3 class="text-[#8b0000] font-cinzel font-bold border-b border-[#444] mb-2">Abilities</h3>
+                            ${renderSimpleDots(activeNpc.abilities, ABILITIES, 'abilities')}
+                        </div>
+                    </div>
+
+                    <!-- Col 2: Advantages -->
+                    <div class="space-y-6">
+                        <div class="sheet-section bg-black/30 p-4 border border-[#222]">
+                            <h3 class="text-[#8b0000] font-cinzel font-bold border-b border-[#444] mb-2">Disciplines</h3>
+                            ${Object.keys(activeNpc.disciplines).length > 0 
+                                ? Object.entries(activeNpc.disciplines).map(([k,v]) => `<div class="flex justify-between text-xs mb-1 font-bold"><span class="uppercase">${k}</span><span>${renderDots(v,5)}</span></div>`).join('') 
+                                : '<div class="text-gray-600 italic text-xs">None</div>'}
+                        </div>
+                        
+                        <div class="sheet-section bg-black/30 p-4 border border-[#222]">
+                            <h3 class="text-[#8b0000] font-cinzel font-bold border-b border-[#444] mb-2">Backgrounds</h3>
+                            ${Object.keys(activeNpc.backgrounds).length > 0 
+                                ? Object.entries(activeNpc.backgrounds).map(([k,v]) => `<div class="flex justify-between text-xs mb-1 font-bold"><span class="uppercase">${k}</span><span>${renderDots(v,5)}</span></div>`).join('') 
+                                : '<div class="text-gray-600 italic text-xs">None</div>'}
+                        </div>
+
+                        <div class="sheet-section bg-black/30 p-4 border border-[#222]">
+                            <h3 class="text-[#8b0000] font-cinzel font-bold border-b border-[#444] mb-2">Virtues</h3>
+                            ${VIRTUES.map(v => `<div class="flex justify-between text-xs mb-1 font-bold"><span class="uppercase">${v}</span><span>${renderDots(activeNpc.virtues[v]||1, 5)}</span></div>`).join('')}
+                        </div>
+                    </div>
+
+                    <!-- Col 3: Vitals (Interactive) -->
+                    <div class="space-y-6">
+                        
+                        <!-- Willpower -->
+                        <div class="bg-[#111] p-4 border border-[#333]">
+                            <div class="flex justify-between items-center mb-2">
+                                <h3 class="text-[#d4af37] font-bold uppercase text-sm">Willpower</h3>
+                                <div class="text-xs font-bold text-gray-500">Perm: ${activeNpc.willpower}</div>
+                            </div>
+                            <div class="flex justify-center gap-1 mb-2">
+                                ${renderInteractiveBoxes('tempWillpower', 10, activeNpc.tempWillpower)}
+                            </div>
+                        </div>
+
+                        <!-- Blood Pool -->
+                        ${activeNpc.bloodPool > 0 ? `
+                        <div class="bg-[#111] p-4 border border-[#333]">
+                            <div class="flex justify-between items-center mb-2">
+                                <h3 class="text-[#8b0000] font-bold uppercase text-sm">Blood Pool</h3>
+                                <div class="text-xs font-bold text-gray-500">Max: ${activeNpc.bloodPool}</div>
+                            </div>
+                            <div class="flex flex-wrap justify-center gap-1 mb-2">
+                                ${renderInteractiveBoxes('currentBlood', activeNpc.bloodPool, activeNpc.currentBlood, true)}
+                            </div>
+                        </div>` : ''}
+
+                        <!-- Health -->
+                        <div class="bg-[#111] p-4 border border-[#333]">
+                            <h3 class="text-gray-400 font-bold uppercase text-sm mb-3">Health</h3>
+                            <div class="space-y-1 text-xs">
+                                ${renderHealthTrack()}
+                            </div>
+                        </div>
+
+                        <!-- Combat / Gear Summary -->
+                        <div class="bg-black/40 p-3 border border-[#333] text-xs">
+                            <h4 class="font-bold text-gray-500 uppercase mb-2">Combat Notes</h4>
+                            <div class="text-gray-300">
+                                <div class="flex justify-between border-b border-[#333] py-1"><span>Initiative:</span> <span>${(activeNpc.attributes.Dexterity||1) + (activeNpc.attributes.Wits||1)} + 1d10</span></div>
+                                <div class="flex justify-between border-b border-[#333] py-1"><span>Soak (Bash):</span> <span>${activeNpc.attributes.Stamina||1} Dice</span></div>
+                                <div class="flex justify-between border-b border-[#333] py-1"><span>Soak (Lethal):</span> <span>${activeNpc.template==='mortal' ? 0 : (activeNpc.attributes.Stamina||1)} Dice</span></div>
+                                ${(activeNpc.disciplines.Fortitude) ? `<div class="flex justify-between border-b border-[#333] py-1 text-gold"><span>Fortitude:</span> <span>+${activeNpc.disciplines.Fortitude} Dice</span></div>` : ''}
+                                ${(activeNpc.disciplines.Potence) ? `<div class="flex justify-between border-b border-[#333] py-1 text-gold"><span>Potence:</span> <span>+${activeNpc.disciplines.Potence} Auto Succ.</span></div>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bio / Merits Footer -->
+                <div class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-8 border-t border-[#333] pt-6">
+                    <div>
+                        <h4 class="text-gray-500 font-bold uppercase text-xs mb-2">Description / Bio</h4>
+                        <div class="text-xs text-gray-300 italic leading-relaxed">${activeNpc.bio.Description || "No description provided."}</div>
+                    </div>
+                    <div>
+                         <h4 class="text-gray-500 font-bold uppercase text-xs mb-2">Merits & Flaws</h4>
+                         <div class="text-xs">
+                            ${Object.entries(activeNpc.merits).map(([k,v]) => `<span class="inline-block bg-blue-900/30 border border-blue-900/50 rounded px-2 py-0.5 mr-2 mb-1">${k} (${v})</span>`).join('')}
+                            ${Object.entries(activeNpc.flaws).map(([k,v]) => `<span class="inline-block bg-red-900/30 border border-red-900/50 rounded px-2 py-0.5 mr-2 mb-1 text-red-300">${k} (${v})</span>`).join('')}
+                         </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    modal.innerHTML = html;
+    modal.style.display = 'flex';
+    modal.classList.remove('hidden');
+
+    // Bind Close
+    document.getElementById('close-play-modal').onclick = () => { modal.style.display = 'none'; };
+
+    // Bind Interactive Boxes
+    bindPlayInteractions(modal);
+}
+
+function renderSimpleDots(data, structure, type) {
+    let html = '';
+    // Determine categories based on type
+    const cats = type === 'attributes' ? ['Physical', 'Social', 'Mental'] : ['Talents', 'Skills', 'Knowledges'];
+    
+    cats.forEach(cat => {
+        const list = structure[cat];
+        // Only render category if it has items > 0 (or is attribute which always shows)
+        // For compact view, we just list them flat with headers?
+        // Let's do a simple header per cat
+        html += `<div class="mb-3"><div class="text-[10px] text-gray-500 uppercase tracking-widest font-bold mb-1 border-b border-[#333]">${cat}</div>`;
+        list.forEach(k => {
+            const val = data[k] || 0;
+            if (val > 0 || type === 'attributes') {
+                html += `<div class="flex justify-between items-center mb-0.5 text-xs">
+                    <span class="text-gray-300">${k}</span>
+                    <span>${renderDots(val, 5)}</span>
+                </div>`;
+            }
+        });
+        html += `</div>`;
+    });
+    return html;
+}
+
+function renderInteractiveBoxes(field, max, current, isSquare = false) {
+    let html = '';
+    const shapeClass = isSquare ? 'w-3 h-3 rounded-sm' : 'w-3 h-3 rounded-full';
+    
+    for (let i = 1; i <= max; i++) {
+        let stateClass = 'bg-gray-800 border-gray-600'; // Empty
+        if (i <= current) {
+            stateClass = isSquare ? 'bg-[#8b0000] border-red-900' : 'bg-[#d4af37] border-yellow-700'; // Filled
+        }
+        html += `<div class="${shapeClass} border cursor-pointer hover:opacity-80 transition-colors npc-box-interact" data-field="${field}" data-val="${i}">
+            <div class="${stateClass} w-full h-full"></div>
+        </div>`;
+    }
+    return html;
+}
+
+function renderHealthTrack() {
+    const levels = [
+        { l: 'Bruised', p: 0 },
+        { l: 'Hurt', p: -1 },
+        { l: 'Injured', p: -1 },
+        { l: 'Wounded', p: -2 },
+        { l: 'Mauled', p: -2 },
+        { l: 'Crippled', p: -5 },
+        { l: 'Incapacitated', p: 0 }
+    ];
+
+    // Simple damage tracking: activeNpc.health.damage is index of filled box
+    // V20 Health: [ ] [ ] [ ] [ ] [ ] [ ] [ ]
+    // We treat damage as number of boxes marked X or /
+    // For this simple tracker, we just use Filled vs Empty
+    
+    const damage = activeNpc.health.damage || 0;
+
+    return levels.map((lvl, idx) => {
+        const isFilled = idx < damage;
+        const boxContent = isFilled ? '<i class="fas fa-times text-red-500"></i>' : '';
+        return `
+            <div class="flex justify-between items-center h-5">
+                <span class="w-24">${lvl.l}</span>
+                <span class="text-gray-500 w-8 text-center">${lvl.p === 0 ? '' : lvl.p}</span>
+                <div class="w-4 h-4 border border-gray-600 bg-black flex items-center justify-center cursor-pointer hover:border-white npc-health-box" data-idx="${idx}">
+                    ${boxContent}
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function bindPlayInteractions(modal) {
+    // Stat Boxes (Willpower / Blood)
+    modal.querySelectorAll('.npc-box-interact').forEach(box => {
+        box.onclick = (e) => {
+            const field = box.dataset.field;
+            const val = parseInt(box.dataset.val);
+            const current = activeNpc[field] || 0;
+            
+            // Toggle logic: Clicking the current value clears it (sets to val - 1)
+            // Clicking a lower value sets to that value
+            if (val === current) activeNpc[field] = val - 1;
+            else activeNpc[field] = val;
+
+            savePlayState();
+            renderPlaySheetModal(); // Re-render to update UI
+        };
+    });
+
+    // Health Boxes
+    modal.querySelectorAll('.npc-health-box').forEach(box => {
+        box.onclick = (e) => {
+            const idx = parseInt(box.dataset.idx);
+            const currentDmg = activeNpc.health.damage || 0;
+            
+            // If clicking the box that represents current damage level, reduce damage
+            if (idx === currentDmg - 1) {
+                activeNpc.health.damage = idx;
+            } else {
+                // Otherwise set damage to include this box (idx + 1)
+                activeNpc.health.damage = idx + 1;
+            }
+            
+            savePlayState();
+            renderPlaySheetModal();
+        };
+    });
+}
+
+function savePlayState() {
+    if (activeIndex !== null && window.state.retainers) {
+        // Update global state immediately
+        window.state.retainers[activeIndex] = activeNpc;
+        // Trigger auto-save if main app has it exposed, otherwise rely on manual save later
+        if (window.performSave) window.performSave(true); 
+    }
+}
+
+// --- RENDER EDITOR UI ---
 
 function renderEditorModal() {
     let modal = document.getElementById('npc-modal');
@@ -194,7 +483,7 @@ function renderEditorModal() {
     const isGhouledAnimal = activeNpc.template === 'animal' && activeNpc.ghouled;
     const showDomitor = isGhoul || isGhouledAnimal;
     
-    // Determine initial visibility of specific fields
+    // Determine initial visibility of specific fields (Column distribution handled in template now, but we need flags here)
     const showDomitorClan = activeNpc.type === 'Vassal';
     const showBondLevel = activeNpc.type === 'Vassal';
 
@@ -424,17 +713,20 @@ function renderEditorModal() {
                         </div>
                     </div>
 
-                    <!-- SIDEBAR: XP LEDGER -->
+                    <!-- SIDEBARS RENDERED HERE (XP/FREEBIE) - OMITTED FOR BREVITY AS THEY ARE UNCHANGED FROM PREVIOUS -->
+                    <!-- They are preserved in the actual rendering logic if present in previous version -->
+                    <!-- Re-inserting Sidebar code from previous block to ensure integrity -->
+                     <!-- SIDEBAR: XP LEDGER -->
                     <div id="npc-xp-sidebar" class="hidden w-64 bg-[#080808] border-l border-[#333] flex-col shrink-0">
                         <div class="p-3 bg-[#111] border-b border-[#333] text-center"><h3 class="text-purple-400 font-cinzel font-bold">XP Ledger</h3></div>
                         
                         <div class="text-[10px] font-mono space-y-2 p-4 bg-black/40 text-gray-400 flex-none border-b border-[#333]">
                             <div class="flex justify-between border-b border-[#222] pb-1"><span>Attributes:</span> <span id="npc-xp-cost-attr" class="text-white">0</span></div>
                             <div class="flex justify-between border-b border-[#222] pb-1"><span>Abilities:</span> <span id="npc-xp-cost-abil" class="text-white">0</span></div>
-                            ${f.disciplines ? `<div class="flex justify-between border-b border-[#222] pb-1"><span>Disciplines:</span> <span id="npc-xp-cost-disc" class="text-white">0</span></div>` : ''}
-                            ${f.backgrounds ? `<div class="flex justify-between border-b border-[#222] pb-1"><span>Backgrounds:</span> <span id="npc-xp-cost-back" class="text-white">0</span></div>` : ''}
-                            ${f.virtues ? `<div class="flex justify-between border-b border-[#222] pb-1"><span>Virtues:</span> <span id="npc-xp-cost-virt" class="text-white">0</span></div>` : ''}
-                            ${f.humanity ? `<div class="flex justify-between border-b border-[#222] pb-1"><span>Humanity:</span> <span id="npc-xp-cost-hum" class="text-white">0</span></div>` : ''}
+                            <div class="flex justify-between border-b border-[#222] pb-1"><span>Disciplines:</span> <span id="npc-xp-cost-disc" class="text-white">0</span></div>
+                            <div class="flex justify-between border-b border-[#222] pb-1"><span>Backgrounds:</span> <span id="npc-xp-cost-back" class="text-white">0</span></div>
+                            <div class="flex justify-between border-b border-[#222] pb-1"><span>Virtues:</span> <span id="npc-xp-cost-virt" class="text-white">0</span></div>
+                            <div class="flex justify-between border-b border-[#222] pb-1"><span>Humanity:</span> <span id="npc-xp-cost-hum" class="text-white">0</span></div>
                             <div class="flex justify-between border-b border-[#222] pb-1"><span>Willpower:</span> <span id="npc-xp-cost-will" class="text-white">0</span></div>
                             
                             <div class="mt-4 pt-2 border-t border-[#444]">
@@ -462,10 +754,10 @@ function renderEditorModal() {
                         <div class="text-[10px] font-mono space-y-2 p-4 bg-black/40 text-gray-400 flex-none border-b border-[#333]">
                             <div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-attr">Attributes (5):</span> <span id="npc-fb-cost-attr" class="text-white">0</span></div>
                             <div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-abil">Abilities (2):</span> <span id="npc-fb-cost-abil" class="text-white">0</span></div>
-                            ${f.disciplines ? `<div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-disc">Disciplines (10):</span> <span id="npc-fb-cost-disc" class="text-white">0</span></div>` : ''}
-                            ${f.backgrounds ? `<div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-back">Backgrounds (1):</span> <span id="npc-fb-cost-back" class="text-white">0</span></div>` : ''}
-                            ${f.virtues ? `<div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-virt">Virtues (2):</span> <span id="npc-fb-cost-virt" class="text-white">0</span></div>` : ''}
-                            ${f.humanity ? `<div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-human">Humanity (1):</span> <span id="npc-fb-cost-hum" class="text-white">0</span></div>` : ''}
+                            <div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-disc">Disciplines (10):</span> <span id="npc-fb-cost-disc" class="text-white">0</span></div>
+                            <div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-back">Backgrounds (1):</span> <span id="npc-fb-cost-back" class="text-white">0</span></div>
+                            <div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-virt">Virtues (2):</span> <span id="npc-fb-cost-virt" class="text-white">0</span></div>
+                            <div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-human">Humanity (1):</span> <span id="npc-fb-cost-hum" class="text-white">0</span></div>
                             <div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-will">Willpower (1):</span> <span id="npc-fb-cost-will" class="text-white">0</span></div>
                             <div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-merit">Merits (Cost):</span> <span id="npc-fb-cost-merit" class="text-white">0</span></div>
                             <div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-flaw">Flaws (Bonus):</span> <span id="npc-fb-cost-flaw" class="text-green-400">0</span></div>
@@ -485,6 +777,7 @@ function renderEditorModal() {
                             <div id="npc-fb-final" class="text-4xl font-black text-white mt-2 font-cinzel">21</div>
                         </div>
                     </div>
+
                 </div>
 
                 <!-- FOOTER -->
@@ -1191,158 +1484,6 @@ function updateVirtueDisplay() {
     const limit = currentTemplate.getVirtueLimit(activeNpc);
     const el = document.getElementById('virtue-limit-display');
     if(el) el.innerText = `(Max ${limit} Dots)`;
-}
-
-// --- LOGGING & SIDEBARS ---
-
-function updateXpLog() {
-    if(!modes.xp) return;
-    const spentDiv = document.getElementById('npc-xp-spent');
-    const remDiv = document.getElementById('npc-xp-remain');
-    
-    // Recalculate totals from log
-    let costs = { attr: 0, abil: 0, disc: 0, back: 0, virt: 0, hum: 0, will: 0, merit: 0, flaw: 0 };
-    let spentTotal = 0;
-
-    activeNpc.experience.log.forEach(entry => {
-        const type = entry.type; 
-        const cost = entry.cost;
-        spentTotal += cost;
-
-        if (type === 'attributes') costs.attr += cost;
-        else if (type === 'abilities') costs.abil += cost;
-        else if (type === 'disciplines') costs.disc += cost;
-        else if (type === 'backgrounds') costs.back += cost;
-        else if (type === 'virtues') costs.virt += cost;
-        else if (type === 'humanity') costs.hum += cost;
-        else if (type === 'willpower') costs.will += cost;
-    });
-
-    activeNpc.experience.spent = spentTotal; // Sync state
-    
-    if(spentDiv) spentDiv.innerText = activeNpc.experience.spent;
-    if(remDiv) remDiv.innerText = activeNpc.experience.total - activeNpc.experience.spent;
-
-    // Update Category Breakdown (Matched to Freebie Layout)
-    const setXpCost = (id, val) => {
-        const el = document.getElementById(id);
-        if(el) {
-            el.innerText = val;
-            el.className = val > 0 ? "text-purple-400 font-bold" : "text-gray-500";
-        }
-    };
-    
-    setXpCost('npc-xp-cost-attr', costs.attr);
-    setXpCost('npc-xp-cost-abil', costs.abil);
-    setXpCost('npc-xp-cost-disc', costs.disc);
-    setXpCost('npc-xp-cost-back', costs.back);
-    setXpCost('npc-xp-cost-virt', costs.virt);
-    setXpCost('npc-xp-cost-hum', costs.hum);
-    setXpCost('npc-xp-cost-will', costs.will);
-
-    // Update Log
-    const logDiv = document.getElementById('npc-xp-list');
-    if(logDiv) {
-        if(activeNpc.experience.log.length === 0) {
-            logDiv.innerHTML = '<div class="italic opacity-50">No XP spent.</div>';
-        } else {
-            // Newest at top
-            logDiv.innerHTML = activeNpc.experience.log.slice().reverse().map(l => {
-                const date = new Date(l.date).toLocaleDateString(undefined, { month:'short', day:'numeric' });
-                return `
-                    <div class="flex justify-between border-b border-[#222] pb-1 mb-1 text-[9px]">
-                        <div><span class="text-gray-500">[${date}]</span> <span class="text-white font-bold">${l.trait}</span></div>
-                        <div class="text-purple-400 font-bold">-${l.cost}</div>
-                    </div>
-                    <div class="text-[8px] text-gray-600 mb-1 italic">${l.from} &rarr; ${l.to}</div>
-                `;
-            }).join('');
-        }
-    }
-}
-
-function updateFreebieCalc() {
-    if(!modes.freebie) return;
-    
-    let costs = { attr: 0, abil: 0, disc: 0, back: 0, virt: 0, hum: 0, will: 0, merit: 0, flaw: 0 };
-    let totalSpent = 0;
-    
-    activeNpc.freebieLog.forEach(l => {
-        totalSpent += l.cost;
-        if (l.type === 'attributes') costs.attr += l.cost;
-        else if (l.type === 'abilities') costs.abil += l.cost;
-        else if (l.type === 'disciplines') costs.disc += l.cost;
-        else if (l.type === 'backgrounds') costs.back += l.cost;
-        else if (l.type === 'virtues') costs.virt += l.cost;
-        else if (l.type === 'humanity') costs.hum += l.cost;
-        else if (l.type === 'willpower') costs.will += l.cost;
-        else if (l.type === 'merit') costs.merit += l.cost;
-        else if (l.type === 'flaw') costs.flaw += Math.abs(l.cost); // Flaws are usually bonus, so track magnitude here
-    });
-
-    const remaining = 21 - totalSpent;
-
-    const setCost = (id, val) => {
-        const el = document.getElementById(id);
-        if(el) {
-            el.innerText = val;
-            el.className = val > 0 ? "text-red-400 font-bold" : "text-gray-500";
-        }
-    };
-    
-    setCost('npc-fb-cost-attr', costs.attr);
-    setCost('npc-fb-cost-abil', costs.abil);
-    setCost('npc-fb-cost-disc', costs.disc);
-    setCost('npc-fb-cost-back', costs.back);
-    setCost('npc-fb-cost-virt', costs.virt);
-    setCost('npc-fb-cost-hum', costs.hum);
-    setCost('npc-fb-cost-will', costs.will);
-    setCost('npc-fb-cost-merit', costs.merit);
-    
-    const flawEl = document.getElementById('npc-fb-cost-flaw');
-    if(flawEl) {
-        flawEl.innerText = costs.flaw;
-        flawEl.className = costs.flaw > 0 ? "text-green-400 font-bold" : "text-gray-500";
-    }
-    
-    const fbEl = document.getElementById('npc-fb-final');
-    if(fbEl) {
-        fbEl.innerText = remaining;
-        fbEl.className = remaining >= 0 ? "text-4xl font-black text-white mt-2 font-cinzel" : "text-4xl font-black text-red-500 mt-2 font-cinzel";
-    }
-    
-    const fbTotalCalc = document.getElementById('npc-fb-total-calc');
-    if(fbTotalCalc) {
-        fbTotalCalc.innerText = remaining;
-        fbTotalCalc.className = remaining >= 0 ? "text-green-400" : "text-red-500";
-    }
-
-    const logEl = document.getElementById('npc-fb-log-list');
-    if(logEl) {
-        if (activeNpc.freebieLog.length === 0) logEl.innerHTML = '<div class="italic opacity-50">No freebie points spent.</div>';
-        else {
-            logEl.innerHTML = activeNpc.freebieLog.slice().reverse().map(l => {
-                const isBonus = l.cost < 0;
-                const costDisplay = isBonus ? `+${Math.abs(l.cost)}` : `-${l.cost}`;
-                const color = isBonus ? 'text-green-400' : 'text-red-400';
-                
-                let detail = "";
-                if (l.from !== undefined && l.to !== undefined) {
-                    detail = `${l.from} &rarr; ${l.to}`;
-                } else {
-                    detail = "Added";
-                }
-
-                return `
-                    <div class="flex justify-between border-b border-[#222] pb-1 mb-1 text-[9px]">
-                        <div><span class="text-white font-bold">${l.trait}</span></div>
-                        <div class="${color} font-bold">${costDisplay}</div>
-                    </div>
-                    <div class="text-[8px] text-gray-600 mb-1 italic">${detail}</div>
-                `;
-            }).join('');
-        }
-    }
 }
 
 // --- SAVE ---
