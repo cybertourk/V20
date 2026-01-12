@@ -16,16 +16,13 @@ import {
     updatePools, renderRow, setDots, rollCombat, rollFrenzy, rollRotschreck
 } from "./ui-mechanics.js";
 
-// --- IMPORT JOURNAL MODULE ---
 import { renderJournalTab } from "./ui-journal.js";
 
-// --- IMPORT NPC CREATOR ---
-import { openNpcCreator } from "./npc-creator.js";
-
 // Ensure Global Access for HTML Strings
+import { openNpcCreator } from "./npc-creator.js";
 window.openNpcCreator = openNpcCreator;
 
-// --- DYNAMIC ADVANTAGES (Disciplines, Backgrounds, etc.) ---
+// --- DYNAMIC ADVANTAGES ---
 
 export function renderDynamicAdvantageRow(containerId, type, list, isAbil = false) {
     const container = document.getElementById(containerId);
@@ -41,7 +38,6 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
         if (window.state.customAbilityCategories) { existingItems = Object.keys(window.state.dots.abil).filter(k => window.state.customAbilityCategories[k] === category); }
     } else { if (window.state.dots[type]) existingItems = Object.keys(window.state.dots[type]); }
 
-    // RENDER FUNCTION
     const buildRow = (name = "") => {
         const row = document.createElement('div'); 
         row.className = 'flex items-center justify-between gap-1 mb-2 advantage-row w-full';
@@ -116,10 +112,7 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                 let baseCost = 0;
                 let costType = '';
                 
-                // --- XP COSTS FOR NEW TRAITS ---
                 if (type === 'disc') { 
-                    // V20 Rules: New Path is 7, New Discipline is 10
-                    // Heuristic: If it contains "Path", treat as Path
                     if (newVal.toLowerCase().includes('path')) {
                         baseCost = 7;
                         costType = 'New Path';
@@ -205,13 +198,47 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
 }
 window.renderDynamicAdvantageRow = renderDynamicAdvantageRow;
 
+// --- SOCIAL PROFILE (RESTORED) ---
+export function renderSocialProfile() {
+    const container = document.getElementById('social-profile-list');
+    if (!container) return;
+    container.innerHTML = '';
+    
+    BACKGROUNDS.forEach(bg => {
+        const dots = window.state.dots.back[bg] || 0;
+        if (dots > 0) {
+            const safeId = 'desc-' + bg.toLowerCase().replace(/[^a-z0-9]/g, '-');
+            const savedVal = window.state.textFields[safeId] || "";
+            
+            const card = document.createElement('div');
+            card.className = "bg-black/40 border border-[#333] p-2 flex flex-col gap-2";
+            card.innerHTML = `
+                <div class="flex justify-between items-center border-b border-[#333] pb-1">
+                    <span class="text-gold font-bold uppercase text-xs">${bg}</span>
+                    <span class="text-white text-[10px] font-bold">${renderDots(dots, 5)}</span>
+                </div>
+                <textarea id="${safeId}" class="w-full h-16 bg-transparent text-xs text-gray-300 border-none outline-none resize-none placeholder-gray-600" placeholder="Describe ${bg}...">${savedVal}</textarea>
+            `;
+            
+            const ta = card.querySelector('textarea');
+            ta.addEventListener('blur', (e) => {
+                if(!window.state.textFields) window.state.textFields = {};
+                window.state.textFields[safeId] = e.target.value;
+                renderPrintSheet();
+            });
+            
+            container.appendChild(card);
+        }
+    });
+}
+window.renderSocialProfile = renderSocialProfile;
+
 export function renderDynamicTraitRow(containerId, type, list) {
     const container = document.getElementById(containerId);
     if (!container) return;
     const stateArray = type === 'Merit' ? (window.state.merits || []) : (window.state.flaws || []);
     container.innerHTML = '';
     
-    // --- CAITIFF CHECK FOR MERITS ---
     const clan = window.state.textFields['c-clan'] || document.getElementById('c-clan')?.value || "None";
 
     const appendRow = (data = null) => {
@@ -222,7 +249,6 @@ export function renderDynamicTraitRow(containerId, type, list) {
             let disabledAttr = "";
             let styleAttr = "";
             
-            // Restriction: Caitiff cannot take Additional Discipline
             if (type === 'Merit' && clan === "Caitiff" && item.n === "Additional Discipline") {
                 disabledAttr = "disabled";
                 styleAttr = "color: #555; font-style: italic;";
@@ -262,7 +288,6 @@ export function renderDynamicTraitRow(containerId, type, list) {
                 const n = r.querySelector('input[type="number"]');
                 let name = s.value === 'Custom' ? t.value : s.value;
                 let val = parseInt(n.value) || 0;
-                // Preserve description if it exists in current state
                 let desc = "";
                 const existing = (type === 'Merit' ? window.state.merits : window.state.flaws).find(i => i.name === name);
                 if (existing) desc = existing.desc || "";
@@ -297,10 +322,8 @@ export function renderBloodBondRow() {
     const cont = document.getElementById('blood-bond-list'); 
     if (!cont) return;
     
-    // Clear list to prevent dupes on reload
     cont.innerHTML = ''; 
 
-    // --- TREMERE WARNING (Edit Mode) ---
     const clan = window.state.textFields['c-clan'] || document.getElementById('c-clan')?.value || "None";
     if (clan === "Tremere") {
         const wDiv = document.createElement('div');
@@ -309,7 +332,6 @@ export function renderBloodBondRow() {
         cont.appendChild(wDiv);
     }
 
-    // Define Builder
     const buildRow = (data = null) => {
         const row = document.createElement('div'); 
         row.className = 'flex gap-2 items-center border-b border-[#222] pb-2 advantage-row';
@@ -333,7 +355,6 @@ export function renderBloodBondRow() {
         const rI = row.querySelector('input[type="number"]'); 
         const del = row.querySelector('.remove-btn');
         
-        // Hide delete on empty row until used
         if (!data) del.style.visibility = 'hidden';
 
         const onUpd = () => {
@@ -368,11 +389,9 @@ export function renderBloodBondRow() {
         cont.appendChild(row);
     };
 
-    // Initialize from State
     if(window.state.bloodBonds && Array.isArray(window.state.bloodBonds)) {
         window.state.bloodBonds.forEach(b => buildRow(b));
     }
-    // Add trailing empty row
     buildRow();
 }
 window.renderBloodBondRow = renderBloodBondRow;
@@ -381,7 +400,6 @@ export function renderDerangementsList() {
     const cont = document.getElementById('derangements-list'); if (!cont) return;
     cont.innerHTML = '';
     
-    // --- MALKAVIAN CHECK ---
     const clan = window.state.textFields['c-clan'] || document.getElementById('c-clan')?.value || "None";
     const isMalk = clan === "Malkavian";
 
@@ -391,7 +409,6 @@ export function renderDerangementsList() {
         let labelHTML = `<span>${d}</span>`;
         let deleteBtnHTML = `<span class="remove-btn text-red-500" onclick="window.state.derangements.splice(${idx}, 1); renderDerangementsList(); window.updatePools(); renderPrintSheet();">&times;</span>`;
         
-        // Lock 1st Derangement for Malkavians
         if (isMalk && idx === 0) {
             labelHTML = `<span class="text-[#a855f7] font-bold" title="Incurable Weakness">${d}</span>`;
             deleteBtnHTML = `<span class="text-[#a855f7] text-[10px]"><i class="fas fa-lock"></i></span>`;
@@ -418,7 +435,6 @@ export function renderDynamicHavenRow() {
     const container = document.getElementById('multi-haven-list'); 
     if (!container) return;
     
-    // Clear to prevent duplicate rows on load
     container.innerHTML = ''; 
 
     const buildRow = (data = null) => {
@@ -472,12 +488,10 @@ export function renderDynamicHavenRow() {
         container.appendChild(row);
     };
 
-    // 1. Rebuild from state
     if (window.state.havens && Array.isArray(window.state.havens)) {
         window.state.havens.forEach(h => buildRow(h));
     }
     
-    // 2. Append trailing blank row
     buildRow();
 }
 window.renderDynamicHavenRow = renderDynamicHavenRow;
@@ -488,7 +502,6 @@ export function toggleXpMode() {
     window.state.xpMode = !window.state.xpMode;
     document.body.classList.toggle('xp-mode', window.state.xpMode);
     
-    // Toggle Button Visuals
     const btn = document.getElementById('toggle-xp-btn');
     if(btn) {
         btn.classList.toggle('bg-purple-900/40', window.state.xpMode);
@@ -498,10 +511,8 @@ export function toggleXpMode() {
         if(txt) txt.innerText = window.state.xpMode ? "Exit Experience" : "Experience";
     }
 
-    // Ensure Freebie Mode is OFF
     if (window.state.xpMode && window.state.freebieMode) toggleFreebieMode();
 
-    // Show/Hide Sidebar
     const sb = document.getElementById('xp-sidebar');
     if(sb) {
         if(window.state.xpMode) {
@@ -521,7 +532,6 @@ window.toggleXpMode = toggleXpMode;
 export function renderXpSidebar() {
     if (!window.state.xpMode) return;
     
-    // Calculate Spending Buckets from XP Log
     const log = window.state.xpLog || [];
     let buckets = {
         newAbil: 0,
@@ -531,7 +541,7 @@ export function renderXpSidebar() {
         abil: 0,
         clanDisc: 0,
         otherDisc: 0,
-        caitiffDisc: 0, // Catch-all for Caitiff
+        caitiffDisc: 0, 
         secPath: 0,
         virt: 0,
         humanity: 0,
@@ -543,7 +553,6 @@ export function renderXpSidebar() {
     const clanDiscs = CLAN_DISCIPLINES[clan] || [];
 
     log.forEach(entry => {
-        // Logic to categorize XP spend
         const isNew = entry.old === 0;
         const name = entry.trait || "";
         const type = entry.type;
@@ -564,7 +573,6 @@ export function renderXpSidebar() {
             } else {
                 if (isNew) buckets.newDisc += cost;
                 else {
-                    // Raising Discipline
                     if (isCaitiff) buckets.caitiffDisc += cost;
                     else if (clanDiscs.includes(name)) buckets.clanDisc += cost;
                     else buckets.otherDisc += cost;
@@ -574,13 +582,12 @@ export function renderXpSidebar() {
         else if (type === 'virt') buckets.virt += cost;
         else if (type === 'humanity' || (type === 'status' && name === 'Humanity')) buckets.humanity += cost;
         else if (type === 'willpower' || (type === 'status' && name === 'Willpower')) buckets.willpower += cost;
-        else if (type === 'path') buckets.secPath += cost; // Catch-all for path upgrades
+        else if (type === 'path') buckets.secPath += cost;
     });
 
     const sb = document.getElementById('xp-sidebar');
     if (!sb) return;
 
-    // Clear existing content except the toggle button
     const toggleBtn = document.getElementById('xp-sb-toggle-btn');
     sb.innerHTML = '';
     if (toggleBtn) sb.appendChild(toggleBtn);
@@ -593,21 +600,14 @@ export function renderXpSidebar() {
     const listDiv = document.createElement('div');
     listDiv.className = "space-y-2 text-xs";
 
-    // Helper to add row
     const addRow = (label, val, highlight = false) => {
         const row = document.createElement('div');
         row.className = "cost-row";
         const valClass = highlight ? "text-purple-300 font-bold" : "text-gray-400 font-bold";
-        
-        // Hide row if 0 value? No, user wants structure shown (like freebie ledger)
-        // Freebie ledger shows all 0s. We will show all 0s.
-        // Wait, for Caitiff vs Non-Caitiff we switch structure.
-        
         row.innerHTML = `<span class="text-gray-400">${label}</span><span class="cost-val ${valClass} bg-black/95 z-10 shrink-0">${val}</span>`;
         listDiv.appendChild(row);
     };
 
-    // --- RENDER ROWS BASED ON USER SPECS ---
     addRow("New Ability (3)", buckets.newAbil);
     addRow("New Discipline (10)", buckets.newDisc);
     addRow("New Path (7)", buckets.newPath);
@@ -616,10 +616,8 @@ export function renderXpSidebar() {
     addRow("Ability (Cur x2)", buckets.abil);
     
     if (isCaitiff) {
-        // Caitiff Special Rule
-        addRow("Discipline (Cur x6)*", buckets.caitiffDisc, true); // Highlight
+        addRow("Discipline (Cur x6)*", buckets.caitiffDisc, true); 
     } else {
-        // Standard
         addRow("Clan Disc (Cur x5)*", buckets.clanDisc);
         addRow("Other Disc (Cur x7)*", buckets.otherDisc);
     }
@@ -629,7 +627,6 @@ export function renderXpSidebar() {
     addRow("Humanity/Path (Cur x2)", buckets.humanity);
     addRow("Willpower (Cur x1)", buckets.willpower);
 
-    // Totals
     const totalSpent = Object.values(buckets).reduce((a,b) => a+b, 0);
     const totalEarned = parseInt(document.getElementById('c-xp-total')?.value) || 0;
     
@@ -645,7 +642,6 @@ export function renderXpSidebar() {
 
     sb.appendChild(listDiv);
 
-    // Recent Log (Scrollable)
     const logContainer = document.createElement('div');
     logContainer.className = "mt-4";
     logContainer.innerHTML = `<h4 class="text-[9px] uppercase text-gray-500 font-bold mb-1 tracking-wider">Session Log</h4>`;
@@ -663,7 +659,6 @@ export function renderXpSidebar() {
     logContainer.appendChild(logInner);
     sb.appendChild(logContainer);
 
-    // Explanation Footnotes
     const footer = document.createElement('div');
     footer.className = "mt-4 pt-2 border-t border-[#444] text-[8px] text-gray-500 italic leading-tight";
     
@@ -740,7 +735,6 @@ export function changeStep(s) {
     
     const prefix = window.state.isPlayMode ? 'play-mode-' : 'phase-';
     
-    // --- SPECIAL JOURNAL INJECTION FOR PLAY MODE ---
     if (window.state.isPlayMode && s === 5) {
         let pm5 = document.getElementById('play-mode-5');
         if (!pm5) {
@@ -752,7 +746,6 @@ export function changeStep(s) {
         renderJournalTab();
     }
 
-    // --- NEW: SPECIAL NPC INJECTION FOR PLAY MODE ---
     if (window.state.isPlayMode && s === 6) {
         let pm6 = document.getElementById('play-mode-6');
         if (!pm6) {
@@ -767,12 +760,10 @@ export function changeStep(s) {
     const target = document.getElementById(prefix + s);
     if (target) { target.classList.add('active'); window.state.currentPhase = s; }
     
-    // Update Nav
     const nav = document.getElementById('sheet-nav');
     if (nav) {
         nav.innerHTML = '';
         if (window.state.isPlayMode) {
-             // RENAMED "Retainers" to "NPCs"
              const steps = ["Sheet", "Traits", "Social", "Biography", "Journal", "NPCs"];
              steps.forEach((text, i) => {
                  const it = document.createElement('div'); it.className = `nav-item ${window.state.currentPhase === (i+1) ? 'active' : ''}`;
@@ -822,7 +813,6 @@ export function togglePlayMode() {
     window.state.isPlayMode = !window.state.isPlayMode;
     document.body.classList.toggle('play-mode', window.state.isPlayMode);
     
-    // Disable Edit Modes
     if (window.state.isPlayMode) {
         if (window.state.freebieMode) toggleFreebieMode();
         if (window.state.xpMode) toggleXpMode();
@@ -833,7 +823,6 @@ export function togglePlayMode() {
     
     document.querySelectorAll('input, select, textarea').forEach(el => {
         if (['save-filename', 'char-select', 'roll-diff', 'use-specialty', 'c-path-name', 'c-path-name-create', 'c-bearing-name', 'c-bearing-value', 'custom-weakness-input', 'xp-points-input', 'blood-per-turn-input', 'custom-dice-input', 'spend-willpower', 'c-xp-total', 'frenzy-diff', 'rotschreck-diff', 'play-merit-notes', 'dmg-input-val', 'tray-use-armor',
-        // Journal Inputs Exemption
         'log-sess-num', 'log-date', 'log-game-date', 'log-title', 'log-effects', 'log-scene1', 'log-scene2', 'log-scene3', 'log-obj', 'log-clues', 'log-secrets', 'log-downtime'
         ].includes(el.id) || el.classList.contains('merit-flaw-desc') || el.closest('#active-log-form')) {
             el.disabled = false;
@@ -917,7 +906,6 @@ export function togglePlayMode() {
         const pb = document.getElementById('play-blood-bonds'); if(pb) {
             pb.innerHTML = ''; 
             
-            // --- TREMERE WEAKNESS NOTE (PLAY MODE) ---
             const clan = window.state.textFields['c-clan'] || "None";
             const isTremere = clan === "Tremere";
 
@@ -930,17 +918,15 @@ export function togglePlayMode() {
                 if (b.type === 'Bond') {
                     let r = parseInt(b.rating) || 0;
                     
-                    // Apply Tremere Weakness Logic
                     if (isTremere) {
                         if (r === 1) {
                             label = `<span class="text-[#a855f7]">Step 2</span> (1 Drink)`;
                         } else if (r >= 2) {
                             label = `<span class="text-[#a855f7] font-black">Full Bond</span>`; 
                         } else {
-                            label = `Step ${r}`; // Should effectively be 0
+                            label = `Step ${r}`;
                         }
                     } else {
-                        // Standard
                         if (r >= 3) label = 'Full Bond';
                         else label = `Drink ${r}`;
                     }
@@ -952,16 +938,14 @@ export function togglePlayMode() {
             });
         }
 
-        // --- UPDATED MERITS & FLAWS (Name | Value | Editable Description) ---
         const mf = document.getElementById('merit-flaw-rows-play'); 
         if(mf) {
             mf.innerHTML = ''; 
             
-            // Helper to render editable row
             const renderMFRow = (item, type, index) => {
                 const row = document.createElement('div');
                 row.className = "flex flex-col border-b border-[#222] py-2 mb-1";
-                const valueColor = type === 'Merit' ? 'text-red-400' : 'text-green-400'; // Cost vs Bonus logic
+                const valueColor = type === 'Merit' ? 'text-red-400' : 'text-green-400'; 
                 
                 row.innerHTML = `
                     <div class="flex justify-between text-xs mb-1">
@@ -972,14 +956,11 @@ export function togglePlayMode() {
                             placeholder="Description / Note..." rows="1" style="min-height: 20px;">${item.desc || ''}</textarea>
                 `;
                 
-                // Bind Listener
                 const input = row.querySelector('textarea');
-                // Auto-resize function
                 const resize = () => {
                     input.style.height = 'auto';
                     input.style.height = (input.scrollHeight) + 'px';
                 };
-                // Initial resize
                 requestAnimationFrame(resize);
                 
                 input.oninput = resize;
@@ -1052,7 +1033,6 @@ export function togglePlayMode() {
                 cp.appendChild(r); 
             });
 
-            // Update Inventory Weapons to use rollCombat
             const firearms = ['Pistol', 'Revolver', 'Rifle', 'SMG', 'Shotgun', 'Crossbow'];
             if(window.state.inventory) { 
                 window.state.inventory.filter(i => i.type === 'Weapon' && i.status === 'carried').forEach(w => { 
@@ -1079,7 +1059,6 @@ export function togglePlayMode() {
             }
         }
         
-        // --- MOVEMENT SPEED SECTION (PLAY MODE 2) ---
         renderMovementSection();
 
         if(document.getElementById('rituals-list-play')) document.getElementById('rituals-list-play').innerText = document.getElementById('rituals-list-create-ta').value;
@@ -1087,7 +1066,6 @@ export function togglePlayMode() {
         setSafeText('play-gear-carried', carried.join(', ')); setSafeText('play-gear-owned', owned.join(', '));
         if(document.getElementById('play-bio-desc')) document.getElementById('play-bio-desc').innerText = document.getElementById('bio-desc').value;
         
-        // --- UPDATED MALKAVIAN LOGIC FOR PLAY MODE ---
         if(document.getElementById('play-derangements')) { 
             const pd = document.getElementById('play-derangements'); 
             const clan = window.state.textFields['c-clan'] || "None";
@@ -1122,7 +1100,6 @@ export function togglePlayMode() {
         if (document.getElementById('play-vehicles')) { const pv = document.getElementById('play-vehicles'); pv.innerHTML = ''; if (window.state.inventory) { window.state.inventory.filter(i => i.type === 'Vehicle').forEach(v => { let display = v.displayName || v.name; pv.innerHTML += `<div class="mb-2 border-b border-[#333] pb-1"><div class="font-bold text-white uppercase text-[10px]">${display}</div><div class="text-[9px] text-gray-400">Safe:${v.stats.safe} | Max:${v.stats.max} | Man:${v.stats.man}</div></div>`; }); } }
         if (document.getElementById('play-havens-list')) { const ph = document.getElementById('play-havens-list'); ph.innerHTML = ''; window.state.havens.forEach(h => { ph.innerHTML += `<div class="border-l-2 border-gold pl-4 mb-4"><div class="flex justify-between"><div><div class="font-bold text-white uppercase text-[10px]">${h.name}</div><div class="text-[9px] text-gold italic">${h.loc}</div></div></div><div class="text-xs text-gray-400 mt-1">${h.desc}</div></div>`; }); }
         
-        // --- CLAN SPECIFIC WEAKNESS & FRENZY ---
         const weaknessCont = document.getElementById('weakness-play-container');
         if (weaknessCont) {
             weaknessCont.innerHTML = '';
@@ -1130,7 +1107,6 @@ export function togglePlayMode() {
             const weaknessText = CLAN_WEAKNESSES[clan] || "Select a Clan to see weakness.";
             const customNote = window.state.textFields['custom-weakness'] || "";
             
-            // REMOVED FRENZY BUTTON FROM HERE
             weaknessCont.innerHTML = `
                 <div class="section-title">Weakness</div>
                 <div class="bg-[#111] p-3 border border-[#333] h-full flex flex-col mt-2">
@@ -1148,7 +1124,6 @@ export function togglePlayMode() {
             }
         }
         
-        // --- THE BEAST (FRENZY / RÖTSCHRECK) ---
         if (weaknessCont && weaknessCont.parentNode) {
             let beastCont = document.getElementById('beast-play-container');
             if (!beastCont) {
@@ -1192,7 +1167,6 @@ export function togglePlayMode() {
             const log = window.state.xpLog || [];
             const spent = log.reduce((a,b)=>a+b.cost,0);
             
-            // Reduced padding and font size to prevent overflow
             xpCont.innerHTML = `
                 <div class="section-title mt-6">Experience</div>
                 <div class="bg-[#111] p-2 border border-[#333] mt-2">
@@ -1229,8 +1203,6 @@ export function togglePlayMode() {
 }
 window.togglePlayMode = togglePlayMode;
 
-// --- DEDICATED MOVEMENT RENDERER ---
-
 export function renderMovementSection() {
     if (!window.state.isPlayMode) return;
     const pm2 = document.getElementById('play-mode-2');
@@ -1242,13 +1214,11 @@ export function renderMovementSection() {
         moveSection.id = 'play-movement-section';
         moveSection.className = 'sheet-section mt-6';
         
-        // Ensure inserted before combat maneuvers if possible
         const combatSection = pm2.querySelector('.sheet-section:last-child');
         if(combatSection && combatSection.parentNode === pm2) pm2.insertBefore(moveSection, combatSection);
         else pm2.appendChild(moveSection);
     }
     
-    // Calculate Movement
     const dex = window.state.dots.attr['Dexterity'] || 1;
     const dmgBoxes = (window.state.status.health_states || []).filter(x => x > 0).length;
     
@@ -1258,27 +1228,25 @@ export function renderMovementSection() {
     let note = "Normal Movement";
     let noteColor = "text-gray-500";
     
-    // Health Penalties (V20 p.282)
-    if (dmgBoxes === 4) { // Wounded
+    if (dmgBoxes === 4) { 
         r = 0; 
         note = "Wounded: Cannot Run"; 
         noteColor = "text-orange-400";
-    } else if (dmgBoxes === 5) { // Mauled
+    } else if (dmgBoxes === 5) { 
         j = 0; r = 0;
         if(w > 3) w = 3;
         note = "Mauled: Max 3 yds/turn";
         noteColor = "text-red-400";
-    } else if (dmgBoxes === 6) { // Crippled
+    } else if (dmgBoxes === 6) { 
         w = 1; j = 0; r = 0;
         note = "Crippled: Crawl 1 yd/turn";
         noteColor = "text-red-600 font-bold";
-    } else if (dmgBoxes >= 7) { // Incapacitated
+    } else if (dmgBoxes >= 7) { 
         w = 0; j = 0; r = 0;
         note = "Incapacitated: Immobile";
         noteColor = "text-red-700 font-black";
     }
 
-    // Render with Units
     moveSection.innerHTML = `
         <div class="section-title">Movement (Yards/Turn)</div>
         <div class="grid grid-cols-3 gap-4 text-center mt-2">
@@ -1306,7 +1274,6 @@ export function renderNpcTab() {
     const container = document.getElementById('play-mode-6');
     if (!container) return;
     
-    // Ensure data exists
     const retainers = window.state.retainers || [];
 
     let html = `
@@ -1333,25 +1300,17 @@ export function renderNpcTab() {
     html += `<div class="grid grid-cols-1 gap-4">`;
 
     retainers.forEach((npc, index) => {
-        // Safely handle potentially missing fields
         const name = npc.name || "Unnamed";
-        const type = npc.type || "Ghoul";
+        const type = npc.template || "Ghoul"; 
         const concept = npc.concept || "";
         
-        // Quick stats for summary
-        const potence = npc.disciplines?.Potence || 0;
-        const celerity = npc.disciplines?.Celerity || 0;
-        const fortitude = npc.disciplines?.Fortitude || 0;
-
+        // Removed Disciplines from summary view as requested
         html += `
             <div class="bg-gray-900 border border-gray-700 rounded p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 hover:border-red-900/50 transition-colors">
                 <div class="flex-grow">
                     <h3 class="text-xl font-bold text-gray-200">${name} <span class="text-xs text-gray-500 font-normal ml-2 uppercase tracking-wider border border-gray-700 px-1 rounded">${type}</span></h3>
                     <div class="text-sm text-gray-400 mt-1 flex flex-wrap gap-4">
                         <span>Concept: <span class="text-gray-300">${concept || 'N/A'}</span></span>
-                        <span>Potence: ${potence}</span>
-                        <span>Celerity: ${celerity}</span>
-                        <span>Fortitude: ${fortitude}</span>
                     </div>
                 </div>
                 
@@ -1372,46 +1331,34 @@ export function renderNpcTab() {
     html += `</div></div>`;
     container.innerHTML = html;
 }
-window.renderNpcTab = renderNpcTab; // Assign to window for call by changeStep
-// Backwards compatibility alias if needed by other modules
+window.renderNpcTab = renderNpcTab; 
 window.renderRetainersTab = renderNpcTab; 
 
-// --- NPC HELPERS ---
 window.editNpc = function(index) {
     if (window.state.retainers && window.state.retainers[index]) {
-        // Pass the actual object and the index
-        // Default to 'ghoul' template if not specified (backward compatibility)
         const npc = window.state.retainers[index];
         const type = npc.template || 'ghoul';
         if(window.openNpcCreator) window.openNpcCreator(type, npc, index);
     }
 };
-// Backward compat alias
 window.editRetainer = window.editNpc;
 
 window.deleteNpc = function(index) {
     if(confirm("Permanently release this NPC? This cannot be undone.")) {
         if(window.state.retainers) {
             window.state.retainers.splice(index, 1);
-            // Re-render
             renderNpcTab();
-            // Trigger auto-save if available
             if(window.performSave) window.performSave(true); 
         }
     }
 };
-// Backward compat alias
 window.deleteRetainer = window.deleteNpc;
-
-// --- PRINT SHEET RENDERER ---
 
 export function renderPrintSheet() {
     if (!window.state) return;
     
-    // Refresh Movement if in Play Mode
     if (window.state.isPlayMode) renderMovementSection();
 
-    // 1. Header Fields
     const map = {
         'c-name': 'pr-name', 'c-nature': 'pr-nature', 'c-clan': 'pr-clan',
         'c-player': 'pr-player', 'c-demeanor': 'pr-demeanor', 'c-gen': 'pr-gen',
@@ -1423,7 +1370,6 @@ export function renderPrintSheet() {
         if (el) el.innerText = val;
     }
 
-    // 2. Attributes
     ['Physical', 'Social', 'Mental'].forEach(cat => {
         let destId = "";
         if(cat === 'Physical') destId = 'pr-attr-phys';
@@ -1432,7 +1378,6 @@ export function renderPrintSheet() {
         
         const container = document.getElementById(destId);
         if (container) {
-            // Preserve Header (h4), clear rows
             const header = container.querySelector('h4');
             container.innerHTML = '';
             if(header) container.appendChild(header);
@@ -1447,7 +1392,6 @@ export function renderPrintSheet() {
         }
     });
 
-    // 3. Abilities
     ['Talents', 'Skills', 'Knowledges'].forEach(cat => {
         let destId = "";
         if(cat === 'Talents') destId = 'pr-abil-tal';
@@ -1468,7 +1412,6 @@ export function renderPrintSheet() {
                 container.appendChild(row);
             });
             
-            // Custom Abilities
             if(window.state.customAbilityCategories) {
                 Object.entries(window.state.customAbilityCategories).forEach(([name, c]) => {
                     if (c === cat) {
@@ -1483,13 +1426,12 @@ export function renderPrintSheet() {
         }
     });
 
-    // 4. Advantages (Disciplines, Backgrounds)
     const renderAdvSection = (src, destId, max = 5) => {
         const container = document.getElementById(destId);
         if (container) {
             container.innerHTML = '';
             Object.entries(src).forEach(([name, val]) => {
-                if(val > 0) { // Only print dots > 0
+                if(val > 0) { 
                     const row = document.createElement('div');
                     row.className = "flex justify-between border-b border-black text-xs mb-1";
                     row.innerHTML = `<span class="font-bold uppercase">${name}</span><span>${renderDots(val, max)}</span>`;
@@ -1501,7 +1443,6 @@ export function renderPrintSheet() {
     renderAdvSection(window.state.dots.disc, 'pr-disc-list');
     renderAdvSection(window.state.dots.back, 'pr-back-list');
 
-    // Virtues
     const vCont = document.getElementById('pr-virt-list');
     if(vCont) {
         vCont.innerHTML = '';
@@ -1514,7 +1455,6 @@ export function renderPrintSheet() {
         });
     }
 
-    // 5. Merits / Flaws / Other Traits
     const mfCont = document.getElementById('pr-merits-flaws');
     if(mfCont) {
         mfCont.innerHTML = '';
@@ -1522,7 +1462,6 @@ export function renderPrintSheet() {
         const renderItem = (item, type) => {
             const div = document.createElement('div');
             div.className = "mb-1";
-            // Format: Name (Val pt Type): Description
             const header = document.createElement('span');
             header.className = "font-bold";
             header.innerText = `${item.name} (${item.val} pt ${type})`;
@@ -1555,11 +1494,9 @@ export function renderPrintSheet() {
         });
     }
 
-    // 6. Humanity / Willpower / Blood
     const hCont = document.getElementById('pr-humanity');
     const bName = document.getElementById('pr-bearing');
     if(hCont) {
-        // Calculate humanity if not set, or use stored
         const baseH = (window.state.dots.virt?.Conscience || 1) + (window.state.dots.virt?.["Self-Control"] || 1);
         const currentH = window.state.status.humanity !== undefined ? window.state.status.humanity : baseH;
         hCont.innerHTML = renderDots(currentH, 10);
@@ -1575,7 +1512,6 @@ export function renderPrintSheet() {
     }
     if(wBox) {
         let html = '';
-        // Temp willpower boxes
         const temp = window.state.status.tempWillpower !== undefined ? window.state.status.tempWillpower : 5;
         for(let i=0; i<10; i++) {
              html += `<span class="box ${i < temp ? 'checked' : ''}"></span>`;
@@ -1585,18 +1521,15 @@ export function renderPrintSheet() {
 
     const bBox = document.getElementById('pr-blood-boxes');
     if(bBox) {
-        // Max blood based on Gen
         const gen = 13 - (window.state.dots.back['Generation']||0);
-        // Simple approximation or use Rules
         let html = '';
         const currentB = window.state.status.blood || 0;
-        for(let i=0; i<20; i++) { // Max 20 boxes on sheet usually
+        for(let i=0; i<20; i++) { 
              html += `<span class="box ${i < currentB ? 'checked' : ''}"></span>`;
         }
         bBox.innerHTML = html;
     }
 
-    // 7. Health
     const healthCont = document.getElementById('pr-health');
     if(healthCont) {
         healthCont.innerHTML = '';
@@ -1610,13 +1543,10 @@ export function renderPrintSheet() {
         });
     }
 
-    // 8. Combat & Inventory
     const combatTbl = document.getElementById('pr-combat-table');
     if (combatTbl) {
-        // Use a single string buffer to construct the innerHTML
         let tblHTML = '';
         
-        // Add Maneuvers (Extended V20 List)
         const manuevers = [
             {n: 'Bite', d: 6, dmg: 'Str+1 (A)'},
             {n: 'Block', d: 6, dmg: 'None (R)'},
@@ -1636,7 +1566,6 @@ export function renderPrintSheet() {
             tblHTML += `<tr><td class="py-1 border-b border-gray-300 font-bold">${m.n}</td><td class="border-b border-gray-300">${m.d}</td><td class="border-b border-gray-300">${m.dmg}</td></tr>`;
         });
         
-        // Add Weapons from Inventory
         if(window.state.inventory && Array.isArray(window.state.inventory)) {
             window.state.inventory.filter(i => i.type === 'Weapon' && i.status === 'carried').forEach(w => {
                 const name = w.displayName || w.name;
@@ -1648,7 +1577,6 @@ export function renderPrintSheet() {
         combatTbl.innerHTML = tblHTML;
     }
 
-    // Armor Info
     const armorInfo = document.getElementById('pr-armor-info');
     if (armorInfo) {
         let armorHTML = "None";
@@ -1664,7 +1592,6 @@ export function renderPrintSheet() {
         armorInfo.innerHTML = armorHTML;
     }
 
-    // Gear Lists
     const gearCarried = document.getElementById('pr-gear-carried');
     const gearOwned = document.getElementById('pr-gear-owned');
     const vehicles = document.getElementById('pr-vehicles');
@@ -1675,13 +1602,11 @@ export function renderPrintSheet() {
         if (vehicles) vehicles.innerHTML = window.state.inventory.filter(i => i.type === 'Vehicle').map(i => `${i.name} (Safe:${i.stats?.safe} Max:${i.stats?.max})`).join('<br>');
     }
 
-    // --- NEW: Update Edit Mode (Phase 6) Combat/Armor ---
     const armorRatingEl = document.getElementById('total-armor-rating');
     const armorPenaltyEl = document.getElementById('total-armor-penalty');
     const armorNamesEl = document.getElementById('active-armor-names');
     const combatListEl = document.getElementById('combat-list-create');
 
-    // 1. Calculate Armor for Edit Mode
     if (window.state.inventory && Array.isArray(window.state.inventory)) {
         const armors = window.state.inventory.filter(i => i.type === 'Armor' && i.status === 'carried');
         let totalR = 0, totalP = 0, names = [];
@@ -1695,12 +1620,9 @@ export function renderPrintSheet() {
         if (armorNamesEl) armorNamesEl.innerText = names.length > 0 ? names.join(', ') : "None";
     }
 
-    // 2. Full Update of Edit Mode Combat List
     if (combatListEl) {
-        // Get the parent container (the column flex container)
         const combatContainer = combatListEl.parentElement;
         if (combatContainer) {
-            // Rebuild the ENTIRE content of the parent to replace hardcoded items
             let html = `
                 <div class="grid grid-cols-7 gap-1 text-[9px] uppercase text-gray-400 font-bold border-b border-[#555] pb-1 mb-2 text-center">
                     <div class="col-span-2 text-left pl-2">Attack</div>
@@ -1712,7 +1634,6 @@ export function renderPrintSheet() {
                 </div>
             `;
 
-            // Standard V20 Maneuvers (Same list as Play Mode)
             const standards = [
                 {n:'Bite', diff:6, dmg:'Str+1(A)', rng:'-', rate:'-', clip:'-'},
                 {n:'Block', diff:6, dmg:'None (R)', rng:'-', rate:'-', clip:'-'},
@@ -1747,7 +1668,6 @@ export function renderPrintSheet() {
                 `;
             });
 
-            // Add Equipped Weapons
             if (window.state.inventory && Array.isArray(window.state.inventory)) {
                 window.state.inventory.filter(i => i.type === 'Weapon' && i.status === 'carried').forEach(w => {
                     const name = w.displayName || w.name;
@@ -1764,14 +1684,12 @@ export function renderPrintSheet() {
                 });
             }
 
-            // Restore the empty container div for future use (though we are overwriting parent)
             html += '<div id="combat-list-create" class="space-y-1 mt-2"></div>';
             
             combatContainer.innerHTML = html;
         }
     }
 
-    // 9. Expanded Backgrounds & Havens
     const bgDetails = document.getElementById('pr-background-details');
     if (bgDetails) {
         bgDetails.innerHTML = '';
@@ -1796,7 +1714,6 @@ export function renderPrintSheet() {
         bonds.innerHTML = window.state.bloodBonds.map(b => `<div><strong>${b.type}:</strong> ${b.name} (${b.rating})</div>`).join('');
     }
 
-    // 10. Bio / Psychology
     const appearance = document.getElementById('pr-appearance');
     if(appearance) appearance.innerText = document.getElementById('bio-desc')?.value || "";
 
@@ -1817,13 +1734,11 @@ export function renderPrintSheet() {
 }
 window.renderPrintSheet = renderPrintSheet;
 
-// --- UNSAVED CHANGES PROTECTION ---
 window.addEventListener('beforeunload', (e) => {
-    // Only warn if a character name exists (implies work has been done)
     const name = window.state?.textFields?.['c-name'];
     if (name) {
         e.preventDefault();
-        e.returnValue = ''; // Legacy support for Chrome
+        e.returnValue = ''; 
         return "Unsaved changes may be lost.";
     }
 });
