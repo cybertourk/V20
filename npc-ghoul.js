@@ -87,39 +87,18 @@ export const GhoulTemplate = {
             `<option value="${r}" ${data.family === r ? 'selected' : ''}>${r}</option>`
         ).join('');
 
-        // Note: Domitor's Clan dropdown removed from here as it was moved to the main Identity column
+        // Note: Ghoul Type, Bond Level, and Domitor Clan are now in main columns (npc-creator.js).
+        // This function now only renders the truly optional/conditional extras for the 3rd column.
         
         return `
-            <div class="space-y-6 border-t border-[#333] pt-4 mt-2">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label class="label-text text-[#d4af37]">Ghoul Type</label>
-                        <select id="npc-subtype" class="w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] focus:outline-none transition-colors">
-                            <option value="Vassal" ${data.type === 'Vassal' ? 'selected' : ''} class="bg-black">Vassal (Bound to Master)</option>
-                            <option value="Independent" ${data.type === 'Independent' ? 'selected' : ''} class="bg-black">Independent (Masterless)</option>
-                            <option value="Revenant" ${data.type === 'Revenant' ? 'selected' : ''} class="bg-black">Revenant (Hereditary)</option>
-                        </select>
-                    </div>
-
-                    <!-- Bond Level (Vassal Only) -->
-                    <div id="div-bond-level" class="${data.type === 'Vassal' ? 'block' : 'hidden'}">
-                        <label class="label-text text-[#d4af37]">Blood Bond Level</label>
-                        <select id="npc-bond-level" class="w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] focus:outline-none transition-colors">
-                            <option value="1" ${data.bondLevel == 1 ? 'selected' : ''} class="bg-black">Step 1 (First Drink)</option>
-                            <option value="2" ${data.bondLevel == 2 ? 'selected' : ''} class="bg-black">Step 2 (Strong Feelings)</option>
-                            <option value="3" ${data.bondLevel == 3 ? 'selected' : ''} class="bg-black">Step 3 (Full Bond)</option>
-                        </select>
-                        <p class="text-[9px] text-gray-500 mt-1 italic">V20 p. 500: Determines loyalty mechanics.</p>
-                    </div>
-                    
-                    <!-- Revenant Family (Revenant Only) -->
-                    <div id="div-extra-family" class="${data.type === 'Revenant' ? 'block' : 'hidden'}">
-                        <label class="label-text text-[#d4af37]">Revenant Family</label>
-                        <select id="npc-extra-family" class="w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] focus:outline-none transition-colors">
-                            <option value="" class="bg-black">Select Family...</option>
-                            ${revOptions}
-                        </select>
-                    </div>
+            <div class="space-y-6">
+                <!-- Revenant Family (Revenant Only) -->
+                <div id="div-extra-family" class="${data.type === 'Revenant' ? 'block' : 'hidden'}">
+                    <label class="label-text text-[#d4af37]">Revenant Family</label>
+                    <select id="npc-extra-family" class="w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] focus:outline-none transition-colors">
+                        <option value="" class="bg-black">Select Family...</option>
+                        ${revOptions}
+                    </select>
                 </div>
 
                 <!-- Weakness / Overdose Effect -->
@@ -145,8 +124,9 @@ export const GhoulTemplate = {
     },
 
     setupListeners: (parent, data, updateCallback) => {
+        // These inputs are now distributed across the main grid (Columns 1 & 2) and Extras (Column 3)
+        // We bind them all here to centralize the template logic.
         const subtypeEl = parent.querySelector('#npc-subtype');
-        // Note: #npc-extra-clan is now in the main column (rendered by npc-creator.js), but we still bind it here
         const clanEl = parent.querySelector('#npc-extra-clan');
         const famEl = parent.querySelector('#npc-extra-family');
         const weakEl = parent.querySelector('#g-weakness');
@@ -159,7 +139,8 @@ export const GhoulTemplate = {
                 const isVassal = data.type === 'Vassal';
                 
                 // Toggle visibility of fields based on type
-                const divClan = parent.querySelector('#div-extra-clan'); // In main column
+                // IDs match those in npc-creator.js and renderIdentityExtras above
+                const divClan = parent.querySelector('#div-extra-clan'); 
                 const divFam = parent.querySelector('#div-extra-family');
                 const divBond = parent.querySelector('#div-bond-level');
                 
@@ -179,7 +160,7 @@ export const GhoulTemplate = {
                 // Auto-set defaults for logic
                 if (isVassal && !data.bondLevel) data.bondLevel = 3; 
 
-                updateCallback(); // Refresh UI
+                updateCallback(); // Refresh UI for Virtue limits etc.
             };
         }
         
