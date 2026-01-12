@@ -1338,20 +1338,14 @@ export function renderNpcTab() {
         const type = npc.type || "Ghoul";
         const concept = npc.concept || "";
         
-        // Quick stats for summary
-        const potence = npc.disciplines?.Potence || 0;
-        const celerity = npc.disciplines?.Celerity || 0;
-        const fortitude = npc.disciplines?.Fortitude || 0;
-
+        // Removed Quick stats for summary per user request
+        
         html += `
             <div class="bg-gray-900 border border-gray-700 rounded p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 hover:border-red-900/50 transition-colors">
                 <div class="flex-grow">
                     <h3 class="text-xl font-bold text-gray-200">${name} <span class="text-xs text-gray-500 font-normal ml-2 uppercase tracking-wider border border-gray-700 px-1 rounded">${type}</span></h3>
                     <div class="text-sm text-gray-400 mt-1 flex flex-wrap gap-4">
                         <span>Concept: <span class="text-gray-300">${concept || 'N/A'}</span></span>
-                        <span>Potence: ${potence}</span>
-                        <span>Celerity: ${celerity}</span>
-                        <span>Fortitude: ${fortitude}</span>
                     </div>
                 </div>
                 
