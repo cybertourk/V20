@@ -359,15 +359,19 @@ function renderEditorModal() {
                         <div id="stepBio" class="npc-step hidden">
                             <div class="sheet-section !mt-0">
                                 <div class="section-title">Biography</div>
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                    <div class="space-y-4">
-                                        ${VIT.filter(v => !EXCLUDED_VITALS.includes(v)).map(v => `<div class="flex justify-between items-center border-b border-[#333] pb-1"><label class="label-text text-[#d4af37] w-1/3">${v}</label><input type="text" class="npc-bio w-2/3 bg-transparent text-white text-xs text-right focus:outline-none" data-field="${v}" value="${activeNpc.bio[v]||''}"></div>`).join('')}
+                                
+                                <!-- Use Custom Template Renderer if available, else Default -->
+                                ${currentTemplate.renderBio ? currentTemplate.renderBio(activeNpc) : `
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                        <div class="space-y-4">
+                                            ${VIT.filter(v => !EXCLUDED_VITALS.includes(v)).map(v => `<div class="flex justify-between items-center border-b border-[#333] pb-1"><label class="label-text text-[#d4af37] w-1/3">${v}</label><input type="text" class="npc-bio w-2/3 bg-transparent text-white text-xs text-right focus:outline-none" data-field="${v}" value="${activeNpc.bio[v]||''}"></div>`).join('')}
+                                        </div>
+                                        <div class="space-y-4">
+                                            <div><label class="label-text text-[#d4af37] mb-2">Description</label><textarea id="npc-desc" class="w-full h-32 bg-transparent border border-[#444] text-white p-2 text-xs focus:border-[#d4af37] outline-none resize-none">${activeNpc.bio.Description||''}</textarea></div>
+                                            <div><label class="label-text text-[#d4af37] mb-2">Notes</label><textarea id="npc-notes" class="w-full h-32 bg-transparent border border-[#444] text-white p-2 text-xs focus:border-[#d4af37] outline-none resize-none">${activeNpc.bio.Notes||''}</textarea></div>
+                                        </div>
                                     </div>
-                                    <div class="space-y-4">
-                                        <div><label class="label-text text-[#d4af37] mb-2">Description</label><textarea id="npc-desc" class="w-full h-32 bg-transparent border border-[#444] text-white p-2 text-xs focus:border-[#d4af37] outline-none resize-none">${activeNpc.bio.Description||''}</textarea></div>
-                                        <div><label class="label-text text-[#d4af37] mb-2">Notes</label><textarea id="npc-notes" class="w-full h-32 bg-transparent border border-[#444] text-white p-2 text-xs focus:border-[#d4af37] outline-none resize-none">${activeNpc.bio.Notes||''}</textarea></div>
-                                    </div>
-                                </div>
+                                `}
                             </div>
                         </div>
                     </div>
