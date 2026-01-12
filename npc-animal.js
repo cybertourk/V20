@@ -66,7 +66,7 @@ const SPECIES_DB = {
     },
     "Dog (Small)": {
         attr: { Strength: 1, Dexterity: 3, Stamina: 2, Perception: 3, Intelligence: 1, Wits: 3 },
-        abil: { Alertness: 3, Athletics: 3, Empathy: 2, Stealth: 3 },
+        abil: { Alertness: 3, Athletics: 3, Empathy: 2, Stealth: 3, Performance: 1 },
         wp: 3, bp: 1,
         note: "Health: 3 Levels (OK, -1, -5). Attack: Bite (2 dice)."
     },
@@ -124,7 +124,7 @@ export const AnimalTemplate = {
     label: "Animal / Beast",
     
     features: {
-        disciplines: true, // Only relevant if Ghouled
+        disciplines: true, // Needed in DOM so we can toggle visibility
         bloodPool: true,
         virtues: false,     
         backgrounds: false,
@@ -226,6 +226,30 @@ export const AnimalTemplate = {
         const weapEl = parent.querySelector('#npc-nat-weapons');
         const ghoulEl = parent.querySelector('#npc-ghoul-toggle');
         
+        // Helper to toggle Discipline UI visibility
+        const toggleDiscUI = (show) => {
+            const listEl = parent.querySelector('#npc-disc-list');
+            const selectEl = parent.querySelector('#npc-disc-select');
+            
+            // Find the container column or headers. 
+            // We assume standard structure from npc-creator.js: h3 -> div#npc-disc-list -> div>select
+            if (listEl) {
+                // Hide list
+                listEl.style.display = show ? 'block' : 'none';
+                
+                // Hide header (previous sibling)
+                const header = listEl.previousElementSibling;
+                if (header && header.tagName === 'H3') header.style.display = show ? 'block' : 'none';
+            }
+            if (selectEl) {
+                // Hide select wrapper (parent div)
+                if (selectEl.parentNode) selectEl.parentNode.style.display = show ? 'block' : 'none';
+            }
+        };
+
+        // Initialize visibility based on current state
+        toggleDiscUI(data.ghouled);
+
         // --- SPECIES SELECTION LOGIC ---
         if (specEl) specEl.onchange = (e) => {
             const s = e.target.value;
@@ -258,6 +282,7 @@ export const AnimalTemplate = {
         // --- GHOUL TOGGLE LOGIC ---
         if (ghoulEl) ghoulEl.onchange = (e) => {
             data.ghouled = e.target.checked;
+            toggleDiscUI(data.ghouled);
             
             if (data.ghouled) {
                 if (!data.disciplines.Potence) data.disciplines.Potence = 1;
