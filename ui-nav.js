@@ -20,10 +20,11 @@ import {
 import { renderJournalTab } from "./ui-journal.js";
 
 // --- IMPORT NPC CREATOR ---
-import { openNpcCreator } from "./npc-creator.js";
+import { openNpcCreator, openNpcSheet } from "./npc-creator.js";
 
 // Ensure Global Access for HTML Strings
 window.openNpcCreator = openNpcCreator;
+window.openNpcSheet = openNpcSheet;
 
 // --- DYNAMIC ADVANTAGES (Disciplines, Backgrounds, etc.) ---
 
@@ -598,10 +599,6 @@ export function renderXpSidebar() {
         const row = document.createElement('div');
         row.className = "cost-row";
         const valClass = highlight ? "text-purple-300 font-bold" : "text-gray-400 font-bold";
-        
-        // Hide row if 0 value? No, user wants structure shown (like freebie ledger)
-        // Freebie ledger shows all 0s. We will show all 0s.
-        // Wait, for Caitiff vs Non-Caitiff we switch structure.
         
         row.innerHTML = `<span class="text-gray-400">${label}</span><span class="cost-val ${valClass} bg-black/95 z-10 shrink-0">${val}</span>`;
         listDiv.appendChild(row);
@@ -1350,9 +1347,13 @@ export function renderNpcTab() {
                 </div>
                 
                 <div class="flex items-center gap-2 w-full md:w-auto mt-2 md:mt-0">
+                    <button onclick="window.viewNpc(${index})" 
+                        class="flex-1 md:flex-none bg-blue-900/40 hover:bg-blue-900/60 text-blue-200 border border-blue-800 px-3 py-1 rounded text-sm font-bold">
+                        <i class="fas fa-eye mr-1"></i> View Sheet
+                    </button>
                     <button onclick="window.editNpc(${index})" 
-                        class="flex-1 md:flex-none bg-gray-700 hover:bg-gray-600 text-white px-3 py-1 rounded text-sm">
-                        Edit / View
+                        class="flex-1 md:flex-none bg-yellow-900/40 hover:bg-yellow-900/60 text-yellow-200 border border-yellow-700 px-3 py-1 rounded text-sm font-bold">
+                        <i class="fas fa-edit mr-1"></i> Edit
                     </button>
                     <button onclick="window.deleteNpc(${index})" 
                         class="flex-1 md:flex-none bg-red-900/20 hover:bg-red-900/50 text-red-500 border border-red-900/30 px-3 py-1 rounded text-sm" title="Delete">
@@ -1382,6 +1383,14 @@ window.editNpc = function(index) {
 };
 // Backward compat alias
 window.editRetainer = window.editNpc;
+
+window.viewNpc = function(index) {
+    if (window.state.retainers && window.state.retainers[index]) {
+        const npc = window.state.retainers[index];
+        if(window.openNpcSheet) window.openNpcSheet(npc, index);
+        else console.error("openNpcSheet not found on window object.");
+    }
+}
 
 window.deleteNpc = function(index) {
     if(confirm("Permanently release this NPC? This cannot be undone.")) {
