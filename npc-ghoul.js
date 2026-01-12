@@ -86,9 +86,7 @@ export const GhoulTemplate = {
             `<option value="${r}" ${data.family === r ? 'selected' : ''}>${r}</option>`
         ).join('');
 
-        const domitorOptions = (CLANS || []).sort().map(c => 
-            `<option value="${c}" ${data.domitorClan === c ? 'selected' : ''}>${c}</option>`
-        ).join('');
+        // Note: Domitor's Clan dropdown removed from here as it was moved to the main Identity column
         
         return `
             <div class="space-y-6 border-t border-[#333] pt-4 mt-2">
@@ -102,15 +100,6 @@ export const GhoulTemplate = {
                         </select>
                     </div>
                     
-                    <!-- Domitor Clan (Vassal Only) -->
-                    <div id="div-extra-clan" class="${data.type === 'Vassal' ? 'block' : 'hidden'}">
-                        <label class="label-text text-[#d4af37]">Domitor's Clan</label>
-                        <select id="npc-extra-clan" class="w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] focus:outline-none transition-colors">
-                            <option value="" class="bg-black">Unknown / None</option>
-                            ${domitorOptions}
-                        </select>
-                    </div>
-
                     <!-- Revenant Family (Revenant Only) -->
                     <div id="div-extra-family" class="${data.type === 'Revenant' ? 'block' : 'hidden'}">
                         <label class="label-text text-[#d4af37]">Revenant Family</label>
@@ -145,6 +134,7 @@ export const GhoulTemplate = {
 
     setupListeners: (parent, data, updateCallback) => {
         const subtypeEl = parent.querySelector('#npc-subtype');
+        // Note: #npc-extra-clan is now in the main column (rendered by npc-creator.js), but we still bind it here
         const clanEl = parent.querySelector('#npc-extra-clan');
         const famEl = parent.querySelector('#npc-extra-family');
         const weakEl = parent.querySelector('#g-weakness');
@@ -155,15 +145,30 @@ export const GhoulTemplate = {
                 const isRev = data.type === 'Revenant';
                 const isVassal = data.type === 'Vassal';
                 
+                // Toggle visibility of fields based on type
+                // div-extra-clan is now in main column
                 const divClan = parent.querySelector('#div-extra-clan');
                 const divFam = parent.querySelector('#div-extra-family');
-                if(divClan) divClan.className = isVassal ? 'block' : 'hidden';
-                if(divFam) divFam.className = isRev ? 'block' : 'hidden';
+                
+                if(divClan) {
+                    divClan.classList.toggle('hidden', !isVassal);
+                    divClan.classList.toggle('block', isVassal);
+                }
+                if(divFam) {
+                    divFam.classList.toggle('hidden', !isRev);
+                    divFam.classList.toggle('block', isRev);
+                }
 
                 updateCallback(); // Refresh UI for Virtue limits etc.
             };
         }
-        if (clanEl) clanEl.onchange = (e) => data.domitorClan = e.target.value;
+        
+        // Bind the domitor clan dropdown (even though it's outside our render block)
+        if (clanEl) clanEl.onchange = (e) => {
+            data.domitorClan = e.target.value;
+            // No callback needed unless we want to recalc costs immediately, which isn't visual
+        };
+        
         if (famEl) famEl.onchange = (e) => data.family = e.target.value;
         if (weakEl) weakEl.onchange = (e) => data.weakness = e.target.value;
     },
