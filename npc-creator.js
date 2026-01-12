@@ -15,6 +15,10 @@ const TEMPLATES = {
     'animal': AnimalTemplate
 };
 
+// Filter Lists for NPCs (They don't need PC-specific traits)
+const EXCLUDED_BACKGROUNDS = ["Black Hand Membership", "Domain", "Generation", "Herd", "Retainers", "Rituals", "Status"];
+const EXCLUDED_VITALS = ["Apparent Age", "R.I.P."];
+
 // State
 let activeNpc = null;
 let currentTemplate = null;
@@ -83,10 +87,9 @@ function sanitizeNpcData(npc) {
 function switchTemplate(newType) {
     if (!TEMPLATES[newType]) return;
     
-    // Preserve Identity Info
+    // Preserve Identity Info (Removed Player)
     const preserved = {
         name: activeNpc.name,
-        player: activeNpc.player,
         chronicle: activeNpc.chronicle,
         concept: activeNpc.concept,
         nature: activeNpc.nature,
@@ -133,7 +136,6 @@ function autoDetectPriorities() {
     };
 
     const pConfig = currentTemplate.getPriorities();
-    if (!pConfig.attr || !pConfig.abil) return; // Safety check
 
     ['attr', 'abil'].forEach(cat => {
         const groups = cat === 'attr' ? ['Physical', 'Social', 'Mental'] : ['Talents', 'Skills', 'Knowledges'];
@@ -185,6 +187,11 @@ function renderEditorModal() {
     
     // Feature Flags
     const f = currentTemplate.features || { disciplines: true, bloodPool: true, virtues: true, backgrounds: true, humanity: true };
+    
+    // CONDITIONAL VISIBILITY
+    const isGhoul = activeNpc.template === 'ghoul';
+    const isGhouledAnimal = activeNpc.template === 'animal' && activeNpc.ghouled;
+    const showDomitor = isGhoul || isGhouledAnimal;
 
     try {
         modal.innerHTML = `
@@ -234,8 +241,11 @@ function renderEditorModal() {
                                 <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
                                     <div class="space-y-6">
                                         <div><label class="label-text text-[#d4af37]">Name</label><input type="text" id="npc-name" value="${activeNpc.name || ''}" class="npc-input w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] outline-none"></div>
-                                        <div><label class="label-text text-[#d4af37]">Player</label><input type="text" id="npc-player" value="${activeNpc.player || ''}" class="npc-input w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] outline-none"></div>
-                                        <div><label class="label-text text-[#d4af37]">Domitor Name</label><input type="text" id="npc-domitor" value="${activeNpc.domitor || ''}" class="npc-input w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] outline-none"></div>
+                                        
+                                        <!-- Domitor: Only for Ghouls or Ghouled Animals -->
+                                        ${showDomitor ? `
+                                            <div><label class="label-text text-[#d4af37]">Domitor Name</label><input type="text" id="npc-domitor" value="${activeNpc.domitor || ''}" class="npc-input w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] outline-none"></div>
+                                        ` : ''}
                                     </div>
                                     <div class="space-y-6">
                                         <div>
@@ -277,39 +287,46 @@ function renderEditorModal() {
                             </div>
                         </div>
 
-                        <!-- STEP 4: ADVANTAGES -->
+                        <!-- STEP 4: ADVANTAGES (Dynamic Grid) -->
                         <div id="step4" class="npc-step hidden">
                             <div class="sheet-section !mt-0">
                                 <div class="section-title">Advantages</div>
-                                <div class="grid grid-cols-1 md:grid-cols-3 gap-10">
+                                <!-- Uses Flex wrap for adaptive layout if columns are empty -->
+                                <div class="flex flex-wrap gap-10 justify-between items-start">
+                                    
                                     <!-- Col 1: Disciplines & Backgrounds -->
-                                    <div>
+                                    ${ (f.disciplines || f.backgrounds) ? `
+                                    <div class="flex-1 min-w-[200px]">
                                         ${f.disciplines ? `
                                             <h3 class="column-title">Disciplines</h3>
                                             <div id="npc-disc-list" class="space-y-1 mt-2"></div>
                                             <div class="mt-3"><select id="npc-disc-select" class="w-full bg-transparent border border-[#444] text-[10px] text-gray-300 p-2 uppercase font-bold"><option value="">+ Add Discipline</option>${(DISCIPLINES||[]).map(d=>`<option value="${d}">${d}</option>`).join('')}</select></div>
-                                        ` : '<div class="opacity-30 italic text-xs text-center mt-10">Disciplines Unavailable</div>'}
+                                        ` : ''}
                                         
                                         ${f.backgrounds ? `
-                                            <h3 class="column-title mt-8">Backgrounds</h3>
+                                            <h3 class="column-title ${f.disciplines ? 'mt-8' : ''}">Backgrounds</h3>
                                             <div id="npc-back-list" class="space-y-1 mt-2"></div>
-                                            <div class="mt-3"><select id="npc-back-select" class="w-full bg-transparent border border-[#444] text-[10px] text-gray-300 p-2 uppercase font-bold"><option value="">+ Add Background</option>${(BACKGROUNDS||[]).map(b=>`<option value="${b}">${b}</option>`).join('')}</select></div>
+                                            <div class="mt-3">
+                                                <select id="npc-back-select" class="w-full bg-transparent border border-[#444] text-[10px] text-gray-300 p-2 uppercase font-bold">
+                                                    <option value="">+ Add Background</option>
+                                                    ${(BACKGROUNDS||[]).filter(b => !EXCLUDED_BACKGROUNDS.includes(b)).map(b=>`<option value="${b}">${b}</option>`).join('')}
+                                                </select>
+                                            </div>
                                         ` : ''}
-                                    </div>
+                                    </div>` : ''}
                                     
                                     <!-- Col 2: Virtues & Vitals -->
-                                    <div>
+                                    <div class="flex-1 min-w-[200px]">
                                         ${f.virtues ? `
                                             <h3 class="column-title">Virtues <span id="virtue-limit-display" class="text-xs text-gray-500"></span></h3>
                                             <div id="npc-virtue-list" class="space-y-3 mt-4 mb-4"></div>
-                                            
                                             <div class="mt-8 border-t border-[#333] pt-4">
                                                 ${f.humanity ? `
                                                 <div class="flex justify-between items-center text-xs mb-4">
                                                     <span class="font-bold text-[#d4af37]">HUMANITY</span>
                                                     <div class="dot-row-direct cursor-pointer" id="npc-humanity-row">${renderDots(activeNpc.humanity, 10)}</div>
                                                 </div>` : ''}
-                                        ` : ''}
+                                        ` : '<div class="mt-4"></div>'}
                                         
                                         <div class="flex justify-between items-center text-xs mb-4">
                                             <span class="font-bold text-[#d4af37]">WILLPOWER</span>
@@ -326,7 +343,7 @@ function renderEditorModal() {
                                     </div>
                                     
                                     <!-- Col 3: Merits/Flaws -->
-                                    <div>
+                                    <div class="flex-1 min-w-[200px]">
                                         <h3 class="column-title">Merits & Flaws</h3>
                                         <select id="npc-merit-select" class="w-full bg-transparent border-b border-[#444] text-[10px] text-gray-300 p-1 mb-2"><option value="">Add Merit...</option>${(V20_MERITS_LIST||[]).map(m=>`<option value="${m.n}|${m.v}">${m.n} (${m.v})</option>`).join('')}</select>
                                         <div id="npc-merits-list" class="space-y-1"></div>
@@ -344,7 +361,7 @@ function renderEditorModal() {
                                 <div class="section-title">Biography</div>
                                 <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
                                     <div class="space-y-4">
-                                        ${VIT.map(v => `<div class="flex justify-between items-center border-b border-[#333] pb-1"><label class="label-text text-[#d4af37] w-1/3">${v}</label><input type="text" class="npc-bio w-2/3 bg-transparent text-white text-xs text-right focus:outline-none" data-field="${v}" value="${activeNpc.bio[v]||''}"></div>`).join('')}
+                                        ${VIT.filter(v => !EXCLUDED_VITALS.includes(v)).map(v => `<div class="flex justify-between items-center border-b border-[#333] pb-1"><label class="label-text text-[#d4af37] w-1/3">${v}</label><input type="text" class="npc-bio w-2/3 bg-transparent text-white text-xs text-right focus:outline-none" data-field="${v}" value="${activeNpc.bio[v]||''}"></div>`).join('')}
                                     </div>
                                     <div class="space-y-4">
                                         <div><label class="label-text text-[#d4af37] mb-2">Description</label><textarea id="npc-desc" class="w-full h-32 bg-transparent border border-[#444] text-white p-2 text-xs focus:border-[#d4af37] outline-none resize-none">${activeNpc.bio.Description||''}</textarea></div>
@@ -521,6 +538,7 @@ function renderEditorModal() {
 
     if (currentTemplate.setupListeners) {
         currentTemplate.setupListeners(modal, activeNpc, () => {
+             // Callback for UI updates triggered by template logic
              updateVirtueDisplay();
              renderAllDots(); 
         });
@@ -1279,8 +1297,8 @@ function updateFreebieCalc() {
 
 function saveNpc() {
     activeNpc.name = document.getElementById('npc-name').value;
-    activeNpc.player = document.getElementById('npc-player').value;
-    activeNpc.domitor = document.getElementById('npc-domitor').value;
+    activeNpc.player = ""; // Explicitly cleared as requested
+    activeNpc.domitor = document.getElementById('npc-domitor') ? document.getElementById('npc-domitor').value : "";
     activeNpc.concept = document.getElementById('npc-concept').value;
     activeNpc.nature = document.getElementById('npc-nature').value;
     activeNpc.demeanor = document.getElementById('npc-demeanor').value;
