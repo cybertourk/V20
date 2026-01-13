@@ -19,7 +19,7 @@ const TEMPLATES = {
 const EXCLUDED_BACKGROUNDS = ["Black Hand Membership", "Domain", "Generation", "Herd", "Retainers", "Rituals", "Status"];
 const EXCLUDED_VITALS = ["Apparent Age", "R.I.P."];
 
-// State
+// State Variables
 let activeNpc = null;
 let currentTemplate = null;
 let activeIndex = null;
@@ -30,9 +30,19 @@ let localPriorities = {
     abil: { Talents: null, Skills: null, Knowledges: null }
 };
 
-// --- INITIALIZATION ---
+// ==========================================================================
+// INITIALIZATION & STATE MANAGEMENT
+// ==========================================================================
 
+/**
+ * Open the NPC Creator Modal (Edit/Create Mode)
+ * @param {String} typeKey - 'mortal', 'ghoul', or 'animal'
+ * @param {Object|Event} dataOrEvent - Existing NPC data or click event
+ * @param {Number} index - Index in global retainer list (for saving)
+ */
 export function openNpcCreator(typeKey = 'mortal', dataOrEvent = null, index = null) {
+    console.log(`Opening NPC Creator for type: ${typeKey}`);
+    
     // Default to Mortal if invalid type passed
     if (!TEMPLATES[typeKey]) typeKey = 'mortal';
     
@@ -49,17 +59,21 @@ export function openNpcCreator(typeKey = 'mortal', dataOrEvent = null, index = n
     resetPriorities();
 
     if (incomingData) {
-        // Edit Mode: Deep Copy
+        // Edit Mode: Deep Copy to prevent direct mutation until save
         activeNpc = JSON.parse(JSON.stringify(incomingData));
+        
         // Ensure template matches data if data has a type recorded
         if (activeNpc.template && TEMPLATES[activeNpc.template]) {
             currentTemplate = TEMPLATES[activeNpc.template];
         }
+        
         sanitizeNpcData(activeNpc);
+        
+        // Restore priorities if saved, else detect them
         if (activeNpc.priorities) localPriorities = JSON.parse(JSON.stringify(activeNpc.priorities));
         else autoDetectPriorities();
     } else {
-        // Create Mode
+        // Create Mode: Load defaults
         activeNpc = JSON.parse(JSON.stringify(currentTemplate.defaults));
         activeNpc.template = typeKey;
         sanitizeNpcData(activeNpc);
@@ -76,48 +90,55 @@ export function openNpcCreator(typeKey = 'mortal', dataOrEvent = null, index = n
  */
 export function openNpcSheet(npc, index) {
     if (!npc) return;
-    activeNpc = npc; // Reference object for live updates
+    activeNpc = npc; // We reference the object directly to allow live updates to state (Health/WP)
     activeIndex = index;
     
     // Ensure template loaded for rules checks
     const typeKey = npc.template || 'mortal';
     currentTemplate = TEMPLATES[typeKey] || MortalTemplate;
     
-    // Critical: Convert legacy health numbers (e.g. 7) to objects ({damage:0}) BEFORE rendering
+    // Critical: Ensure data structure is valid before rendering
     sanitizeNpcData(activeNpc);
 
     renderPlaySheetModal();
 }
 
+/**
+ * Ensure all necessary NPC data structures exist.
+ * Fixes legacy data issues (e.g. converting health numbers to objects).
+ */
 function sanitizeNpcData(npc) {
-    // Ensure containers exist
-    ['attributes', 'abilities', 'disciplines', 'backgrounds', 'virtues', 'specialties', 'merits', 'flaws', 'bio'].forEach(k => { 
+    // 1. Ensure basic container objects exist
+    const keys = ['attributes', 'abilities', 'disciplines', 'backgrounds', 'virtues', 'specialties', 'merits', 'flaws', 'bio'];
+    keys.forEach(k => { 
         if (!npc[k]) npc[k] = {}; 
     });
+
+    // 2. Ensure Logs exist
     if (!npc.experience) npc.experience = { total: 0, spent: 0, log: [] };
     if (!npc.freebieLog) npc.freebieLog = []; 
     
-    // Ensure defaults from global data exist (unless Animal which has specific defaults)
+    // 3. Ensure Attributes/Abilities have defaults (unless Animal which has specific defaults)
     if (npc.template !== 'animal') {
         if (ATTRIBUTES) Object.values(ATTRIBUTES).flat().forEach(a => { if (npc.attributes[a] === undefined) npc.attributes[a] = 1; });
         if (ABILITIES) Object.values(ABILITIES).flat().forEach(a => { if (npc.abilities[a] === undefined) npc.abilities[a] = 0; });
     }
     
-    // Ensure Vitals exist and are correct types
-    // FIX for "Cannot create property damage on number":
-    // If health is a number (old Animal default), replace it with standard object
+    // 4. FIX: Ensure Health is an Object (Legacy Support)
+    // Old animal templates might have saved health as a number (e.g., 7)
     if (!npc.health || typeof npc.health !== 'object') {
         npc.health = { damage: 0, aggravated: 0 }; 
     }
     
-    if (!npc.tempWillpower) npc.tempWillpower = npc.willpower || 1;
-    if (!npc.currentBlood) npc.currentBlood = npc.bloodPool || 10;
+    // 5. Ensure Pools exist
+    if (npc.tempWillpower === undefined) npc.tempWillpower = npc.willpower || 1;
+    if (npc.currentBlood === undefined) npc.currentBlood = npc.bloodPool || 10;
 }
 
 function switchTemplate(newType) {
     if (!TEMPLATES[newType]) return;
     
-    // Preserve Identity Info (Removed Player)
+    // Preserve Identity Info (Name, Bio, etc.)
     const preserved = {
         name: activeNpc.name,
         chronicle: activeNpc.chronicle,
@@ -198,7 +219,9 @@ function recalcStatus() {
     else if (activeNpc.willpower < baseWill) activeNpc.willpower = baseWill;
 }
 
-// --- IMPORT / EXPORT FUNCTIONS ---
+// ==========================================================================
+// IMPORT / EXPORT
+// ==========================================================================
 
 function exportNpcData() {
     const dataStr = JSON.stringify(activeNpc, null, 2);
@@ -226,16 +249,15 @@ function importNpcData(event) {
                 activeNpc = data;
                 sanitizeNpcData(activeNpc);
                 
-                // If it has a template, verify it exists
+                // Verify template exists
                 if (activeNpc.template && TEMPLATES[activeNpc.template]) {
                     currentTemplate = TEMPLATES[activeNpc.template];
                 } else {
-                    // Default to mortal if unknown
                     activeNpc.template = 'mortal';
                     currentTemplate = TEMPLATES['mortal'];
                 }
                 
-                // Refresh UI
+                // Refresh priorities
                 if (activeNpc.priorities) localPriorities = activeNpc.priorities;
                 else autoDetectPriorities();
                 
@@ -250,11 +272,12 @@ function importNpcData(event) {
         }
     };
     reader.readAsText(file);
-    // Reset input
     event.target.value = '';
 }
 
-// --- RENDER UI (PLAY SHEET) ---
+// ==========================================================================
+// PLAY SHEET RENDERER (VIEW MODE)
+// ==========================================================================
 
 function renderPlaySheetModal() {
     let modal = document.getElementById('npc-play-modal');
@@ -271,6 +294,39 @@ function renderPlaySheetModal() {
 
     // Only show Virtues if not an Animal (they use Willpower/Blood but typically no Virtues)
     const showVirtues = activeNpc.template !== 'animal';
+
+    // --- BIO & EXTRAS GENERATION ---
+    
+    // 1. Physical Stats (Skin, Eyes, Sex, etc. - mostly for Animals/Mortals)
+    const physicalStats = Object.entries(activeNpc.bio || {})
+        .filter(([k, v]) => v && k !== 'Description' && k !== 'Notes')
+        .map(([k, v]) => `<div class="flex justify-between border-b border-[#333] pb-1 mb-1 text-[10px]"><span class="text-gray-500 font-bold uppercase">${k}:</span> <span class="text-gray-200">${v}</span></div>`)
+        .join('');
+
+    // 2. Weakness (Ghoul / Revenant)
+    const weaknessDisplay = activeNpc.weakness ? `
+        <div class="mt-4 p-2 border border-red-900/50 bg-red-900/10 rounded">
+            <span class="text-red-400 font-bold uppercase text-[10px] block mb-1">Weakness / Curse</span>
+            <p class="text-xs text-red-200 italic">${activeNpc.weakness}</p>
+        </div>` : '';
+
+    // 3. Natural Weapons (Animal)
+    const naturalWeaponsDisplay = activeNpc.naturalWeapons ? `
+        <div class="mt-4 p-2 border border-yellow-900/50 bg-yellow-900/10 rounded">
+            <span class="text-[#d4af37] font-bold uppercase text-[10px] block mb-1">Natural Weapons / Abilities</span>
+            <p class="text-xs text-gray-300">${activeNpc.naturalWeapons}</p>
+        </div>` : '';
+
+    // 4. Domitor Info (Ghoul / Ghouled Animal)
+    let domitorDisplay = '';
+    if (activeNpc.domitor) {
+        domitorDisplay = `<div class="mt-2 text-xs text-gray-400"><span class="font-bold text-gray-500 uppercase text-[10px]">Domitor:</span> <span class="text-white">${activeNpc.domitor}</span>`;
+        if (activeNpc.domitorClan) domitorDisplay += ` <span class="text-gray-500">(${activeNpc.domitorClan})</span>`;
+        domitorDisplay += '</div>';
+    }
+    if (activeNpc.bondLevel) {
+        domitorDisplay += `<div class="mt-1 text-xs text-gray-400"><span class="font-bold text-gray-500 uppercase text-[10px]">Blood Bond:</span> <span class="text-[#d4af37]">Step ${activeNpc.bondLevel}</span></div>`;
+    }
 
     const html = `
         <div class="w-[95%] max-w-5xl h-[95%] bg-[#0a0a0a] border border-[#444] shadow-2xl flex flex-col relative font-serif text-white overflow-hidden">
@@ -372,18 +428,48 @@ function renderPlaySheetModal() {
                     </div>
                 </div>
 
-                <!-- Bio / Merits Footer -->
+                <!-- Bio / Merits / Extras Footer -->
                 <div class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-8 border-t border-[#333] pt-6">
-                    <div>
-                        <h4 class="text-gray-500 font-bold uppercase text-xs mb-2">Description / Bio</h4>
-                        <div class="text-xs text-gray-300 italic leading-relaxed">${activeNpc.bio.Description || "No description provided."}</div>
+                    
+                    <!-- Left Column: Biography & Description -->
+                    <div class="space-y-4">
+                        <h4 class="text-gray-500 font-bold uppercase text-xs border-b border-[#333] pb-1">Biography</h4>
+                        ${activeNpc.bio.Description ? `
+                            <div class="text-xs text-gray-300 italic leading-relaxed mb-4">${activeNpc.bio.Description}</div>
+                        ` : '<div class="text-xs text-gray-600 italic">No description provided.</div>'}
+                        
+                        ${activeNpc.bio.Notes ? `
+                            <div class="mt-2"><span class="text-gray-500 font-bold text-[10px] uppercase">Notes:</span> <span class="text-xs text-gray-400">${activeNpc.bio.Notes}</span></div>
+                        ` : ''}
+
+                        ${naturalWeaponsDisplay}
+                        ${weaknessDisplay}
                     </div>
-                    <div>
-                         <h4 class="text-gray-500 font-bold uppercase text-xs mb-2">Merits & Flaws</h4>
-                         <div class="text-xs">
-                            ${Object.entries(activeNpc.merits).map(([k,v]) => `<span class="inline-block bg-blue-900/30 border border-blue-900/50 rounded px-2 py-0.5 mr-2 mb-1">${k} (${v})</span>`).join('')}
-                            ${Object.entries(activeNpc.flaws).map(([k,v]) => `<span class="inline-block bg-red-900/30 border border-red-900/50 rounded px-2 py-0.5 mr-2 mb-1 text-red-300">${k} (${v})</span>`).join('')}
-                         </div>
+
+                    <!-- Right Column: Stats, Merits, Identity -->
+                    <div class="space-y-4">
+                        ${domitorDisplay ? `
+                            <div class="bg-[#111] p-2 border border-[#333] rounded mb-4">
+                                ${domitorDisplay}
+                            </div>
+                        ` : ''}
+
+                        ${physicalStats ? `
+                            <div class="mb-4">
+                                <h4 class="text-gray-500 font-bold uppercase text-xs border-b border-[#333] pb-1 mb-2">Details</h4>
+                                ${physicalStats}
+                            </div>
+                        ` : ''}
+
+                        <div>
+                             <h4 class="text-gray-500 font-bold uppercase text-xs mb-2 border-b border-[#333] pb-1">Merits & Flaws</h4>
+                             <div class="text-xs">
+                                ${Object.keys(activeNpc.merits).length > 0 || Object.keys(activeNpc.flaws).length > 0 ? `
+                                    ${Object.entries(activeNpc.merits).map(([k,v]) => `<span class="inline-block bg-blue-900/30 border border-blue-900/50 rounded px-2 py-0.5 mr-2 mb-1">${k} (${v})</span>`).join('')}
+                                    ${Object.entries(activeNpc.flaws).map(([k,v]) => `<span class="inline-block bg-red-900/30 border border-red-900/50 rounded px-2 py-0.5 mr-2 mb-1 text-red-300">${k} (${v})</span>`).join('')}
+                                ` : '<span class="text-gray-600 italic">None</span>'}
+                             </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -519,7 +605,9 @@ function savePlayState() {
     }
 }
 
-// --- RENDER EDITOR UI ---
+// ==========================================================================
+// EDITOR UI RENDERER (EDIT/CREATE MODE)
+// ==========================================================================
 
 function renderEditorModal() {
     let modal = document.getElementById('npc-modal');
