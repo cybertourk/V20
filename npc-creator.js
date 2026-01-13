@@ -1032,6 +1032,12 @@ function renderEditorModal() {
     setupMF('npc-merit-select', 'merits');
     setupMF('npc-flaw-select', 'flaws');
 
+    // ADDED: Listener for Blood Pool to keep state in sync immediately
+    const bloodInput = document.getElementById('npc-blood');
+    if(bloodInput) bloodInput.oninput = (e) => {
+        activeNpc.bloodPool = parseInt(e.target.value) || 0;
+    };
+
     const xpTot = document.getElementById('npc-xp-total');
     if(xpTot) xpTot.onchange = (e) => {
         activeNpc.experience.total = parseInt(e.target.value) || 0;
@@ -1497,6 +1503,12 @@ function renderAllDots() {
     
     const willRow = document.getElementById('npc-willpower-row');
     if(willRow) willRow.innerHTML = renderDots(activeNpc.willpower, 10);
+    
+    // ADDED: Update Blood Pool Input (if not currently being typed in)
+    const bloodIn = document.getElementById('npc-blood');
+    if(bloodIn && document.activeElement !== bloodIn) {
+        bloodIn.value = activeNpc.bloodPool || 0;
+    }
     
     bindDotClicks();
     updatePrioritiesUI();
