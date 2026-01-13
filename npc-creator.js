@@ -340,11 +340,20 @@ function renderPlaySheetModal() {
             <p class="text-xs text-red-200 italic">${activeNpc.weakness}</p>
         </div>` : '';
 
-    // 3. Natural Weapons (Animal)
+    // 3. Natural Weapons (Animal) - Now Interactive
+    // Parses string like "Claw (7), Bite (5)" into clickable elements
+    const formatNaturalWeapons = (text) => {
+        if (!text) return '';
+        // Pattern: "Word(s) (Number)" e.g. "Claw (7)"
+        return text.replace(/([a-zA-Z0-9\s-]+)\s*\((\d+)\)/g, (match, name, dice) => {
+            return `<span class="npc-attack-interact cursor-pointer text-[#d4af37] font-bold border-b border-dashed border-[#d4af37]/30 hover:text-white hover:border-white transition-colors ml-1" data-name="${name.trim()}" data-dice="${dice}">${match}</span>`;
+        });
+    };
+
     const naturalWeaponsDisplay = activeNpc.naturalWeapons ? `
         <div class="mt-4 p-2 border border-yellow-900/50 bg-yellow-900/10 rounded">
             <span class="text-[#d4af37] font-bold uppercase text-[10px] block mb-1">Natural Weapons / Abilities</span>
-            <p class="text-xs text-gray-300">${activeNpc.naturalWeapons}</p>
+            <p class="text-xs text-gray-300 leading-relaxed">${formatNaturalWeapons(activeNpc.naturalWeapons)}</p>
         </div>` : '';
 
     // 4. Domitor Info (Ghoul / Ghouled Animal)
@@ -738,6 +747,23 @@ function bindPlayInteractions(modal) {
             
             savePlayState();
             renderPlaySheetModal();
+        };
+    });
+
+    // 5. Animal Attacks / Natural Weapons (New Handler)
+    modal.querySelectorAll('.npc-attack-interact').forEach(el => {
+        el.onclick = (e) => {
+            if (typeof clearPool === 'function') clearPool();
+            
+            const name = el.dataset.name;
+            const dice = parseInt(el.dataset.dice) || 0;
+            
+            if (typeof toggleStat === 'function') {
+                toggleStat(name, dice, 'custom');
+                showNotification(`Attack Pool: ${name} (${dice}) loaded.`);
+            } else {
+                console.error("Dice engine not available.");
+            }
         };
     });
 }
