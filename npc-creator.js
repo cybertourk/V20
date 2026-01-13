@@ -362,7 +362,11 @@ function renderPlaySheetModal() {
                         <div class="sheet-section bg-black/30 p-4 border border-[#222]">
                             <h3 class="text-[#8b0000] font-cinzel font-bold border-b border-[#444] mb-2">Disciplines</h3>
                             ${Object.keys(activeNpc.disciplines).length > 0 
-                                ? Object.entries(activeNpc.disciplines).map(([k,v]) => `<div class="flex justify-between text-xs mb-1 font-bold"><span class="uppercase">${k}</span><span>${renderDots(v,5)}</span></div>`).join('') 
+                                ? Object.entries(activeNpc.disciplines).map(([k,v]) => `
+                                    <div class="flex justify-between text-xs mb-1 font-bold group">
+                                        <span class="uppercase cursor-pointer hover:text-[#d4af37] transition-colors" onclick="window.toggleStat && window.toggleStat('${k}', ${v}, 'discipline')">${k}</span>
+                                        <span>${renderDots(v,5)}</span>
+                                    </div>`).join('') 
                                 : '<div class="text-gray-600 italic text-xs">None</div>'}
                         </div>
                         
@@ -376,17 +380,31 @@ function renderPlaySheetModal() {
                         ${showVirtues ? `
                         <div class="sheet-section bg-black/30 p-4 border border-[#222]">
                             <h3 class="text-[#8b0000] font-cinzel font-bold border-b border-[#444] mb-2">Virtues</h3>
-                            ${VIRTUES.map(v => `<div class="flex justify-between text-xs mb-1 font-bold"><span class="uppercase">${v}</span><span>${renderDots(activeNpc.virtues[v]||1, 5)}</span></div>`).join('')}
+                            ${VIRTUES.map(v => `<div class="flex justify-between text-xs mb-1 font-bold group">
+                                <span class="uppercase cursor-pointer hover:text-[#d4af37] transition-colors" onclick="window.toggleStat && window.toggleStat('${v}', ${activeNpc.virtues[v]||1}, 'virtue')">${v}</span>
+                                <span>${renderDots(activeNpc.virtues[v]||1, 5)}</span>
+                            </div>`).join('')}
                         </div>` : ''}
                     </div>
 
                     <!-- Col 3: Vitals (Interactive) -->
                     <div class="space-y-6">
                         
+                        <!-- Humanity / Road -->
+                        <div class="bg-[#111] p-4 border border-[#333]">
+                             <div class="flex justify-between items-center mb-2">
+                                <h3 class="text-[#d4af37] font-bold uppercase text-sm cursor-pointer hover:text-white" onclick="window.toggleStat && window.toggleStat('Humanity', ${activeNpc.humanity}, 'humanity')">Humanity / Road</h3>
+                                <div class="text-xs font-bold text-gray-500">Rating: ${activeNpc.humanity}</div>
+                            </div>
+                            <div class="flex justify-center gap-1">
+                                ${renderDots(activeNpc.humanity, 10)}
+                            </div>
+                        </div>
+
                         <!-- Willpower -->
                         <div class="bg-[#111] p-4 border border-[#333]">
                             <div class="flex justify-between items-center mb-2">
-                                <h3 class="text-[#d4af37] font-bold uppercase text-sm">Willpower</h3>
+                                <h3 class="text-[#d4af37] font-bold uppercase text-sm cursor-pointer hover:text-white" onclick="window.toggleStat && window.toggleStat('Willpower', ${activeNpc.willpower}, 'willpower')">Willpower</h3>
                                 <div class="text-xs font-bold text-gray-500">Perm: ${activeNpc.willpower}</div>
                             </div>
                             <div class="flex justify-center gap-1 mb-2">
@@ -498,8 +516,8 @@ function renderSimpleDots(data, structure, type) {
         list.forEach(k => {
             const val = data[k] || 0;
             if (val > 0 || type === 'attributes') {
-                html += `<div class="flex justify-between items-center mb-0.5 text-xs">
-                    <span class="text-gray-300">${k}</span>
+                html += `<div class="flex justify-between items-center mb-0.5 text-xs group">
+                    <span class="text-gray-300 cursor-pointer hover:text-[#d4af37] transition-colors" onclick="window.toggleStat && window.toggleStat('${k}', ${val}, '${type}')">${k}</span>
                     <span>${renderDots(val, 5)}</span>
                 </div>`;
             }
@@ -1804,7 +1822,7 @@ function updateFreebieCalc() {
                 return `
                     <div class="flex justify-between border-b border-[#222] pb-1 mb-1 text-[9px]">
                         <div><span class="text-white font-bold">${l.trait}</span></div>
-                        <div class="${color} font-bold">${costDisplay}</div>
+                        <div class="text="${color} font-bold">${costDisplay}</div>
                     </div>
                     <div class="text-[8px] text-gray-600 mb-1 italic">${detail}</div>
                 `;
