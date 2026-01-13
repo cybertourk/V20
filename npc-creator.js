@@ -91,7 +91,8 @@ export function openNpcSheet(npc, index) {
 }
 
 function sanitizeNpcData(npc) {
-    ['attributes', 'abilities', 'disciplines', 'backgrounds', 'specialties', 'merits', 'flaws', 'bio'].forEach(k => { 
+    // Added 'virtues' to the list to prevent crashes if it's missing (e.g., for Animals)
+    ['attributes', 'abilities', 'disciplines', 'backgrounds', 'virtues', 'specialties', 'merits', 'flaws', 'bio'].forEach(k => { 
         if (!npc[k]) npc[k] = {}; 
     });
     if (!npc.experience) npc.experience = { total: 0, spent: 0, log: [] };
@@ -208,6 +209,9 @@ function renderPlaySheetModal() {
         ? `${activeNpc.type || 'Ghoul'} ${activeNpc.domitorClan ? `(${activeNpc.domitorClan})` : ''}` 
         : (activeNpc.template === 'animal' ? 'Animal' : 'Mortal');
 
+    // Only show Virtues if not an Animal (they use Willpower/Blood but typically no Virtues)
+    const showVirtues = activeNpc.template !== 'animal';
+
     const html = `
         <div class="w-[95%] max-w-5xl h-[95%] bg-[#0a0a0a] border border-[#444] shadow-2xl flex flex-col relative font-serif text-white overflow-hidden">
             <!-- Header -->
@@ -253,10 +257,11 @@ function renderPlaySheetModal() {
                                 : '<div class="text-gray-600 italic text-xs">None</div>'}
                         </div>
 
+                        ${showVirtues ? `
                         <div class="sheet-section bg-black/30 p-4 border border-[#222]">
                             <h3 class="text-[#8b0000] font-cinzel font-bold border-b border-[#444] mb-2">Virtues</h3>
                             ${VIRTUES.map(v => `<div class="flex justify-between text-xs mb-1 font-bold"><span class="uppercase">${v}</span><span>${renderDots(activeNpc.virtues[v]||1, 5)}</span></div>`).join('')}
-                        </div>
+                        </div>` : ''}
                     </div>
 
                     <!-- Col 3: Vitals (Interactive) -->
@@ -389,10 +394,6 @@ function renderHealthTrack() {
     ];
 
     // Simple damage tracking: activeNpc.health.damage is index of filled box
-    // V20 Health: [ ] [ ] [ ] [ ] [ ] [ ] [ ]
-    // We treat damage as number of boxes marked X or /
-    // For this simple tracker, we just use Filled vs Empty
-    
     const damage = activeNpc.health.damage || 0;
 
     return levels.map((lvl, idx) => {
@@ -713,20 +714,17 @@ function renderEditorModal() {
                         </div>
                     </div>
 
-                    <!-- SIDEBARS RENDERED HERE (XP/FREEBIE) - OMITTED FOR BREVITY AS THEY ARE UNCHANGED FROM PREVIOUS -->
-                    <!-- They are preserved in the actual rendering logic if present in previous version -->
-                    <!-- Re-inserting Sidebar code from previous block to ensure integrity -->
-                     <!-- SIDEBAR: XP LEDGER -->
+                    <!-- SIDEBAR: XP LEDGER -->
                     <div id="npc-xp-sidebar" class="hidden w-64 bg-[#080808] border-l border-[#333] flex-col shrink-0">
                         <div class="p-3 bg-[#111] border-b border-[#333] text-center"><h3 class="text-purple-400 font-cinzel font-bold">XP Ledger</h3></div>
                         
                         <div class="text-[10px] font-mono space-y-2 p-4 bg-black/40 text-gray-400 flex-none border-b border-[#333]">
                             <div class="flex justify-between border-b border-[#222] pb-1"><span>Attributes:</span> <span id="npc-xp-cost-attr" class="text-white">0</span></div>
                             <div class="flex justify-between border-b border-[#222] pb-1"><span>Abilities:</span> <span id="npc-xp-cost-abil" class="text-white">0</span></div>
-                            <div class="flex justify-between border-b border-[#222] pb-1"><span>Disciplines:</span> <span id="npc-xp-cost-disc" class="text-white">0</span></div>
-                            <div class="flex justify-between border-b border-[#222] pb-1"><span>Backgrounds:</span> <span id="npc-xp-cost-back" class="text-white">0</span></div>
-                            <div class="flex justify-between border-b border-[#222] pb-1"><span>Virtues:</span> <span id="npc-xp-cost-virt" class="text-white">0</span></div>
-                            <div class="flex justify-between border-b border-[#222] pb-1"><span>Humanity:</span> <span id="npc-xp-cost-hum" class="text-white">0</span></div>
+                            ${f.disciplines ? `<div class="flex justify-between border-b border-[#222] pb-1"><span>Disciplines:</span> <span id="npc-xp-cost-disc" class="text-white">0</span></div>` : ''}
+                            ${f.backgrounds ? `<div class="flex justify-between border-b border-[#222] pb-1"><span>Backgrounds:</span> <span id="npc-xp-cost-back" class="text-white">0</span></div>` : ''}
+                            ${f.virtues ? `<div class="flex justify-between border-b border-[#222] pb-1"><span>Virtues:</span> <span id="npc-xp-cost-virt" class="text-white">0</span></div>` : ''}
+                            ${f.humanity ? `<div class="flex justify-between border-b border-[#222] pb-1"><span>Humanity:</span> <span id="npc-xp-cost-hum" class="text-white">0</span></div>` : ''}
                             <div class="flex justify-between border-b border-[#222] pb-1"><span>Willpower:</span> <span id="npc-xp-cost-will" class="text-white">0</span></div>
                             
                             <div class="mt-4 pt-2 border-t border-[#444]">
@@ -754,10 +752,10 @@ function renderEditorModal() {
                         <div class="text-[10px] font-mono space-y-2 p-4 bg-black/40 text-gray-400 flex-none border-b border-[#333]">
                             <div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-attr">Attributes (5):</span> <span id="npc-fb-cost-attr" class="text-white">0</span></div>
                             <div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-abil">Abilities (2):</span> <span id="npc-fb-cost-abil" class="text-white">0</span></div>
-                            <div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-disc">Disciplines (10):</span> <span id="npc-fb-cost-disc" class="text-white">0</span></div>
-                            <div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-back">Backgrounds (1):</span> <span id="npc-fb-cost-back" class="text-white">0</span></div>
-                            <div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-virt">Virtues (2):</span> <span id="npc-fb-cost-virt" class="text-white">0</span></div>
-                            <div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-human">Humanity (1):</span> <span id="npc-fb-cost-hum" class="text-white">0</span></div>
+                            ${f.disciplines ? `<div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-disc">Disciplines (10):</span> <span id="npc-fb-cost-disc" class="text-white">0</span></div>` : ''}
+                            ${f.backgrounds ? `<div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-back">Backgrounds (1):</span> <span id="npc-fb-cost-back" class="text-white">0</span></div>` : ''}
+                            ${f.virtues ? `<div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-virt">Virtues (2):</span> <span id="npc-fb-cost-virt" class="text-white">0</span></div>` : ''}
+                            ${f.humanity ? `<div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-human">Humanity (1):</span> <span id="npc-fb-cost-hum" class="text-white">0</span></div>` : ''}
                             <div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-will">Willpower (1):</span> <span id="npc-fb-cost-will" class="text-white">0</span></div>
                             <div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-merit">Merits (Cost):</span> <span id="npc-fb-cost-merit" class="text-white">0</span></div>
                             <div class="flex justify-between border-b border-[#222] pb-1"><span id="lbl-flaw">Flaws (Bonus):</span> <span id="npc-fb-cost-flaw" class="text-green-400">0</span></div>
@@ -777,7 +775,6 @@ function renderEditorModal() {
                             <div id="npc-fb-final" class="text-4xl font-black text-white mt-2 font-cinzel">21</div>
                         </div>
                     </div>
-
                 </div>
 
                 <!-- FOOTER -->
@@ -1486,6 +1483,158 @@ function updateVirtueDisplay() {
     if(el) el.innerText = `(Max ${limit} Dots)`;
 }
 
+// --- LOGGING & SIDEBARS ---
+
+function updateXpLog() {
+    if(!modes.xp) return;
+    const spentDiv = document.getElementById('npc-xp-spent');
+    const remDiv = document.getElementById('npc-xp-remain');
+    
+    // Recalculate totals from log
+    let costs = { attr: 0, abil: 0, disc: 0, back: 0, virt: 0, hum: 0, will: 0, merit: 0, flaw: 0 };
+    let spentTotal = 0;
+
+    activeNpc.experience.log.forEach(entry => {
+        const type = entry.type; 
+        const cost = entry.cost;
+        spentTotal += cost;
+
+        if (type === 'attributes') costs.attr += cost;
+        else if (type === 'abilities') costs.abil += cost;
+        else if (type === 'disciplines') costs.disc += cost;
+        else if (type === 'backgrounds') costs.back += cost;
+        else if (type === 'virtues') costs.virt += cost;
+        else if (type === 'humanity') costs.hum += cost;
+        else if (type === 'willpower') costs.will += cost;
+    });
+
+    activeNpc.experience.spent = spentTotal; // Sync state
+    
+    if(spentDiv) spentDiv.innerText = activeNpc.experience.spent;
+    if(remDiv) remDiv.innerText = activeNpc.experience.total - activeNpc.experience.spent;
+
+    // Update Category Breakdown (Matched to Freebie Layout)
+    const setXpCost = (id, val) => {
+        const el = document.getElementById(id);
+        if(el) {
+            el.innerText = val;
+            el.className = val > 0 ? "text-purple-400 font-bold" : "text-gray-500";
+        }
+    };
+    
+    setXpCost('npc-xp-cost-attr', costs.attr);
+    setXpCost('npc-xp-cost-abil', costs.abil);
+    setXpCost('npc-xp-cost-disc', costs.disc);
+    setXpCost('npc-xp-cost-back', costs.back);
+    setXpCost('npc-xp-cost-virt', costs.virt);
+    setXpCost('npc-xp-cost-hum', costs.hum);
+    setXpCost('npc-xp-cost-will', costs.will);
+
+    // Update Log
+    const logDiv = document.getElementById('npc-xp-list');
+    if(logDiv) {
+        if(activeNpc.experience.log.length === 0) {
+            logDiv.innerHTML = '<div class="italic opacity-50">No XP spent.</div>';
+        } else {
+            // Newest at top
+            logDiv.innerHTML = activeNpc.experience.log.slice().reverse().map(l => {
+                const date = new Date(l.date).toLocaleDateString(undefined, { month:'short', day:'numeric' });
+                return `
+                    <div class="flex justify-between border-b border-[#222] pb-1 mb-1 text-[9px]">
+                        <div><span class="text-gray-500">[${date}]</span> <span class="text-white font-bold">${l.trait}</span></div>
+                        <div class="text-purple-400 font-bold">-${l.cost}</div>
+                    </div>
+                    <div class="text-[8px] text-gray-600 mb-1 italic">${l.from} &rarr; ${l.to}</div>
+                `;
+            }).join('');
+        }
+    }
+}
+
+function updateFreebieCalc() {
+    if(!modes.freebie) return;
+    
+    let costs = { attr: 0, abil: 0, disc: 0, back: 0, virt: 0, hum: 0, will: 0, merit: 0, flaw: 0 };
+    let totalSpent = 0;
+    
+    activeNpc.freebieLog.forEach(l => {
+        totalSpent += l.cost;
+        if (l.type === 'attributes') costs.attr += l.cost;
+        else if (l.type === 'abilities') costs.abil += l.cost;
+        else if (l.type === 'disciplines') costs.disc += l.cost;
+        else if (l.type === 'backgrounds') costs.back += l.cost;
+        else if (l.type === 'virtues') costs.virt += l.cost;
+        else if (l.type === 'humanity') costs.hum += l.cost;
+        else if (l.type === 'willpower') costs.will += l.cost;
+        else if (l.type === 'merit') costs.merit += l.cost;
+        else if (l.type === 'flaw') costs.flaw += Math.abs(l.cost); // Flaws are usually bonus, so track magnitude here
+    });
+
+    const remaining = 21 - totalSpent;
+
+    const setCost = (id, val) => {
+        const el = document.getElementById(id);
+        if(el) {
+            el.innerText = val;
+            el.className = val > 0 ? "text-red-400 font-bold" : "text-gray-500";
+        }
+    };
+    
+    setCost('npc-fb-cost-attr', costs.attr);
+    setCost('npc-fb-cost-abil', costs.abil);
+    setCost('npc-fb-cost-disc', costs.disc);
+    setCost('npc-fb-cost-back', costs.back);
+    setCost('npc-fb-cost-virt', costs.virt);
+    setCost('npc-fb-cost-hum', costs.hum);
+    setCost('npc-fb-cost-will', costs.will);
+    setCost('npc-fb-cost-merit', costs.merit);
+    
+    const flawEl = document.getElementById('npc-fb-cost-flaw');
+    if(flawEl) {
+        flawEl.innerText = costs.flaw;
+        flawEl.className = costs.flaw > 0 ? "text-green-400 font-bold" : "text-gray-500";
+    }
+    
+    const fbEl = document.getElementById('npc-fb-final');
+    if(fbEl) {
+        fbEl.innerText = remaining;
+        fbEl.className = remaining >= 0 ? "text-4xl font-black text-white mt-2 font-cinzel" : "text-4xl font-black text-red-500 mt-2 font-cinzel";
+    }
+    
+    const fbTotalCalc = document.getElementById('npc-fb-total-calc');
+    if(fbTotalCalc) {
+        fbTotalCalc.innerText = remaining;
+        fbTotalCalc.className = remaining >= 0 ? "text-green-400" : "text-red-500";
+    }
+
+    const logEl = document.getElementById('npc-fb-log-list');
+    if(logEl) {
+        if (activeNpc.freebieLog.length === 0) logEl.innerHTML = '<div class="italic opacity-50">No freebie points spent.</div>';
+        else {
+            logEl.innerHTML = activeNpc.freebieLog.slice().reverse().map(l => {
+                const isBonus = l.cost < 0;
+                const costDisplay = isBonus ? `+${Math.abs(l.cost)}` : `-${l.cost}`;
+                const color = isBonus ? 'text-green-400' : 'text-red-400';
+                
+                let detail = "";
+                if (l.from !== undefined && l.to !== undefined) {
+                    detail = `${l.from} &rarr; ${l.to}`;
+                } else {
+                    detail = "Added";
+                }
+
+                return `
+                    <div class="flex justify-between border-b border-[#222] pb-1 mb-1 text-[9px]">
+                        <div><span class="text-white font-bold">${l.trait}</span></div>
+                        <div class="${color} font-bold">${costDisplay}</div>
+                    </div>
+                    <div class="text-[8px] text-gray-600 mb-1 italic">${detail}</div>
+                `;
+            }).join('');
+        }
+    }
+}
+
 // --- SAVE ---
 
 function saveNpc() {
@@ -1547,3 +1696,14 @@ function saveNpc() {
     showNotification(`${currentTemplate.label} Saved.`);
     document.getElementById('npc-modal').style.display = 'none';
 }
+
+// --- UNSAVED CHANGES PROTECTION ---
+window.addEventListener('beforeunload', (e) => {
+    // Only warn if a character name exists (implies work has been done)
+    const name = window.state?.textFields?.['c-name'];
+    if (name) {
+        e.preventDefault();
+        e.returnValue = ''; // Legacy support for Chrome
+        return "Unsaved changes may be lost.";
+    }
+});
