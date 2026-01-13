@@ -5,6 +5,7 @@
 
 import { ATTRIBUTES, ABILITIES } from "./data.js";
 
+// --- V20 BESTIARY DATABASE ---
 const ANIMAL_SPECIES = {
     "Alligator": {
         attr: { Strength: 4, Dexterity: 2, Stamina: 4, Perception: 3, Intelligence: 2, Wits: 3 },
@@ -325,19 +326,44 @@ export const AnimalTemplate = {
 
     getPriorities: () => ({ attr: null, abil: null }), // No prioritization for animals, direct stats
 
-    // Cost is N/A for animals mostly, they are created by GM fiat
-    getCost: () => 0, 
-    validateChange: () => true,
     getVirtueLimit: () => 10,
+
+    // RESTORED: Strict Stat Locking
+    validateChange: (type, key, newVal, currentVal) => {
+        // STRICT LOCK: Animal stats are fixed by species preset in Creation Mode
+        // Return a string error message to block the change.
+        return "Animal stats are fixed by species preset. Use XP/Freebie Mode to modify.";
+    },
+
+    // RESTORED: Cost Calculation Logic
+    getCost: (mode, type, key, current, target, data) => {
+        const delta = target - current;
+        if (delta <= 0) return 0;
+
+        if (mode === 'xp') {
+            if (delta > 1) return -1;
+            if (type === 'attributes') return target * XP_COSTS.attribute;
+            if (type === 'abilities') return (current === 0) ? XP_COSTS.newAbility : target * XP_COSTS.ability;
+            if (type === 'willpower') return current * XP_COSTS.willpower;
+            if (type === 'disciplines') return current * XP_COSTS.discipline_phys;
+        } 
+        else if (mode === 'freebie') {
+            let mult = 0;
+            if (type === 'attributes') mult = FB_COSTS.attribute;
+            else if (type === 'abilities') mult = FB_COSTS.ability;
+            else if (type === 'willpower') mult = FB_COSTS.willpower;
+            else if (type === 'disciplines') mult = FB_COSTS.discipline;
+            
+            return delta * mult;
+        }
+        return 0;
+    },
 
     renderIdentityExtras: (data) => {
         const speciesOpts = Object.keys(ANIMAL_SPECIES).sort().map(s => 
             `<option value="${s}" ${data.species === s ? 'selected' : ''}>${s}</option>`
         ).join('');
 
-        // If ghouled, show Potence and Blood Pool bonus info
-        // (V20 p. 389: "gain Willpower, a dot of Potence, a useable blood pool of 2")
-        
         return `
             <div class="space-y-6 border-t border-[#333] pt-4 mt-2">
                 <div>
@@ -372,7 +398,6 @@ export const AnimalTemplate = {
     },
 
     renderBio: (data) => {
-        // Animals don't need detailed history/goals
         const getVal = (field) => (data.bio && data.bio[field]) ? data.bio[field] : '';
 
         return `
