@@ -567,6 +567,12 @@ function bindPlayInteractions(modal) {
             const val = parseInt(box.dataset.val);
             const current = activeNpc[field] || 0;
             
+            // ADDED: Cap Temp Willpower at Permanent Willpower rating
+            if (field === 'tempWillpower') {
+                const perm = activeNpc.willpower || 10;
+                if (val > perm) return;
+            }
+            
             // Toggle logic
             if (val === current) activeNpc[field] = val - 1;
             else activeNpc[field] = val;
