@@ -7,8 +7,8 @@ import {
     V20_MERITS_LIST, V20_FLAWS_LIST, VIT 
 } from "./data.js";
 import { renderDots, showNotification } from "./ui-common.js";
-// Keeping import commented out to ensure stability with window.toggleStat
-// import { toggleStat } from "./ui-mechanics.js";
+// ADDED: Import directly from ui-mechanics now that it exports them
+import { toggleStat, clearPool } from "./ui-mechanics.js";
 
 // Registry of available templates
 const TEMPLATES = {
@@ -657,12 +657,12 @@ function bindPlayInteractions(modal) {
             const score = parseInt(el.dataset.val) || 0;
             const type = el.dataset.type;
             
-            // REVERTED to window.toggleStat to prevent crash until ui-mechanics.js is updated
-            if (window.toggleStat) {
-                window.toggleStat(name, score, type);
+            // Use imported function directly
+            if (typeof toggleStat === 'function') {
+                toggleStat(name, score, type);
             } else {
-                console.error("Dice engine (window.toggleStat) not found.");
-                showNotification("Dice Engine not accessible. Please update ui-mechanics.js.");
+                console.error("Dice engine not found or failed to import.");
+                showNotification("Error: Dice Engine not available.");
             }
         };
     });
@@ -670,28 +670,30 @@ function bindPlayInteractions(modal) {
     // 2. COMBAT STATS INTERACTION (New)
     modal.querySelectorAll('.npc-combat-interact').forEach(el => {
         el.onclick = (e) => {
-            if (!window.toggleStat) return;
+            // Use imported functions
+            if (typeof clearPool === 'function') clearPool();
             
-            // Start fresh
-            if(window.clearPool) window.clearPool();
-
             const action = el.dataset.action;
             const v1 = parseInt(el.dataset.v1) || 0;
             const v2 = parseInt(el.dataset.v2) || 0;
 
-            if (action === 'init') {
-                window.toggleStat('Dexterity', v1, 'attribute');
-                window.toggleStat('Wits', v2, 'attribute');
-                showNotification("Initiative Pool Loaded. Roll 1 Die + Total.");
-            }
-            else if (action === 'soak') {
-                window.toggleStat('Stamina', v1, 'attribute');
-                if (v2 > 0) window.toggleStat('Fortitude', v2, 'discipline');
-                showNotification("Soak Pool Loaded.");
-            }
-            else if (action === 'stat') {
-                const name = el.dataset.name;
-                window.toggleStat(name, v1, 'discipline');
+            if (typeof toggleStat === 'function') {
+                if (action === 'init') {
+                    toggleStat('Dexterity', v1, 'attribute');
+                    toggleStat('Wits', v2, 'attribute');
+                    showNotification("Initiative Pool Loaded. Roll 1 Die + Total.");
+                }
+                else if (action === 'soak') {
+                    toggleStat('Stamina', v1, 'attribute');
+                    if (v2 > 0) toggleStat('Fortitude', v2, 'discipline');
+                    showNotification("Soak Pool Loaded.");
+                }
+                else if (action === 'stat') {
+                    const name = el.dataset.name;
+                    toggleStat(name, v1, 'discipline');
+                }
+            } else {
+                console.error("Dice engine not found for combat stats.");
             }
         };
     });
