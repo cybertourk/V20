@@ -321,6 +321,9 @@ function renderPlaySheetModal() {
     
     // UPDATED: Animals have no Humanity
     const showHumanity = activeNpc.template !== 'animal';
+    
+    // ADDED: Only show " / Road" if the character is explicitly a Vampire
+    const humanityLabel = activeNpc.template === 'vampire' ? 'Humanity / Road' : 'Humanity';
 
     // --- BIO & EXTRAS GENERATION ---
     
@@ -421,7 +424,7 @@ function renderPlaySheetModal() {
                         ${showHumanity ? `
                         <div class="bg-[#111] p-4 border border-[#333]">
                              <div class="flex justify-between items-center mb-2">
-                                <h3 class="text-[#d4af37] font-bold uppercase text-sm cursor-pointer hover:text-white roll-stat" data-stat="Humanity" data-val="${activeNpc.humanity}" data-type="humanity">Humanity / Road</h3>
+                                <h3 class="text-[#d4af37] font-bold uppercase text-sm cursor-pointer hover:text-white roll-stat" data-stat="Humanity" data-val="${activeNpc.humanity}" data-type="humanity">${humanityLabel}</h3>
                                 <div class="text-xs font-bold text-gray-500">Rating: ${activeNpc.humanity}</div>
                             </div>
                             <div class="flex justify-center gap-1">
