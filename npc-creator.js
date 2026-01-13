@@ -7,6 +7,8 @@ import {
     V20_MERITS_LIST, V20_FLAWS_LIST, VIT 
 } from "./data.js";
 import { renderDots, showNotification } from "./ui-common.js";
+// ADDED: Import dice engine directly
+import { toggleStat } from "./ui-mechanics.js";
 
 // Registry of available templates
 const TEMPLATES = {
@@ -610,10 +612,11 @@ function bindPlayInteractions(modal) {
             const score = parseInt(el.dataset.val) || 0;
             const type = el.dataset.type;
             
-            if (window.toggleStat) {
-                window.toggleStat(name, score, type);
+            // Use imported function directly
+            if (toggleStat) {
+                toggleStat(name, score, type);
             } else {
-                console.error("Dice engine (window.toggleStat) not found.");
+                console.error("Dice engine not found or failed to import.");
                 showNotification("Error: Dice Engine not available.");
             }
         };
