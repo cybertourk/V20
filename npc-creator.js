@@ -4,7 +4,8 @@ import { AnimalTemplate } from "./npc-animal.js";
 import { 
     ATTRIBUTES, ABILITIES, VIRTUES, DISCIPLINES, BACKGROUNDS, 
     ARCHETYPES, CLANS, SPECIALTY_EXAMPLES as SPECIALTIES,
-    V20_MERITS_LIST, V20_FLAWS_LIST, VIT 
+    V20_MERITS_LIST, V20_FLAWS_LIST, VIT,
+    WEAPONS, RANGED_WEAPONS, ARMOR, GEAR 
 } from "./data.js";
 import { renderDots, showNotification } from "./ui-common.js";
 // ADDED: Import directly from ui-mechanics now that it exports them
@@ -156,6 +157,9 @@ function sanitizeNpcData(npc) {
     // 5. Ensure Pools exist
     if (npc.tempWillpower === undefined) npc.tempWillpower = npc.willpower || 1;
     if (npc.currentBlood === undefined) npc.currentBlood = npc.bloodPool || 10;
+
+    // 6. Ensure Inventory
+    if (!npc.inventory || !Array.isArray(npc.inventory)) npc.inventory = [];
 }
 
 function switchTemplate(newType) {
@@ -370,9 +374,26 @@ function renderPlaySheetModal() {
     // --- PREPARE COMBAT STATS ---
     const dex = activeNpc.attributes.Dexterity || 1;
     const wits = activeNpc.attributes.Wits || 1;
-    const sta = activeNpc.attributes.Stamina || 1;
+    let sta = activeNpc.attributes.Stamina || 1;
     const fort = activeNpc.disciplines.Fortitude || 0;
     const pot = activeNpc.disciplines.Potence || 0;
+
+    // Filter Inventory
+    const inventory = activeNpc.inventory || [];
+    const weapons = inventory.filter(i => i.type === 'Melee' || i.type === 'Ranged' || i.type === 'Weapon');
+    const armor = inventory.filter(i => i.type === 'Armor');
+    const gear = inventory.filter(i => i.type === 'Gear' || i.type === 'Item');
+
+    // Calculate Armor Rating
+    let armorRating = 0;
+    let armorName = "";
+    if (armor.length > 0) {
+        armor.forEach(a => {
+            const rating = parseInt(a.stats?.rating || a.rating || 0);
+            armorRating += rating;
+            armorName = a.name; // Just take the last one name for display if single
+        });
+    }
 
     const html = `
         <div class="w-[95%] max-w-5xl h-[95%] bg-[#0a0a0a] border border-[#444] shadow-2xl flex flex-col relative font-serif text-white overflow-hidden pb-16">
@@ -493,17 +514,43 @@ function renderPlaySheetModal() {
 
                                 <!-- Soak (Bash) -->
                                 <div class="flex justify-between border-b border-[#333] py-1 cursor-pointer hover:text-[#d4af37] transition-colors npc-combat-interact"
-                                     data-action="soak" data-v1="${sta}" data-v2="${fort}">
+                                     data-action="soak" data-v1="${sta}" data-v2="${fort}" data-v3="${armorRating}">
                                     <span class="font-bold">Soak (Bash):</span> 
-                                    <span>${sta + fort} Dice</span>
+                                    <span>${sta + fort + armorRating} Dice</span>
                                 </div>
 
                                 <!-- Soak (Lethal) -->
                                 <div class="flex justify-between border-b border-[#333] py-1 cursor-pointer hover:text-[#d4af37] transition-colors npc-combat-interact"
-                                     data-action="soak" data-v1="${activeNpc.template === 'mortal' ? 0 : sta}" data-v2="${fort}">
+                                     data-action="soak" data-v1="${activeNpc.template === 'mortal' ? 0 : sta}" data-v2="${fort}" data-v3="${armorRating}">
                                     <span class="font-bold">Soak (Lethal):</span> 
-                                    <span>${activeNpc.template === 'mortal' ? 0 : (sta + fort)} Dice</span>
+                                    <span>${(activeNpc.template === 'mortal' ? 0 : sta) + fort + armorRating} Dice</span>
                                 </div>
+                                
+                                ${armorRating > 0 ? `<div class="text-[9px] text-gray-500 italic text-right mb-1">Includes Armor: +${armorRating}</div>` : ''}
+
+                                <!-- Weapons List (Attack Rolls) -->
+                                ${weapons.length > 0 ? `
+                                    <div class="mt-2 pt-2 border-t border-[#333]">
+                                        ${weapons.map(w => {
+                                            let pool = dex;
+                                            let skill = 'Melee';
+                                            if (w.type === 'Ranged') skill = 'Firearms'; // Basic assumption
+                                            // Ideally data.js has skill info, defaulting to Melee/Firearms based on type
+                                            
+                                            // Check skill dots
+                                            const skillVal = activeNpc.abilities[skill] || 0;
+                                            const total = pool + skillVal;
+                                            const dmg = w.stats?.damage || w.damage || "STR";
+                                            
+                                            return `
+                                            <div class="flex justify-between border-b border-[#333] py-1 cursor-pointer hover:text-[#d4af37] transition-colors npc-combat-interact"
+                                                 data-action="weapon" data-v1="${pool}" data-v2="${skillVal}" data-name="${w.name}">
+                                                <span class="font-bold text-[#d4af37]">${w.name}</span> 
+                                                <span>${total} Dice <span class="text-[9px] text-gray-500">(${dmg})</span></span>
+                                            </div>`;
+                                        }).join('')}
+                                    </div>
+                                ` : ''}
 
                                 <!-- Fortitude -->
                                 ${(fort > 0) ? `
@@ -521,6 +568,16 @@ function renderPlaySheetModal() {
 
                             </div>
                         </div>
+                        
+                        <!-- Inventory List (New) -->
+                        ${inventory.length > 0 ? `
+                        <div class="bg-[#111] p-3 border border-[#333] text-xs">
+                            <h4 class="font-bold text-gray-500 uppercase mb-2">Inventory</h4>
+                            <div class="space-y-1">
+                                ${inventory.map(i => `<div class="text-gray-400 flex justify-between border-b border-[#222] pb-1"><span>${i.name}</span> <span class="text-[9px] uppercase">${i.type}</span></div>`).join('')}
+                            </div>
+                        </div>` : ''}
+
                     </div>
                 </div>
 
@@ -685,6 +742,7 @@ function bindPlayInteractions(modal) {
             const action = el.dataset.action;
             const v1 = parseInt(el.dataset.v1) || 0;
             const v2 = parseInt(el.dataset.v2) || 0;
+            const v3 = parseInt(el.dataset.v3) || 0; // Extra bonus (armor)
 
             if (typeof toggleStat === 'function') {
                 if (action === 'init') {
@@ -695,11 +753,20 @@ function bindPlayInteractions(modal) {
                 else if (action === 'soak') {
                     toggleStat('Stamina', v1, 'attribute');
                     if (v2 > 0) toggleStat('Fortitude', v2, 'discipline');
+                    if (v3 > 0) toggleStat('Armor', v3, 'custom');
                     showNotification("Soak Pool Loaded.");
                 }
                 else if (action === 'stat') {
                     const name = el.dataset.name;
                     toggleStat(name, v1, 'discipline');
+                }
+                else if (action === 'weapon') {
+                    const name = el.dataset.name;
+                    // For weapons, we try to load Attributes + Skill
+                    // If we passed them (v1=dex, v2=skill), use them
+                    if (v1 > 0) toggleStat('Dexterity', v1, 'attribute');
+                    if (v2 > 0) toggleStat('Skill', v2, 'ability'); 
+                    showNotification(`Attack: ${name} Loaded.`);
                 }
             } else {
                 console.error("Dice engine not found for combat stats.");
@@ -806,6 +873,9 @@ function renderEditorModal() {
     // Determine initial visibility of specific fields (Column distribution handled in template now, but we need flags here)
     const showDomitorClan = activeNpc.type === 'Vassal';
     const showBondLevel = activeNpc.type === 'Vassal';
+    
+    // NEW: Show Equipment Tab for Mortals/Ghouls only
+    const showEquipment = activeNpc.template !== 'animal';
 
     try {
         modal.innerHTML = `
@@ -846,7 +916,8 @@ function renderEditorModal() {
                     ${renderTabButton('step2', '2. Attributes')}
                     ${renderTabButton('step3', '3. Abilities')}
                     ${renderTabButton('step4', '4. Advantages')}
-                    ${renderTabButton('stepBio', '5. Biography')}
+                    ${showEquipment ? renderTabButton('step5', '5. Equipment') : ''}
+                    ${renderTabButton('stepBio', '6. Biography')}
                 </div>
 
                 <!-- CONTENT AREA -->
@@ -1017,7 +1088,40 @@ function renderEditorModal() {
                             </div>
                         </div>
 
-                        <!-- STEP 5: BIO -->
+                        <!-- STEP 5: EQUIPMENT (NEW) -->
+                        ${showEquipment ? `
+                        <div id="step5" class="npc-step hidden">
+                            <div class="sheet-section !mt-0">
+                                <div class="section-title">Equipment</div>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                    <div class="space-y-4">
+                                        <h4 class="text-gray-500 font-bold uppercase text-xs border-b border-[#333] pb-1">Add Gear</h4>
+                                        <select id="npc-add-melee" class="w-full bg-black/50 border border-[#444] text-xs text-gray-300 p-2 mb-2 outline-none focus:border-[#d4af37]">
+                                            <option value="">+ Add Melee Weapon</option>
+                                            ${(WEAPONS||[]).map(w => `<option value="${w.name}">${w.name}</option>`).join('')}
+                                        </select>
+                                        <select id="npc-add-ranged" class="w-full bg-black/50 border border-[#444] text-xs text-gray-300 p-2 mb-2 outline-none focus:border-[#d4af37]">
+                                            <option value="">+ Add Ranged Weapon</option>
+                                            ${(RANGED_WEAPONS||[]).map(w => `<option value="${w.name}">${w.name}</option>`).join('')}
+                                        </select>
+                                        <select id="npc-add-armor" class="w-full bg-black/50 border border-[#444] text-xs text-gray-300 p-2 mb-2 outline-none focus:border-[#d4af37]">
+                                            <option value="">+ Add Armor</option>
+                                            ${(ARMOR||[]).map(a => `<option value="${a.name}">${a.name} (${a.rating})</option>`).join('')}
+                                        </select>
+                                        <select id="npc-add-gear" class="w-full bg-black/50 border border-[#444] text-xs text-gray-300 p-2 mb-2 outline-none focus:border-[#d4af37]">
+                                            <option value="">+ Add General Gear</option>
+                                            ${(GEAR||[]).map(g => `<option value="${g}">${g}</option>`).join('')}
+                                        </select>
+                                    </div>
+                                    <div class="space-y-4">
+                                        <h4 class="text-gray-500 font-bold uppercase text-xs border-b border-[#333] pb-1">Current Inventory</h4>
+                                        <div id="npc-inventory-list" class="space-y-1 max-h-[300px] overflow-y-auto"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>` : ''}
+
+                        <!-- STEP 6: BIO (Was Step 5) -->
                         <div id="stepBio" class="npc-step hidden">
                             <div class="sheet-section !mt-0">
                                 <div class="section-title">Biography</div>
@@ -1208,6 +1312,44 @@ function renderEditorModal() {
     setupMF('npc-merit-select', 'merits');
     setupMF('npc-flaw-select', 'flaws');
 
+    // EQUIPMENT HANDLERS (NEW)
+    const addInvItem = (name, type) => {
+        if(!activeNpc.inventory) activeNpc.inventory = [];
+        
+        let stats = {};
+        if(type === 'Melee' && WEAPONS) {
+            const w = WEAPONS.find(x => x.name === name);
+            if(w) stats = w;
+        } else if(type === 'Ranged' && RANGED_WEAPONS) {
+            const w = RANGED_WEAPONS.find(x => x.name === name);
+            if(w) stats = w;
+        } else if(type === 'Armor' && ARMOR) {
+            const a = ARMOR.find(x => x.name === name);
+            if(a) stats = a;
+        }
+
+        activeNpc.inventory.push({ name, type, stats, status: 'carried' });
+        renderInventoryList();
+        showNotification(`${name} Added.`);
+    };
+
+    const setupInv = (id, type) => {
+        const el = document.getElementById(id);
+        if(el) el.onchange = (e) => {
+            if(e.target.value) {
+                addInvItem(e.target.value, type);
+                e.target.value = "";
+            }
+        }
+    };
+    
+    if(showEquipment) {
+        setupInv('npc-add-melee', 'Melee');
+        setupInv('npc-add-ranged', 'Ranged');
+        setupInv('npc-add-armor', 'Armor');
+        setupInv('npc-add-gear', 'Gear');
+    }
+
     // ADDED: Listener for Blood Pool to keep state in sync immediately
     const bloodInput = document.getElementById('npc-blood');
     if(bloodInput) bloodInput.oninput = (e) => {
@@ -1234,10 +1376,38 @@ function renderEditorModal() {
     renderDisciplines();
     renderBackgrounds();
     renderMeritsFlaws();
+    if(showEquipment) renderInventoryList();
     updateVirtueDisplay();
     updatePrioritiesUI();
     updateXpLog();
     updateFreebieCalc();
+}
+
+function renderInventoryList() {
+    const list = document.getElementById('npc-inventory-list');
+    if(!list) return;
+    
+    if(!activeNpc.inventory || activeNpc.inventory.length === 0) {
+        list.innerHTML = '<div class="text-gray-600 italic text-[10px]">No equipment.</div>';
+        return;
+    }
+
+    list.innerHTML = activeNpc.inventory.map((item, idx) => `
+        <div class="flex justify-between items-center bg-black/40 p-1 border border-[#333] text-[10px]">
+            <div>
+                <span class="text-[#d4af37] font-bold">${item.name}</span>
+                <span class="text-gray-500 uppercase ml-2 text-[9px]">${item.type}</span>
+            </div>
+            <button class="text-red-500 hover:text-white" onclick="window.removeNpcInv(${idx})"><i class="fas fa-times"></i></button>
+        </div>
+    `).join('');
+}
+
+window.removeNpcInv = function(idx) {
+    if(activeNpc.inventory) {
+        activeNpc.inventory.splice(idx, 1);
+        renderInventoryList();
+    }
 }
 
 function renderTabButton(id, label) {
