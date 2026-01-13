@@ -441,6 +441,53 @@ export function handleTraitClick(name, type) {
 }
 window.handleTraitClick = handleTraitClick;
 
+// ADDED: Direct toggle function for NPCs or manual overrides (accepts rating directly)
+export function toggleStat(name, rating, type) {
+    // Check/Reset special modes
+    const armorCont = document.getElementById('tray-armor-toggle-container');
+    if(armorCont && armorCont.style.display !== 'none') {
+        window.clearPool();
+    }
+
+    const val = parseInt(rating) || 0;
+    
+    const existingIdx = window.state.activePool.findIndex(p => p.name === name);
+    
+    if (existingIdx > -1) {
+        window.state.activePool.splice(existingIdx, 1);
+    } else { 
+        if (window.state.activePool.length >= 2) window.state.activePool.shift(); 
+        window.state.activePool.push({name, val}); 
+    }
+    
+    // UI Update - Highlight existing traits if they exist in main DOM (Optional, mostly for visual sync)
+    document.querySelectorAll('.trait-label').forEach(el => el.classList.toggle('selected', window.state.activePool.some(p => p.name === el.innerText)));
+    
+    // Update Pool Display
+    const display = document.getElementById('pool-display');
+    const hint = document.getElementById('specialty-hint');
+    
+    if (!hint && display) {
+        const hDiv = document.createElement('div'); 
+        hDiv.id = 'specialty-hint'; 
+        hDiv.className = 'text-[9px] text-[#4ade80] mt-1 h-4 flex items-center';
+        display.parentNode.insertBefore(hDiv, display.nextSibling);
+    }
+    
+    if (window.state.activePool.length > 0) {
+        setSafeText('pool-display', window.state.activePool.map(p => `${p.name} (${p.val})`).join(' + '));
+        // Note: Specialties from PC are likely irrelevant for NPC roll unless using shared context
+        const hintEl = document.getElementById('specialty-hint');
+        if (hintEl) hintEl.innerHTML = ''; // Clear PC hints for cleanliness
+        
+        document.getElementById('dice-tray').classList.add('open');
+        if(typeof updateClanMechanicsUI === 'function') updateClanMechanicsUI();
+    } else {
+        window.clearPool();
+    }
+}
+window.toggleStat = toggleStat;
+
 
 export function rollPool() {
     const spendWP = document.getElementById('spend-willpower')?.checked;
