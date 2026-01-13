@@ -406,3 +406,13 @@ export const CLAN_WEAKNESSES = {
     "Ventrue": "The Ventrue find only one specific type of mortal blood palatable (e.g. blue-eyed men, nobility). This choice is permanent. Blood of other types (even animals) provides no blood pool increase and is vomited. Vampiric blood is exempt from this restriction.",
     "Caitiff": "Caitiff have no Clan-based Disciplines, just as they have no Clan. For them, the cost of raising all Disciplines with experience is the current rating x 6. Additionally, Caitiff may not purchase the Status Background during character creation."
 };
+
+// --- ALIASES & EXPORTS FOR NPC CREATOR ---
+export const ARMOR = V20_ARMOR_LIST;
+export const WEAPONS = V20_WEAPONS_LIST.filter(w => w.range === '-');
+export const RANGED_WEAPONS = V20_WEAPONS_LIST.filter(w => w.range !== '-');
+export const GEAR = [
+    "Cell Phone", "Flashlight", "Rope (50ft)", "Lockpick Set", "Handcuffs",
+    "Binoculars", "Laptop", "First Aid Kit", "Crowbar", "Duct Tape",
+    "Backpack", "Camera", "GPS Receiver", "Multi-tool"
+];
