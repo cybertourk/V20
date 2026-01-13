@@ -7,8 +7,8 @@ import {
     V20_MERITS_LIST, V20_FLAWS_LIST, VIT 
 } from "./data.js";
 import { renderDots, showNotification } from "./ui-common.js";
-// ADDED: Import dice engine directly
-import { toggleStat } from "./ui-mechanics.js";
+// Keeping import commented out to ensure stability with window.toggleStat
+// import { toggleStat } from "./ui-mechanics.js";
 
 // Registry of available templates
 const TEMPLATES = {
@@ -318,6 +318,9 @@ function renderPlaySheetModal() {
 
     // Only show Virtues if not an Animal (they use Willpower/Blood but typically no Virtues)
     const showVirtues = activeNpc.template !== 'animal';
+    
+    // UPDATED: Animals have no Humanity
+    const showHumanity = activeNpc.template !== 'animal';
 
     // --- BIO & EXTRAS GENERATION ---
     
@@ -415,6 +418,7 @@ function renderPlaySheetModal() {
                     <div class="space-y-6">
                         
                         <!-- Humanity / Road -->
+                        ${showHumanity ? `
                         <div class="bg-[#111] p-4 border border-[#333]">
                              <div class="flex justify-between items-center mb-2">
                                 <h3 class="text-[#d4af37] font-bold uppercase text-sm cursor-pointer hover:text-white roll-stat" data-stat="Humanity" data-val="${activeNpc.humanity}" data-type="humanity">Humanity / Road</h3>
@@ -423,7 +427,7 @@ function renderPlaySheetModal() {
                             <div class="flex justify-center gap-1">
                                 ${renderDots(activeNpc.humanity, 10)}
                             </div>
-                        </div>
+                        </div>` : ''}
 
                         <!-- Willpower -->
                         <div class="bg-[#111] p-4 border border-[#333]">
@@ -612,12 +616,12 @@ function bindPlayInteractions(modal) {
             const score = parseInt(el.dataset.val) || 0;
             const type = el.dataset.type;
             
-            // Use imported function directly
-            if (toggleStat) {
-                toggleStat(name, score, type);
+            // REVERTED to window.toggleStat to prevent crash until ui-mechanics.js is updated
+            if (window.toggleStat) {
+                window.toggleStat(name, score, type);
             } else {
-                console.error("Dice engine not found or failed to import.");
-                showNotification("Error: Dice Engine not available.");
+                console.error("Dice engine (window.toggleStat) not found.");
+                showNotification("Dice Engine not accessible. Please update ui-mechanics.js.");
             }
         };
     });
