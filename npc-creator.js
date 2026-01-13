@@ -30,6 +30,20 @@ let localPriorities = {
     abil: { Talents: null, Skills: null, Knowledges: null }
 };
 
+// Helper to toggle main app dice container
+function toggleDiceUI(show, bringToFront = false) {
+    const diceEl = document.getElementById('dice-container');
+    if (diceEl) {
+        if (show) {
+            diceEl.style.display = 'block'; // Or 'flex' depending on your CSS, typically block/flex
+            diceEl.style.visibility = 'visible';
+            diceEl.style.zIndex = bringToFront ? '1000' : ''; // Bring above modal if needed
+        } else {
+            diceEl.style.display = 'none';
+        }
+    }
+}
+
 // ==========================================================================
 // INITIALIZATION & STATE MANAGEMENT
 // ==========================================================================
@@ -43,6 +57,9 @@ let localPriorities = {
 export function openNpcCreator(typeKey = 'mortal', dataOrEvent = null, index = null) {
     console.log(`Opening NPC Creator for type: ${typeKey}`);
     
+    // HIDE Dice Engine in Edit Mode (as requested)
+    toggleDiceUI(false);
+
     // Default to Mortal if invalid type passed
     if (!TEMPLATES[typeKey]) typeKey = 'mortal';
     
@@ -90,6 +107,10 @@ export function openNpcCreator(typeKey = 'mortal', dataOrEvent = null, index = n
  */
 export function openNpcSheet(npc, index) {
     if (!npc) return;
+    
+    // SHOW Dice Engine in View Mode and ensure it's on top of the modal
+    toggleDiceUI(true, true);
+
     activeNpc = npc; // We reference the object directly to allow live updates to state (Health/WP)
     activeIndex = index;
     
@@ -284,6 +305,7 @@ function renderPlaySheetModal() {
     if (!modal) {
         modal = document.createElement('div');
         modal.id = 'npc-play-modal';
+        // Increased z-index, but dice container should be higher if shown
         modal.className = 'fixed inset-0 bg-black/95 z-[100] flex items-center justify-center hidden';
         document.body.appendChild(modal);
     }
@@ -329,7 +351,7 @@ function renderPlaySheetModal() {
     }
 
     const html = `
-        <div class="w-[95%] max-w-5xl h-[95%] bg-[#0a0a0a] border border-[#444] shadow-2xl flex flex-col relative font-serif text-white overflow-hidden">
+        <div class="w-[95%] max-w-5xl h-[95%] bg-[#0a0a0a] border border-[#444] shadow-2xl flex flex-col relative font-serif text-white overflow-hidden pb-16">
             <!-- Header -->
             <div class="bg-[#111] p-4 border-b border-[#333] flex justify-between items-center shrink-0">
                 <div>
@@ -364,7 +386,7 @@ function renderPlaySheetModal() {
                             ${Object.keys(activeNpc.disciplines).length > 0 
                                 ? Object.entries(activeNpc.disciplines).map(([k,v]) => `
                                     <div class="flex justify-between text-xs mb-1 font-bold group">
-                                        <span class="uppercase cursor-pointer hover:text-[#d4af37] transition-colors" onclick="window.toggleStat && window.toggleStat('${k}', ${v}, 'discipline')">${k}</span>
+                                        <span class="uppercase cursor-pointer hover:text-[#d4af37] transition-colors roll-stat" data-stat="${k}" data-val="${v}" data-type="discipline">${k}</span>
                                         <span>${renderDots(v,5)}</span>
                                     </div>`).join('') 
                                 : '<div class="text-gray-600 italic text-xs">None</div>'}
@@ -381,7 +403,7 @@ function renderPlaySheetModal() {
                         <div class="sheet-section bg-black/30 p-4 border border-[#222]">
                             <h3 class="text-[#8b0000] font-cinzel font-bold border-b border-[#444] mb-2">Virtues</h3>
                             ${VIRTUES.map(v => `<div class="flex justify-between text-xs mb-1 font-bold group">
-                                <span class="uppercase cursor-pointer hover:text-[#d4af37] transition-colors" onclick="window.toggleStat && window.toggleStat('${v}', ${activeNpc.virtues[v]||1}, 'virtue')">${v}</span>
+                                <span class="uppercase cursor-pointer hover:text-[#d4af37] transition-colors roll-stat" data-stat="${v}" data-val="${activeNpc.virtues[v]||1}" data-type="virtue">${v}</span>
                                 <span>${renderDots(activeNpc.virtues[v]||1, 5)}</span>
                             </div>`).join('')}
                         </div>` : ''}
@@ -393,7 +415,7 @@ function renderPlaySheetModal() {
                         <!-- Humanity / Road -->
                         <div class="bg-[#111] p-4 border border-[#333]">
                              <div class="flex justify-between items-center mb-2">
-                                <h3 class="text-[#d4af37] font-bold uppercase text-sm cursor-pointer hover:text-white" onclick="window.toggleStat && window.toggleStat('Humanity', ${activeNpc.humanity}, 'humanity')">Humanity / Road</h3>
+                                <h3 class="text-[#d4af37] font-bold uppercase text-sm cursor-pointer hover:text-white roll-stat" data-stat="Humanity" data-val="${activeNpc.humanity}" data-type="humanity">Humanity / Road</h3>
                                 <div class="text-xs font-bold text-gray-500">Rating: ${activeNpc.humanity}</div>
                             </div>
                             <div class="flex justify-center gap-1">
@@ -404,7 +426,7 @@ function renderPlaySheetModal() {
                         <!-- Willpower -->
                         <div class="bg-[#111] p-4 border border-[#333]">
                             <div class="flex justify-between items-center mb-2">
-                                <h3 class="text-[#d4af37] font-bold uppercase text-sm cursor-pointer hover:text-white" onclick="window.toggleStat && window.toggleStat('Willpower', ${activeNpc.willpower}, 'willpower')">Willpower</h3>
+                                <h3 class="text-[#d4af37] font-bold uppercase text-sm cursor-pointer hover:text-white roll-stat" data-stat="Willpower" data-val="${activeNpc.willpower}" data-type="willpower">Willpower</h3>
                                 <div class="text-xs font-bold text-gray-500">Perm: ${activeNpc.willpower}</div>
                             </div>
                             <div class="flex justify-center gap-1 mb-2">
@@ -499,9 +521,12 @@ function renderPlaySheetModal() {
     modal.classList.remove('hidden');
 
     // Bind Close
-    document.getElementById('close-play-modal').onclick = () => { modal.style.display = 'none'; };
+    document.getElementById('close-play-modal').onclick = () => { 
+        modal.style.display = 'none'; 
+        toggleDiceUI(true); // Reset to visible/normal z-index when closing
+    };
 
-    // Bind Interactive Boxes
+    // Bind Interactive Boxes & Rolls
     bindPlayInteractions(modal);
 }
 
@@ -517,7 +542,7 @@ function renderSimpleDots(data, structure, type) {
             const val = data[k] || 0;
             if (val > 0 || type === 'attributes') {
                 html += `<div class="flex justify-between items-center mb-0.5 text-xs group">
-                    <span class="text-gray-300 cursor-pointer hover:text-[#d4af37] transition-colors" onclick="window.toggleStat && window.toggleStat('${k}', ${val}, '${type}')">${k}</span>
+                    <span class="text-gray-300 cursor-pointer hover:text-[#d4af37] transition-colors roll-stat" data-stat="${k}" data-val="${val}" data-type="${type}">${k}</span>
                     <span>${renderDots(val, 5)}</span>
                 </div>`;
             }
@@ -578,7 +603,23 @@ function renderHealthTrack() {
 }
 
 function bindPlayInteractions(modal) {
-    // Stat Boxes (Willpower / Blood)
+    // 1. CLICK TO ROLL (Attributes, Abilities, Disciplines, Virtues)
+    modal.querySelectorAll('.roll-stat').forEach(el => {
+        el.onclick = (e) => {
+            const name = el.dataset.stat;
+            const score = parseInt(el.dataset.val) || 0;
+            const type = el.dataset.type;
+            
+            if (window.toggleStat) {
+                window.toggleStat(name, score, type);
+            } else {
+                console.error("Dice engine (window.toggleStat) not found.");
+                showNotification("Error: Dice Engine not available.");
+            }
+        };
+    });
+
+    // 2. Stat Boxes (Willpower / Blood)
     modal.querySelectorAll('.npc-box-interact').forEach(box => {
         box.onclick = (e) => {
             const field = box.dataset.field;
@@ -600,7 +641,7 @@ function bindPlayInteractions(modal) {
         };
     });
 
-    // Health Boxes
+    // 3. Health Boxes
     modal.querySelectorAll('.npc-health-box').forEach(box => {
         box.onclick = (e) => {
             const idx = parseInt(box.dataset.idx);
@@ -999,9 +1040,15 @@ function renderEditorModal() {
     document.getElementById('btn-export-npc').onclick = exportNpcData;
 
     // Save/Cancel
-    document.getElementById('npc-cancel').onclick = () => { modal.style.display = 'none'; };
+    document.getElementById('npc-cancel').onclick = () => { 
+        modal.style.display = 'none'; 
+        toggleDiceUI(true); // Reset dice when closing edit mode
+    };
     document.getElementById('npc-save').onclick = saveNpc;
-    document.getElementById('close-npc-modal').onclick = () => { modal.style.display = 'none'; };
+    document.getElementById('close-npc-modal').onclick = () => { 
+        modal.style.display = 'none'; 
+        toggleDiceUI(true); // Reset dice when closing edit mode
+    };
 
     // Dynamic Adders
     const setupAdd = (id, type, renderFn) => {
