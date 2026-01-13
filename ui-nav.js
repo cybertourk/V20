@@ -1332,7 +1332,18 @@ export function renderNpcTab() {
     retainers.forEach((npc, index) => {
         // Safely handle potentially missing fields
         const name = npc.name || "Unnamed";
-        const type = npc.type || "Ghoul";
+        
+        let displayType = "Unknown";
+        if (npc.template === 'animal') {
+            displayType = npc.ghouled ? "Ghouled Animal" : "Animal";
+            if (npc.species) displayType += ` (${npc.species})`;
+        } else if (npc.template === 'mortal') {
+            displayType = "Mortal";
+        } else {
+            // Default/Ghoul
+            displayType = npc.type || "Ghoul";
+        }
+        
         const concept = npc.concept || "";
         
         // Removed Quick stats for summary per user request
@@ -1340,7 +1351,7 @@ export function renderNpcTab() {
         html += `
             <div class="bg-gray-900 border border-gray-700 rounded p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 hover:border-red-900/50 transition-colors">
                 <div class="flex-grow">
-                    <h3 class="text-xl font-bold text-gray-200">${name} <span class="text-xs text-gray-500 font-normal ml-2 uppercase tracking-wider border border-gray-700 px-1 rounded">${type}</span></h3>
+                    <h3 class="text-xl font-bold text-gray-200">${name} <span class="text-xs text-gray-500 font-normal ml-2 uppercase tracking-wider border border-gray-700 px-1 rounded">${displayType}</span></h3>
                     <div class="text-sm text-gray-400 mt-1 flex flex-wrap gap-4">
                         <span>Concept: <span class="text-gray-300">${concept || 'N/A'}</span></span>
                     </div>
