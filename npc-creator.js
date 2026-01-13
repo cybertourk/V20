@@ -358,6 +358,13 @@ function renderPlaySheetModal() {
         domitorDisplay += `<div class="mt-1 text-xs text-gray-400"><span class="font-bold text-gray-500 uppercase text-[10px]">Blood Bond:</span> <span class="text-[#d4af37]">Step ${activeNpc.bondLevel}</span></div>`;
     }
 
+    // --- PREPARE COMBAT STATS ---
+    const dex = activeNpc.attributes.Dexterity || 1;
+    const wits = activeNpc.attributes.Wits || 1;
+    const sta = activeNpc.attributes.Stamina || 1;
+    const fort = activeNpc.disciplines.Fortitude || 0;
+    const pot = activeNpc.disciplines.Potence || 0;
+
     const html = `
         <div class="w-[95%] max-w-5xl h-[95%] bg-[#0a0a0a] border border-[#444] shadow-2xl flex flex-col relative font-serif text-white overflow-hidden pb-16">
             <!-- Header -->
@@ -467,11 +474,42 @@ function renderPlaySheetModal() {
                         <div class="bg-black/40 p-3 border border-[#333] text-xs">
                             <h4 class="font-bold text-gray-500 uppercase mb-2">Combat Notes</h4>
                             <div class="text-gray-300">
-                                <div class="flex justify-between border-b border-[#333] py-1"><span>Initiative:</span> <span>${(activeNpc.attributes.Dexterity||1) + (activeNpc.attributes.Wits||1)} + 1d10</span></div>
-                                <div class="flex justify-between border-b border-[#333] py-1"><span>Soak (Bash):</span> <span>${activeNpc.attributes.Stamina||1} Dice</span></div>
-                                <div class="flex justify-between border-b border-[#333] py-1"><span>Soak (Lethal):</span> <span>${activeNpc.template==='mortal' ? 0 : (activeNpc.attributes.Stamina||1)} Dice</span></div>
-                                ${(activeNpc.disciplines.Fortitude) ? `<div class="flex justify-between border-b border-[#333] py-1 text-gold"><span>Fortitude:</span> <span>+${activeNpc.disciplines.Fortitude} Dice</span></div>` : ''}
-                                ${(activeNpc.disciplines.Potence) ? `<div class="flex justify-between border-b border-[#333] py-1 text-gold"><span>Potence:</span> <span>+${activeNpc.disciplines.Potence} Auto Succ.</span></div>` : ''}
+                                
+                                <!-- Initiative -->
+                                <div class="flex justify-between border-b border-[#333] py-1 cursor-pointer hover:text-[#d4af37] transition-colors npc-combat-interact"
+                                     data-action="init" data-v1="${dex}" data-v2="${wits}">
+                                    <span class="font-bold">Initiative:</span> 
+                                    <span>${dex + wits} + 1d10</span>
+                                </div>
+
+                                <!-- Soak (Bash) -->
+                                <div class="flex justify-between border-b border-[#333] py-1 cursor-pointer hover:text-[#d4af37] transition-colors npc-combat-interact"
+                                     data-action="soak" data-v1="${sta}" data-v2="${fort}">
+                                    <span class="font-bold">Soak (Bash):</span> 
+                                    <span>${sta + fort} Dice</span>
+                                </div>
+
+                                <!-- Soak (Lethal) -->
+                                <div class="flex justify-between border-b border-[#333] py-1 cursor-pointer hover:text-[#d4af37] transition-colors npc-combat-interact"
+                                     data-action="soak" data-v1="${activeNpc.template === 'mortal' ? 0 : sta}" data-v2="${fort}">
+                                    <span class="font-bold">Soak (Lethal):</span> 
+                                    <span>${activeNpc.template === 'mortal' ? 0 : (sta + fort)} Dice</span>
+                                </div>
+
+                                <!-- Fortitude -->
+                                ${(fort > 0) ? `
+                                <div class="flex justify-between border-b border-[#333] py-1 text-gold cursor-pointer hover:text-white transition-colors npc-combat-interact"
+                                     data-action="stat" data-name="Fortitude" data-v1="${fort}">
+                                    <span>Fortitude:</span> <span>+${fort} Dice</span>
+                                </div>` : ''}
+
+                                <!-- Potence -->
+                                ${(pot > 0) ? `
+                                <div class="flex justify-between border-b border-[#333] py-1 text-gold cursor-pointer hover:text-white transition-colors npc-combat-interact"
+                                     data-action="stat" data-name="Potence" data-v1="${pot}">
+                                    <span>Potence:</span> <span>+${pot} Auto Succ.</span>
+                                </div>` : ''}
+
                             </div>
                         </div>
                     </div>
@@ -629,7 +667,36 @@ function bindPlayInteractions(modal) {
         };
     });
 
-    // 2. Stat Boxes (Willpower / Blood)
+    // 2. COMBAT STATS INTERACTION (New)
+    modal.querySelectorAll('.npc-combat-interact').forEach(el => {
+        el.onclick = (e) => {
+            if (!window.toggleStat) return;
+            
+            // Start fresh
+            if(window.clearPool) window.clearPool();
+
+            const action = el.dataset.action;
+            const v1 = parseInt(el.dataset.v1) || 0;
+            const v2 = parseInt(el.dataset.v2) || 0;
+
+            if (action === 'init') {
+                window.toggleStat('Dexterity', v1, 'attribute');
+                window.toggleStat('Wits', v2, 'attribute');
+                showNotification("Initiative Pool Loaded. Roll 1 Die + Total.");
+            }
+            else if (action === 'soak') {
+                window.toggleStat('Stamina', v1, 'attribute');
+                if (v2 > 0) window.toggleStat('Fortitude', v2, 'discipline');
+                showNotification("Soak Pool Loaded.");
+            }
+            else if (action === 'stat') {
+                const name = el.dataset.name;
+                window.toggleStat(name, v1, 'discipline');
+            }
+        };
+    });
+
+    // 3. Stat Boxes (Willpower / Blood)
     modal.querySelectorAll('.npc-box-interact').forEach(box => {
         box.onclick = (e) => {
             const field = box.dataset.field;
@@ -651,7 +718,7 @@ function bindPlayInteractions(modal) {
         };
     });
 
-    // 3. Health Boxes
+    // 4. Health Boxes
     modal.querySelectorAll('.npc-health-box').forEach(box => {
         box.onclick = (e) => {
             const idx = parseInt(box.dataset.idx);
