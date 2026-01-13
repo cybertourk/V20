@@ -31,7 +31,7 @@ let localPriorities = {
 };
 
 // ==========================================================================
-// INITIALIZATION & STATE MANAGEMENT 
+// INITIALIZATION & STATE MANAGEMENT
 // ==========================================================================
 
 /**
@@ -1824,6 +1824,12 @@ function saveNpc() {
     
     const bloodInput = document.getElementById('npc-blood');
     activeNpc.bloodPool = bloodInput ? parseInt(bloodInput.value) || 10 : 10;
+
+    // ADDED: Sync current pools to permanent ratings
+    // This ensures that when creating/editing an NPC, they start with full pools
+    // Fixes issue where Animals show correct Max Blood but empty Current Blood boxes
+    activeNpc.currentBlood = activeNpc.bloodPool;
+    activeNpc.tempWillpower = activeNpc.willpower;
 
     activeNpc.priorities = JSON.parse(JSON.stringify(localPriorities));
 
