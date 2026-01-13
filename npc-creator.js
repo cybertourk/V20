@@ -33,15 +33,14 @@ let localPriorities = {
 // --- INITIALIZATION ---
 
 export function openNpcCreator(typeKey = 'mortal', dataOrEvent = null, index = null) {
-    console.log(`Opening NPC Creator for type: ${typeKey}`);
-    
     // Default to Mortal if invalid type passed
     if (!TEMPLATES[typeKey]) typeKey = 'mortal';
     
     currentTemplate = TEMPLATES[typeKey];
 
     let incomingData = null;
-    const isEvent = dataOrEvent && (typeof dataOrEvent.preventDefault === 'function');
+    // Check if dataOrEvent is actually an Event object (click event) or data
+    const isEvent = dataOrEvent && (typeof dataOrEvent.preventDefault === 'function' || dataOrEvent.target);
     if (dataOrEvent && !isEvent) incomingData = dataOrEvent;
 
     activeIndex = (typeof index === 'number') ? index : null;
@@ -50,7 +49,7 @@ export function openNpcCreator(typeKey = 'mortal', dataOrEvent = null, index = n
     resetPriorities();
 
     if (incomingData) {
-        // Edit Mode
+        // Edit Mode: Deep Copy
         activeNpc = JSON.parse(JSON.stringify(incomingData));
         // Ensure template matches data if data has a type recorded
         if (activeNpc.template && TEMPLATES[activeNpc.template]) {
@@ -77,21 +76,21 @@ export function openNpcCreator(typeKey = 'mortal', dataOrEvent = null, index = n
  */
 export function openNpcSheet(npc, index) {
     if (!npc) return;
-    activeNpc = npc; // We reference the object directly to allow live updates to state
+    activeNpc = npc; // Reference object for live updates
     activeIndex = index;
     
     // Ensure template loaded for rules checks
     const typeKey = npc.template || 'mortal';
     currentTemplate = TEMPLATES[typeKey] || MortalTemplate;
     
-    // Sanitize to ensure health/willpower fields exist
+    // Critical: Convert legacy health numbers (e.g. 7) to objects ({damage:0}) BEFORE rendering
     sanitizeNpcData(activeNpc);
 
     renderPlaySheetModal();
 }
 
 function sanitizeNpcData(npc) {
-    // Added 'virtues' to the list to prevent crashes if it's missing (e.g., for Animals)
+    // Ensure containers exist
     ['attributes', 'abilities', 'disciplines', 'backgrounds', 'virtues', 'specialties', 'merits', 'flaws', 'bio'].forEach(k => { 
         if (!npc[k]) npc[k] = {}; 
     });
@@ -104,8 +103,13 @@ function sanitizeNpcData(npc) {
         if (ABILITIES) Object.values(ABILITIES).flat().forEach(a => { if (npc.abilities[a] === undefined) npc.abilities[a] = 0; });
     }
     
-    // Ensure Vitals exist
-    if (!npc.health) npc.health = { damage: 0, aggravated: 0 }; // Simplified tracking: damage = number of boxes filled
+    // Ensure Vitals exist and are correct types
+    // FIX for "Cannot create property damage on number":
+    // If health is a number (old Animal default), replace it with standard object
+    if (!npc.health || typeof npc.health !== 'object') {
+        npc.health = { damage: 0, aggravated: 0 }; 
+    }
+    
     if (!npc.tempWillpower) npc.tempWillpower = npc.willpower || 1;
     if (!npc.currentBlood) npc.currentBlood = npc.bloodPool || 10;
 }
@@ -192,6 +196,62 @@ function recalcStatus() {
 
     if (!hasWillMod) activeNpc.willpower = baseWill;
     else if (activeNpc.willpower < baseWill) activeNpc.willpower = baseWill;
+}
+
+// --- IMPORT / EXPORT FUNCTIONS ---
+
+function exportNpcData() {
+    const dataStr = JSON.stringify(activeNpc, null, 2);
+    const blob = new Blob([dataStr], {type: "application/json"});
+    const url = URL.createObjectURL(blob);
+    
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = (activeNpc.name || "npc").replace(/[^a-z0-9]/gi, '_').toLowerCase() + ".json";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+function importNpcData(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const data = JSON.parse(e.target.result);
+            if (data && typeof data === 'object') {
+                activeNpc = data;
+                sanitizeNpcData(activeNpc);
+                
+                // If it has a template, verify it exists
+                if (activeNpc.template && TEMPLATES[activeNpc.template]) {
+                    currentTemplate = TEMPLATES[activeNpc.template];
+                } else {
+                    // Default to mortal if unknown
+                    activeNpc.template = 'mortal';
+                    currentTemplate = TEMPLATES['mortal'];
+                }
+                
+                // Refresh UI
+                if (activeNpc.priorities) localPriorities = activeNpc.priorities;
+                else autoDetectPriorities();
+                
+                renderEditorModal();
+                showNotification("NPC Imported Successfully");
+            } else {
+                alert("Invalid JSON structure.");
+            }
+        } catch (err) {
+            console.error(err);
+            alert("Error parsing JSON file.");
+        }
+    };
+    reader.readAsText(file);
+    // Reset input
+    event.target.value = '';
 }
 
 // --- RENDER UI (PLAY SHEET) ---
@@ -348,9 +408,6 @@ function renderSimpleDots(data, structure, type) {
     
     cats.forEach(cat => {
         const list = structure[cat];
-        // Only render category if it has items > 0 (or is attribute which always shows)
-        // For compact view, we just list them flat with headers?
-        // Let's do a simple header per cat
         html += `<div class="mb-3"><div class="text-[10px] text-gray-500 uppercase tracking-widest font-bold mb-1 border-b border-[#333]">${cat}</div>`;
         list.forEach(k => {
             const val = data[k] || 0;
@@ -383,7 +440,7 @@ function renderInteractiveBoxes(field, max, current, isSquare = false) {
 }
 
 function renderHealthTrack() {
-    const levels = [
+    let levels = [
         { l: 'Bruised', p: 0 },
         { l: 'Hurt', p: -1 },
         { l: 'Injured', p: -1 },
@@ -393,8 +450,13 @@ function renderHealthTrack() {
         { l: 'Incapacitated', p: 0 }
     ];
 
-    // Simple damage tracking: activeNpc.health.damage is index of filled box
-    const damage = activeNpc.health.damage || 0;
+    // Check for Custom Health Configuration (Animals)
+    if (activeNpc.healthConfig && Array.isArray(activeNpc.healthConfig) && activeNpc.healthConfig.length > 0) {
+        levels = activeNpc.healthConfig;
+    }
+
+    // Use safely sanitized object
+    const damage = (activeNpc.health && activeNpc.health.damage) || 0;
 
     return levels.map((lvl, idx) => {
         const isFilled = idx < damage;
@@ -419,13 +481,12 @@ function bindPlayInteractions(modal) {
             const val = parseInt(box.dataset.val);
             const current = activeNpc[field] || 0;
             
-            // Toggle logic: Clicking the current value clears it (sets to val - 1)
-            // Clicking a lower value sets to that value
+            // Toggle logic
             if (val === current) activeNpc[field] = val - 1;
             else activeNpc[field] = val;
 
             savePlayState();
-            renderPlaySheetModal(); // Re-render to update UI
+            renderPlaySheetModal(); 
         };
     });
 
@@ -433,13 +494,15 @@ function bindPlayInteractions(modal) {
     modal.querySelectorAll('.npc-health-box').forEach(box => {
         box.onclick = (e) => {
             const idx = parseInt(box.dataset.idx);
+            
+            // Ensure object exists before assignment
+            if (typeof activeNpc.health !== 'object') activeNpc.health = { damage: 0, aggravated: 0 };
+            
             const currentDmg = activeNpc.health.damage || 0;
             
-            // If clicking the box that represents current damage level, reduce damage
             if (idx === currentDmg - 1) {
                 activeNpc.health.damage = idx;
             } else {
-                // Otherwise set damage to include this box (idx + 1)
                 activeNpc.health.damage = idx + 1;
             }
             
@@ -451,9 +514,7 @@ function bindPlayInteractions(modal) {
 
 function savePlayState() {
     if (activeIndex !== null && window.state.retainers) {
-        // Update global state immediately
         window.state.retainers[activeIndex] = activeNpc;
-        // Trigger auto-save if main app has it exposed, otherwise rely on manual save later
         if (window.performSave) window.performSave(true); 
     }
 }
@@ -513,7 +574,12 @@ function renderEditorModal() {
                             </button>
                         </div>
                     </div>
-                    <button id="close-npc-modal" class="text-gray-400 hover:text-white text-xl px-2"><i class="fas fa-times"></i></button>
+                    <div class="flex items-center gap-2">
+                        <button id="btn-import-npc" class="text-gray-400 hover:text-white text-[10px] uppercase font-bold px-2 py-1"><i class="fas fa-file-import mr-1"></i> Import</button>
+                        <input type="file" id="file-import-npc" class="hidden" accept=".json">
+                        <button id="btn-export-npc" class="text-gray-400 hover:text-white text-[10px] uppercase font-bold px-2 py-1"><i class="fas fa-file-export mr-1"></i> Export</button>
+                        <button id="close-npc-modal" class="text-gray-400 hover:text-white text-xl px-2 ml-4"><i class="fas fa-times"></i></button>
+                    </div>
                 </div>
 
                 <!-- TABS -->
@@ -815,9 +881,15 @@ function renderEditorModal() {
     if(bxp) bxp.onclick = () => toggleMode('xp');
     if(bfb) bfb.onclick = () => toggleMode('freebie');
     
+    // Import / Export
+    document.getElementById('btn-import-npc').onclick = () => document.getElementById('file-import-npc').click();
+    document.getElementById('file-import-npc').onchange = importNpcData;
+    document.getElementById('btn-export-npc').onclick = exportNpcData;
+
     // Save/Cancel
     document.getElementById('npc-cancel').onclick = () => { modal.style.display = 'none'; };
     document.getElementById('npc-save').onclick = saveNpc;
+    document.getElementById('close-npc-modal').onclick = () => { modal.style.display = 'none'; };
 
     // Dynamic Adders
     const setupAdd = (id, type, renderFn) => {
