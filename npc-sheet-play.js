@@ -73,53 +73,91 @@ export function renderPlaySheetModal() {
     const pot = (npc.disciplines && npc.disciplines.Potence) || 0;
     const cel = (npc.disciplines && npc.disciplines.Celerity) || 0;
 
-    // Filter Inventory
+    const brawl = npc.abilities.Brawl || 0;
+    const melee = npc.abilities.Melee || 0;
+    const firearms = npc.abilities.Firearms || 0;
+
+    // Filter Inventory & Armor Calculation
     const inventory = npc.inventory || [];
     
-    // Resolve Items against DATA.JS
-    const equippedWeapons = inventory
-        .filter(i => (i.type === 'Weapon' || i.type === 'Melee' || i.type === 'Ranged') && i.status === 'carried')
-        .map(i => {
-            // Try to find base stats if missing
-            let stats = i.stats || {};
-            if (!stats.diff || !stats.dmg) {
-                const base = [...(WEAPONS||[]), ...(RANGED_WEAPONS||[])].find(w => w.name === i.name);
-                if (base) {
-                    stats = { 
-                        diff: base.diff, 
-                        dmg: base.dmg, // "Str+1(L)" string
-                        range: base.range, 
-                        rate: base.rate, 
-                        clip: base.clip 
-                    };
-                }
-            }
-            return { ...i, stats };
-        });
-
-    const equippedArmor = inventory
-        .filter(i => i.type === 'Armor' && i.status === 'carried')
-        .map(i => {
-            let stats = i.stats || {};
-            if (!stats.rating) {
-                const base = (ARMOR||[]).find(a => a.name === i.name);
-                if (base) stats = { rating: base.rating, penalty: base.penalty };
-            }
-            return { ...i, stats };
-        });
-    
     // Calculate Armor Rating
+    const equippedArmor = inventory.filter(i => i.type === 'Armor' && i.status === 'carried');
     let armorRating = 0;
     let armorPenalty = 0;
-    if (equippedArmor.length > 0) {
-        equippedArmor.forEach(a => {
+    equippedArmor.forEach(a => {
+        // Resolve stats if missing
+        if (!a.stats || !a.stats.rating) {
+            const base = (ARMOR||[]).find(x => x.name === a.name);
+            if (base) { armorRating += base.rating; armorPenalty += base.penalty; }
+        } else {
             armorRating += parseInt(a.stats.rating || 0);
             armorPenalty += parseInt(a.stats.penalty || 0);
-        });
-    }
+        }
+    });
 
-    // Adjust Dex for Armor
-    const adjustedDex = Math.max(0, dex - armorPenalty);
+    // Dexterity with Penalty Applied (Min 0)
+    const dexPenalized = Math.max(0, dex - armorPenalty);
+
+    // --- MANEUVER GENERATION ---
+    let maneuvers = [];
+
+    // 1. Standard Maneuvers (V20 Core Rules)
+    maneuvers.push({ name: "Bite", pool: dexPenalized + brawl + 1, diff: 5, dmg: `Str+1(A)`, type: "Brawl" }); // V20: Dex+Brawl+1, Diff Normal (usually 5 for bite in some contexts, but table says Normal. Table says Normal = 6. User prompt table: Accuracy +1)
+    // Wait, user table: Bite Accuracy +1. Default diff 6. 
+    // Correction based on user prompt table:
+    // Bite: Dex + Brawl + 1. Diff Normal (6). Dmg Str+1(A).
+    
+    maneuvers.push({ name: "Bite", pool: dexPenalized + brawl + 1, diff: 6, dmg: `${str+pot+1}(A)`, type: "Brawl" });
+    maneuvers.push({ name: "Clinch", pool: str + brawl, diff: 6, dmg: `${str+pot}(B)`, type: "Brawl", note: "(C)" }); // Str based, no armor penalty
+    maneuvers.push({ name: "Kick", pool: dexPenalized + brawl, diff: 7, dmg: `${str+pot+1}(B)`, type: "Brawl" });
+    maneuvers.push({ name: "Punch", pool: dexPenalized + brawl, diff: 6, dmg: `${str+pot}(B)`, type: "Brawl" });
+    maneuvers.push({ name: "Tackle", pool: str + brawl, diff: 7, dmg: `${str+pot+1}(B)`, type: "Brawl", note: "(K)" }); // Str based
+
+    // 2. Equipped Weapons
+    const equippedWeapons = inventory.filter(i => (i.type === 'Weapon' || i.type === 'Melee' || i.type === 'Ranged') && i.status === 'carried');
+    
+    equippedWeapons.forEach(w => {
+        let stats = w.stats || {};
+        // Auto-fill from data.js if missing
+        if (!stats.diff) {
+            const base = [...(WEAPONS||[]), ...(RANGED_WEAPONS||[])].find(x => x.name === w.name);
+            if (base) stats = base;
+        }
+
+        let pool = dexPenalized; // Default Dex
+        let skillVal = melee;
+        let isRanged = (w.type === 'Ranged' || (stats.range && stats.range !== '-'));
+        
+        if (isRanged) skillVal = firearms;
+        
+        // Damage Calculation
+        let dmgStr = stats.dmg || "Str"; 
+        let dmgDice = 0;
+        let dmgType = "(L)";
+
+        if (dmgStr.includes('(B)')) dmgType = "(B)";
+        else if (dmgStr.includes('(A)')) dmgType = "(A)";
+
+        if (dmgStr.toLowerCase().includes('str')) {
+            // Melee: Str + Potence + Bonus
+            const bonus = parseInt(dmgStr.match(/\+(\d+)/)?.[1] || 0);
+            dmgDice = str + pot + bonus;
+        } else {
+            // Ranged: Fixed + 0 (Potence usually doesn't apply to guns unless specific merit, ignoring for basic NPC)
+            dmgDice = parseInt(dmgStr) || 4;
+        }
+
+        maneuvers.push({
+            name: w.name,
+            pool: pool + skillVal,
+            diff: stats.diff || 6,
+            dmg: `${dmgDice}${dmgType}`,
+            range: stats.range || '-',
+            rate: stats.rate || '-',
+            clip: stats.clip || '-',
+            type: isRanged ? "Ranged" : "Melee"
+        });
+    });
 
     const html = `
         <div class="w-[95%] max-w-5xl h-[95%] bg-[#0a0a0a] border border-[#444] shadow-2xl flex flex-col relative font-serif text-white overflow-hidden pb-16">
@@ -180,7 +218,7 @@ export function renderPlaySheetModal() {
                         </div>` : ''}
                     </div>
 
-                    <!-- Col 3: Vitals (Interactive) -->
+                    <!-- Col 3: Vitals & Combat -->
                     <div class="space-y-6">
                         
                         <!-- Humanity / Road -->
@@ -226,129 +264,53 @@ export function renderPlaySheetModal() {
                             </div>
                         </div>
 
-                        <!-- Combat / Gear Summary -->
+                        <!-- Combat Maneuvers Table -->
                         <div class="bg-black/40 p-3 border border-[#333] text-xs">
                             <h4 class="font-bold text-gray-500 uppercase mb-2">Combat Maneuvers</h4>
-                            <div class="text-gray-300">
-                                
-                                <!-- Initiative -->
-                                <div class="flex justify-between border-b border-[#333] py-1 cursor-pointer hover:text-[#d4af37] transition-colors npc-combat-interact"
-                                     data-action="init" data-v1="${adjustedDex}" data-v2="${wits}">
-                                    <span class="font-bold">Initiative:</span> 
-                                    <span>${adjustedDex + wits} + 1d10</span>
-                                </div>
-
-                                <!-- Soak (Bash) -->
-                                <div class="flex justify-between border-b border-[#333] py-1 cursor-pointer hover:text-[#d4af37] transition-colors npc-combat-interact"
-                                     data-action="soak" data-v1="${sta}" data-v2="${fort}" data-v3="${armorRating}">
-                                    <span class="font-bold">Soak (Bash):</span> 
-                                    <span>${sta + fort + armorRating} Dice</span>
-                                </div>
-
-                                <!-- Soak (Lethal) -->
-                                <div class="flex justify-between border-b border-[#333] py-1 cursor-pointer hover:text-[#d4af37] transition-colors npc-combat-interact"
-                                     data-action="soak" data-v1="${npc.template === 'mortal' ? 0 : sta}" data-v2="${fort}" data-v3="${armorRating}">
-                                    <span class="font-bold">Soak (Lethal):</span> 
-                                    <span>${(npc.template === 'mortal' ? 0 : sta) + fort + armorRating} Dice</span>
-                                </div>
-                                
-                                ${armorRating > 0 ? `<div class="text-[9px] text-gray-500 italic text-right mb-1">Armor: +${armorRating} (Pen: ${armorPenalty})</div>` : ''}
-
-                                <!-- Weapons List (Attack Rolls) -->
-                                <div class="mt-2 pt-2 border-t border-[#333]">
-                                    ${equippedWeapons.map(w => {
-                                        let poolAttribute = adjustedDex; // Default to Dex (minus armor penalty)
-                                        let skillName = 'Melee';
-                                        
-                                        // Determine Skill
-                                        if (w.type === 'Ranged' || (w.stats.range && w.stats.range !== '-')) {
-                                            skillName = 'Firearms';
-                                        } else if (w.name.toLowerCase().includes('fist') || w.name.toLowerCase().includes('clinch') || w.name.toLowerCase().includes('brawl')) {
-                                            skillName = 'Brawl';
-                                        }
-
-                                        const skillVal = npc.abilities[skillName] || 0;
-                                        const totalPool = poolAttribute + skillVal;
-                                        
-                                        // Parse Damage String (e.g. "Str+2(L)" -> Value)
-                                        let dmgDisplay = w.stats.dmg || "Str";
-                                        let dmgType = ""; // B, L, A
-                                        
-                                        if (dmgDisplay.includes('(B)')) dmgType = "B";
-                                        else if (dmgDisplay.includes('(L)')) dmgType = "L";
-                                        else if (dmgDisplay.includes('(A)')) dmgType = "A";
-
-                                        // Calculate raw damage dice if possible
-                                        let dmgDice = 0;
-                                        let bonusDmg = 0;
-                                        
-                                        // Extract bonus number "Str+2" -> 2
-                                        const bonusMatch = dmgDisplay.match(/\+(\d+)/);
-                                        if (bonusMatch) bonusDmg = parseInt(bonusMatch[1]);
-                                        
-                                        // Calculate Total Damage Pool
-                                        if (dmgDisplay.toLowerCase().includes('str')) {
-                                            dmgDice = str + pot + bonusDmg; // Strength + Potence + Weapon Bonus
-                                        } else {
-                                            // Firearms usually fixed damage, e.g. "4(L)"
-                                            const fixedMatch = dmgDisplay.match(/^(\d+)/);
-                                            if (fixedMatch) dmgDice = parseInt(fixedMatch[1]);
-                                        }
-
-                                        return `
-                                        <div class="flex flex-col border-b border-[#333] py-1 cursor-pointer hover:text-[#d4af37] transition-colors group npc-combat-interact"
-                                             data-action="weapon" data-v1="${poolAttribute}" data-v2="${skillVal}" data-name="${w.name}" data-dmg="${dmgDice}">
-                                            <div class="flex justify-between items-center">
-                                                <span class="font-bold text-white group-hover:text-[#d4af37]">${w.name}</span>
-                                                <span class="font-bold text-lg">${totalPool} <span class="text-[9px] text-gray-500 font-normal align-middle">DICE</span></span>
-                                            </div>
-                                            <div class="flex justify-between text-[9px] text-gray-500">
-                                                <span>Diff: ${w.stats.diff || 6}</span>
-                                                <span>Dmg: ${dmgDice}${dmgType}</span>
-                                                ${w.stats.rate ? `<span>Rate: ${w.stats.rate}</span>` : ''}
-                                            </div>
-                                        </div>`;
-                                    }).join('')}
-                                    
-                                    <!-- Fallback Unarmed if no weapons -->
-                                    ${equippedWeapons.length === 0 ? `
-                                        <div class="flex flex-col border-b border-[#333] py-1 cursor-pointer hover:text-[#d4af37] transition-colors group npc-combat-interact"
-                                             data-action="weapon" data-v1="${adjustedDex}" data-v2="${npc.abilities.Brawl||0}" data-name="Brawl/Punch" data-dmg="${str + pot}">
-                                            <div class="flex justify-between items-center">
-                                                <span class="font-bold text-white group-hover:text-[#d4af37]">Unarmed (Brawl)</span>
-                                                <span class="font-bold text-lg">${adjustedDex + (npc.abilities.Brawl||0)} <span class="text-[9px] text-gray-500 font-normal align-middle">DICE</span></span>
-                                            </div>
-                                            <div class="flex justify-between text-[9px] text-gray-500">
-                                                <span>Diff: 6</span>
-                                                <span>Dmg: ${str + pot}(B)</span>
-                                            </div>
-                                        </div>
-                                    ` : ''}
-                                </div>
-
-                                <!-- Active Disciplines -->
-                                ${(cel > 0) ? `
-                                <div class="flex justify-between border-b border-[#333] py-1 text-gold cursor-pointer hover:text-white transition-colors npc-combat-interact"
-                                     data-action="stat" data-name="Celerity" data-v1="${cel}">
-                                    <span>Celerity:</span> <span>${cel} Actions / Dex</span>
-                                </div>` : ''}
-
-                                ${(fort > 0) ? `
-                                <div class="flex justify-between border-b border-[#333] py-1 text-gold cursor-pointer hover:text-white transition-colors npc-combat-interact"
-                                     data-action="stat" data-name="Fortitude" data-v1="${fort}">
-                                    <span>Fortitude:</span> <span>+${fort} Soak</span>
-                                </div>` : ''}
-
-                                ${(pot > 0) ? `
-                                <div class="flex justify-between border-b border-[#333] py-1 text-gold cursor-pointer hover:text-white transition-colors npc-combat-interact"
-                                     data-action="stat" data-name="Potence" data-v1="${pot}">
-                                    <span>Potence:</span> <span>+${pot} Dmg / Str</span>
-                                </div>` : ''}
-
+                            
+                            <!-- Initiative & Soak -->
+                            <div class="flex justify-between border-b border-[#333] py-1 text-gray-400">
+                                <span class="font-bold cursor-pointer hover:text-white npc-combat-interact" data-action="init" data-v1="${dexPenalized}" data-v2="${wits}">Initiative</span>
+                                <span>${dexPenalized + wits} + 1d10</span>
                             </div>
+                            <div class="flex justify-between border-b border-[#333] py-1 text-gray-400 mb-2">
+                                <span class="font-bold cursor-pointer hover:text-white npc-combat-interact" data-action="soak" data-v1="${sta}" data-v2="${fort}" data-v3="${armorRating}">Soak (B/L)</span>
+                                <span>${sta + fort + armorRating} / ${(npc.template === 'mortal' ? 0 : sta) + fort + armorRating}</span>
+                            </div>
+
+                            ${armorRating > 0 ? `<div class="text-[9px] text-gray-500 italic text-right mb-2">Armor: +${armorRating} (Pen: ${armorPenalty})</div>` : ''}
+
+                            <!-- Attacks Table -->
+                            <table class="w-full text-left border-collapse">
+                                <thead>
+                                    <tr class="text-[9px] uppercase text-gray-500 border-b border-[#444]">
+                                        <th class="py-1">Atk</th>
+                                        <th class="text-center">Diff</th>
+                                        <th class="text-center">Dmg</th>
+                                        <th class="text-center">Pool</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${maneuvers.map(m => `
+                                    <tr class="border-b border-[#222] hover:bg-white/5 transition-colors cursor-pointer npc-combat-interact group"
+                                        data-action="attack" data-pool="${m.pool}" data-diff="${m.diff}" data-name="${m.name}" data-dmg="${m.dmg}">
+                                        <td class="py-1 font-bold text-gray-300 group-hover:text-[#d4af37]">${m.name} <span class="text-[8px] font-normal text-gray-600">${m.note || ''}</span></td>
+                                        <td class="text-center text-gray-500">${m.diff}</td>
+                                        <td class="text-center text-gray-400 text-[10px]">${m.dmg}</td>
+                                        <td class="text-center font-bold text-[#d4af37] text-sm">${m.pool}</td>
+                                    </tr>`).join('')}
+                                </tbody>
+                            </table>
+
+                            <!-- Active Disciplines -->
+                            ${(cel > 0 || fort > 0 || pot > 0) ? `<div class="mt-3 pt-2 border-t border-[#333] space-y-1">
+                                ${(cel > 0) ? `<div class="flex justify-between text-[10px] text-gray-400"><span>Celerity</span><span class="text-white">${cel} Actions/Dex</span></div>` : ''}
+                                ${(fort > 0) ? `<div class="flex justify-between text-[10px] text-gray-400"><span>Fortitude</span><span class="text-white">+${fort} Soak</span></div>` : ''}
+                                ${(pot > 0) ? `<div class="flex justify-between text-[10px] text-gray-400"><span>Potence</span><span class="text-white">+${pot} Dmg</span></div>` : ''}
+                            </div>` : ''}
                         </div>
                         
-                        <!-- Inventory List (New) -->
+                        <!-- Inventory List -->
                         ${inventory.length > 0 ? `
                         <div class="bg-[#111] p-3 border border-[#333] text-xs">
                             <h4 class="font-bold text-gray-500 uppercase mb-2">Inventory</h4>
@@ -360,7 +322,7 @@ export function renderPlaySheetModal() {
                             </div>
                         </div>` : ''}
 
-                         <!-- Feeding Grounds (Added) -->
+                         <!-- Feeding Grounds -->
                         ${npc.feedingGrounds ? `
                         <div class="bg-[#111] p-3 border border-[#333] text-xs mt-4">
                             <h4 class="font-bold text-gray-500 uppercase mb-2">Feeding Grounds</h4>
@@ -538,16 +500,20 @@ function bindPlayInteractions(modal) {
                     if (v3 > 0) toggleStat('Armor', v3, 'custom');
                     showNotification("Soak Pool Loaded.");
                 }
-                else if (action === 'stat') {
+                else if (action === 'attack') {
                     const name = el.dataset.name;
-                    toggleStat(name, v1, 'discipline');
-                }
-                else if (action === 'weapon') {
-                    const name = el.dataset.name;
-                    const dmg = parseInt(el.dataset.dmg) || 0;
-                    if (v1 > 0) toggleStat('Dexterity', v1, 'attribute');
-                    if (v2 > 0) toggleStat('Skill', v2, 'ability'); 
-                    showNotification(`Attack: ${name} Loaded. (Dmg Pool: ${dmg})`);
+                    const pool = parseInt(el.dataset.pool);
+                    const diff = parseInt(el.dataset.diff);
+                    const dmg = el.dataset.dmg;
+                    
+                    // Direct loading of pre-calculated pool
+                    toggleStat(name, pool, 'custom');
+                    
+                    // Set difficulty in the dice roller input if it exists
+                    const diffInput = document.getElementById('roll-diff');
+                    if(diffInput) diffInput.value = diff;
+
+                    showNotification(`Attack: ${name} (Diff ${diff}, Dmg ${dmg}) Loaded.`);
                 }
             }
         };
