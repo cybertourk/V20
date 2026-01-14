@@ -577,6 +577,13 @@ function renderPlaySheetModal() {
                             </div>
                         </div>` : ''}
 
+                         <!-- Feeding Grounds (Added) -->
+                        ${activeNpc.feedingGrounds ? `
+                        <div class="bg-[#111] p-3 border border-[#333] text-xs mt-4">
+                            <h4 class="font-bold text-gray-500 uppercase mb-2">Feeding Grounds</h4>
+                            <div class="text-gray-400 italic whitespace-pre-wrap">${activeNpc.feedingGrounds}</div>
+                        </div>` : ''}
+
                     </div>
                 </div>
 
@@ -1016,9 +1023,15 @@ function renderEditorModal() {
                                     </div>
                                 </div>
 
-                                <div class="mt-8">
-                                    <h3 class="column-title">Vehicles</h3>
-                                    <div id="npc-vehicle-list" class="space-y-1 min-h-[30px] border border-[#222] bg-black/20 p-2"></div>
+                                <div class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-8">
+                                     <div>
+                                        <h3 class="column-title">Feeding Grounds</h3>
+                                        <textarea id="inv-feeding-grounds" class="w-full h-24 bg-transparent border border-[#444] text-white p-2 text-xs focus:border-[#d4af37] outline-none resize-none" placeholder="Describe hunting grounds...">${activeNpc.feedingGrounds || ''}</textarea>
+                                    </div>
+                                     <div>
+                                        <h3 class="column-title">Vehicles</h3>
+                                        <div id="npc-vehicle-list" class="space-y-1 min-h-[30px] border border-[#222] bg-black/20 p-2"></div>
+                                    </div>
                                 </div>
                             </div>
                         </div>` : ''}
@@ -2198,6 +2211,10 @@ function saveNpc() {
     // Toggle Check
     const ghoulToggle = document.getElementById('npc-ghoul-toggle');
     if (ghoulToggle) activeNpc.ghouled = ghoulToggle.checked;
+    
+    // NEW: Save Feeding Grounds
+    const feedEl = document.getElementById('inv-feeding-grounds');
+    if (feedEl) activeNpc.feedingGrounds = feedEl.value;
 
     // SANITIZATION: Clean undefined values before saving to prevent Firebase errors
     const cleanNpc = JSON.parse(JSON.stringify(activeNpc));
