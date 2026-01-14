@@ -1,7 +1,7 @@
 import { 
     ATTRIBUTES, ABILITIES, VIRTUES, DISCIPLINES, BACKGROUNDS, 
     ARCHETYPES, CLANS, V20_MERITS_LIST, V20_FLAWS_LIST, VIT,
-    WEAPONS, RANGED_WEAPONS, ARMOR, GEAR, V20_VEHICLE_LIST 
+    WEAPONS, RANGED_WEAPONS, ARMOR, V20_VEHICLE_LIST 
 } from "./data.js";
 import { renderDots, showNotification } from "./ui-common.js";
 
@@ -121,7 +121,7 @@ export function renderEditorModal() {
                                         <option value="Vehicle">Vehicle</option>
                                     </select>
                                     
-                                    <!-- STEP 2: BASE TEMPLATE (The "2nd Form") -->
+                                    <!-- STEP 2: BASE TEMPLATE (Hidden for Gear) -->
                                     <div id="npc-inv-base-wrapper" class="hidden">
                                         <label class="label-text">2. Choose Base Template (Auto-fills Stats)</label>
                                         <select id="npc-inv-base-select" class="w-full text-[11px] bg-[#111] border border-[#444] text-white p-2"></select>
@@ -179,13 +179,6 @@ export function renderEditorModal() {
                                  <div>
                                     <h3 class="column-title">Vehicles</h3>
                                     <div id="npc-vehicle-list" class="space-y-1 min-h-[30px] border border-[#222] bg-black/20 p-2"></div>
-                                </div>
-                            </div>
-
-                            <!-- HAVENS SECTION (Added) -->
-                            <div class="sheet-section mt-4"><div class="section-title">Havens</div>
-                                <div id="npc-haven-list" class="space-y-2 p-2">
-                                     <textarea id="npc-haven-desc" class="w-full h-24 bg-transparent border border-[#444] text-white p-2 text-xs focus:border-[#d4af37] outline-none resize-none" placeholder="Describe Haven(s)...">${ctx.activeNpc.havens || ''}</textarea>
                                 </div>
                             </div>
                         </div>
@@ -360,15 +353,15 @@ export function renderEditorModal() {
             if (t === 'Weapon') list = [...(WEAPONS||[]), ...(RANGED_WEAPONS||[])];
             else if (t === 'Armor') list = ARMOR || [];
             else if (t === 'Vehicle') list = V20_VEHICLE_LIST || [];
-            else if (t === 'Gear') list = (GEAR || []).map(g => ({name: g})); 
+            // GEAR intentionally left blank/null so list remains empty and wrapper hides
             
-            // Show Step 2 if lists exist
+            // Show Step 2 ONLY if lists exist (Weapons, Armor, Vehicles)
             if(list.length > 0) {
                 baseWrapper.classList.remove('hidden');
                 list.sort((a,b) => a.name.localeCompare(b.name));
                 baseSelect.innerHTML += list.map(i => `<option value="${i.name}">${i.name}</option>`).join('');
             } else {
-                baseWrapper.classList.add('hidden');
+                baseWrapper.classList.add('hidden'); // Completely hide for Gear
             }
         };
 
