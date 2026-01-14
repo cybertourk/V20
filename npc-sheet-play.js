@@ -104,7 +104,11 @@ export function renderPlaySheetModal() {
     // 1. Standard Maneuvers (V20 Core Rules)
     maneuvers.push({ 
         name: "Bite", 
-        pool: dexPenalized + brawl + 1, 
+        attr: "Dexterity",
+        attrVal: dexPenalized,
+        abil: "Brawl",
+        abilVal: brawl,
+        bonus: 1,
         label: "Dex + Brawl + 1",
         diff: 6, 
         dmg: `${str+pot+1}(A)`, 
@@ -112,7 +116,11 @@ export function renderPlaySheetModal() {
     });
     maneuvers.push({ 
         name: "Clinch", 
-        pool: str + brawl, 
+        attr: "Strength",
+        attrVal: str,
+        abil: "Brawl",
+        abilVal: brawl,
+        bonus: 0,
         label: "Str + Brawl",
         diff: 6, 
         dmg: `${str+pot}(B)`, 
@@ -121,7 +129,11 @@ export function renderPlaySheetModal() {
     });
     maneuvers.push({ 
         name: "Kick", 
-        pool: dexPenalized + brawl, 
+        attr: "Dexterity",
+        attrVal: dexPenalized,
+        abil: "Brawl",
+        abilVal: brawl,
+        bonus: 0,
         label: "Dex + Brawl",
         diff: 7, 
         dmg: `${str+pot+1}(B)`, 
@@ -129,7 +141,11 @@ export function renderPlaySheetModal() {
     });
     maneuvers.push({ 
         name: "Punch", 
-        pool: dexPenalized + brawl, 
+        attr: "Dexterity",
+        attrVal: dexPenalized,
+        abil: "Brawl",
+        abilVal: brawl,
+        bonus: 0,
         label: "Dex + Brawl",
         diff: 6, 
         dmg: `${str+pot}(B)`, 
@@ -137,7 +153,11 @@ export function renderPlaySheetModal() {
     });
     maneuvers.push({ 
         name: "Tackle", 
-        pool: str + brawl, 
+        attr: "Strength",
+        attrVal: str,
+        abil: "Brawl",
+        abilVal: brawl,
+        bonus: 0,
         label: "Str + Brawl",
         diff: 7, 
         dmg: `${str+pot+1}(B)`, 
@@ -156,17 +176,18 @@ export function renderPlaySheetModal() {
             if (base) stats = base;
         }
 
-        let pool = dexPenalized; // Default Dex
-        let skillVal = melee;
-        let skillName = "Melee";
+        let attrName = "Dexterity";
+        let attrVal = dexPenalized;
+        let abilName = "Melee";
+        let abilVal = melee;
         let isRanged = (w.type === 'Ranged' || (stats.range && stats.range !== '-'));
         
         if (isRanged) {
-            skillVal = firearms;
-            skillName = "Firearms";
+            abilName = "Firearms";
+            abilVal = firearms;
         } else if (w.name.toLowerCase().includes('fist') || w.name.toLowerCase().includes('brass')) {
-            skillVal = brawl;
-            skillName = "Brawl";
+            abilName = "Brawl";
+            abilVal = brawl;
         }
         
         // Damage Calculation
@@ -188,8 +209,12 @@ export function renderPlaySheetModal() {
 
         maneuvers.push({
             name: w.name,
-            pool: pool + skillVal,
-            label: `Dex + ${skillName}`,
+            attr: attrName,
+            attrVal: attrVal,
+            abil: abilName,
+            abilVal: abilVal,
+            bonus: 0,
+            label: `${attrName.substring(0,3)} + ${abilName}`,
             diff: stats.diff || 6,
             dmg: `${dmgDice}${dmgType}`,
             range: stats.range || '-',
@@ -333,12 +358,20 @@ export function renderPlaySheetModal() {
                                 <tbody>
                                     ${maneuvers.map(m => `
                                     <tr class="border-b border-[#222] hover:bg-white/5 transition-colors cursor-pointer npc-combat-interact group"
-                                        data-action="attack" data-pool="${m.pool}" data-diff="${m.diff}" data-name="${m.name}" data-dmg="${m.dmg}">
+                                        data-action="attack" 
+                                        data-name="${m.name}" 
+                                        data-dmg="${m.dmg}"
+                                        data-diff="${m.diff}"
+                                        data-attr="${m.attr}" 
+                                        data-attr-val="${m.attrVal}" 
+                                        data-abil="${m.abil}" 
+                                        data-abil-val="${m.abilVal}" 
+                                        data-bonus="${m.bonus}">
                                         <td class="py-1 font-bold text-gray-300 group-hover:text-[#d4af37]">${m.name} <span class="text-[8px] font-normal text-gray-600">${m.note || ''}</span></td>
                                         <td class="text-center text-gray-500">${m.diff}</td>
                                         <td class="text-center text-gray-400 text-[10px]">${m.dmg}</td>
                                         <td class="text-right text-[10px] text-gray-400 font-mono">
-                                            ${m.label} <span class="text-[#d4af37] font-bold text-sm ml-1">(${m.pool})</span>
+                                            ${m.label} <span class="text-[#d4af37] font-bold text-sm ml-1">(${m.attrVal + m.abilVal + m.bonus})</span>
                                         </td>
                                     </tr>`).join('')}
                                 </tbody>
@@ -544,12 +577,23 @@ function bindPlayInteractions(modal) {
                 }
                 else if (action === 'attack') {
                     const name = el.dataset.name;
-                    const pool = parseInt(el.dataset.pool);
                     const diff = parseInt(el.dataset.diff);
                     const dmg = el.dataset.dmg;
                     
-                    // Direct loading of pre-calculated pool
-                    toggleStat(name, pool, 'custom');
+                    const attr = el.dataset.attr;
+                    const attrVal = parseInt(el.dataset.attrVal);
+                    const abil = el.dataset.abil;
+                    const abilVal = parseInt(el.dataset.abilVal);
+                    const bonus = parseInt(el.dataset.bonus);
+
+                    // Load Attribute
+                    if (attrVal > 0) toggleStat(attr, attrVal, 'attribute');
+                    
+                    // Load Ability
+                    if (abilVal > 0) toggleStat(abil, abilVal, 'ability');
+                    
+                    // Load Bonus (like Bite +1)
+                    if (bonus > 0) toggleStat('Bonus', bonus, 'custom');
                     
                     // Set difficulty in the dice roller input if it exists
                     const diffInput = document.getElementById('roll-diff');
