@@ -111,74 +111,81 @@ export function renderEditorModal() {
                     <div id="step5" class="npc-step hidden">
                         <div class="sheet-section !mt-0">
                             <div class="section-title">Possessions & Gear</div>
-                            <div id="inventory-manager" class="p-4 space-y-4 border border-[#333] bg-black/40 mb-6">
-                                <div class="flex flex-col gap-3">
-                                    <div class="flex flex-col">
-                                        <label class="label-text text-[#d4af37] mb-1">1. Select Item Type</label>
-                                        <select id="inv-type" class="w-full text-xs bg-[#111] border border-[#444] text-white p-2 focus:border-[#d4af37] outline-none">
-                                            <option value="Gear">General Gear</option>
-                                            <option value="Weapon">Weapon</option>
-                                            <option value="Armor">Armor</option>
-                                            <option value="Vehicle">Vehicle</option>
-                                        </select>
-                                    </div>
+                            <div id="npc-inventory-manager" class="p-2 space-y-4 border-b border-[#333] pb-4 mb-4">
+                                <div class="flex flex-col gap-2 mb-2">
+                                    <label class="label-text">1. Select Item Type</label>
+                                    <select id="npc-inv-type" class="w-full text-[11px] bg-[#111] border border-[#444] text-white p-2">
+                                        <option value="Gear">General Gear</option>
+                                        <option value="Weapon">Weapon</option>
+                                        <option value="Armor">Armor</option>
+                                        <option value="Vehicle">Vehicle</option>
+                                    </select>
                                     
                                     <!-- STEP 2: BASE TEMPLATE (The "2nd Form") -->
-                                    <div id="inv-base-wrapper" class="hidden">
-                                        <label class="label-text text-[#d4af37] mb-1">2. Choose Base Template (Auto-fills Stats)</label>
-                                        <select id="inv-base-select" class="w-full text-xs bg-[#111] border border-[#444] text-white p-2 focus:border-[#d4af37] outline-none"></select>
+                                    <div id="npc-inv-base-wrapper" class="hidden">
+                                        <label class="label-text">2. Choose Base Template (Auto-fills Stats)</label>
+                                        <select id="npc-inv-base-select" class="w-full text-[11px] bg-[#111] border border-[#444] text-white p-2"></select>
                                     </div>
                                     
                                     <div>
-                                        <label class="label-text text-[#d4af37] mb-1">3. Specific Description / Name</label>
-                                        <input type="text" id="inv-name" placeholder="e.g. 'Ceremonial Dagger' or 'Grandpa's Revolver'" class="w-full text-xs bg-transparent border-b border-[#444] text-white p-1 focus:border-[#d4af37] outline-none">
+                                        <label class="label-text">3. Specific Description / Name (Optional)</label>
+                                        <input type="text" id="npc-inv-name" placeholder="e.g. 'Ceremonial Dagger' or 'Grandpa's Revolver'" class="w-full text-[11px] bg-transparent border-b border-[#444] text-white p-2">
                                     </div>
                                 </div>
 
                                 <!-- STAT ROWS -->
-                                <div id="inv-stats-row" class="hidden grid grid-cols-5 gap-2">
-                                    <input type="text" id="inv-diff" placeholder="Diff" class="text-center text-[10px] bg-transparent border-b border-[#444] text-white p-1">
-                                    <input type="text" id="inv-dmg" placeholder="Dmg" class="text-center text-[10px] bg-transparent border-b border-[#444] text-white p-1">
-                                    <input type="text" id="inv-range" placeholder="Rng" class="text-center text-[10px] bg-transparent border-b border-[#444] text-white p-1">
-                                    <input type="text" id="inv-rate" placeholder="Rate" class="text-center text-[10px] bg-transparent border-b border-[#444] text-white p-1">
-                                    <input type="text" id="inv-clip" placeholder="Clip" class="text-center text-[10px] bg-transparent border-b border-[#444] text-white p-1">
+                                <div id="npc-inv-stats-row" class="hidden grid grid-cols-5 gap-2">
+                                    <input type="text" id="npc-inv-diff" placeholder="Diff" class="text-center text-[9px] bg-transparent border-b border-[#444] text-white">
+                                    <input type="text" id="npc-inv-dmg" placeholder="Dmg" class="text-center text-[9px] bg-transparent border-b border-[#444] text-white">
+                                    <input type="text" id="npc-inv-range" placeholder="Rng" class="text-center text-[9px] bg-transparent border-b border-[#444] text-white">
+                                    <input type="text" id="npc-inv-rate" placeholder="Rate" class="text-center text-[9px] bg-transparent border-b border-[#444] text-white">
+                                    <input type="text" id="npc-inv-clip" placeholder="Clip" class="text-center text-[9px] bg-transparent border-b border-[#444] text-white">
                                 </div>
-                                <div id="inv-armor-row" class="hidden grid grid-cols-2 gap-2">
-                                    <input type="text" id="inv-rating" placeholder="Rating" class="text-center text-[10px] bg-transparent border-b border-[#444] text-white p-1">
-                                    <input type="text" id="inv-penalty" placeholder="Penalty" class="text-center text-[10px] bg-transparent border-b border-[#444] text-white p-1">
+                                <div id="npc-inv-armor-row" class="hidden grid grid-cols-2 gap-2">
+                                    <input type="text" id="npc-inv-rating" placeholder="Rating" class="text-center text-[9px] bg-transparent border-b border-[#444] text-white">
+                                    <input type="text" id="npc-inv-penalty" placeholder="Penalty" class="text-center text-[9px] bg-transparent border-b border-[#444] text-white">
                                 </div>
-                                <div id="inv-vehicle-row" class="hidden grid grid-cols-3 gap-2">
-                                    <input type="text" id="inv-safe" placeholder="Safe Spd" class="text-center text-[10px] bg-transparent border-b border-[#444] text-white p-1">
-                                    <input type="text" id="inv-max" placeholder="Max Spd" class="text-center text-[10px] bg-transparent border-b border-[#444] text-white p-1">
-                                    <input type="text" id="inv-man" placeholder="Maneuver" class="text-center text-[10px] bg-transparent border-b border-[#444] text-white p-1">
+                                <div id="npc-inv-vehicle-row" class="hidden grid grid-cols-3 gap-2">
+                                    <input type="text" id="npc-inv-safe" placeholder="Safe Spd" class="text-center text-[9px] bg-transparent border-b border-[#444] text-white">
+                                    <input type="text" id="npc-inv-max" placeholder="Max Spd" class="text-center text-[9px] bg-transparent border-b border-[#444] text-white">
+                                    <input type="text" id="npc-inv-man" placeholder="Maneuver" class="text-center text-[9px] bg-transparent border-b border-[#444] text-white">
                                 </div>
 
-                                <div class="flex justify-between items-center pt-2 border-t border-[#333]">
+                                <div class="flex justify-between items-center">
                                     <div class="flex gap-2 items-center">
-                                        <input type="checkbox" id="inv-carried" checked class="w-3 h-3 accent-[#8b0000]">
-                                        <label for="inv-carried" class="text-[10px] text-gray-400 uppercase font-bold">Carried</label>
+                                        <input type="checkbox" id="npc-inv-carried" checked class="w-3 h-3 accent-[#8b0000]">
+                                        <label for="npc-inv-carried" class="text-[9px] text-gray-400 uppercase">Carried</label>
                                     </div>
-                                    <button type="button" id="add-inv-btn" class="bg-[#8b0000] px-4 py-2 text-[10px] font-bold text-white uppercase hover:bg-red-700 shadow-md transition-colors">Add Item</button>
+                                    <button type="button" id="npc-add-inv-btn" class="bg-[#8b0000] px-4 py-2 text-[10px] font-bold text-white uppercase hover:bg-red-700 shadow-md transition-colors">Add Item</button>
                                 </div>
                             </div>
+
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
                                 <div>
                                     <h3 class="column-title">Gear (Carried)</h3>
-                                    <div id="inv-list-carried" class="space-y-1 min-h-[50px] border border-[#222] bg-black/20 p-2"></div>
+                                    <div id="npc-inv-list-carried" class="space-y-1 min-h-[50px] border border-[#222] bg-black/20 p-2"></div>
                                 </div>
                                 <div>
                                     <h3 class="column-title">Equipment (Owned)</h3>
-                                    <div id="inv-list-owned" class="space-y-1 min-h-[50px] border border-[#222] bg-black/20 p-2"></div>
+                                    <div id="npc-inv-list-owned" class="space-y-1 min-h-[50px] border border-[#222] bg-black/20 p-2"></div>
                                 </div>
                             </div>
+                            
                             <div class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-8">
                                  ${showFeedingGrounds ? `<div>
                                     <h3 class="column-title">Feeding Grounds</h3>
-                                    <textarea id="inv-feeding-grounds" class="w-full h-24 bg-transparent border border-[#444] text-white p-2 text-xs focus:border-[#d4af37] outline-none resize-none" placeholder="Describe hunting grounds...">${ctx.activeNpc.feedingGrounds || ''}</textarea>
+                                    <textarea id="npc-inv-feeding-grounds" class="w-full h-24 bg-transparent border border-[#444] text-white p-2 text-xs focus:border-[#d4af37] outline-none resize-none" placeholder="Describe hunting grounds...">${ctx.activeNpc.feedingGrounds || ''}</textarea>
                                 </div>` : '<div></div>'}
                                  <div>
                                     <h3 class="column-title">Vehicles</h3>
                                     <div id="npc-vehicle-list" class="space-y-1 min-h-[30px] border border-[#222] bg-black/20 p-2"></div>
+                                </div>
+                            </div>
+
+                            <!-- HAVENS SECTION (Added) -->
+                            <div class="sheet-section mt-4"><div class="section-title">Havens</div>
+                                <div id="npc-haven-list" class="space-y-2 p-2">
+                                     <textarea id="npc-haven-desc" class="w-full h-24 bg-transparent border border-[#444] text-white p-2 text-xs focus:border-[#d4af37] outline-none resize-none" placeholder="Describe Haven(s)...">${ctx.activeNpc.havens || ''}</textarea>
                                 </div>
                             </div>
                         </div>
@@ -330,20 +337,20 @@ export function renderEditorModal() {
 
     // EQUIPMENT MANAGER LOGIC
     if(showEquipment) {
-        const typeSelect = document.getElementById('inv-type');
-        const baseSelect = document.getElementById('inv-base-select');
-        const baseWrapper = document.getElementById('inv-base-wrapper');
-        const addBtn = document.getElementById('add-inv-btn');
+        const typeSelect = document.getElementById('npc-inv-type');
+        const baseSelect = document.getElementById('npc-inv-base-select');
+        const baseWrapper = document.getElementById('npc-inv-base-wrapper');
+        const addBtn = document.getElementById('npc-add-inv-btn');
 
         const toggleFields = () => {
             const t = typeSelect.value;
-            const statsRow = document.getElementById('inv-stats-row');
+            const statsRow = document.getElementById('npc-inv-stats-row');
             if(statsRow) statsRow.classList.toggle('hidden', t !== 'Weapon');
             
-            const armorRow = document.getElementById('inv-armor-row');
+            const armorRow = document.getElementById('npc-inv-armor-row');
             if(armorRow) armorRow.classList.toggle('hidden', t !== 'Armor');
             
-            const vehicleRow = document.getElementById('inv-vehicle-row');
+            const vehicleRow = document.getElementById('npc-inv-vehicle-row');
             if(vehicleRow) vehicleRow.classList.toggle('hidden', t !== 'Vehicle');
             
             // Rebuild Template Options
@@ -370,7 +377,7 @@ export function renderEditorModal() {
         baseSelect.onchange = (e) => {
             const name = e.target.value;
             if(!name) return;
-            document.getElementById('inv-name').value = name;
+            document.getElementById('npc-inv-name').value = name;
             
             const t = typeSelect.value;
             let item = null;
@@ -381,26 +388,26 @@ export function renderEditorModal() {
 
             if(item) {
                 if(t === 'Weapon') {
-                    document.getElementById('inv-diff').value = item.diff || '';
-                    document.getElementById('inv-dmg').value = item.dmg || '';
-                    document.getElementById('inv-range').value = item.range || '';
-                    document.getElementById('inv-rate').value = item.rate || '';
-                    document.getElementById('inv-clip').value = item.clip || '';
+                    document.getElementById('npc-inv-diff').value = item.diff || '';
+                    document.getElementById('npc-inv-dmg').value = item.dmg || '';
+                    document.getElementById('npc-inv-range').value = item.range || '';
+                    document.getElementById('npc-inv-rate').value = item.rate || '';
+                    document.getElementById('npc-inv-clip').value = item.clip || '';
                 } else if(t === 'Armor') {
-                    document.getElementById('inv-rating').value = item.rating || '';
-                    document.getElementById('inv-penalty').value = item.penalty || '';
+                    document.getElementById('npc-inv-rating').value = item.rating || '';
+                    document.getElementById('npc-inv-penalty').value = item.penalty || '';
                 } else if(t === 'Vehicle') {
-                    document.getElementById('inv-safe').value = item.safe || '';
-                    document.getElementById('inv-max').value = item.max || '';
-                    document.getElementById('inv-man').value = item.man || '';
+                    document.getElementById('npc-inv-safe').value = item.safe || '';
+                    document.getElementById('npc-inv-max').value = item.max || '';
+                    document.getElementById('npc-inv-man').value = item.man || '';
                 }
             }
         };
 
         addBtn.onclick = () => {
             const type = typeSelect.value;
-            const name = document.getElementById('inv-name').value || "Unnamed Item";
-            const carried = document.getElementById('inv-carried').checked;
+            const name = document.getElementById('npc-inv-name').value || "Unnamed Item";
+            const carried = document.getElementById('npc-inv-carried').checked;
             
             const newItem = {
                 name,
@@ -411,22 +418,22 @@ export function renderEditorModal() {
 
             if (type === 'Weapon') {
                 newItem.stats = {
-                    diff: document.getElementById('inv-diff').value,
-                    dmg: document.getElementById('inv-dmg').value,
-                    range: document.getElementById('inv-range').value,
-                    rate: document.getElementById('inv-rate').value,
-                    clip: document.getElementById('inv-clip').value
+                    diff: document.getElementById('npc-inv-diff').value,
+                    dmg: document.getElementById('npc-inv-dmg').value,
+                    range: document.getElementById('npc-inv-range').value,
+                    rate: document.getElementById('npc-inv-rate').value,
+                    clip: document.getElementById('npc-inv-clip').value
                 };
             } else if (type === 'Armor') {
                 newItem.stats = {
-                    rating: document.getElementById('inv-rating').value,
-                    penalty: document.getElementById('inv-penalty').value
+                    rating: document.getElementById('npc-inv-rating').value,
+                    penalty: document.getElementById('npc-inv-penalty').value
                 };
             } else if (type === 'Vehicle') {
                 newItem.stats = {
-                    safe: document.getElementById('inv-safe').value,
-                    max: document.getElementById('inv-max').value,
-                    man: document.getElementById('inv-man').value
+                    safe: document.getElementById('npc-inv-safe').value,
+                    max: document.getElementById('npc-inv-max').value,
+                    man: document.getElementById('npc-inv-man').value
                 };
             }
 
@@ -434,8 +441,8 @@ export function renderEditorModal() {
             ctx.activeNpc.inventory.push(newItem);
             renderInventoryList();
             
-            document.getElementById('inv-name').value = '';
-            document.querySelectorAll('#inventory-manager input[type="text"]').forEach(i => i.value = '');
+            document.getElementById('npc-inv-name').value = '';
+            document.querySelectorAll('#npc-inventory-manager input[type="text"]').forEach(i => i.value = '');
             showNotification("Item Added.");
         };
         
@@ -515,8 +522,8 @@ export function updateModeUI() {
 }
 
 export function renderInventoryList() {
-    const cList = document.getElementById('inv-list-carried');
-    const oList = document.getElementById('inv-list-owned');
+    const cList = document.getElementById('npc-inv-list-carried');
+    const oList = document.getElementById('npc-inv-list-owned');
     const vList = document.getElementById('npc-vehicle-list');
     if(!cList || !oList) return;
     
