@@ -37,7 +37,6 @@ export function renderEditorModal() {
     const showDomitor = isGhoul || (ctx.activeNpc.template === 'animal' && ctx.activeNpc.ghouled);
     const showEquipment = ctx.activeNpc.template !== 'animal';
     
-    // Hide Feeding Grounds for Mortals and Ghouls
     const showFeedingGrounds = !['mortal', 'ghoul'].includes(ctx.activeNpc.template);
 
     modal.innerHTML = `
@@ -353,9 +352,8 @@ export function renderEditorModal() {
             if (t === 'Weapon') list = [...(WEAPONS||[]), ...(RANGED_WEAPONS||[])];
             else if (t === 'Armor') list = ARMOR || [];
             else if (t === 'Vehicle') list = V20_VEHICLE_LIST || [];
-            // GEAR intentionally left blank/null so list remains empty and wrapper hides
+            // GEAR intentionally left blank so list remains empty and wrapper hides
             
-            // Show Step 2 ONLY if lists exist (Weapons, Armor, Vehicles)
             if(list.length > 0) {
                 baseWrapper.classList.remove('hidden');
                 list.sort((a,b) => a.name.localeCompare(b.name));
@@ -377,7 +375,6 @@ export function renderEditorModal() {
             if (t === 'Weapon') item = [...(WEAPONS||[]), ...(RANGED_WEAPONS||[])].find(x => x.name === name);
             else if (t === 'Armor') item = (ARMOR||[]).find(x => x.name === name);
             else if (t === 'Vehicle') item = (V20_VEHICLE_LIST||[]).find(x => x.name === name);
-            // Gear doesn't have stats to auto-fill
 
             if(item) {
                 if(t === 'Weapon') {
@@ -526,14 +523,30 @@ export function renderInventoryList() {
     if(!ctx.activeNpc.inventory) return;
 
     ctx.activeNpc.inventory.forEach((item, idx) => {
+        let statString = "";
+        if (item.stats) {
+            const parts = [];
+            if(item.stats.diff) parts.push(`Diff:${item.stats.diff}`);
+            if(item.stats.damage || item.stats.dmg) parts.push(`Dmg:${item.stats.damage || item.stats.dmg}`);
+            if(item.stats.rating) parts.push(`Rate:${item.stats.rating}`); // Armor rating
+            if(parts.length > 0) statString = `<span class="text-gray-500 text-[8px] ml-2 font-mono">(${parts.join(', ')})</span>`;
+        }
+
+        const toggleClass = "text-[9px] uppercase font-bold border border-[#444] px-2 py-0.5 ml-2 hover:bg-[#333] transition-colors " + 
+            (item.status === 'carried' ? "text-green-400 border-green-900 bg-green-900/20" : "text-gray-500");
+        const toggleLabel = item.status === 'carried' ? "Carried" : "Owned";
+
         const html = `
-            <div class="flex justify-between items-center bg-black/40 p-1 border border-[#333] text-[10px] mb-1">
-                <div>
-                    <span class="text-[#d4af37] font-bold">${item.name}</span>
-                    <span class="text-gray-500 uppercase ml-2 text-[9px]">${item.type}</span>
-                    ${item.stats && item.stats.damage ? `<span class="text-gray-600 text-[8px] ml-1">${item.stats.damage}</span>` : ''}
+            <div class="flex justify-between items-center bg-black/40 p-1 border border-[#333] text-[10px] mb-1 group hover:border-[#555] transition-colors">
+                <div class="flex items-center flex-grow overflow-hidden">
+                    <span class="text-[#d4af37] font-bold whitespace-nowrap">${item.name}</span>
+                    <span class="text-gray-600 text-[8px] ml-2 uppercase tracking-wider">${item.type}</span>
+                    ${statString}
                 </div>
-                <button class="text-red-500 hover:text-white remove-inv-btn" data-idx="${idx}"><i class="fas fa-times"></i></button>
+                <div class="flex items-center flex-shrink-0">
+                    ${item.type !== 'Vehicle' ? `<button class="inv-toggle-btn ${toggleClass}" data-idx="${idx}">${toggleLabel}</button>` : ''}
+                    <button class="text-red-500 hover:text-white remove-inv-btn ml-3 px-2 transition-transform hover:scale-110" data-idx="${idx}"><i class="fas fa-times"></i></button>
+                </div>
             </div>
         `;
         if (item.type === 'Vehicle' && vList) vList.innerHTML += html;
@@ -543,6 +556,18 @@ export function renderInventoryList() {
     
     document.querySelectorAll('.remove-inv-btn').forEach(b => {
         b.onclick = (e) => callbacks.removeNpcInv(parseInt(b.dataset.idx));
+    });
+
+    document.querySelectorAll('.inv-toggle-btn').forEach(b => {
+        b.onclick = (e) => {
+            e.preventDefault(); 
+            const idx = parseInt(b.dataset.idx);
+            const item = ctx.activeNpc.inventory[idx];
+            if(item) {
+                item.status = item.status === 'carried' ? 'owned' : 'carried';
+                renderInventoryList();
+            }
+        };
     });
 }
 
