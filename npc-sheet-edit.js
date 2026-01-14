@@ -9,9 +9,9 @@ import { renderDots, showNotification } from "./ui-common.js";
 const EXCLUDED_BACKGROUNDS = ["Black Hand Membership", "Domain", "Generation", "Herd", "Retainers", "Rituals", "Status"];
 const EXCLUDED_VITALS = ["Apparent Age", "R.I.P."];
 
-// Global Callback references (Set by the main controller)
+// Global Callback references
 let callbacks = {};
-let ctx = {}; // Context (activeNpc, modes, etc)
+let ctx = {}; 
 
 export function initEditSheet(context, callbackMap) {
     ctx = context;
@@ -36,6 +36,9 @@ export function renderEditorModal() {
     const isGhoul = ctx.activeNpc.template === 'ghoul';
     const showDomitor = isGhoul || (ctx.activeNpc.template === 'animal' && ctx.activeNpc.ghouled);
     const showEquipment = ctx.activeNpc.template !== 'animal';
+    
+    // Hide Feeding Grounds for Mortals and Ghouls
+    const showFeedingGrounds = !['mortal', 'ghoul'].includes(ctx.activeNpc.template);
 
     modal.innerHTML = `
         <div class="w-[95%] max-w-7xl h-[95%] bg-[#0a0a0a] border-2 border-[#8b0000] shadow-[0_0_50px_rgba(139,0,0,0.5)] flex flex-col relative font-serif">
@@ -119,15 +122,20 @@ export function renderEditorModal() {
                                             <option value="Vehicle">Vehicle</option>
                                         </select>
                                     </div>
+                                    
+                                    <!-- STEP 2: BASE TEMPLATE (The "2nd Form") -->
                                     <div id="inv-base-wrapper" class="hidden">
                                         <label class="label-text text-[#d4af37] mb-1">2. Choose Base Template (Auto-fills Stats)</label>
                                         <select id="inv-base-select" class="w-full text-xs bg-[#111] border border-[#444] text-white p-2 focus:border-[#d4af37] outline-none"></select>
                                     </div>
+                                    
                                     <div>
                                         <label class="label-text text-[#d4af37] mb-1">3. Specific Description / Name</label>
                                         <input type="text" id="inv-name" placeholder="e.g. 'Ceremonial Dagger' or 'Grandpa's Revolver'" class="w-full text-xs bg-transparent border-b border-[#444] text-white p-1 focus:border-[#d4af37] outline-none">
                                     </div>
                                 </div>
+
+                                <!-- STAT ROWS -->
                                 <div id="inv-stats-row" class="hidden grid grid-cols-5 gap-2">
                                     <input type="text" id="inv-diff" placeholder="Diff" class="text-center text-[10px] bg-transparent border-b border-[#444] text-white p-1">
                                     <input type="text" id="inv-dmg" placeholder="Dmg" class="text-center text-[10px] bg-transparent border-b border-[#444] text-white p-1">
@@ -144,6 +152,7 @@ export function renderEditorModal() {
                                     <input type="text" id="inv-max" placeholder="Max Spd" class="text-center text-[10px] bg-transparent border-b border-[#444] text-white p-1">
                                     <input type="text" id="inv-man" placeholder="Maneuver" class="text-center text-[10px] bg-transparent border-b border-[#444] text-white p-1">
                                 </div>
+
                                 <div class="flex justify-between items-center pt-2 border-t border-[#333]">
                                     <div class="flex gap-2 items-center">
                                         <input type="checkbox" id="inv-carried" checked class="w-3 h-3 accent-[#8b0000]">
@@ -163,10 +172,10 @@ export function renderEditorModal() {
                                 </div>
                             </div>
                             <div class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-8">
-                                 <div>
+                                 ${showFeedingGrounds ? `<div>
                                     <h3 class="column-title">Feeding Grounds</h3>
                                     <textarea id="inv-feeding-grounds" class="w-full h-24 bg-transparent border border-[#444] text-white p-2 text-xs focus:border-[#d4af37] outline-none resize-none" placeholder="Describe hunting grounds...">${ctx.activeNpc.feedingGrounds || ''}</textarea>
-                                </div>
+                                </div>` : '<div></div>'}
                                  <div>
                                     <h3 class="column-title">Vehicles</h3>
                                     <div id="npc-vehicle-list" class="space-y-1 min-h-[30px] border border-[#222] bg-black/20 p-2"></div>
@@ -337,13 +346,16 @@ export function renderEditorModal() {
             const vehicleRow = document.getElementById('inv-vehicle-row');
             if(vehicleRow) vehicleRow.classList.toggle('hidden', t !== 'Vehicle');
             
+            // Rebuild Template Options
             baseSelect.innerHTML = '<option value="">-- Select Template --</option>';
             let list = [];
             
             if (t === 'Weapon') list = [...(WEAPONS||[]), ...(RANGED_WEAPONS||[])];
             else if (t === 'Armor') list = ARMOR || [];
             else if (t === 'Vehicle') list = V20_VEHICLE_LIST || [];
+            else if (t === 'Gear') list = (GEAR || []).map(g => ({name: g})); 
             
+            // Show Step 2 if lists exist
             if(list.length > 0) {
                 baseWrapper.classList.remove('hidden');
                 list.sort((a,b) => a.name.localeCompare(b.name));
@@ -365,6 +377,7 @@ export function renderEditorModal() {
             if (t === 'Weapon') item = [...(WEAPONS||[]), ...(RANGED_WEAPONS||[])].find(x => x.name === name);
             else if (t === 'Armor') item = (ARMOR||[]).find(x => x.name === name);
             else if (t === 'Vehicle') item = (V20_VEHICLE_LIST||[]).find(x => x.name === name);
+            // Gear doesn't have stats to auto-fill
 
             if(item) {
                 if(t === 'Weapon') {
@@ -426,7 +439,8 @@ export function renderEditorModal() {
             showNotification("Item Added.");
         };
         
-        toggleFields();
+        // Initial Trigger
+        setTimeout(toggleFields, 100);
     }
 
     const bloodInput = document.getElementById('npc-blood');
