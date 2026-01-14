@@ -5,10 +5,9 @@ import {
     ATTRIBUTES, ABILITIES, VIRTUES, DISCIPLINES, BACKGROUNDS, 
     ARCHETYPES, CLANS, SPECIALTY_EXAMPLES as SPECIALTIES,
     V20_MERITS_LIST, V20_FLAWS_LIST, VIT,
-    WEAPONS, RANGED_WEAPONS, ARMOR, GEAR 
+    WEAPONS, RANGED_WEAPONS, ARMOR, GEAR, V20_VEHICLE_LIST 
 } from "./data.js";
 import { renderDots, showNotification } from "./ui-common.js";
-// ADDED: Import directly from ui-mechanics now that it exports them
 import { toggleStat, clearPool } from "./ui-mechanics.js";
 
 // Registry of available templates
@@ -157,7 +156,7 @@ function sanitizeNpcData(npc) {
     // 5. Ensure Pools exist
     if (npc.tempWillpower === undefined) npc.tempWillpower = npc.willpower || 1;
     if (npc.currentBlood === undefined) npc.currentBlood = npc.bloodPool || 10;
-
+    
     // 6. Ensure Inventory
     if (!npc.inventory || !Array.isArray(npc.inventory)) npc.inventory = [];
 }
@@ -534,7 +533,7 @@ function renderPlaySheetModal() {
                                         ${weapons.map(w => {
                                             let pool = dex;
                                             let skill = 'Melee';
-                                            if (w.type === 'Ranged') skill = 'Firearms'; // Basic assumption
+                                            if (w.type === 'Ranged') skill = 'Firearms'; 
                                             // Ideally data.js has skill info, defaulting to Melee/Firearms based on type
                                             
                                             // Check skill dots
@@ -877,11 +876,18 @@ function renderEditorModal() {
     // NEW: Show Equipment Tab for Mortals/Ghouls only
     const showEquipment = activeNpc.template !== 'animal';
 
+    // Base Templates for Dropdown
+    const meleeOpts = (WEAPONS||[]).map(w => `<option value="${w.name}">${w.name}</option>`).join('');
+    const rangedOpts = (RANGED_WEAPONS||[]).map(w => `<option value="${w.name}">${w.name}</option>`).join('');
+    const armorOpts = (ARMOR||[]).map(a => `<option value="${a.name}">${a.name} (${a.rating})</option>`).join('');
+    const gearOpts = (GEAR||[]).map(g => `<option value="${g}">${g}</option>`).join('');
+    const vehicleOpts = (V20_VEHICLE_LIST||[]).map(v => `<option value="${v.name}">${v.name}</option>`).join('');
+
     try {
         modal.innerHTML = `
             <div class="w-[95%] max-w-7xl h-[95%] bg-[#0a0a0a] border-2 border-[#8b0000] shadow-[0_0_50px_rgba(139,0,0,0.5)] flex flex-col relative font-serif">
                 
-                <!-- HEADER -->
+                <!-- HEADER (Unchanged) -->
                 <div class="bg-[#1a0505] p-4 border-b border-[#444] flex justify-between items-center shrink-0">
                     <div class="flex items-center gap-4">
                         <h2 class="text-2xl font-cinzel text-[#d4af37] font-bold tracking-widest uppercase shadow-black drop-shadow-md flex items-center">
@@ -902,6 +908,7 @@ function renderEditorModal() {
                             </button>
                         </div>
                     </div>
+                    <!-- ... Action Buttons ... -->
                     <div class="flex items-center gap-2">
                         <button id="btn-import-npc" class="text-gray-400 hover:text-white text-[10px] uppercase font-bold px-2 py-1"><i class="fas fa-file-import mr-1"></i> Import</button>
                         <input type="file" id="file-import-npc" class="hidden" accept=".json">
@@ -926,207 +933,100 @@ function renderEditorModal() {
                         
                         <!-- STEP 1: IDENTITY -->
                         <div id="step1" class="npc-step hidden">
-                            <div class="sheet-section !mt-0">
-                                <div class="section-title">Concept & Identity</div>
-                                <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-                                    
-                                    <!-- COLUMN 1: Basic Identity & Ghoul Type -->
-                                    <div class="space-y-6">
-                                        <div><label class="label-text text-[#d4af37]">Name</label><input type="text" id="npc-name" value="${activeNpc.name || ''}" class="npc-input w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] outline-none"></div>
-                                        
-                                        <!-- Ghoul Type (Column 1) -->
-                                        ${isGhoul ? `
-                                            <div>
-                                                <label class="label-text text-[#d4af37]">Ghoul Type</label>
-                                                <select id="npc-subtype" class="npc-input w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] outline-none">
-                                                    <option value="Vassal" ${activeNpc.type === 'Vassal' ? 'selected' : ''}>Vassal (Bound)</option>
-                                                    <option value="Independent" ${activeNpc.type === 'Independent' ? 'selected' : ''}>Independent</option>
-                                                    <option value="Revenant" ${activeNpc.type === 'Revenant' ? 'selected' : ''}>Revenant</option>
-                                                </select>
-                                            </div>
-                                        ` : ''}
-
-                                        <!-- Domitor: Only for Ghouls or Ghouled Animals -->
-                                        ${showDomitor ? `
-                                            <div><label class="label-text text-[#d4af37]">Domitor Name</label><input type="text" id="npc-domitor" value="${activeNpc.domitor || ''}" class="npc-input w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] outline-none"></div>
-                                            
-                                            <!-- Domitor Clan (Moved from Column 3) -->
-                                            <div id="div-extra-clan" class="${showDomitorClan ? 'block' : 'hidden'} mt-2">
-                                                <label class="label-text text-[#d4af37]">Domitor's Clan</label>
-                                                <select id="npc-extra-clan" class="w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] focus:outline-none transition-colors">
-                                                    <option value="" class="bg-black">Unknown / None</option>
-                                                    ${clanOptions}
-                                                </select>
-                                                <p class="text-[9px] text-gray-500 mt-1 italic">Determines in-clan disciplines.</p>
-                                            </div>
-                                        ` : ''}
-                                    </div>
-                                    
-                                    <!-- COLUMN 2: Psychology & Bond Level -->
-                                    <div class="space-y-6">
-                                        <div>
-                                            <label class="label-text text-[#d4af37]">Nature</label>
-                                            <select id="npc-nature" class="npc-input w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] outline-none"><option value="">Select...</option>${archOptions}</select>
-                                        </div>
-                                        <div>
-                                            <label class="label-text text-[#d4af37]">Demeanor</label>
-                                            <select id="npc-demeanor" class="npc-input w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] outline-none"><option value="">Select...</option>${archOptions}</select>
-                                        </div>
-                                        <div><label class="label-text text-[#d4af37]">Concept</label><input type="text" id="npc-concept" value="${activeNpc.concept || ''}" class="npc-input w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] outline-none"></div>
-
-                                        <!-- Bond Level (Column 2) -->
-                                        ${isGhoul ? `
-                                            <div id="div-bond-level" class="${showBondLevel ? 'block' : 'hidden'}">
-                                                <label class="label-text text-[#d4af37]">Blood Bond Level</label>
-                                                <select id="npc-bond-level" class="npc-input w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] outline-none">
-                                                    <option value="1" ${activeNpc.bondLevel == 1 ? 'selected' : ''}>Step 1 (First Drink)</option>
-                                                    <option value="2" ${activeNpc.bondLevel == 2 ? 'selected' : ''}>Step 2 (Strong Feelings)</option>
-                                                    <option value="3" ${activeNpc.bondLevel == 3 ? 'selected' : ''}>Step 3 (Full Bond)</option>
-                                                </select>
-                                                <p class="text-[9px] text-gray-500 mt-1 italic">V20 p. 500: Determines loyalty.</p>
-                                            </div>
-                                        ` : ''}
-                                    </div>
-                                    
-                                    <!-- COLUMN 3: Extras (Revenant Family, Weakness, Rules Box) -->
-                                    <div class="space-y-6">
-                                        ${extrasHtml}
-                                    </div>
-                                </div>
-                            </div>
+                             <div class="sheet-section !mt-0"><div class="section-title">Concept & Identity</div><div class="grid grid-cols-1 md:grid-cols-3 gap-8"><div class="space-y-6"><div><label class="label-text text-[#d4af37]">Name</label><input type="text" id="npc-name" value="${activeNpc.name || ''}" class="npc-input w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] outline-none"></div>${isGhoul ? `<div><label class="label-text text-[#d4af37]">Ghoul Type</label><select id="npc-subtype" class="npc-input w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] outline-none"><option value="Vassal" ${activeNpc.type === 'Vassal' ? 'selected' : ''}>Vassal (Bound)</option><option value="Independent" ${activeNpc.type === 'Independent' ? 'selected' : ''}>Independent</option><option value="Revenant" ${activeNpc.type === 'Revenant' ? 'selected' : ''}>Revenant</option></select></div>` : ''}${showDomitor ? `<div><label class="label-text text-[#d4af37]">Domitor Name</label><input type="text" id="npc-domitor" value="${activeNpc.domitor || ''}" class="npc-input w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] outline-none"></div><div id="div-extra-clan" class="mt-2"><label class="label-text text-[#d4af37]">Domitor's Clan</label><select id="npc-extra-clan" class="w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] focus:outline-none transition-colors"><option value="" class="bg-black">Unknown / None</option>${clanOptions}</select></div>` : ''}</div><div class="space-y-6"><div><label class="label-text text-[#d4af37]">Nature</label><select id="npc-nature" class="npc-input w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] outline-none"><option value="">Select...</option>${archOptions}</select></div><div><label class="label-text text-[#d4af37]">Demeanor</label><select id="npc-demeanor" class="npc-input w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] outline-none"><option value="">Select...</option>${archOptions}</select></div><div><label class="label-text text-[#d4af37]">Concept</label><input type="text" id="npc-concept" value="${activeNpc.concept || ''}" class="npc-input w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] outline-none"></div>${isGhoul ? `<div id="div-bond-level"><label class="label-text text-[#d4af37]">Blood Bond Level</label><select id="npc-bond-level" class="npc-input w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] outline-none"><option value="1" ${activeNpc.bondLevel == 1 ? 'selected' : ''}>Step 1 (First Drink)</option><option value="2" ${activeNpc.bondLevel == 2 ? 'selected' : ''}>Step 2 (Strong Feelings)</option><option value="3" ${activeNpc.bondLevel == 3 ? 'selected' : ''}>Step 3 (Full Bond)</option></select></div>` : ''}</div><div class="space-y-6">${extrasHtml}</div></div></div>
                         </div>
-
-                        <!-- STEP 2: ATTRIBUTES -->
                         <div id="step2" class="npc-step hidden">
-                            <div class="sheet-section !mt-0">
-                                <div class="section-title">Attributes</div>
-                                <div class="grid grid-cols-1 md:grid-cols-3 gap-10">
-                                    ${renderAttributeColumn('Physical')}
-                                    ${renderAttributeColumn('Social')}
-                                    ${renderAttributeColumn('Mental')}
-                                </div>
-                            </div>
+                            <div class="sheet-section !mt-0"><div class="section-title">Attributes</div><div class="grid grid-cols-1 md:grid-cols-3 gap-10">${renderAttributeColumn('Physical')}${renderAttributeColumn('Social')}${renderAttributeColumn('Mental')}</div></div>
                         </div>
-
-                        <!-- STEP 3: ABILITIES -->
                         <div id="step3" class="npc-step hidden">
-                            <div class="sheet-section !mt-0">
-                                <div class="section-title">Abilities</div>
-                                <div class="grid grid-cols-1 md:grid-cols-3 gap-10">
-                                    ${renderAbilityColumn('Talents')}
-                                    ${renderAbilityColumn('Skills')}
-                                    ${renderAbilityColumn('Knowledges')}
-                                </div>
-                            </div>
+                            <div class="sheet-section !mt-0"><div class="section-title">Abilities</div><div class="grid grid-cols-1 md:grid-cols-3 gap-10">${renderAbilityColumn('Talents')}${renderAbilityColumn('Skills')}${renderAbilityColumn('Knowledges')}</div></div>
                         </div>
-
-                        <!-- STEP 4: ADVANTAGES (Dynamic Grid) -->
                         <div id="step4" class="npc-step hidden">
-                            <div class="sheet-section !mt-0">
-                                <div class="section-title">Advantages</div>
-                                <!-- Uses Flex wrap for adaptive layout if columns are empty -->
-                                <div class="flex flex-wrap gap-10 justify-between items-start">
-                                    
-                                    <!-- Col 1: Disciplines & Backgrounds -->
-                                    ${ (f.disciplines || f.backgrounds) ? `
-                                    <div class="flex-1 min-w-[200px]">
-                                        ${f.disciplines ? `
-                                            <h3 class="column-title">Disciplines</h3>
-                                            <div id="npc-disc-list" class="space-y-1 mt-2"></div>
-                                            <div class="mt-3"><select id="npc-disc-select" class="w-full bg-transparent border border-[#444] text-[10px] text-gray-300 p-2 uppercase font-bold"><option value="">+ Add Discipline</option>${(DISCIPLINES||[]).map(d=>`<option value="${d}">${d}</option>`).join('')}</select></div>
-                                        ` : ''}
-                                        
-                                        ${f.backgrounds ? `
-                                            <h3 class="column-title ${f.disciplines ? 'mt-8' : ''}">Backgrounds</h3>
-                                            <div id="npc-back-list" class="space-y-1 mt-2"></div>
-                                            <div class="mt-3">
-                                                <select id="npc-back-select" class="w-full bg-transparent border border-[#444] text-[10px] text-gray-300 p-2 uppercase font-bold">
-                                                    <option value="">+ Add Background</option>
-                                                    ${(BACKGROUNDS||[]).filter(b => !EXCLUDED_BACKGROUNDS.includes(b)).map(b=>`<option value="${b}">${b}</option>`).join('')}
-                                                </select>
-                                            </div>
-                                        ` : ''}
-                                    </div>` : ''}
-                                    
-                                    <!-- Col 2: Virtues & Vitals -->
-                                    <div class="flex-1 min-w-[200px]">
-                                        ${f.virtues ? `
-                                            <h3 class="column-title">Virtues <span id="virtue-limit-display" class="text-xs text-gray-500"></span></h3>
-                                            <div id="npc-virtue-list" class="space-y-3 mt-4 mb-4"></div>
-                                            <div class="mt-8 border-t border-[#333] pt-4">
-                                                ${f.humanity ? `
-                                                <div class="flex justify-between items-center text-xs mb-4">
-                                                    <span class="font-bold text-[#d4af37]">HUMANITY</span>
-                                                    <div class="dot-row-direct cursor-pointer" id="npc-humanity-row">${renderDots(activeNpc.humanity, 10)}</div>
-                                                </div>` : ''}
-                                        ` : '<div class="mt-4"></div>'}
-                                        
-                                        <div class="flex justify-between items-center text-xs mb-4">
-                                            <span class="font-bold text-[#d4af37]">WILLPOWER</span>
-                                            <div class="dot-row-direct cursor-pointer" id="npc-willpower-row">${renderDots(activeNpc.willpower, 10)}</div>
-                                        </div>
-                                        
-                                        ${f.bloodPool ? `
-                                            <div class="flex justify-between items-center text-xs">
-                                                <span class="font-bold text-[#d4af37]">BLOOD POOL</span>
-                                                <input type="number" id="npc-blood" value="${activeNpc.bloodPool}" class="w-12 bg-transparent border-b border-[#444] text-center text-white p-1 font-bold text-lg focus:border-[#d4af37] outline-none">
-                                            </div>
-                                        ` : ''}
-                                        ${f.virtues ? `</div>` : ''} 
-                                    </div>
-                                    
-                                    <!-- Col 3: Merits/Flaws -->
-                                    <div class="flex-1 min-w-[200px]">
-                                        <h3 class="column-title">Merits & Flaws</h3>
-                                        <select id="npc-merit-select" class="w-full bg-transparent border-b border-[#444] text-[10px] text-gray-300 p-1 mb-2"><option value="">Add Merit...</option>${(V20_MERITS_LIST||[]).map(m=>`<option value="${m.n}|${m.v}">${m.n} (${m.v})</option>`).join('')}</select>
-                                        <div id="npc-merits-list" class="space-y-1"></div>
-                                        
-                                        <select id="npc-flaw-select" class="w-full bg-transparent border-b border-[#444] text-[10px] text-gray-300 p-1 mb-2 mt-4"><option value="">Add Flaw...</option>${(V20_FLAWS_LIST||[]).map(f=>`<option value="${f.n}|${f.v}">${f.n} (${f.v})</option>`).join('')}</select>
-                                        <div id="npc-flaws-list" class="space-y-1"></div>
-                                    </div>
-                                </div>
-                            </div>
+                            <div class="sheet-section !mt-0"><div class="section-title">Advantages</div><div class="flex flex-wrap gap-10 justify-between items-start">${ (f.disciplines || f.backgrounds) ? `<div class="flex-1 min-w-[200px]">${f.disciplines ? `<h3 class="column-title">Disciplines</h3><div id="npc-disc-list" class="space-y-1 mt-2"></div><div class="mt-3"><select id="npc-disc-select" class="w-full bg-transparent border border-[#444] text-[10px] text-gray-300 p-2 uppercase font-bold"><option value="">+ Add Discipline</option>${(DISCIPLINES||[]).map(d=>`<option value="${d}">${d}</option>`).join('')}</select></div>` : ''}${f.backgrounds ? `<h3 class="column-title ${f.disciplines ? 'mt-8' : ''}">Backgrounds</h3><div id="npc-back-list" class="space-y-1 mt-2"></div><div class="mt-3"><select id="npc-back-select" class="w-full bg-transparent border border-[#444] text-[10px] text-gray-300 p-2 uppercase font-bold"><option value="">+ Add Background</option>${(BACKGROUNDS||[]).filter(b => !EXCLUDED_BACKGROUNDS.includes(b)).map(b=>`<option value="${b}">${b}</option>`).join('')}</select></div>` : ''}</div>` : ''}<div class="flex-1 min-w-[200px]">${f.virtues ? `<h3 class="column-title">Virtues <span id="virtue-limit-display" class="text-xs text-gray-500"></span></h3><div id="npc-virtue-list" class="space-y-3 mt-4 mb-4"></div><div class="mt-8 border-t border-[#333] pt-4">${f.humanity ? `<div class="flex justify-between items-center text-xs mb-4"><span class="font-bold text-[#d4af37]">HUMANITY</span><div class="dot-row-direct cursor-pointer" id="npc-humanity-row">${renderDots(activeNpc.humanity, 10)}</div></div>` : ''}` : '<div class="mt-4"></div>'}<div class="flex justify-between items-center text-xs mb-4"><span class="font-bold text-[#d4af37]">WILLPOWER</span><div class="dot-row-direct cursor-pointer" id="npc-willpower-row">${renderDots(activeNpc.willpower, 10)}</div></div>${f.bloodPool ? `<div class="flex justify-between items-center text-xs"><span class="font-bold text-[#d4af37]">BLOOD POOL</span><input type="number" id="npc-blood" value="${activeNpc.bloodPool}" class="w-12 bg-transparent border-b border-[#444] text-center text-white p-1 font-bold text-lg focus:border-[#d4af37] outline-none"></div>` : ''}${f.virtues ? `</div>` : ''} </div><div class="flex-1 min-w-[200px]"><h3 class="column-title">Merits & Flaws</h3><select id="npc-merit-select" class="w-full bg-transparent border-b border-[#444] text-[10px] text-gray-300 p-1 mb-2"><option value="">Add Merit...</option>${(V20_MERITS_LIST||[]).map(m=>`<option value="${m.n}|${m.v}">${m.n} (${m.v})</option>`).join('')}</select><div id="npc-merits-list" class="space-y-1"></div><select id="npc-flaw-select" class="w-full bg-transparent border-b border-[#444] text-[10px] text-gray-300 p-1 mb-2 mt-4"><option value="">Add Flaw...</option>${(V20_FLAWS_LIST||[]).map(f=>`<option value="${f.n}|${f.v}">${f.n} (${f.v})</option>`).join('')}</select><div id="npc-flaws-list" class="space-y-1"></div></div></div></div>
                         </div>
 
-                        <!-- STEP 5: EQUIPMENT (NEW) -->
+                        <!-- STEP 5: EQUIPMENT (Full Manager) -->
                         ${showEquipment ? `
                         <div id="step5" class="npc-step hidden">
                             <div class="sheet-section !mt-0">
-                                <div class="section-title">Equipment</div>
+                                <div class="section-title">Possessions & Gear</div>
+                                
+                                <!-- MANAGER INPUT AREA -->
+                                <div id="inventory-manager" class="p-4 space-y-4 border border-[#333] bg-black/40 mb-6">
+                                    <div class="flex flex-col gap-3">
+                                        <div class="flex flex-col">
+                                            <label class="label-text text-[#d4af37] mb-1">1. Select Item Type</label>
+                                            <select id="inv-type" class="w-full text-xs bg-[#111] border border-[#444] text-white p-2 focus:border-[#d4af37] outline-none">
+                                                <option value="Gear">General Gear</option>
+                                                <option value="Weapon">Weapon</option>
+                                                <option value="Armor">Armor</option>
+                                                <option value="Vehicle">Vehicle</option>
+                                            </select>
+                                        </div>
+
+                                        <div id="inv-base-wrapper" class="hidden">
+                                            <label class="label-text text-[#d4af37] mb-1">2. Choose Base Template (Auto-fills Stats)</label>
+                                            <select id="inv-base-select" class="w-full text-xs bg-[#111] border border-[#444] text-white p-2 focus:border-[#d4af37] outline-none"></select>
+                                        </div>
+
+                                        <div>
+                                            <label class="label-text text-[#d4af37] mb-1">3. Specific Description / Name</label>
+                                            <input type="text" id="inv-name" placeholder="e.g. 'Ceremonial Dagger' or 'Grandpa's Revolver'" class="w-full text-xs bg-transparent border-b border-[#444] text-white p-1 focus:border-[#d4af37] outline-none">
+                                        </div>
+                                    </div>
+
+                                    <!-- DYNAMIC STATS -->
+                                    <div id="inv-stats-row" class="hidden grid grid-cols-5 gap-2">
+                                        <input type="text" id="inv-diff" placeholder="Diff" class="text-center text-[10px] bg-transparent border-b border-[#444] text-white p-1">
+                                        <input type="text" id="inv-dmg" placeholder="Dmg" class="text-center text-[10px] bg-transparent border-b border-[#444] text-white p-1">
+                                        <input type="text" id="inv-range" placeholder="Rng" class="text-center text-[10px] bg-transparent border-b border-[#444] text-white p-1">
+                                        <input type="text" id="inv-rate" placeholder="Rate" class="text-center text-[10px] bg-transparent border-b border-[#444] text-white p-1">
+                                        <input type="text" id="inv-clip" placeholder="Clip" class="text-center text-[10px] bg-transparent border-b border-[#444] text-white p-1">
+                                    </div>
+
+                                    <div id="inv-armor-row" class="hidden grid grid-cols-2 gap-2">
+                                        <input type="text" id="inv-rating" placeholder="Rating (e.g. 2)" class="text-center text-[10px] bg-transparent border-b border-[#444] text-white p-1">
+                                        <input type="text" id="inv-penalty" placeholder="Penalty (e.g. 1)" class="text-center text-[10px] bg-transparent border-b border-[#444] text-white p-1">
+                                    </div>
+
+                                    <div id="inv-vehicle-row" class="hidden grid grid-cols-3 gap-2">
+                                        <input type="text" id="inv-safe" placeholder="Safe Spd" class="text-center text-[10px] bg-transparent border-b border-[#444] text-white p-1">
+                                        <input type="text" id="inv-max" placeholder="Max Spd" class="text-center text-[10px] bg-transparent border-b border-[#444] text-white p-1">
+                                        <input type="text" id="inv-man" placeholder="Maneuver" class="text-center text-[10px] bg-transparent border-b border-[#444] text-white p-1">
+                                    </div>
+
+                                    <div class="flex justify-between items-center pt-2 border-t border-[#333]">
+                                        <div class="flex gap-2 items-center">
+                                            <input type="checkbox" id="inv-carried" checked class="w-3 h-3 accent-[#8b0000]">
+                                            <label for="inv-carried" class="text-[10px] text-gray-400 uppercase font-bold">Carried</label>
+                                        </div>
+                                        <button type="button" id="add-inv-btn" class="bg-[#8b0000] px-4 py-2 text-[10px] font-bold text-white uppercase hover:bg-red-700 shadow-md transition-colors">Add Item</button>
+                                    </div>
+                                </div>
+
+                                <!-- LISTS -->
                                 <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                    <div class="space-y-4">
-                                        <h4 class="text-gray-500 font-bold uppercase text-xs border-b border-[#333] pb-1">Add Gear</h4>
-                                        <select id="npc-add-melee" class="w-full bg-black/50 border border-[#444] text-xs text-gray-300 p-2 mb-2 outline-none focus:border-[#d4af37]">
-                                            <option value="">+ Add Melee Weapon</option>
-                                            ${(WEAPONS||[]).map(w => `<option value="${w.name}">${w.name}</option>`).join('')}
-                                        </select>
-                                        <select id="npc-add-ranged" class="w-full bg-black/50 border border-[#444] text-xs text-gray-300 p-2 mb-2 outline-none focus:border-[#d4af37]">
-                                            <option value="">+ Add Ranged Weapon</option>
-                                            ${(RANGED_WEAPONS||[]).map(w => `<option value="${w.name}">${w.name}</option>`).join('')}
-                                        </select>
-                                        <select id="npc-add-armor" class="w-full bg-black/50 border border-[#444] text-xs text-gray-300 p-2 mb-2 outline-none focus:border-[#d4af37]">
-                                            <option value="">+ Add Armor</option>
-                                            ${(ARMOR||[]).map(a => `<option value="${a.name}">${a.name} (${a.rating})</option>`).join('')}
-                                        </select>
-                                        <select id="npc-add-gear" class="w-full bg-black/50 border border-[#444] text-xs text-gray-300 p-2 mb-2 outline-none focus:border-[#d4af37]">
-                                            <option value="">+ Add General Gear</option>
-                                            ${(GEAR||[]).map(g => `<option value="${g}">${g}</option>`).join('')}
-                                        </select>
+                                    <div>
+                                        <h3 class="column-title">Gear (Carried)</h3>
+                                        <div id="inv-list-carried" class="space-y-1 min-h-[50px] border border-[#222] bg-black/20 p-2"></div>
                                     </div>
-                                    <div class="space-y-4">
-                                        <h4 class="text-gray-500 font-bold uppercase text-xs border-b border-[#333] pb-1">Current Inventory</h4>
-                                        <div id="npc-inventory-list" class="space-y-1 max-h-[300px] overflow-y-auto"></div>
+                                    <div>
+                                        <h3 class="column-title">Equipment (Owned)</h3>
+                                        <div id="inv-list-owned" class="space-y-1 min-h-[50px] border border-[#222] bg-black/20 p-2"></div>
                                     </div>
+                                </div>
+
+                                <div class="mt-8">
+                                    <h3 class="column-title">Vehicles</h3>
+                                    <div id="npc-vehicle-list" class="space-y-1 min-h-[30px] border border-[#222] bg-black/20 p-2"></div>
                                 </div>
                             </div>
                         </div>` : ''}
 
-                        <!-- STEP 6: BIO (Was Step 5) -->
+                        <!-- STEP 6: BIO -->
                         <div id="stepBio" class="npc-step hidden">
                             <div class="sheet-section !mt-0">
                                 <div class="section-title">Biography</div>
-                                
-                                <!-- Use Custom Template Renderer if available, else Default -->
                                 ${currentTemplate.renderBio ? currentTemplate.renderBio(activeNpc) : `
                                     <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
                                         <div class="space-y-4">
@@ -1312,42 +1212,117 @@ function renderEditorModal() {
     setupMF('npc-merit-select', 'merits');
     setupMF('npc-flaw-select', 'flaws');
 
-    // EQUIPMENT HANDLERS (NEW)
-    const addInvItem = (name, type) => {
-        if(!activeNpc.inventory) activeNpc.inventory = [];
-        
-        let stats = {};
-        if(type === 'Melee' && WEAPONS) {
-            const w = WEAPONS.find(x => x.name === name);
-            if(w) stats = w;
-        } else if(type === 'Ranged' && RANGED_WEAPONS) {
-            const w = RANGED_WEAPONS.find(x => x.name === name);
-            if(w) stats = w;
-        } else if(type === 'Armor' && ARMOR) {
-            const a = ARMOR.find(x => x.name === name);
-            if(a) stats = a;
-        }
-
-        activeNpc.inventory.push({ name, type, stats, status: 'carried' });
-        renderInventoryList();
-        showNotification(`${name} Added.`);
-    };
-
-    const setupInv = (id, type) => {
-        const el = document.getElementById(id);
-        if(el) el.onchange = (e) => {
-            if(e.target.value) {
-                addInvItem(e.target.value, type);
-                e.target.value = "";
-            }
-        }
-    };
-    
+    // EQUIPMENT MANAGER LOGIC (Replicated from Main)
     if(showEquipment) {
-        setupInv('npc-add-melee', 'Melee');
-        setupInv('npc-add-ranged', 'Ranged');
-        setupInv('npc-add-armor', 'Armor');
-        setupInv('npc-add-gear', 'Gear');
+        const typeSelect = document.getElementById('inv-type');
+        const baseSelect = document.getElementById('inv-base-select');
+        const baseWrapper = document.getElementById('inv-base-wrapper');
+        const addBtn = document.getElementById('add-inv-btn');
+
+        const toggleFields = () => {
+            const t = typeSelect.value;
+            document.getElementById('inv-stats-row').classList.toggle('hidden', t !== 'Weapon');
+            document.getElementById('inv-armor-row').classList.toggle('hidden', t !== 'Armor');
+            document.getElementById('inv-vehicle-row').classList.toggle('hidden', t !== 'Vehicle');
+            
+            // Populate Base Template
+            baseSelect.innerHTML = '<option value="">-- Select Template --</option>';
+            let list = [];
+            if (t === 'Weapon') {
+                list = [...(WEAPONS||[]), ...(RANGED_WEAPONS||[])];
+            } else if (t === 'Armor') {
+                list = ARMOR || [];
+            } else if (t === 'Vehicle') {
+                list = V20_VEHICLE_LIST || [];
+            } else if (t === 'Gear') {
+                list = (GEAR||[]).map(g => ({ name: g }));
+            }
+
+            if(list.length > 0) {
+                baseWrapper.classList.remove('hidden');
+                baseSelect.innerHTML += list.map(i => `<option value="${i.name}">${i.name}</option>`).join('');
+            } else {
+                baseWrapper.classList.add('hidden');
+            }
+        };
+
+        typeSelect.onchange = toggleFields;
+        
+        baseSelect.onchange = (e) => {
+            const name = e.target.value;
+            if(!name) return;
+            document.getElementById('inv-name').value = name;
+            
+            // Auto-fill stats
+            const t = typeSelect.value;
+            let item = null;
+            if (t === 'Weapon') item = [...(WEAPONS||[]), ...(RANGED_WEAPONS||[])].find(x => x.name === name);
+            else if (t === 'Armor') item = (ARMOR||[]).find(x => x.name === name);
+            else if (t === 'Vehicle') item = (V20_VEHICLE_LIST||[]).find(x => x.name === name);
+
+            if(item) {
+                if(t === 'Weapon') {
+                    document.getElementById('inv-diff').value = item.diff || '';
+                    document.getElementById('inv-dmg').value = item.dmg || '';
+                    document.getElementById('inv-range').value = item.range || '';
+                    document.getElementById('inv-rate').value = item.rate || '';
+                    document.getElementById('inv-clip').value = item.clip || '';
+                } else if(t === 'Armor') {
+                    document.getElementById('inv-rating').value = item.rating || '';
+                    document.getElementById('inv-penalty').value = item.penalty || '';
+                } else if(t === 'Vehicle') {
+                    document.getElementById('inv-safe').value = item.safe || '';
+                    document.getElementById('inv-max').value = item.max || '';
+                    document.getElementById('inv-man').value = item.man || '';
+                }
+            }
+        };
+
+        addBtn.onclick = () => {
+            const type = typeSelect.value;
+            const name = document.getElementById('inv-name').value || "Unnamed Item";
+            const carried = document.getElementById('inv-carried').checked;
+            
+            const newItem = {
+                name,
+                type,
+                status: carried ? 'carried' : 'owned',
+                stats: {}
+            };
+
+            if (type === 'Weapon') {
+                newItem.stats = {
+                    diff: document.getElementById('inv-diff').value,
+                    dmg: document.getElementById('inv-dmg').value,
+                    range: document.getElementById('inv-range').value,
+                    rate: document.getElementById('inv-rate').value,
+                    clip: document.getElementById('inv-clip').value
+                };
+            } else if (type === 'Armor') {
+                newItem.stats = {
+                    rating: document.getElementById('inv-rating').value,
+                    penalty: document.getElementById('inv-penalty').value
+                };
+            } else if (type === 'Vehicle') {
+                newItem.stats = {
+                    safe: document.getElementById('inv-safe').value,
+                    max: document.getElementById('inv-max').value,
+                    man: document.getElementById('inv-man').value
+                };
+            }
+
+            if(!activeNpc.inventory) activeNpc.inventory = [];
+            activeNpc.inventory.push(newItem);
+            renderInventoryList();
+            
+            // Clear inputs
+            document.getElementById('inv-name').value = '';
+            document.querySelectorAll('#inventory-manager input[type="text"]').forEach(i => i.value = '');
+            showNotification("Item Added.");
+        };
+        
+        // Init state
+        toggleFields();
     }
 
     // ADDED: Listener for Blood Pool to keep state in sync immediately
@@ -1384,23 +1359,38 @@ function renderEditorModal() {
 }
 
 function renderInventoryList() {
-    const list = document.getElementById('npc-inventory-list');
-    if(!list) return;
+    const cList = document.getElementById('inv-list-carried');
+    const oList = document.getElementById('inv-list-owned');
+    const vList = document.getElementById('npc-vehicle-list');
     
-    if(!activeNpc.inventory || activeNpc.inventory.length === 0) {
-        list.innerHTML = '<div class="text-gray-600 italic text-[10px]">No equipment.</div>';
-        return;
-    }
+    if(!cList || !oList) return;
+    
+    cList.innerHTML = ''; 
+    oList.innerHTML = '';
+    if(vList) vList.innerHTML = '';
 
-    list.innerHTML = activeNpc.inventory.map((item, idx) => `
-        <div class="flex justify-between items-center bg-black/40 p-1 border border-[#333] text-[10px]">
-            <div>
-                <span class="text-[#d4af37] font-bold">${item.name}</span>
-                <span class="text-gray-500 uppercase ml-2 text-[9px]">${item.type}</span>
+    if(!activeNpc.inventory) return;
+
+    activeNpc.inventory.forEach((item, idx) => {
+        const html = `
+            <div class="flex justify-between items-center bg-black/40 p-1 border border-[#333] text-[10px] mb-1">
+                <div>
+                    <span class="text-[#d4af37] font-bold">${item.name}</span>
+                    <span class="text-gray-500 uppercase ml-2 text-[9px]">${item.type}</span>
+                    ${item.stats && item.stats.damage ? `<span class="text-gray-600 text-[8px] ml-1">${item.stats.damage}</span>` : ''}
+                </div>
+                <button class="text-red-500 hover:text-white" onclick="window.removeNpcInv(${idx})"><i class="fas fa-times"></i></button>
             </div>
-            <button class="text-red-500 hover:text-white" onclick="window.removeNpcInv(${idx})"><i class="fas fa-times"></i></button>
-        </div>
-    `).join('');
+        `;
+        
+        if (item.type === 'Vehicle' && vList) {
+            vList.innerHTML += html;
+        } else if (item.status === 'carried') {
+            cList.innerHTML += html;
+        } else {
+            oList.innerHTML += html;
+        }
+    });
 }
 
 window.removeNpcInv = function(idx) {
@@ -2219,6 +2209,7 @@ function saveNpc() {
     if (window.renderNpcTab) window.renderNpcTab();
     showNotification(`${currentTemplate.label} Saved.`);
     document.getElementById('npc-modal').style.display = 'none';
+    toggleDiceUI(true);
 }
 
 // --- UNSAVED CHANGES PROTECTION ---
