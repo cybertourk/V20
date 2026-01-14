@@ -102,16 +102,48 @@ export function renderPlaySheetModal() {
     let maneuvers = [];
 
     // 1. Standard Maneuvers (V20 Core Rules)
-    maneuvers.push({ name: "Bite", pool: dexPenalized + brawl + 1, diff: 5, dmg: `Str+1(A)`, type: "Brawl" }); // V20: Dex+Brawl+1, Diff Normal (usually 5 for bite in some contexts, but table says Normal. Table says Normal = 6. User prompt table: Accuracy +1)
-    // Wait, user table: Bite Accuracy +1. Default diff 6. 
-    // Correction based on user prompt table:
-    // Bite: Dex + Brawl + 1. Diff Normal (6). Dmg Str+1(A).
-    
-    maneuvers.push({ name: "Bite", pool: dexPenalized + brawl + 1, diff: 6, dmg: `${str+pot+1}(A)`, type: "Brawl" });
-    maneuvers.push({ name: "Clinch", pool: str + brawl, diff: 6, dmg: `${str+pot}(B)`, type: "Brawl", note: "(C)" }); // Str based, no armor penalty
-    maneuvers.push({ name: "Kick", pool: dexPenalized + brawl, diff: 7, dmg: `${str+pot+1}(B)`, type: "Brawl" });
-    maneuvers.push({ name: "Punch", pool: dexPenalized + brawl, diff: 6, dmg: `${str+pot}(B)`, type: "Brawl" });
-    maneuvers.push({ name: "Tackle", pool: str + brawl, diff: 7, dmg: `${str+pot+1}(B)`, type: "Brawl", note: "(K)" }); // Str based
+    maneuvers.push({ 
+        name: "Bite", 
+        pool: dexPenalized + brawl + 1, 
+        label: "Dex + Brawl + 1",
+        diff: 6, 
+        dmg: `${str+pot+1}(A)`, 
+        type: "Brawl" 
+    });
+    maneuvers.push({ 
+        name: "Clinch", 
+        pool: str + brawl, 
+        label: "Str + Brawl",
+        diff: 6, 
+        dmg: `${str+pot}(B)`, 
+        type: "Brawl", 
+        note: "(C)" 
+    });
+    maneuvers.push({ 
+        name: "Kick", 
+        pool: dexPenalized + brawl, 
+        label: "Dex + Brawl",
+        diff: 7, 
+        dmg: `${str+pot+1}(B)`, 
+        type: "Brawl" 
+    });
+    maneuvers.push({ 
+        name: "Punch", 
+        pool: dexPenalized + brawl, 
+        label: "Dex + Brawl",
+        diff: 6, 
+        dmg: `${str+pot}(B)`, 
+        type: "Brawl" 
+    });
+    maneuvers.push({ 
+        name: "Tackle", 
+        pool: str + brawl, 
+        label: "Str + Brawl",
+        diff: 7, 
+        dmg: `${str+pot+1}(B)`, 
+        type: "Brawl", 
+        note: "(K)" 
+    });
 
     // 2. Equipped Weapons
     const equippedWeapons = inventory.filter(i => (i.type === 'Weapon' || i.type === 'Melee' || i.type === 'Ranged') && i.status === 'carried');
@@ -126,9 +158,16 @@ export function renderPlaySheetModal() {
 
         let pool = dexPenalized; // Default Dex
         let skillVal = melee;
+        let skillName = "Melee";
         let isRanged = (w.type === 'Ranged' || (stats.range && stats.range !== '-'));
         
-        if (isRanged) skillVal = firearms;
+        if (isRanged) {
+            skillVal = firearms;
+            skillName = "Firearms";
+        } else if (w.name.toLowerCase().includes('fist') || w.name.toLowerCase().includes('brass')) {
+            skillVal = brawl;
+            skillName = "Brawl";
+        }
         
         // Damage Calculation
         let dmgStr = stats.dmg || "Str"; 
@@ -150,6 +189,7 @@ export function renderPlaySheetModal() {
         maneuvers.push({
             name: w.name,
             pool: pool + skillVal,
+            label: `Dex + ${skillName}`,
             diff: stats.diff || 6,
             dmg: `${dmgDice}${dmgType}`,
             range: stats.range || '-',
@@ -287,7 +327,7 @@ export function renderPlaySheetModal() {
                                         <th class="py-1">Atk</th>
                                         <th class="text-center">Diff</th>
                                         <th class="text-center">Dmg</th>
-                                        <th class="text-center">Pool</th>
+                                        <th class="text-right">Pool</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -297,7 +337,9 @@ export function renderPlaySheetModal() {
                                         <td class="py-1 font-bold text-gray-300 group-hover:text-[#d4af37]">${m.name} <span class="text-[8px] font-normal text-gray-600">${m.note || ''}</span></td>
                                         <td class="text-center text-gray-500">${m.diff}</td>
                                         <td class="text-center text-gray-400 text-[10px]">${m.dmg}</td>
-                                        <td class="text-center font-bold text-[#d4af37] text-sm">${m.pool}</td>
+                                        <td class="text-right text-[10px] text-gray-400 font-mono">
+                                            ${m.label} <span class="text-[#d4af37] font-bold text-sm ml-1">(${m.pool})</span>
+                                        </td>
                                     </tr>`).join('')}
                                 </tbody>
                             </table>
