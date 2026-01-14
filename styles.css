@@ -585,3 +585,38 @@ body.xp-mode #top-xp-counter { display: flex !important; }
     /* Hide scrollbars etc */
     ::-webkit-scrollbar { display: none; }
 }
+
+/* --- NPC CREATOR SPECIFIC STYLES --- */
+
+/* NPC Tab Transitions */
+.npc-tab {
+    transition: background-color 0.2s, color 0.2s;
+    cursor: pointer;
+}
+
+/* Interactive Dot Highlights (NPC Sheet) */
+.dot-interactive:hover .dot,
+.dot-row-direct:hover .dot {
+    border-color: #d4af37; /* Gold highlight on hover */
+    opacity: 0.8;
+}
+
+/* Virtue/Stat Box Interaction (NPC Sheet) */
+.npc-box-interact:hover {
+    border-color: #fff;
+    transform: scale(1.1);
+}
+
+/* Remove Button Hover Effect */
+.remove-item-btn {
+    transition: transform 0.2s;
+}
+.remove-item-btn:hover {
+    transform: scale(1.2);
+}
+
+/* NPC Modal Specifics */
+#npc-modal select option {
+    background-color: #000;
+    color: #fff;
+}
