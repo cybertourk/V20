@@ -1234,25 +1234,36 @@ function renderEditorModal() {
 
         const toggleFields = () => {
             const t = typeSelect.value;
-            document.getElementById('inv-stats-row').classList.toggle('hidden', t !== 'Weapon');
-            document.getElementById('inv-armor-row').classList.toggle('hidden', t !== 'Armor');
-            document.getElementById('inv-vehicle-row').classList.toggle('hidden', t !== 'Vehicle');
+            
+            // Toggle Stats Rows
+            const statsRow = document.getElementById('inv-stats-row');
+            if(statsRow) statsRow.classList.toggle('hidden', t !== 'Weapon');
+            
+            const armorRow = document.getElementById('inv-armor-row');
+            if(armorRow) armorRow.classList.toggle('hidden', t !== 'Armor');
+            
+            const vehicleRow = document.getElementById('inv-vehicle-row');
+            if(vehicleRow) vehicleRow.classList.toggle('hidden', t !== 'Vehicle');
             
             // Populate Base Template
             baseSelect.innerHTML = '<option value="">-- Select Template --</option>';
             let list = [];
+            
+            // Logic Update: Gear has no templates (generic). Only populate for others.
             if (t === 'Weapon') {
                 list = [...(WEAPONS||[]), ...(RANGED_WEAPONS||[])];
             } else if (t === 'Armor') {
                 list = ARMOR || [];
             } else if (t === 'Vehicle') {
                 list = V20_VEHICLE_LIST || [];
-            } else if (t === 'Gear') {
-                list = (GEAR||[]).map(g => ({ name: g }));
-            }
-
+            } 
+            // 'Gear' leaves list empty, thus hiding the dropdown
+            
+            // Show/Hide Step 2 Wrapper based on list availability
             if(list.length > 0) {
                 baseWrapper.classList.remove('hidden');
+                // Sort alphabetically
+                list.sort((a,b) => a.name.localeCompare(b.name));
                 baseSelect.innerHTML += list.map(i => `<option value="${i.name}">${i.name}</option>`).join('');
             } else {
                 baseWrapper.classList.add('hidden');
