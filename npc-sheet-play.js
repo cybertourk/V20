@@ -12,20 +12,20 @@ const STANDARD_MANEUVERS = {
     "Block": { attr: "Dexterity", abil: "Brawl", bonus: 0, diff: 6, dmgExpr: "None", note: "(R)" },
     "Claw": { attr: "Dexterity", abil: "Brawl", bonus: 0, diff: 6, dmgExpr: "Str+1(A)", note: "" },
     "Clinch": { attr: "Strength", abil: "Brawl", bonus: 0, diff: 6, dmgExpr: "Str(B)", note: "(C)" },
-    "Disarm": { attr: "Dexterity", abil: "Melee", bonus: 0, diff: 7, dmgExpr: "Special", note: "" }, // Diff +1
+    "Disarm": { attr: "Dexterity", abil: "Melee", bonus: 0, diff: 7, dmgExpr: "Special", note: "" }, 
     "Dodge": { attr: "Dexterity", abil: "Athletics", bonus: 0, diff: 6, dmgExpr: "None", note: "(R)" },
     "Hold": { attr: "Strength", abil: "Brawl", bonus: 0, diff: 6, dmgExpr: "None", note: "(C)" },
-    "Kick": { attr: "Dexterity", abil: "Brawl", bonus: 0, diff: 7, dmgExpr: "Str+1(B)", note: "" }, // Diff +1
+    "Kick": { attr: "Dexterity", abil: "Brawl", bonus: 0, diff: 7, dmgExpr: "Str+1(B)", note: "" },
     "Parry": { attr: "Dexterity", abil: "Melee", bonus: 0, diff: 6, dmgExpr: "None", note: "(R)" },
     "Strike (Punch)": { attr: "Dexterity", abil: "Brawl", bonus: 0, diff: 6, dmgExpr: "Str(B)", note: "" },
-    "Sweep": { attr: "Dexterity", abil: "Brawl", bonus: 0, diff: 7, dmgExpr: "Str(B)", note: "(K)" }, // Diff +1
-    "Tackle": { attr: "Strength", abil: "Brawl", bonus: 0, diff: 7, dmgExpr: "Str+1(B)", note: "(K)" }, // Diff +1
+    "Sweep": { attr: "Dexterity", abil: "Brawl", bonus: 0, diff: 7, dmgExpr: "Str(B)", note: "(K)" },
+    "Tackle": { attr: "Strength", abil: "Brawl", bonus: 0, diff: 7, dmgExpr: "Str+1(B)", note: "(K)" },
     
     // RANGED COMBAT
-    "Automatic Fire": { attr: "Dexterity", abil: "Firearms", bonus: 10, diff: 8, dmgExpr: "Special", note: "+10 Dice" }, // Diff +2
+    "Automatic Fire": { attr: "Dexterity", abil: "Firearms", bonus: 10, diff: 8, dmgExpr: "Special", note: "+10 Dice" },
     "Multiple Shots": { attr: "Dexterity", abil: "Firearms", bonus: 0, diff: 6, dmgExpr: "Weapon", note: "" },
-    "Strafing": { attr: "Dexterity", abil: "Firearms", bonus: 10, diff: 8, dmgExpr: "Special", note: "+10 Dice" }, // Diff +2
-    "3-Round Burst": { attr: "Dexterity", abil: "Firearms", bonus: 2, diff: 7, dmgExpr: "Weapon", note: "+2 Dice" }, // Diff +1
+    "Strafing": { attr: "Dexterity", abil: "Firearms", bonus: 10, diff: 8, dmgExpr: "Special", note: "+10 Dice" },
+    "3-Round Burst": { attr: "Dexterity", abil: "Firearms", bonus: 2, diff: 7, dmgExpr: "Weapon", note: "+2 Dice" },
     "Two Weapons": { attr: "Dexterity", abil: "Firearms", bonus: 0, diff: 6, dmgExpr: "Weapon", note: "+1 Diff Off" }
 };
 
@@ -33,9 +33,8 @@ export function initPlaySheet(context, callbackMap) {
     ctx = context;
     callbacks = callbackMap;
     
-    // Ensure Loadout Exists
     if (!ctx.activeNpc.combatLoadout) {
-        ctx.activeNpc.combatLoadout = ["Strike (Punch)"]; // Default
+        ctx.activeNpc.combatLoadout = ["Strike (Punch)"]; 
     }
 }
 
@@ -93,7 +92,7 @@ export function renderPlaySheetModal() {
         domitorDisplay += `<div class="mt-1 text-xs text-gray-400"><span class="font-bold text-gray-500 uppercase text-[10px]">Blood Bond:</span> <span class="text-[#d4af37]">Step ${npc.bondLevel}</span></div>`;
     }
 
-    // --- PREPARE COMBAT STATS (INTEGRATING DATA.JS) ---
+    // --- STATS CALCULATION ---
     const dex = npc.attributes.Dexterity || 1;
     const wits = npc.attributes.Wits || 1;
     const str = npc.attributes.Strength || 1;
@@ -107,10 +106,8 @@ export function renderPlaySheetModal() {
     const firearms = npc.abilities.Firearms || 0;
     const athletics = npc.abilities.Athletics || 0;
 
-    // Filter Inventory & Armor Calculation
+    // Armor Calculation
     const inventory = npc.inventory || [];
-    
-    // Calculate Armor Rating
     const equippedArmor = inventory.filter(i => i.type === 'Armor' && i.status === 'carried');
     let armorRating = 0;
     let armorPenalty = 0;
@@ -124,13 +121,12 @@ export function renderPlaySheetModal() {
         }
     });
 
-    // Dexterity with Penalty Applied (Min 0)
     const dexPenalized = Math.max(0, dex - armorPenalty);
 
     // --- MANEUVER GENERATION ---
     let maneuvers = [];
 
-    // 1. EQUIPPED WEAPONS (Always Top)
+    // 1. EQUIPPED WEAPONS
     const equippedWeapons = inventory.filter(i => (i.type === 'Weapon' || i.type === 'Melee' || i.type === 'Ranged') && i.status === 'carried');
     
     equippedWeapons.forEach(w => {
@@ -189,7 +185,7 @@ export function renderPlaySheetModal() {
         const def = STANDARD_MANEUVERS[mName];
         if (!def) return;
 
-        let attrVal = (def.attr === "Strength") ? str : dexPenalized; // Apply armor penalty to Dex based
+        let attrVal = (def.attr === "Strength") ? str : dexPenalized; 
         let abilVal = 0;
         if (def.abil === "Brawl") abilVal = brawl;
         if (def.abil === "Melee") abilVal = melee;
@@ -319,7 +315,7 @@ export function renderPlaySheetModal() {
                             </div>
                         </div>` : ''}
 
-                        <!-- Health -->
+                        <!-- Health (Updated with .box class) -->
                         <div class="bg-[#111] p-4 border border-[#333]">
                             <h3 class="text-gray-400 font-bold uppercase text-sm mb-3">Health</h3>
                             <div class="space-y-1 text-xs">
@@ -540,14 +536,17 @@ function renderHealthTrack() {
 
     return levels.map((lvl, idx) => {
         const isFilled = idx < damage;
-        const boxContent = isFilled ? '<i class="fas fa-times text-red-500"></i>' : '';
+        // Use .box class with data-state="2" for 'X' if filled, default empty if not
+        const boxHtml = `<div class="box npc-health-box cursor-pointer hover:border-white" 
+            data-idx="${idx}" 
+            data-state="${isFilled ? '2' : ''}" 
+            style="width: 14px; height: 14px;"></div>`;
+
         return `
             <div class="flex justify-between items-center h-5">
                 <span class="w-24">${lvl.l}</span>
                 <span class="text-gray-500 w-8 text-center">${lvl.p === 0 ? '' : lvl.p}</span>
-                <div class="w-4 h-4 border border-gray-600 bg-black flex items-center justify-center cursor-pointer hover:border-white npc-health-box" data-idx="${idx}">
-                    ${boxContent}
-                </div>
+                ${boxHtml}
             </div>
         `;
     }).join('');
@@ -644,8 +643,16 @@ function bindPlayInteractions(modal) {
             if (typeof ctx.activeNpc.health !== 'object') ctx.activeNpc.health = { damage: 0, aggravated: 0 };
             
             const currentDmg = ctx.activeNpc.health.damage || 0;
-            if (idx === currentDmg - 1) ctx.activeNpc.health.damage = idx;
-            else ctx.activeNpc.health.damage = idx + 1;
+            // Simple toggle: click to set damage level up to this point
+            // If clicking the current max level, reduce by 1 (toggle off)
+            // If clicking a higher level, fill up to there
+            // If clicking a lower level, reduce to there
+            
+            if (idx === currentDmg - 1) {
+                ctx.activeNpc.health.damage = idx; // reduce
+            } else {
+                ctx.activeNpc.health.damage = idx + 1; // increase
+            }
             
             if(callbacks.saveNpc) callbacks.saveNpc(true);
             renderPlaySheetModal();
