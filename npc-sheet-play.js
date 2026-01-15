@@ -222,7 +222,7 @@ export function renderPlaySheetModal() {
     });
 
     const html = `
-        <div class="w-[95%] max-w-5xl h-[95%] bg-[#0a0a0a] border border-[#444] shadow-2xl flex flex-col relative font-serif text-white overflow-hidden pb-16">
+        <div class="w-[95%] max-w-7xl h-[95%] bg-[#0a0a0a] border border-[#444] shadow-2xl flex flex-col relative font-serif text-white overflow-hidden pb-16">
             <!-- Header -->
             <div class="bg-[#111] p-4 border-b border-[#333] flex justify-between items-center shrink-0">
                 <div>
@@ -234,72 +234,94 @@ export function renderPlaySheetModal() {
                 </div>
             </div>
 
-            <!-- Content -->
-            <div class="flex-1 overflow-y-auto p-6 bg-[url('https://www.transparenttextures.com/patterns/black-linen.png')]">
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-                    
-                    <!-- Col 1: Attributes & Abilities -->
-                    <div class="space-y-6">
-                        <div class="sheet-section bg-black/30 p-4 border border-[#222]">
-                            <h3 class="text-[#8b0000] font-cinzel font-bold border-b border-[#444] mb-2">Attributes</h3>
-                            ${renderSimpleDots(npc.attributes, ATTRIBUTES, 'attributes')}
-                        </div>
-                        <div class="sheet-section bg-black/30 p-4 border border-[#222]">
-                            <h3 class="text-[#8b0000] font-cinzel font-bold border-b border-[#444] mb-2">Abilities</h3>
-                            ${renderSimpleDots(npc.abilities, ABILITIES, 'abilities')}
-                        </div>
+            <!-- Content (Standard Sheet Orientation) -->
+            <div class="flex-1 overflow-y-auto p-8 bg-[url('https://www.transparenttextures.com/patterns/black-linen.png')] no-scrollbar">
+                
+                <!-- ROW 1: ATTRIBUTES -->
+                <div class="sheet-section !mt-0 mb-6">
+                    <div class="section-title">Attributes</div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                        ${renderSimpleDots(npc.attributes, ATTRIBUTES, 'attributes')}
                     </div>
+                </div>
 
-                    <!-- Col 2: Advantages -->
-                    <div class="space-y-6">
-                        <div class="sheet-section bg-black/30 p-4 border border-[#222]">
-                            <h3 class="text-[#8b0000] font-cinzel font-bold border-b border-[#444] mb-2">Disciplines</h3>
+                <!-- ROW 2: ABILITIES -->
+                <div class="sheet-section mb-6">
+                    <div class="section-title">Abilities</div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                        ${renderSimpleDots(npc.abilities, ABILITIES, 'abilities')}
+                    </div>
+                </div>
+
+                <!-- ROW 3: ADVANTAGES -->
+                <div class="sheet-section mb-6">
+                    <div class="section-title">Advantages</div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                        <!-- Disciplines -->
+                        <div class="flex flex-col">
+                            <h3 class="text-[#8b0000] font-cinzel font-bold border-b border-[#444] mb-2 text-center text-xs tracking-widest">Disciplines</h3>
                             ${Object.keys(npc.disciplines).length > 0 
                                 ? Object.entries(npc.disciplines).map(([k,v]) => `
                                     <div class="flex justify-between text-xs mb-1 font-bold group">
                                         <span class="uppercase cursor-pointer hover:text-[#d4af37] transition-colors roll-stat" data-stat="${k}" data-val="${v}" data-type="discipline">${k}</span>
                                         <span>${renderDots(v,5)}</span>
                                     </div>`).join('') 
-                                : '<div class="text-gray-600 italic text-xs">None</div>'}
+                                : '<div class="text-gray-600 italic text-xs text-center">None</div>'}
                         </div>
                         
-                        <div class="sheet-section bg-black/30 p-4 border border-[#222]">
-                            <h3 class="text-[#8b0000] font-cinzel font-bold border-b border-[#444] mb-2">Backgrounds</h3>
+                        <!-- Backgrounds -->
+                        <div class="flex flex-col">
+                            <h3 class="text-[#8b0000] font-cinzel font-bold border-b border-[#444] mb-2 text-center text-xs tracking-widest">Backgrounds</h3>
                             ${Object.keys(npc.backgrounds).length > 0 
                                 ? Object.entries(npc.backgrounds).map(([k,v]) => `<div class="flex justify-between text-xs mb-1 font-bold"><span class="uppercase">${k}</span><span>${renderDots(v,5)}</span></div>`).join('') 
-                                : '<div class="text-gray-600 italic text-xs">None</div>'}
+                                : '<div class="text-gray-600 italic text-xs text-center">None</div>'}
                         </div>
 
+                        <!-- Virtues -->
                         ${showVirtues ? `
-                        <div class="sheet-section bg-black/30 p-4 border border-[#222]">
-                            <h3 class="text-[#8b0000] font-cinzel font-bold border-b border-[#444] mb-2">Virtues</h3>
+                        <div class="flex flex-col">
+                            <h3 class="text-[#8b0000] font-cinzel font-bold border-b border-[#444] mb-2 text-center text-xs tracking-widest">Virtues</h3>
                             ${VIRTUES.map(v => `<div class="flex justify-between text-xs mb-1 font-bold group">
                                 <span class="uppercase cursor-pointer hover:text-[#d4af37] transition-colors roll-stat" data-stat="${v}" data-val="${npc.virtues[v]||1}" data-type="virtue">${v}</span>
                                 <span>${renderDots(npc.virtues[v]||1, 5)}</span>
                             </div>`).join('')}
-                        </div>` : ''}
+                        </div>` : '<div></div>'}
                     </div>
+                </div>
 
-                    <!-- Col 3: Vitals & Combat -->
-                    <div class="space-y-6">
-                        
-                        <!-- Humanity / Road -->
+                <!-- ROW 4: DETAILS GRID (Merits, Combat, Health) -->
+                <div class="grid grid-cols-12 gap-6">
+                    
+                    <!-- LEFT COLUMN (4/12): Stats & Merits -->
+                    <div class="col-span-12 md:col-span-4 flex flex-col gap-6">
+                        <!-- Merits -->
+                        <div class="sheet-section !mt-0">
+                            <div class="section-title">Merits & Flaws</div>
+                            <div class="text-xs">
+                                ${Object.keys(npc.merits).length > 0 || Object.keys(npc.flaws).length > 0 ? `
+                                    ${Object.entries(npc.merits).map(([k,v]) => `<span class="inline-block bg-blue-900/30 border border-blue-900/50 rounded px-2 py-0.5 mr-2 mb-1">${k} (${v})</span>`).join('')}
+                                    ${Object.entries(npc.flaws).map(([k,v]) => `<span class="inline-block bg-red-900/30 border border-red-900/50 rounded px-2 py-0.5 mr-2 mb-1 text-red-300">${k} (${v})</span>`).join('')}
+                                ` : '<span class="text-gray-600 italic">None</span>'}
+                            </div>
+                        </div>
+
+                        <!-- Humanity -->
                         ${showHumanity ? `
-                        <div class="bg-[#111] p-4 border border-[#333]">
-                             <div class="flex justify-between items-center mb-2">
-                                <h3 class="text-[#d4af37] font-bold uppercase text-sm cursor-pointer hover:text-white roll-stat" data-stat="Humanity" data-val="${npc.humanity}" data-type="humanity">${humanityLabel}</h3>
-                                <div class="text-xs font-bold text-gray-500">Rating: ${npc.humanity}</div>
+                        <div class="sheet-section">
+                             <div class="section-title">${humanityLabel}</div>
+                             <div class="flex justify-between items-center mb-2 text-xs">
+                                <span class="font-bold text-[#d4af37] cursor-pointer hover:text-white roll-stat" data-stat="Humanity" data-val="${npc.humanity}" data-type="humanity">Rating</span>
+                                <span class="font-bold text-gray-500">${npc.humanity}</span>
                             </div>
-                            <div class="flex justify-center gap-1">
-                                ${renderDots(npc.humanity, 10)}
-                            </div>
+                            <div class="flex justify-center gap-1">${renderDots(npc.humanity, 10)}</div>
                         </div>` : ''}
 
                         <!-- Willpower -->
-                        <div class="bg-[#111] p-4 border border-[#333]">
-                            <div class="flex justify-between items-center mb-2">
-                                <h3 class="text-[#d4af37] font-bold uppercase text-sm cursor-pointer hover:text-white roll-stat" data-stat="Willpower" data-val="${npc.willpower}" data-type="willpower">Willpower</h3>
-                                <div class="text-xs font-bold text-gray-500">Perm: ${npc.willpower}</div>
+                        <div class="sheet-section">
+                            <div class="section-title">Willpower</div>
+                            <div class="flex justify-between items-center mb-2 text-xs">
+                                <span class="font-bold text-[#d4af37] cursor-pointer hover:text-white roll-stat" data-stat="Willpower" data-val="${npc.willpower}" data-type="willpower">Permanent</span>
+                                <span class="font-bold text-gray-500">${npc.willpower}</span>
                             </div>
                             <div class="flex justify-center gap-1 mb-2">
                                 ${renderInteractiveBoxes('tempWillpower', 10, npc.tempWillpower)}
@@ -308,61 +330,33 @@ export function renderPlaySheetModal() {
 
                         <!-- Blood Pool -->
                         ${npc.bloodPool > 0 ? `
-                        <div class="bg-[#111] p-4 border border-[#333]">
-                            <div class="flex justify-between items-center mb-2">
-                                <h3 class="text-[#8b0000] font-bold uppercase text-sm">Blood Pool</h3>
-                                <div class="text-xs font-bold text-gray-500">Max: ${npc.bloodPool}</div>
-                            </div>
-                            <div class="flex flex-wrap justify-center gap-1 mb-2">
+                        <div class="sheet-section">
+                            <div class="section-title">Blood Pool</div>
+                            <div class="text-xs font-bold text-gray-500 text-center mb-2">Max: ${npc.bloodPool}</div>
+                            <div class="flex flex-wrap justify-center gap-1">
                                 ${renderInteractiveBoxes('currentBlood', npc.bloodPool, npc.currentBlood, true)}
                             </div>
                         </div>` : ''}
+                    </div>
 
-                        <!-- Health -->
-                        <div class="bg-[#111] p-4 border border-[#333]">
-                            <div class="flex justify-between items-center mb-3">
-                                <h3 class="text-gray-400 font-bold uppercase text-sm">Health</h3>
-                            </div>
+                    <!-- CENTER COLUMN (5/12): Combat & Inventory -->
+                    <div class="col-span-12 md:col-span-5 flex flex-col gap-6">
+                        <div class="sheet-section !mt-0">
+                            <div class="section-title">Combat Maneuvers</div>
                             
-                            <div class="space-y-1 text-xs">
-                                ${renderHealthTrack()}
-                            </div>
-
-                            <!-- DAMAGE CONTROLS (NEW) -->
-                            <div id="npc-damage-app-container" class="mt-4 pt-2 border-t border-[#333]">
-                                <div class="flex items-center justify-between mb-2 gap-2">
-                                    <span class="text-[10px] font-bold text-gray-400 uppercase">Incoming Dmg:</span>
-                                    <input type="number" id="npc-dmg-input" value="1" min="1" class="w-12 bg-[#111] border border-[#444] text-white text-center text-xs font-bold">
-                                </div>
-                                <div class="grid grid-cols-3 gap-1 mb-2">
-                                    <button type="button" class="npc-dmg-btn bg-[#1e3a8a] text-blue-200 text-[9px] font-bold py-1 px-1 rounded border border-blue-800 hover:bg-blue-900 uppercase" data-type="1">Bash (/)</button>
-                                    <button type="button" class="npc-dmg-btn bg-[#7f1d1d] text-red-200 text-[9px] font-bold py-1 px-1 rounded border border-red-800 hover:bg-red-900 uppercase" data-type="2">Lethal (X)</button>
-                                    <button type="button" class="npc-dmg-btn bg-[#713f12] text-yellow-200 text-[9px] font-bold py-1 px-1 rounded border border-yellow-800 hover:bg-yellow-900 uppercase" data-type="3">Agg (*)</button>
-                                </div>
-                                <div class="flex gap-2">
-                                    <button type="button" id="npc-soak-btn" class="flex-1 bg-gray-800 text-gray-300 text-[9px] font-bold py-1 rounded border border-gray-600 hover:bg-gray-700 uppercase" data-sta="${sta}" data-fort="${fort}" data-armor="${armorRating}">Roll Soak</button>
-                                    <button type="button" id="npc-heal-btn" class="flex-1 bg-green-900/40 text-green-300 text-[9px] font-bold py-1 rounded border border-green-800 hover:bg-green-900 uppercase">Heal (1 BP)</button>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Combat Maneuvers Table -->
-                        <div class="bg-black/40 p-3 border border-[#333] text-xs">
-                            <h4 class="font-bold text-gray-500 uppercase mb-2">Combat Maneuvers</h4>
-                            
-                            <!-- Initiative ONLY (Cleaned up) -->
-                            <div class="flex justify-between border-b border-[#333] py-1 text-gray-400 mb-2">
-                                <span class="font-bold cursor-pointer hover:text-white npc-combat-interact" 
+                            <!-- Initiative ONLY -->
+                            <div class="flex justify-between border-b border-[#333] py-2 text-gray-400 mb-2 text-xs">
+                                <span class="font-bold cursor-pointer hover:text-white npc-combat-interact text-[#d4af37] uppercase tracking-wide" 
                                       data-action="init" 
                                       data-v1="${dexPenalized}" 
                                       data-v2="${wits}">
-                                    Initiative
+                                    <i class="fas fa-bolt mr-1"></i> Initiative
                                 </span>
-                                <span class="text-[#d4af37] font-bold">1d10 + ${dexPenalized + wits}</span>
+                                <span class="text-white font-bold">1d10 + ${dexPenalized + wits}</span>
                             </div>
 
                             <!-- Attacks Table -->
-                            <table class="w-full text-left border-collapse">
+                            <table class="w-full text-left border-collapse mb-4">
                                 <thead>
                                     <tr class="text-[9px] uppercase text-gray-500 border-b border-[#444]">
                                         <th class="py-1">Atk</th>
@@ -374,7 +368,7 @@ export function renderPlaySheetModal() {
                                 </thead>
                                 <tbody>
                                     ${maneuvers.map((m, idx) => `
-                                    <tr class="border-b border-[#222] hover:bg-white/5 transition-colors cursor-pointer npc-combat-interact group"
+                                    <tr class="border-b border-[#222] hover:bg-white/5 transition-colors cursor-pointer npc-combat-interact group text-xs"
                                         data-action="attack" 
                                         data-name="${m.name}" 
                                         data-dmg="${m.dmg}"
@@ -398,7 +392,7 @@ export function renderPlaySheetModal() {
                             </table>
                             
                             <!-- Add Maneuver Dropdown -->
-                            <div class="mt-2 flex gap-1 border-t border-[#333] pt-2">
+                            <div class="flex gap-1 border-t border-[#333] pt-2">
                                 <select id="add-maneuver-select" class="flex-1 bg-[#111] text-[10px] border border-[#444] text-gray-300 p-1">
                                     <option value="">+ Add Maneuver...</option>
                                     ${Object.keys(STANDARD_MANEUVERS).sort().map(k => `<option value="${k}">${k}</option>`).join('')}
@@ -406,79 +400,69 @@ export function renderPlaySheetModal() {
                                 <button id="add-maneuver-btn" class="bg-[#222] border border-[#444] text-gray-300 text-[10px] px-2 hover:bg-[#333] hover:text-white">ADD</button>
                             </div>
 
-                            <!-- Active Disciplines -->
-                            ${(cel > 0 || fort > 0 || pot > 0) ? `<div class="mt-3 pt-2 border-t border-[#333] space-y-1">
-                                ${(cel > 0) ? `<div class="flex justify-between text-[10px] text-gray-400"><span>Celerity</span><span class="text-white">${cel} Actions/Dex</span></div>` : ''}
+                            <!-- Active Disciplines Summary -->
+                            ${(cel > 0 || fort > 0 || pot > 0) ? `<div class="mt-4 pt-2 border-t border-[#333] space-y-1">
+                                ${(cel > 0) ? `<div class="flex justify-between text-[10px] text-gray-400"><span>Celerity</span><span class="text-white">${cel} Actions / Add to Dex</span></div>` : ''}
                                 ${(fort > 0) ? `<div class="flex justify-between text-[10px] text-gray-400"><span>Fortitude</span><span class="text-white">+${fort} Soak</span></div>` : ''}
-                                ${(pot > 0) ? `<div class="flex justify-between text-[10px] text-gray-400"><span>Potence</span><span class="text-white">+${pot} Dmg</span></div>` : ''}
+                                ${(pot > 0) ? `<div class="flex justify-between text-[10px] text-gray-400"><span>Potence</span><span class="text-white">+${pot} Dmg / Str</span></div>` : ''}
                             </div>` : ''}
                         </div>
-                        
+
                         <!-- Inventory List -->
                         ${inventory.length > 0 ? `
-                        <div class="bg-[#111] p-3 border border-[#333] text-xs">
-                            <h4 class="font-bold text-gray-500 uppercase mb-2">Inventory</h4>
-                            <div class="space-y-1">
+                        <div class="sheet-section">
+                            <div class="section-title">Inventory</div>
+                            <div class="space-y-1 text-xs">
                                 ${inventory.map(i => `<div class="text-gray-400 flex justify-between border-b border-[#222] pb-1">
                                     <span>${i.name} ${i.status === 'carried' ? '<i class="fas fa-hand-holding text-green-700 ml-1" title="Carried"></i>' : ''}</span> 
                                     <span class="text-[9px] uppercase">${i.type}</span>
                                 </div>`).join('')}
                             </div>
                         </div>` : ''}
-
-                         <!-- Feeding Grounds -->
-                        ${showFeedingGrounds && npc.feedingGrounds ? `
-                        <div class="bg-[#111] p-3 border border-[#333] text-xs mt-4">
-                            <h4 class="font-bold text-gray-500 uppercase mb-2">Feeding Grounds</h4>
-                            <div class="text-gray-400 italic whitespace-pre-wrap">${npc.feedingGrounds}</div>
-                        </div>` : ''}
-
-                    </div>
-                </div>
-
-                <!-- Bio / Merits / Extras Footer -->
-                <div class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-8 border-t border-[#333] pt-6">
-                    
-                    <!-- Left Column: Biography & Description -->
-                    <div class="space-y-4">
-                        <h4 class="text-gray-500 font-bold uppercase text-xs border-b border-[#333] pb-1">Biography</h4>
-                        ${npc.bio.Description ? `
-                            <div class="text-xs text-gray-300 italic leading-relaxed mb-4">${npc.bio.Description}</div>
-                        ` : '<div class="text-xs text-gray-600 italic">No description provided.</div>'}
-                        
-                        ${npc.bio.Notes ? `
-                            <div class="mt-2"><span class="text-gray-500 font-bold text-[10px] uppercase">Notes:</span> <span class="text-xs text-gray-400">${npc.bio.Notes}</span></div>
-                        ` : ''}
-
-                        ${naturalWeaponsDisplay}
-                        ${weaknessDisplay}
                     </div>
 
-                    <!-- Right Column: Stats, Merits, Identity -->
-                    <div class="space-y-4">
-                        ${domitorDisplay ? `
-                            <div class="bg-[#111] p-2 border border-[#333] rounded mb-4">
-                                ${domitorDisplay}
+                    <!-- RIGHT COLUMN (3/12): Health & Bio -->
+                    <div class="col-span-12 md:col-span-3 flex flex-col gap-6">
+                        <div class="sheet-section !mt-0 h-full relative flex flex-col">
+                            <div class="section-title">Health</div>
+                            <div class="flex-1 space-y-1 text-xs mt-2">
+                                ${renderHealthTrack()}
                             </div>
-                        ` : ''}
 
-                        ${physicalStats ? `
-                            <div class="mb-4">
-                                <h4 class="text-gray-500 font-bold uppercase text-xs border-b border-[#333] pb-1 mb-2">Details</h4>
-                                ${physicalStats}
+                            <!-- DAMAGE CONTROLS -->
+                            <div id="npc-damage-app-container" class="mt-4 pt-2 border-t border-[#333]">
+                                <div class="flex items-center justify-between mb-2 gap-2">
+                                    <span class="text-[10px] font-bold text-gray-400 uppercase">Incoming:</span>
+                                    <input type="number" id="npc-dmg-input" value="1" min="1" class="w-10 bg-[#111] border border-[#444] text-white text-center text-xs font-bold">
+                                </div>
+                                <div class="grid grid-cols-3 gap-1 mb-2">
+                                    <button type="button" class="npc-dmg-btn bg-[#1e3a8a] text-blue-200 text-[9px] font-bold py-1 px-1 rounded border border-blue-800 hover:bg-blue-900 uppercase" data-type="1">/</button>
+                                    <button type="button" class="npc-dmg-btn bg-[#7f1d1d] text-red-200 text-[9px] font-bold py-1 px-1 rounded border border-red-800 hover:bg-red-900 uppercase" data-type="2">X</button>
+                                    <button type="button" class="npc-dmg-btn bg-[#713f12] text-yellow-200 text-[9px] font-bold py-1 px-1 rounded border border-yellow-800 hover:bg-yellow-900 uppercase" data-type="3">*</button>
+                                </div>
+                                <div class="flex flex-col gap-2">
+                                    <button type="button" id="npc-soak-btn" class="w-full bg-gray-800 text-gray-300 text-[9px] font-bold py-1 rounded border border-gray-600 hover:bg-gray-700 uppercase" data-sta="${sta}" data-fort="${fort}" data-armor="${armorRating}">Roll Soak</button>
+                                    <button type="button" id="npc-heal-btn" class="w-full bg-green-900/40 text-green-300 text-[9px] font-bold py-1 rounded border border-green-800 hover:bg-green-900 uppercase">Heal (1 BP)</button>
+                                </div>
                             </div>
-                        ` : ''}
+                        </div>
 
-                        <div>
-                             <h4 class="text-gray-500 font-bold uppercase text-xs mb-2 border-b border-[#333] pb-1">Merits & Flaws</h4>
-                             <div class="text-xs">
-                                ${Object.keys(npc.merits).length > 0 || Object.keys(npc.flaws).length > 0 ? `
-                                    ${Object.entries(npc.merits).map(([k,v]) => `<span class="inline-block bg-blue-900/30 border border-blue-900/50 rounded px-2 py-0.5 mr-2 mb-1">${k} (${v})</span>`).join('')}
-                                    ${Object.entries(npc.flaws).map(([k,v]) => `<span class="inline-block bg-red-900/30 border border-red-900/50 rounded px-2 py-0.5 mr-2 mb-1 text-red-300">${k} (${v})</span>`).join('')}
-                                ` : '<span class="text-gray-600 italic">None</span>'}
-                             </div>
+                        <div class="sheet-section">
+                            <div class="section-title">Biography</div>
+                            ${npc.bio.Description ? `<div class="text-xs text-gray-300 italic leading-relaxed mb-4 whitespace-pre-wrap">${npc.bio.Description}</div>` : '<div class="text-xs text-gray-600 italic">No description.</div>'}
+                            
+                            ${domitorDisplay ? `<div class="bg-[#111] p-2 border border-[#333] rounded mb-2">${domitorDisplay}</div>` : ''}
+                            
+                            ${physicalStats ? `<div class="border-t border-[#333] pt-2 mt-2">${physicalStats}</div>` : ''}
+                            
+                            ${showFeedingGrounds && npc.feedingGrounds ? `
+                            <div class="mt-4 pt-2 border-t border-[#333]">
+                                <h4 class="font-bold text-gray-500 uppercase text-[10px] mb-1">Feeding Grounds</h4>
+                                <div class="text-xs text-gray-400 italic">${npc.feedingGrounds}</div>
+                            </div>` : ''}
                         </div>
                     </div>
+
                 </div>
             </div>
         </div>
@@ -508,7 +492,10 @@ function renderSimpleDots(data, structure, type) {
         const list = structure[cat];
         if(!list) return;
         
-        html += `<div class="mb-3"><div class="text-[10px] text-gray-500 uppercase tracking-widest font-bold mb-1 border-b border-[#333]">${cat}</div>`;
+        // This generates the column content for the grid
+        html += `<div class="flex flex-col">
+            <h3 class="text-[#8b0000] font-cinzel font-bold border-b border-[#444] mb-2 text-center text-xs tracking-widest uppercase">${cat}</h3>`;
+        
         list.forEach(k => {
             const val = data[k] || 0;
             if (val > 0 || type === 'attributes') {
@@ -578,9 +565,9 @@ function renderHealthTrack() {
             style="width: 14px; height: 14px;"></div>`;
 
         return `
-            <div class="flex justify-between items-center h-5">
-                <span class="w-24">${lvl.l}</span>
-                <span class="text-gray-500 w-8 text-center">${lvl.p === 0 ? '' : lvl.p}</span>
+            <div class="flex justify-between items-center h-5 border-b border-[#222] pb-1 last:border-0">
+                <span class="w-24 font-bold text-gray-400">${lvl.l}</span>
+                <span class="text-gray-500 w-8 text-center text-[10px]">${lvl.p === 0 ? '' : lvl.p}</span>
                 ${boxHtml}
             </div>
         `;
@@ -592,43 +579,21 @@ function applyNpcDamage(type) {
     const amount = parseInt(input.value) || 1;
     const track = ctx.activeNpc.health.track;
     
-    // Simple adding model: Push new damage types, then sort
-    // V20 Rules: Agg > Lethal > Bashing.
-    // 3 = Agg, 2 = Lethal, 1 = Bashing
-    
     for(let i=0; i<amount; i++) {
-        // Find first empty slot (0)
         const emptyIdx = track.indexOf(0);
-        
         if (emptyIdx !== -1) {
-            // Fill empty slot
             track[emptyIdx] = type;
         } else {
-            // Track is full - Downgrade logic (simplified for NPC sheet)
-            // If taking Bashing and full of Bashing -> Convert 1 Bash to Lethal
-            // If taking Lethal and full -> Convert 1 Lethal to Agg? (Usually Torpor)
-            
-            // Standard V20 "Push" Logic:
-            // Insert new damage at start? No, fill lowest available severity?
-            // Easiest is to insert into array and re-sort/truncate
             track.push(type);
         }
     }
     
-    // Sort Track: Agg (3) -> Lethal (2) -> Bashing (1) -> Empty (0)
     track.sort((a, b) => b - a);
     
-    // Truncate to max health (simple overflow handling)
     if (track.length > 7) { 
-        // In full V20, wrapping Bashing converts to Lethal. 
-        // We'll trust the sort handled priority, and just drop the weakest (Bashing) off the end
-        // But if we added Lethal and pushed Bashing off, that implies Bashing was "converted" or lost.
-        // V20 rule: "If the character is at Incapacitated... and takes a level of bashing damage, he takes a level of lethal damage."
-        // We can simulate this by capping length to 7.
         ctx.activeNpc.health.track = track.slice(0, 7);
     }
     
-    // Update Legacy Damage Counter
     const filledCount = track.filter(s => s > 0).length;
     ctx.activeNpc.health.damage = filledCount;
     
@@ -639,7 +604,6 @@ function applyNpcDamage(type) {
 function healNpc() {
     const track = ctx.activeNpc.health.track;
     
-    // Deduct Blood (if Vampire)
     if (ctx.activeNpc.template === 'vampire' || ctx.activeNpc.template === 'ghoul') {
         if (ctx.activeNpc.currentBlood > 0) {
             ctx.activeNpc.currentBlood--;
@@ -648,9 +612,6 @@ function healNpc() {
             return;
         }
     }
-    
-    // Logic: Remove 1 Bashing (1). If none, remove 1 Lethal (2).
-    // Aggravated (3) usually takes time + blood, so we won't auto-heal it here.
     
     const bashIdx = track.lastIndexOf(1);
     const lethalIdx = track.lastIndexOf(2);
@@ -663,15 +624,12 @@ function healNpc() {
         showNotification("Healed 1 Lethal Level.");
     } else {
         showNotification("Cannot instantly heal Aggravated damage.");
-        // Refund blood?
         if (ctx.activeNpc.currentBlood < ctx.activeNpc.bloodPool) ctx.activeNpc.currentBlood++;
         return;
     }
     
-    // Re-sort to keep empty at end
     track.sort((a, b) => b - a);
     
-    // Update Legacy
     const filledCount = track.filter(s => s > 0).length;
     ctx.activeNpc.health.damage = filledCount;
     
@@ -702,15 +660,9 @@ function bindPlayInteractions(modal) {
 
             if (typeof toggleStat === 'function') {
                 if (action === 'init') {
-                    // Initialize Initiative: 1 Die + Modifier (Dex + Wits)
                     if (typeof clearPool === 'function') clearPool();
-                    
-                    const score = v1 + v2; // Dex + Wits
-                    
-                    // Load 1 Die into the pool, labeled explicitly with the modifier
+                    const score = v1 + v2; 
                     toggleStat(`Initiative (+${score})`, 1, 'custom');
-                    
-                    // Show notification with calculation
                     showNotification(`Initiative: Roll 1d10 + ${score}. (Total Score: [Die Result] + ${score})`);
                 }
                 else if (action === 'soak') {
@@ -739,7 +691,6 @@ function bindPlayInteractions(modal) {
                     // Load Bonus (like Bite +1)
                     if (bonus > 0) toggleStat('Bonus', bonus, 'custom');
                     
-                    // Set difficulty in the dice roller input if it exists
                     const diffInput = document.getElementById('roll-diff');
                     if(diffInput) diffInput.value = diff;
 
@@ -756,7 +707,6 @@ function bindPlayInteractions(modal) {
             const val = parseInt(box.dataset.val);
             const current = ctx.activeNpc[field] || 0;
             
-            // Cap Temp Willpower at Permanent
             if (field === 'tempWillpower') {
                 const perm = ctx.activeNpc.willpower || 10;
                 if (val > perm) return;
@@ -765,7 +715,7 @@ function bindPlayInteractions(modal) {
             if (val === current) ctx.activeNpc[field] = val - 1;
             else ctx.activeNpc[field] = val;
 
-            if(callbacks.saveNpc) callbacks.saveNpc(true); // Silent save
+            if(callbacks.saveNpc) callbacks.saveNpc(true); 
             renderPlaySheetModal(); 
         };
     });
