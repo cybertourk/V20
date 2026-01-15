@@ -315,11 +315,31 @@ export function renderPlaySheetModal() {
                             </div>
                         </div>` : ''}
 
-                        <!-- Health (Updated with .box class) -->
+                        <!-- Health -->
                         <div class="bg-[#111] p-4 border border-[#333]">
-                            <h3 class="text-gray-400 font-bold uppercase text-sm mb-3">Health</h3>
+                            <div class="flex justify-between items-center mb-3">
+                                <h3 class="text-gray-400 font-bold uppercase text-sm">Health</h3>
+                            </div>
+                            
                             <div class="space-y-1 text-xs">
                                 ${renderHealthTrack()}
+                            </div>
+
+                            <!-- DAMAGE CONTROLS (NEW) -->
+                            <div id="npc-damage-app-container" class="mt-4 pt-2 border-t border-[#333]">
+                                <div class="flex items-center justify-between mb-2 gap-2">
+                                    <span class="text-[10px] font-bold text-gray-400 uppercase">Incoming Dmg:</span>
+                                    <input type="number" id="npc-dmg-input" value="1" min="1" class="w-12 bg-[#111] border border-[#444] text-white text-center text-xs font-bold">
+                                </div>
+                                <div class="grid grid-cols-3 gap-1 mb-2">
+                                    <button type="button" class="npc-dmg-btn bg-[#1e3a8a] text-blue-200 text-[9px] font-bold py-1 px-1 rounded border border-blue-800 hover:bg-blue-900 uppercase" data-type="1">Bash (/)</button>
+                                    <button type="button" class="npc-dmg-btn bg-[#7f1d1d] text-red-200 text-[9px] font-bold py-1 px-1 rounded border border-red-800 hover:bg-red-900 uppercase" data-type="2">Lethal (X)</button>
+                                    <button type="button" class="npc-dmg-btn bg-[#713f12] text-yellow-200 text-[9px] font-bold py-1 px-1 rounded border border-yellow-800 hover:bg-yellow-900 uppercase" data-type="3">Agg (*)</button>
+                                </div>
+                                <div class="flex gap-2">
+                                    <button type="button" id="npc-soak-btn" class="flex-1 bg-gray-800 text-gray-300 text-[9px] font-bold py-1 rounded border border-gray-600 hover:bg-gray-700 uppercase" data-sta="${sta}" data-fort="${fort}" data-armor="${armorRating}">Roll Soak</button>
+                                    <button type="button" id="npc-heal-btn" class="flex-1 bg-green-900/40 text-green-300 text-[9px] font-bold py-1 rounded border border-green-800 hover:bg-green-900 uppercase">Heal (1 BP)</button>
+                                </div>
                             </div>
                         </div>
 
@@ -565,6 +585,98 @@ function renderHealthTrack() {
     }).join('');
 }
 
+function applyNpcDamage(type) {
+    const input = document.getElementById('npc-dmg-input');
+    const amount = parseInt(input.value) || 1;
+    const track = ctx.activeNpc.health.track;
+    
+    // Simple adding model: Push new damage types, then sort
+    // V20 Rules: Agg > Lethal > Bashing.
+    // 3 = Agg, 2 = Lethal, 1 = Bashing
+    
+    for(let i=0; i<amount; i++) {
+        // Find first empty slot (0)
+        const emptyIdx = track.indexOf(0);
+        
+        if (emptyIdx !== -1) {
+            // Fill empty slot
+            track[emptyIdx] = type;
+        } else {
+            // Track is full - Downgrade logic (simplified for NPC sheet)
+            // If taking Bashing and full of Bashing -> Convert 1 Bash to Lethal
+            // If taking Lethal and full -> Convert 1 Lethal to Agg? (Usually Torpor)
+            
+            // Standard V20 "Push" Logic:
+            // Insert new damage at start? No, fill lowest available severity?
+            // Easiest is to insert into array and re-sort/truncate
+            track.push(type);
+        }
+    }
+    
+    // Sort Track: Agg (3) -> Lethal (2) -> Bashing (1) -> Empty (0)
+    track.sort((a, b) => b - a);
+    
+    // Truncate to max health (simple overflow handling)
+    if (track.length > 7) { 
+        // In full V20, wrapping Bashing converts to Lethal. 
+        // We'll trust the sort handled priority, and just drop the weakest (Bashing) off the end
+        // But if we added Lethal and pushed Bashing off, that implies Bashing was "converted" or lost.
+        // V20 rule: "If the character is at Incapacitated... and takes a level of bashing damage, he takes a level of lethal damage."
+        // We can simulate this by capping length to 7.
+        ctx.activeNpc.health.track = track.slice(0, 7);
+    }
+    
+    // Update Legacy Damage Counter
+    const filledCount = track.filter(s => s > 0).length;
+    ctx.activeNpc.health.damage = filledCount;
+    
+    if(callbacks.saveNpc) callbacks.saveNpc(true);
+    renderPlaySheetModal();
+}
+
+function healNpc() {
+    const track = ctx.activeNpc.health.track;
+    
+    // Deduct Blood (if Vampire)
+    if (ctx.activeNpc.template === 'vampire' || ctx.activeNpc.template === 'ghoul') {
+        if (ctx.activeNpc.currentBlood > 0) {
+            ctx.activeNpc.currentBlood--;
+        } else {
+            showNotification("Not enough blood to heal!");
+            return;
+        }
+    }
+    
+    // Logic: Remove 1 Bashing (1). If none, remove 1 Lethal (2).
+    // Aggravated (3) usually takes time + blood, so we won't auto-heal it here.
+    
+    const bashIdx = track.lastIndexOf(1);
+    const lethalIdx = track.lastIndexOf(2);
+    
+    if (bashIdx !== -1) {
+        track[bashIdx] = 0;
+        showNotification("Healed 1 Bashing Level.");
+    } else if (lethalIdx !== -1) {
+        track[lethalIdx] = 0;
+        showNotification("Healed 1 Lethal Level.");
+    } else {
+        showNotification("Cannot instantly heal Aggravated damage.");
+        // Refund blood?
+        if (ctx.activeNpc.currentBlood < ctx.activeNpc.bloodPool) ctx.activeNpc.currentBlood++;
+        return;
+    }
+    
+    // Re-sort to keep empty at end
+    track.sort((a, b) => b - a);
+    
+    // Update Legacy
+    const filledCount = track.filter(s => s > 0).length;
+    ctx.activeNpc.health.damage = filledCount;
+    
+    if(callbacks.saveNpc) callbacks.saveNpc(true);
+    renderPlaySheetModal();
+}
+
 function bindPlayInteractions(modal) {
     // 1. ROLL STATS
     modal.querySelectorAll('.roll-stat').forEach(el => {
@@ -649,22 +761,20 @@ function bindPlayInteractions(modal) {
         };
     });
 
-    // 4. HEALTH BOXES (NEW CYCLING LOGIC)
+    // 4. HEALTH BOXES (CYCLING LOGIC)
     modal.querySelectorAll('.npc-health-box').forEach(box => {
         box.onclick = () => {
             const idx = parseInt(box.dataset.idx);
             
-            // Ensure data structure exists
             if (!ctx.activeNpc.health) ctx.activeNpc.health = {};
             if (!ctx.activeNpc.health.track) ctx.activeNpc.health.track = [];
             
             const currentState = ctx.activeNpc.health.track[idx] || 0;
-            // Cycle: 0 (Empty) -> 1 (/) -> 2 (X) -> 3 (*) -> 0
             const nextState = (currentState + 1) % 4;
             
             ctx.activeNpc.health.track[idx] = nextState;
             
-            // Sync legacy damage counter for compatibility
+            // Sync legacy damage counter
             const filledCount = ctx.activeNpc.health.track.filter(s => s > 0).length;
             ctx.activeNpc.health.damage = filledCount;
             
@@ -686,7 +796,35 @@ function bindPlayInteractions(modal) {
         };
     });
 
-    // 6. ADD MANEUVER LOGIC
+    // 6. DAMAGE CONTROL BUTTONS
+    modal.querySelectorAll('.npc-dmg-btn').forEach(btn => {
+        btn.onclick = () => {
+            const type = parseInt(btn.dataset.type);
+            applyNpcDamage(type);
+        };
+    });
+
+    const soakBtn = document.getElementById('npc-soak-btn');
+    if (soakBtn) {
+        soakBtn.onclick = () => {
+            if (typeof clearPool === 'function') clearPool();
+            const sta = parseInt(soakBtn.dataset.sta) || 0;
+            const fort = parseInt(soakBtn.dataset.fort) || 0;
+            const armor = parseInt(soakBtn.dataset.armor) || 0;
+            
+            if (typeof toggleStat === 'function') {
+                toggleStat('Stamina', sta, 'attribute');
+                if (fort > 0) toggleStat('Fortitude', fort, 'discipline');
+                if (armor > 0) toggleStat('Armor', armor, 'custom');
+                showNotification("Soak Pool Loaded.");
+            }
+        };
+    }
+
+    const healBtn = document.getElementById('npc-heal-btn');
+    if (healBtn) healBtn.onclick = healNpc;
+
+    // 7. ADD/REMOVE MANEUVERS
     const addBtn = document.getElementById('add-maneuver-btn');
     if (addBtn) {
         addBtn.onclick = () => {
@@ -695,15 +833,14 @@ function bindPlayInteractions(modal) {
             if (val && !ctx.activeNpc.combatLoadout.includes(val)) {
                 ctx.activeNpc.combatLoadout.push(val);
                 if(callbacks.saveNpc) callbacks.saveNpc(true);
-                renderPlaySheetModal(); // Re-render to show new row
+                renderPlaySheetModal();
             }
         };
     }
 
-    // 7. REMOVE MANEUVER LOGIC
     modal.querySelectorAll('.remove-maneuver-btn').forEach(btn => {
         btn.onclick = (e) => {
-            e.stopPropagation(); // Don't trigger the row click
+            e.stopPropagation();
             const name = btn.dataset.name;
             ctx.activeNpc.combatLoadout = ctx.activeNpc.combatLoadout.filter(m => m !== name);
             if(callbacks.saveNpc) callbacks.saveNpc(true);
