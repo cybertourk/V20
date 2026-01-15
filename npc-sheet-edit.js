@@ -396,7 +396,14 @@ export function renderEditorModal() {
 
         addBtn.onclick = () => {
             const type = typeSelect.value;
-            const name = document.getElementById('npc-inv-name').value || "Unnamed Item";
+            let name = document.getElementById('npc-inv-name').value || "Unnamed Item";
+            const baseVal = baseSelect.value;
+            
+            // Auto-append base name if it's a variant (and not already included)
+            if (baseVal && name !== baseVal && !name.includes(baseVal)) {
+                name = `${name} (${baseVal})`;
+            }
+
             const carried = document.getElementById('npc-inv-carried').checked;
             
             const newItem = {
@@ -539,7 +546,7 @@ export function renderInventoryList() {
         const html = `
             <div class="flex justify-between items-center bg-black/40 p-1 border border-[#333] text-[10px] mb-1 group hover:border-[#555] transition-colors">
                 <div class="flex items-center flex-grow overflow-hidden">
-                    <span class="text-[#d4af37] font-bold whitespace-nowrap">${item.name}</span>
+                    <span class="text-[#d4af37] font-bold">${item.name}</span>
                     <span class="text-gray-600 text-[8px] ml-2 uppercase tracking-wider">${item.type}</span>
                     ${statString}
                 </div>
