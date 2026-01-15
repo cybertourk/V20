@@ -350,10 +350,15 @@ export function renderPlaySheetModal() {
                         <div class="bg-black/40 p-3 border border-[#333] text-xs">
                             <h4 class="font-bold text-gray-500 uppercase mb-2">Combat Maneuvers</h4>
                             
-                            <!-- Initiative ONLY -->
+                            <!-- Initiative ONLY (Cleaned up) -->
                             <div class="flex justify-between border-b border-[#333] py-1 text-gray-400 mb-2">
-                                <span class="font-bold cursor-pointer hover:text-white npc-combat-interact" data-action="init" data-v1="${dexPenalized}" data-v2="${wits}">Initiative</span>
-                                <span>1d10 + ${dexPenalized + wits}</span>
+                                <span class="font-bold cursor-pointer hover:text-white npc-combat-interact" 
+                                      data-action="init" 
+                                      data-v1="${dexPenalized}" 
+                                      data-v2="${wits}">
+                                    Initiative
+                                </span>
+                                <span class="text-[#d4af37] font-bold">1d10 + ${dexPenalized + wits}</span>
                             </div>
 
                             <!-- Attacks Table -->
@@ -702,8 +707,8 @@ function bindPlayInteractions(modal) {
                     
                     const score = v1 + v2; // Dex + Wits
                     
-                    // Load 1 Die into the pool
-                    toggleStat('Initiative Die', 1, 'custom');
+                    // Load 1 Die into the pool, labeled explicitly with the modifier
+                    toggleStat(`Initiative (+${score})`, 1, 'custom');
                     
                     // Show notification with calculation
                     showNotification(`Initiative: Roll 1d10 + ${score}. (Total Score: [Die Result] + ${score})`);
