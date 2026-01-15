@@ -532,14 +532,27 @@ function renderHealthTrack() {
         levels = ctx.activeNpc.healthConfig;
     }
 
-    const damage = (ctx.activeNpc.health && ctx.activeNpc.health.damage) || 0;
+    // Ensure health object and track array exist
+    if (!ctx.activeNpc.health) ctx.activeNpc.health = {};
+    if (!ctx.activeNpc.health.track) {
+        const dmg = ctx.activeNpc.health.damage || 0;
+        ctx.activeNpc.health.track = Array(levels.length).fill(0);
+        for(let i=0; i<dmg; i++) {
+            ctx.activeNpc.health.track[i] = 2; // Default to Lethal (X)
+        }
+    }
+    
+    // Ensure track length matches levels
+    if (ctx.activeNpc.health.track.length < levels.length) {
+        const diff = levels.length - ctx.activeNpc.health.track.length;
+        for(let i=0; i<diff; i++) ctx.activeNpc.health.track.push(0);
+    }
 
     return levels.map((lvl, idx) => {
-        const isFilled = idx < damage;
-        // Use .box class with data-state="2" for 'X' if filled, default empty if not
+        const state = ctx.activeNpc.health.track[idx] || 0;
         const boxHtml = `<div class="box npc-health-box cursor-pointer hover:border-white" 
             data-idx="${idx}" 
-            data-state="${isFilled ? '2' : ''}" 
+            data-state="${state}" 
             style="width: 14px; height: 14px;"></div>`;
 
         return `
@@ -636,23 +649,24 @@ function bindPlayInteractions(modal) {
         };
     });
 
-    // 4. HEALTH BOXES
+    // 4. HEALTH BOXES (NEW CYCLING LOGIC)
     modal.querySelectorAll('.npc-health-box').forEach(box => {
         box.onclick = () => {
             const idx = parseInt(box.dataset.idx);
-            if (typeof ctx.activeNpc.health !== 'object') ctx.activeNpc.health = { damage: 0, aggravated: 0 };
             
-            const currentDmg = ctx.activeNpc.health.damage || 0;
-            // Simple toggle: click to set damage level up to this point
-            // If clicking the current max level, reduce by 1 (toggle off)
-            // If clicking a higher level, fill up to there
-            // If clicking a lower level, reduce to there
+            // Ensure data structure exists
+            if (!ctx.activeNpc.health) ctx.activeNpc.health = {};
+            if (!ctx.activeNpc.health.track) ctx.activeNpc.health.track = [];
             
-            if (idx === currentDmg - 1) {
-                ctx.activeNpc.health.damage = idx; // reduce
-            } else {
-                ctx.activeNpc.health.damage = idx + 1; // increase
-            }
+            const currentState = ctx.activeNpc.health.track[idx] || 0;
+            // Cycle: 0 (Empty) -> 1 (/) -> 2 (X) -> 3 (*) -> 0
+            const nextState = (currentState + 1) % 4;
+            
+            ctx.activeNpc.health.track[idx] = nextState;
+            
+            // Sync legacy damage counter for compatibility
+            const filledCount = ctx.activeNpc.health.track.filter(s => s > 0).length;
+            ctx.activeNpc.health.damage = filledCount;
             
             if(callbacks.saveNpc) callbacks.saveNpc(true);
             renderPlaySheetModal();
