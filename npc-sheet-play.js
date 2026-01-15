@@ -347,17 +347,11 @@ export function renderPlaySheetModal() {
                         <div class="bg-black/40 p-3 border border-[#333] text-xs">
                             <h4 class="font-bold text-gray-500 uppercase mb-2">Combat Maneuvers</h4>
                             
-                            <!-- Initiative & Soak -->
-                            <div class="flex justify-between border-b border-[#333] py-1 text-gray-400">
+                            <!-- Initiative ONLY -->
+                            <div class="flex justify-between border-b border-[#333] py-1 text-gray-400 mb-2">
                                 <span class="font-bold cursor-pointer hover:text-white npc-combat-interact" data-action="init" data-v1="${dexPenalized}" data-v2="${wits}">Initiative</span>
                                 <span>${dexPenalized + wits} + 1d10</span>
                             </div>
-                            <div class="flex justify-between border-b border-[#333] py-1 text-gray-400 mb-2">
-                                <span class="font-bold cursor-pointer hover:text-white npc-combat-interact" data-action="soak" data-v1="${sta}" data-v2="${fort}" data-v3="${armorRating}">Soak (B/L)</span>
-                                <span>${sta + fort + armorRating} / ${(npc.template === 'mortal' ? 0 : sta) + fort + armorRating}</span>
-                            </div>
-
-                            ${armorRating > 0 ? `<div class="text-[9px] text-gray-500 italic text-right mb-2">Armor: +${armorRating} (Pen: ${armorPenalty})</div>` : ''}
 
                             <!-- Attacks Table -->
                             <table class="w-full text-left border-collapse">
