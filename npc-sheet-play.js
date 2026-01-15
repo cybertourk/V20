@@ -5,9 +5,38 @@ import { toggleStat, clearPool } from "./ui-mechanics.js";
 let ctx = {}; // context: { activeNpc, activeIndex }
 let callbacks = {}; // { closeModal, saveNpc, toggleDiceUI }
 
+// V20 STANDARD MANEUVER DEFINITIONS
+const STANDARD_MANEUVERS = {
+    // CLOSE COMBAT
+    "Bite": { attr: "Dexterity", abil: "Brawl", bonus: 1, diff: 6, dmgExpr: "Str+1(A)", note: "" },
+    "Block": { attr: "Dexterity", abil: "Brawl", bonus: 0, diff: 6, dmgExpr: "None", note: "(R)" },
+    "Claw": { attr: "Dexterity", abil: "Brawl", bonus: 0, diff: 6, dmgExpr: "Str+1(A)", note: "" },
+    "Clinch": { attr: "Strength", abil: "Brawl", bonus: 0, diff: 6, dmgExpr: "Str(B)", note: "(C)" },
+    "Disarm": { attr: "Dexterity", abil: "Melee", bonus: 0, diff: 7, dmgExpr: "Special", note: "" }, // Diff +1
+    "Dodge": { attr: "Dexterity", abil: "Athletics", bonus: 0, diff: 6, dmgExpr: "None", note: "(R)" },
+    "Hold": { attr: "Strength", abil: "Brawl", bonus: 0, diff: 6, dmgExpr: "None", note: "(C)" },
+    "Kick": { attr: "Dexterity", abil: "Brawl", bonus: 0, diff: 7, dmgExpr: "Str+1(B)", note: "" }, // Diff +1
+    "Parry": { attr: "Dexterity", abil: "Melee", bonus: 0, diff: 6, dmgExpr: "None", note: "(R)" },
+    "Strike (Punch)": { attr: "Dexterity", abil: "Brawl", bonus: 0, diff: 6, dmgExpr: "Str(B)", note: "" },
+    "Sweep": { attr: "Dexterity", abil: "Brawl", bonus: 0, diff: 7, dmgExpr: "Str(B)", note: "(K)" }, // Diff +1
+    "Tackle": { attr: "Strength", abil: "Brawl", bonus: 0, diff: 7, dmgExpr: "Str+1(B)", note: "(K)" }, // Diff +1
+    
+    // RANGED COMBAT
+    "Automatic Fire": { attr: "Dexterity", abil: "Firearms", bonus: 10, diff: 8, dmgExpr: "Special", note: "+10 Dice" }, // Diff +2
+    "Multiple Shots": { attr: "Dexterity", abil: "Firearms", bonus: 0, diff: 6, dmgExpr: "Weapon", note: "" },
+    "Strafing": { attr: "Dexterity", abil: "Firearms", bonus: 10, diff: 8, dmgExpr: "Special", note: "+10 Dice" }, // Diff +2
+    "3-Round Burst": { attr: "Dexterity", abil: "Firearms", bonus: 2, diff: 7, dmgExpr: "Weapon", note: "+2 Dice" }, // Diff +1
+    "Two Weapons": { attr: "Dexterity", abil: "Firearms", bonus: 0, diff: 6, dmgExpr: "Weapon", note: "+1 Diff Off" }
+};
+
 export function initPlaySheet(context, callbackMap) {
     ctx = context;
     callbacks = callbackMap;
+    
+    // Ensure Loadout Exists
+    if (!ctx.activeNpc.combatLoadout) {
+        ctx.activeNpc.combatLoadout = ["Strike (Punch)"]; // Default
+    }
 }
 
 export function renderPlaySheetModal() {
@@ -76,6 +105,7 @@ export function renderPlaySheetModal() {
     const brawl = npc.abilities.Brawl || 0;
     const melee = npc.abilities.Melee || 0;
     const firearms = npc.abilities.Firearms || 0;
+    const athletics = npc.abilities.Athletics || 0;
 
     // Filter Inventory & Armor Calculation
     const inventory = npc.inventory || [];
@@ -85,7 +115,6 @@ export function renderPlaySheetModal() {
     let armorRating = 0;
     let armorPenalty = 0;
     equippedArmor.forEach(a => {
-        // Resolve stats if missing
         if (!a.stats || !a.stats.rating) {
             const base = (ARMOR||[]).find(x => x.name === a.name);
             if (base) { armorRating += base.rating; armorPenalty += base.penalty; }
@@ -101,76 +130,11 @@ export function renderPlaySheetModal() {
     // --- MANEUVER GENERATION ---
     let maneuvers = [];
 
-    // 1. Standard Maneuvers (V20 Core Rules)
-    maneuvers.push({ 
-        name: "Bite", 
-        attr: "Dexterity",
-        attrVal: dexPenalized,
-        abil: "Brawl",
-        abilVal: brawl,
-        bonus: 1,
-        label: "Dex + Brawl + 1",
-        diff: 6, 
-        dmg: `${str+pot+1}(A)`, 
-        type: "Brawl" 
-    });
-    maneuvers.push({ 
-        name: "Clinch", 
-        attr: "Strength",
-        attrVal: str,
-        abil: "Brawl",
-        abilVal: brawl,
-        bonus: 0,
-        label: "Str + Brawl",
-        diff: 6, 
-        dmg: `${str+pot}(B)`, 
-        type: "Brawl", 
-        note: "(C)" 
-    });
-    maneuvers.push({ 
-        name: "Kick", 
-        attr: "Dexterity",
-        attrVal: dexPenalized,
-        abil: "Brawl",
-        abilVal: brawl,
-        bonus: 0,
-        label: "Dex + Brawl",
-        diff: 7, 
-        dmg: `${str+pot+1}(B)`, 
-        type: "Brawl" 
-    });
-    maneuvers.push({ 
-        name: "Punch", 
-        attr: "Dexterity",
-        attrVal: dexPenalized,
-        abil: "Brawl",
-        abilVal: brawl,
-        bonus: 0,
-        label: "Dex + Brawl",
-        diff: 6, 
-        dmg: `${str+pot}(B)`, 
-        type: "Brawl" 
-    });
-    maneuvers.push({ 
-        name: "Tackle", 
-        attr: "Strength",
-        attrVal: str,
-        abil: "Brawl",
-        abilVal: brawl,
-        bonus: 0,
-        label: "Str + Brawl",
-        diff: 7, 
-        dmg: `${str+pot+1}(B)`, 
-        type: "Brawl", 
-        note: "(K)" 
-    });
-
-    // 2. Equipped Weapons
+    // 1. EQUIPPED WEAPONS (Always Top)
     const equippedWeapons = inventory.filter(i => (i.type === 'Weapon' || i.type === 'Melee' || i.type === 'Ranged') && i.status === 'carried');
     
     equippedWeapons.forEach(w => {
         let stats = w.stats || {};
-        // Auto-fill from data.js if missing
         if (!stats.diff) {
             const base = [...(WEAPONS||[]), ...(RANGED_WEAPONS||[])].find(x => x.name === w.name);
             if (base) stats = base;
@@ -190,7 +154,6 @@ export function renderPlaySheetModal() {
             abilVal = brawl;
         }
         
-        // Damage Calculation
         let dmgStr = stats.dmg || "Str"; 
         let dmgDice = 0;
         let dmgType = "(L)";
@@ -199,11 +162,9 @@ export function renderPlaySheetModal() {
         else if (dmgStr.includes('(A)')) dmgType = "(A)";
 
         if (dmgStr.toLowerCase().includes('str')) {
-            // Melee: Str + Potence + Bonus
             const bonus = parseInt(dmgStr.match(/\+(\d+)/)?.[1] || 0);
             dmgDice = str + pot + bonus;
         } else {
-            // Ranged: Fixed + 0 (Potence usually doesn't apply to guns unless specific merit, ignoring for basic NPC)
             dmgDice = parseInt(dmgStr) || 4;
         }
 
@@ -217,10 +178,47 @@ export function renderPlaySheetModal() {
             label: `${attrName.substring(0,3)} + ${abilName}`,
             diff: stats.diff || 6,
             dmg: `${dmgDice}${dmgType}`,
-            range: stats.range || '-',
-            rate: stats.rate || '-',
-            clip: stats.clip || '-',
-            type: isRanged ? "Ranged" : "Melee"
+            isWeapon: true
+        });
+    });
+
+    // 2. SAVED LOADOUT MANEUVERS
+    const loadout = npc.combatLoadout || [];
+    
+    loadout.forEach((mName) => {
+        const def = STANDARD_MANEUVERS[mName];
+        if (!def) return;
+
+        let attrVal = (def.attr === "Strength") ? str : dexPenalized; // Apply armor penalty to Dex based
+        let abilVal = 0;
+        if (def.abil === "Brawl") abilVal = brawl;
+        if (def.abil === "Melee") abilVal = melee;
+        if (def.abil === "Firearms") abilVal = firearms;
+        if (def.abil === "Athletics") abilVal = athletics;
+
+        let dmgStr = "";
+        
+        if (def.dmgExpr === "None" || def.dmgExpr === "Special" || def.dmgExpr === "Weapon") {
+            dmgStr = def.dmgExpr;
+        } else if (def.dmgExpr.includes("Str")) {
+            let bonus = 0;
+            if (def.dmgExpr.includes("+1")) bonus = 1;
+            let type = def.dmgExpr.includes("(A)") ? "(A)" : "(B)";
+            dmgStr = `${str + pot + bonus}${type}`;
+        }
+
+        maneuvers.push({
+            name: mName,
+            attr: def.attr,
+            attrVal: attrVal,
+            abil: def.abil,
+            abilVal: abilVal,
+            bonus: def.bonus,
+            label: `${def.attr.substring(0,3)} + ${def.abil}` + (def.bonus > 0 ? ` + ${def.bonus}` : ''),
+            diff: def.diff,
+            dmg: dmgStr,
+            note: def.note,
+            isWeapon: false
         });
     });
 
@@ -353,10 +351,11 @@ export function renderPlaySheetModal() {
                                         <th class="text-center">Diff</th>
                                         <th class="text-center">Dmg</th>
                                         <th class="text-right">Pool</th>
+                                        <th class="w-4"></th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    ${maneuvers.map(m => `
+                                    ${maneuvers.map((m, idx) => `
                                     <tr class="border-b border-[#222] hover:bg-white/5 transition-colors cursor-pointer npc-combat-interact group"
                                         data-action="attack" 
                                         data-name="${m.name}" 
@@ -373,9 +372,21 @@ export function renderPlaySheetModal() {
                                         <td class="text-right text-[10px] text-gray-400 font-mono">
                                             ${m.label} <span class="text-[#d4af37] font-bold text-sm ml-1">(${m.attrVal + m.abilVal + m.bonus})</span>
                                         </td>
+                                        <td class="text-center">
+                                            ${!m.isWeapon ? `<button class="text-red-500 hover:text-white remove-maneuver-btn" data-name="${m.name}"><i class="fas fa-times"></i></button>` : ''}
+                                        </td>
                                     </tr>`).join('')}
                                 </tbody>
                             </table>
+                            
+                            <!-- Add Maneuver Dropdown -->
+                            <div class="mt-2 flex gap-1 border-t border-[#333] pt-2">
+                                <select id="add-maneuver-select" class="flex-1 bg-[#111] text-[10px] border border-[#444] text-gray-300 p-1">
+                                    <option value="">+ Add Maneuver...</option>
+                                    ${Object.keys(STANDARD_MANEUVERS).sort().map(k => `<option value="${k}">${k}</option>`).join('')}
+                                </select>
+                                <button id="add-maneuver-btn" class="bg-[#222] border border-[#444] text-gray-300 text-[10px] px-2 hover:bg-[#333] hover:text-white">ADD</button>
+                            </div>
 
                             <!-- Active Disciplines -->
                             ${(cel > 0 || fort > 0 || pot > 0) ? `<div class="mt-3 pt-2 border-t border-[#333] space-y-1">
@@ -651,6 +662,31 @@ function bindPlayInteractions(modal) {
                 toggleStat(name, dice, 'custom');
                 showNotification(`Attack Pool: ${name} (${dice}) loaded.`);
             }
+        };
+    });
+
+    // 6. ADD MANEUVER LOGIC
+    const addBtn = document.getElementById('add-maneuver-btn');
+    if (addBtn) {
+        addBtn.onclick = () => {
+            const select = document.getElementById('add-maneuver-select');
+            const val = select.value;
+            if (val && !ctx.activeNpc.combatLoadout.includes(val)) {
+                ctx.activeNpc.combatLoadout.push(val);
+                if(callbacks.saveNpc) callbacks.saveNpc(true);
+                renderPlaySheetModal(); // Re-render to show new row
+            }
+        };
+    }
+
+    // 7. REMOVE MANEUVER LOGIC
+    modal.querySelectorAll('.remove-maneuver-btn').forEach(btn => {
+        btn.onclick = (e) => {
+            e.stopPropagation(); // Don't trigger the row click
+            const name = btn.dataset.name;
+            ctx.activeNpc.combatLoadout = ctx.activeNpc.combatLoadout.filter(m => m !== name);
+            if(callbacks.saveNpc) callbacks.saveNpc(true);
+            renderPlaySheetModal();
         };
     });
 }
