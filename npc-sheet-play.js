@@ -56,6 +56,9 @@ export function renderPlaySheetModal() {
     const showVirtues = npc.template !== 'animal';
     const showHumanity = npc.template !== 'animal';
     const humanityLabel = npc.template === 'vampire' ? 'Humanity / Road' : 'Humanity';
+    
+    // Hide Feeding Grounds for Mortals, Ghouls, and Animals
+    const showFeedingGrounds = !['mortal', 'ghoul', 'animal'].includes(npc.template);
 
     // --- BIO & EXTRAS GENERATION ---
     const physicalStats = Object.entries(npc.bio || {})
@@ -350,7 +353,7 @@ export function renderPlaySheetModal() {
                             <!-- Initiative ONLY -->
                             <div class="flex justify-between border-b border-[#333] py-1 text-gray-400 mb-2">
                                 <span class="font-bold cursor-pointer hover:text-white npc-combat-interact" data-action="init" data-v1="${dexPenalized}" data-v2="${wits}">Initiative</span>
-                                <span>${dexPenalized + wits} + 1d10</span>
+                                <span>1d10 + ${dexPenalized + wits}</span>
                             </div>
 
                             <!-- Attacks Table -->
@@ -419,7 +422,7 @@ export function renderPlaySheetModal() {
                         </div>` : ''}
 
                          <!-- Feeding Grounds -->
-                        ${npc.feedingGrounds ? `
+                        ${showFeedingGrounds && npc.feedingGrounds ? `
                         <div class="bg-[#111] p-3 border border-[#333] text-xs mt-4">
                             <h4 class="font-bold text-gray-500 uppercase mb-2">Feeding Grounds</h4>
                             <div class="text-gray-400 italic whitespace-pre-wrap">${npc.feedingGrounds}</div>
@@ -694,9 +697,16 @@ function bindPlayInteractions(modal) {
 
             if (typeof toggleStat === 'function') {
                 if (action === 'init') {
-                    toggleStat('Dexterity', v1, 'attribute');
-                    toggleStat('Wits', v2, 'attribute');
-                    showNotification("Initiative Pool Loaded. Roll 1 Die + Total.");
+                    // Initialize Initiative: 1 Die + Modifier (Dex + Wits)
+                    if (typeof clearPool === 'function') clearPool();
+                    
+                    const score = v1 + v2; // Dex + Wits
+                    
+                    // Load 1 Die into the pool
+                    toggleStat('Initiative Die', 1, 'custom');
+                    
+                    // Show notification with calculation
+                    showNotification(`Initiative: Roll 1d10 + ${score}. (Total Score: [Die Result] + ${score})`);
                 }
                 else if (action === 'soak') {
                     toggleStat('Stamina', v1, 'attribute');
