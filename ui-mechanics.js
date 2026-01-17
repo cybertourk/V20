@@ -1394,14 +1394,45 @@ export function setDots(name, type, val, min, max = 5) {
             currentVal = window.state.dots[type][name] || min;
         }
 
-        // Only handle INCREASES in XP mode (cannot remove dots to refund XP usually, standard is permanent)
-        // If user clicks same or lower, do nothing or show info
-        if (val <= currentVal) {
-            window.showNotification("Cannot lower traits in XP Mode.");
-            return;
+        // --- 1. REFUND LOGIC (Lowering value) ---
+        if (val < currentVal) {
+            // Logic: Find the most recent log entry where 'new' equals currentVal.
+            // This ensures we refund the specific step that reached this level.
+            let logType = type;
+            if (type === 'status') {
+                if (name === 'Humanity') logType = 'humanity';
+                if (name === 'Willpower') logType = 'willpower';
+            }
+
+            const logIdx = window.state.xpLog.findIndex(l => l.trait === name && l.new === currentVal && l.type === logType);
+            
+            if (logIdx > -1) {
+                // Found a matching XP expenditure. Refund it.
+                window.state.xpLog.splice(logIdx, 1);
+                
+                // Apply value decrease
+                if (type === 'status') {
+                    if (name === 'Humanity') window.state.status.humanity = val;
+                    if (name === 'Willpower') {
+                        window.state.status.willpower = val;
+                        window.state.status.tempWillpower = val; 
+                    }
+                } else {
+                    window.state.dots[type][name] = val;
+                }
+                
+                window.showNotification(`Refunded ${name} to ${val}`);
+                updatePools();
+                if(window.renderPrintSheet) window.renderPrintSheet();
+                return;
+            } else {
+                window.showNotification("Cannot refund: Trait not raised with XP (or history lost).");
+                return;
+            }
         }
 
-        // Only allow buying 1 dot at a time for safety/rules adherence
+        // --- 2. PURCHASE LOGIC (Raising value) ---
+        // Only allow buying 1 dot at a time
         if (val > currentVal + 1) {
             window.showNotification("Purchase 1 dot at a time.");
             return;
@@ -1429,32 +1460,32 @@ export function setDots(name, type, val, min, max = 5) {
             return;
         }
 
-        if (confirm(`Spend ${cost} XP to raise ${name} to ${val}?`)) {
-            // APPLY CHANGE
-            if (type === 'status') {
-                if (name === 'Humanity') window.state.status.humanity = val;
-                if (name === 'Willpower') {
-                    window.state.status.willpower = val;
-                    window.state.status.tempWillpower = val; // Max increases temp
-                }
-            } else {
-                window.state.dots[type][name] = val;
+        // DIRECT PURCHASE - NO CONFIRMATION
+        // APPLY CHANGE
+        if (type === 'status') {
+            if (name === 'Humanity') window.state.status.humanity = val;
+            if (name === 'Willpower') {
+                window.state.status.willpower = val;
+                window.state.status.tempWillpower = val; // Max increases temp
             }
-            
-            // LOG IT
-            window.state.xpLog.push({
-                trait: name,
-                old: currentVal,
-                new: val,
-                cost: cost,
-                type: type,
-                date: new Date().toISOString()
-            });
-
-            window.showNotification(`Purchased ${name} ${val} (${cost} XP)`);
-            updatePools(); // Refresh UI including sidebar
-            if(window.renderPrintSheet) window.renderPrintSheet();
+        } else {
+            window.state.dots[type][name] = val;
         }
+        
+        // LOG IT
+        window.state.xpLog.push({
+            trait: name,
+            old: currentVal,
+            new: val,
+            cost: cost,
+            type: xpType,
+            date: new Date().toISOString()
+        });
+
+        window.showNotification(`Purchased ${name} ${val} (${cost} XP)`);
+        updatePools(); // Refresh UI including sidebar
+        if(window.renderPrintSheet) window.renderPrintSheet();
+        
         return;
     }
     // --- END EXPERIENCE MODE LOGIC ---
