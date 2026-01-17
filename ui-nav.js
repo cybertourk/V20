@@ -1877,6 +1877,26 @@ window.addEventListener('beforeunload', (e) => {
 // --- WALKTHROUGH / GUIDE SYSTEM ---
 // ==========================================
 
+const STEP_FOUR_TEXT = `
+    <p>Advantages make the vampire a contender in the hierarchy of the night.</p>
+    
+    <h4 class="text-gold mt-2 font-bold uppercase">Disciplines (3 Dots)</h4>
+    <p>Each character begins with <strong>3 dots</strong> of Disciplines. These must be from your Clan Disciplines (unless Caitiff). You may spend all three on one, or spread them out.</p>
+    
+    <h4 class="text-gold mt-2 font-bold uppercase">Backgrounds (5 Dots)</h4>
+    <p>A starting character has <strong>5 dots</strong> worth of Backgrounds to distribute at your discretion.</p>
+    <p class="mt-2 text-sm italic">Optional: At Storyteller discretion, Sabbat vampires may take 4 dots in Disciplines instead of Backgrounds.</p>
+    
+    <h4 class="text-gold mt-2 font-bold uppercase">Virtues (7 Dots)</h4>
+    <p>Virtues determine how well the character resists the Beast. Every character starts with 1 dot in Conscience and Self-Control (or Conviction/Instinct for Sabbat).</p>
+    <p>You have <strong>7 additional dots</strong> to distribute.</p>
+    <ul class="list-disc pl-4 mt-1 text-[11px]">
+        <li><strong>Conscience/Conviction:</strong> Sense of right/wrong.</li>
+        <li><strong>Self-Control/Instinct:</strong> Composure and hunger resistance.</li>
+        <li><strong>Courage:</strong> Gumption and resistance to fear (Rötschreck).</li>
+    </ul>
+`;
+
 const GUIDE_TEXT = {
     1: { // Phase 1: Concept
         title: "Step One: Character Concept",
@@ -1920,35 +1940,15 @@ const GUIDE_TEXT = {
             <p class="mt-2 text-sm italic">Note: No Ability may be purchased above 3 dots during this stage. You may raise them higher with freebie points later.</p>
         `
     },
-    4: { // Phase 4: Disciplines (Advantages)
-        title: "Step Four: Select Advantages (Disciplines)",
-        body: `
-            <p>Advantages make the vampire a contender in the hierarchy of the night.</p>
-            <h4 class="text-gold mt-2 font-bold uppercase">Disciplines</h4>
-            <p>Each character begins with <strong>3 dots</strong> of Disciplines. These must be from your Clan Disciplines (unless Caitiff).</p>
-        `
+    4: { // Phase 4: Advantages (Disciplines, Backgrounds, Virtues)
+        title: "Step Four: Select Advantages",
+        body: STEP_FOUR_TEXT
     },
-    5: { // Phase 5: Backgrounds
-        title: "Step Four: Select Advantages (Backgrounds)",
-        body: `
-            <h4 class="text-gold mt-2 font-bold uppercase">Backgrounds</h4>
-            <p>A starting character has <strong>5 dots</strong> worth of Backgrounds to distribute.</p>
-            <p class="mt-2 text-sm italic">Optional: At Storyteller discretion, Sabbat vampires may take 4 dots in Disciplines instead of Backgrounds.</p>
-        `
+    5: { // Phase 5: Last Touches (Currently mapped to Step 4 logic in Guide for safety if app steps through)
+        title: "Step Four: Select Advantages",
+        body: STEP_FOUR_TEXT
     },
-    6: { // Phase 6: Virtues
-        title: "Step Four: Select Advantages (Virtues)",
-        body: `
-            <p>Virtues determine how well the character resists the Beast. Every character starts with 1 dot in Conscience and Self-Control (or Conviction/Instinct for Sabbat).</p>
-            <p>You have <strong>7 additional dots</strong> to distribute.</p>
-            <ul class="list-disc pl-4 mt-1">
-                <li><strong>Conscience/Conviction:</strong> Sense of right/wrong.</li>
-                <li><strong>Self-Control/Instinct:</strong> Composure and hunger resistance.</li>
-                <li><strong>Courage:</strong> Gumption and resistance to fear (Rötschreck).</li>
-            </ul>
-        `
-    },
-    7: { // Phase 7 (Wait, checking code... Phase 7 is often Humanity/Willpower)
+    6: { // Phase 6: Last Touches (Real Step 5)
         title: "Step Five: Last Touches",
         body: `
             <h4 class="text-gold mt-2 font-bold uppercase">Calculated Traits</h4>
@@ -1959,13 +1959,20 @@ const GUIDE_TEXT = {
             </ul>
         `
     },
-    8: { // Phase 8: Freebies
+    7: { // Phase 7: Freebies (Real Step 5 part 2)
         title: "Step Five: Freebie Points",
         body: `
             <p>The player may spend <strong>15 freebie points</strong> to purchase additional dots.</p>
             <p>You may also take up to 7 points of Flaws to gain more freebie points.</p>
             <h4 class="text-gold mt-2 font-bold uppercase">Spark of Life</h4>
             <p>Breathe life into the traits! Why does she have Appearance 3? Did she want to be a movie star? Is her Ally an ex-lover? Make your character unique, fascinating, and passionate.</p>
+        `
+    },
+    8: { // Phase 8: Backup for Freebies if app iterates
+        title: "Step Five: Freebie Points",
+        body: `
+            <p>The player may spend <strong>15 freebie points</strong> to purchase additional dots.</p>
+            <p>You may also take up to 7 points of Flaws to gain more freebie points.</p>
         `
     }
 };
@@ -2015,6 +2022,8 @@ function renderWalkthroughModalContent() {
 
     // Determine current phase
     const phase = window.state.currentPhase || 1;
+    // Fallback to Phase 4 if active phase is mapped to empty/undefined, 
+    // ensuring Advantages text shows if sub-phases are technically active
     const data = GUIDE_TEXT[phase] || GUIDE_TEXT[1];
 
     titleEl.innerText = data.title;
