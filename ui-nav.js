@@ -1010,7 +1010,7 @@ export function togglePlayMode() {
         if(cp) {
             cp.innerHTML = ''; 
             
-            // --- INITIATIVE ROLL (ADDED) ---
+            // --- INITIATIVE ROLL (UPDATED) ---
             // Calc Rating: Dex + Wits (V20 p.253)
             const dexVal = window.state.dots.attr['Dexterity'] || 1;
             const witsVal = window.state.dots.attr['Wits'] || 1;
@@ -1020,21 +1020,11 @@ export function togglePlayMode() {
             initRow.className = 'bg-[#222] border-b border-[#444]';
             initRow.innerHTML = `
                 <td colspan="6" class="p-2 text-center">
-                    <button class="bg-[#d97706] hover:bg-[#b45309] text-white text-[10px] font-bold py-1 px-6 rounded uppercase tracking-wider flex items-center justify-center mx-auto gap-2 transition-all">
+                    <button class="bg-[#d97706] hover:bg-[#b45309] text-white text-[10px] font-bold py-1 px-6 rounded uppercase tracking-wider flex items-center justify-center mx-auto gap-2 transition-all" onclick="window.rollInitiative(${initRating})">
                         <i class="fas fa-bolt text-yellow-200"></i> Roll Initiative (Rating: ${initRating})
                     </button>
-                    <div class="init-result text-[11px] font-bold text-yellow-500 mt-1 hidden"></div>
                 </td>
             `;
-            const initBtn = initRow.querySelector('button');
-            const initRes = initRow.querySelector('.init-result');
-            
-            initBtn.onclick = () => {
-                const die = Math.floor(Math.random() * 10) + 1;
-                const total = initRating + die;
-                initRes.innerHTML = `Rolled <span class="text-white">${die}</span> + ${initRating} = <span class="text-xl text-white ml-1 border border-yellow-500 px-1 rounded bg-black/50">${total}</span>`;
-                initRes.classList.remove('hidden');
-            };
             cp.appendChild(initRow);
             // -------------------------------
 
