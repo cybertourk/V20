@@ -477,8 +477,8 @@ export function rollPool() {
     const initiativeItem = window.state.activePool.find(p => p.name.includes("Initiative"));
     
     if (initiativeItem) {
-        // Parse modifier from string: "Initiative (+5)" -> 5
-        const match = initiativeItem.name.match(/\+(\d+)/);
+        // ROBUST PARSING: Handles "Initiative (+5)", "Initiative +5", "Initiative ( + 5 )", etc.
+        const match = initiativeItem.name.match(/[+(]\s*(\d+)/);
         const mod = match ? parseInt(match[1]) : 0;
         
         // Roll 1d10
