@@ -660,10 +660,16 @@ function bindPlayInteractions(modal) {
 
             if (typeof toggleStat === 'function') {
                 if (action === 'init') {
+                    // Initialize Initiative: 1 Die + Modifier (Dex + Wits)
                     if (typeof clearPool === 'function') clearPool();
-                    const score = v1 + v2; 
-                    toggleStat(`Initiative Die`, 1, 'custom');
-                    showNotification(`Base Rating: ${score}. Roll Result + ${score} = Total Initiative.`);
+                    
+                    const score = v1 + v2; // Dex + Wits
+                    
+                    // Load 1 Die into the pool, labeled explicitly with the modifier
+                    toggleStat(`Initiative (+${score})`, 1, 'custom');
+                    
+                    // Show notification with calculation
+                    showNotification(`Initiative: Roll 1d10 + ${score}. (Total Score: [Die Result] + ${score})`);
                 }
                 else if (action === 'soak') {
                     toggleStat('Stamina', v1, 'attribute');
@@ -691,6 +697,7 @@ function bindPlayInteractions(modal) {
                     // Load Bonus (like Bite +1)
                     if (bonus > 0) toggleStat('Bonus', bonus, 'custom');
                     
+                    // Set difficulty in the dice roller input if it exists
                     const diffInput = document.getElementById('roll-diff');
                     if(diffInput) diffInput.value = diff;
 
