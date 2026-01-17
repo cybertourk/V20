@@ -1394,6 +1394,17 @@ export function setDots(name, type, val, min, max = 5) {
             currentVal = window.state.dots[type][name] || min;
         }
 
+        // HANDLE TOGGLE BEHAVIOR (Clicking the dot you already have means "remove/refund")
+        if (val === currentVal) {
+            val = val - 1;
+        }
+
+        // Prevent going below minimum (e.g. Attributes cannot go below 1, generally)
+        if (val < min) {
+            // Usually silent return, or could show "Cannot lower below minimum"
+            return;
+        }
+
         // --- 1. REFUND LOGIC (Lowering value) ---
         if (val < currentVal) {
             // Logic: Find the most recent log entry where 'new' equals currentVal.
