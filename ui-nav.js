@@ -5,6 +5,8 @@ import {
     CLAN_DISCIPLINES
 } from "./data.js";
 
+import { DISCIPLINES_DATA } from "./disciplines-data.js";
+
 import { checkStepComplete } from "./v20-rules.js";
 
 import { 
@@ -13,7 +15,7 @@ import {
 } from "./ui-common.js";
 
 import { 
-    updatePools, renderRow, setDots, rollCombat, rollFrenzy, rollRotschreck
+    updatePools, renderRow, setDots, rollCombat, rollFrenzy, rollRotschreck, rollDiscipline
 } from "./ui-mechanics.js";
 
 // --- IMPORT JOURNAL MODULE ---
@@ -903,18 +905,70 @@ export function togglePlayMode() {
             });
         }
         
+        // --- UPDATED ADVANTAGES ROW (Detailed Disciplines) ---
         const rc = document.getElementById('play-row-adv'); 
         if (rc) {
             rc.innerHTML = '';
-            const ds = document.createElement('div'); ds.className='sheet-section !mt-0'; ds.innerHTML='<div class="column-title">Disciplines</div>';
-            rc.appendChild(ds);
-            Object.entries(window.state.dots.disc).forEach(([n,v]) => { if(v>0) renderRow(ds,n,'disc',0); }); 
             
-            const bs = document.createElement('div'); bs.className='sheet-section !mt-0'; bs.innerHTML='<div class="column-title">Backgrounds</div>';
+            // 1. DISCIPLINES (Detailed View)
+            const ds = document.createElement('div'); 
+            ds.className='sheet-section !mt-0'; 
+            ds.innerHTML='<div class="column-title">Disciplines</div>';
+            
+            // Iterate known disciplines
+            Object.entries(window.state.dots.disc).forEach(([name, val]) => { 
+                if(val > 0) {
+                    // Standard Row
+                    renderRow(ds, name, 'disc', 0);
+                    
+                    // Detailed Power Expansion
+                    if (DISCIPLINES_DATA[name]) {
+                        const powersDiv = document.createElement('div');
+                        powersDiv.className = "mb-4 pl-2 border-l border-[#444] ml-1 mt-1";
+                        
+                        for (let level = 1; level <= val; level++) {
+                            const power = DISCIPLINES_DATA[name][level];
+                            if (power) {
+                                const pRow = document.createElement('div');
+                                pRow.className = "mb-3 group";
+                                
+                                let rollBtn = "";
+                                if (power.roll) {
+                                    // Serialize pool for onclick
+                                    const poolStr = JSON.stringify(power.roll.pool).replace(/"/g, "'");
+                                    rollBtn = `<button onclick="window.rollDiscipline('${power.name}', ${poolStr}, ${power.roll.defaultDiff})" class="float-right bg-[#8b0000] hover:bg-red-700 text-white text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-wider opacity-60 group-hover:opacity-100 transition-opacity">Roll</button>`;
+                                }
+                                
+                                pRow.innerHTML = `
+                                    <div class="flex justify-between items-center mb-0.5">
+                                        <div class="text-[#d4af37] font-bold text-xs">
+                                            <span class="text-[9px] text-gray-500 mr-1">●${level}</span> ${power.name}
+                                        </div>
+                                        ${rollBtn}
+                                    </div>
+                                    <div class="text-[10px] text-gray-300 italic leading-tight mb-1">${power.desc}</div>
+                                    <div class="text-[9px] text-gray-500 font-mono"><span class="text-gray-400 font-bold">System:</span> ${power.system}</div>
+                                `;
+                                powersDiv.appendChild(pRow);
+                            }
+                        }
+                        ds.appendChild(powersDiv);
+                    }
+                } 
+            }); 
+            rc.appendChild(ds);
+            
+            // 2. BACKGROUNDS
+            const bs = document.createElement('div'); 
+            bs.className='sheet-section !mt-0'; 
+            bs.innerHTML='<div class="column-title">Backgrounds</div>';
             rc.appendChild(bs);
             Object.entries(window.state.dots.back).forEach(([n,v]) => { if(v>0) renderRow(bs,n,'back',0); }); 
             
-            const vs = document.createElement('div'); vs.className='sheet-section !mt-0'; vs.innerHTML='<div class="column-title">Virtues</div>';
+            // 3. VIRTUES
+            const vs = document.createElement('div'); 
+            vs.className='sheet-section !mt-0'; 
+            vs.innerHTML='<div class="column-title">Virtues</div>';
             rc.appendChild(vs);
             VIRTUES.forEach(v => renderRow(vs, v, 'virt', 1)); 
         }
