@@ -915,19 +915,32 @@ export function togglePlayMode() {
             ds.className='sheet-section !mt-0'; 
             ds.innerHTML='<div class="column-title">Disciplines</div>';
             
+            // Check if DISCIPLINES_DATA exists to prevent crashes
+            const safeDisciplineData = typeof DISCIPLINES_DATA !== 'undefined' ? DISCIPLINES_DATA : {};
+
             // Iterate known disciplines
             Object.entries(window.state.dots.disc).forEach(([name, val]) => { 
                 if(val > 0) {
                     // Standard Row
                     renderRow(ds, name, 'disc', 0);
                     
+                    // Normalize Name (remove trailing spaces, case-insensitive match attempt)
+                    const cleanName = name.trim();
+                    
+                    // Try exact match, then try case-insensitive
+                    let matchedData = safeDisciplineData[cleanName];
+                    if (!matchedData) {
+                        const key = Object.keys(safeDisciplineData).find(k => k.toLowerCase() === cleanName.toLowerCase());
+                        if (key) matchedData = safeDisciplineData[key];
+                    }
+
                     // Detailed Power Expansion
-                    if (DISCIPLINES_DATA[name]) {
+                    if (matchedData) {
                         const powersDiv = document.createElement('div');
                         powersDiv.className = "mb-4 pl-2 border-l border-[#444] ml-1 mt-1";
                         
                         for (let level = 1; level <= val; level++) {
-                            const power = DISCIPLINES_DATA[name][level];
+                            const power = matchedData[level];
                             if (power) {
                                 const pRow = document.createElement('div');
                                 pRow.className = "mb-3 group";
