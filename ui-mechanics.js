@@ -661,6 +661,49 @@ export function rollInitiative(rating) {
 }
 window.rollInitiative = rollInitiative;
 
+// --- NEW: ROLL DISCIPLINE FUNCTION ---
+export function rollDiscipline(powerName, poolKeys, defaultDiff) {
+    window.clearPool();
+    
+    let displayParts = [];
+    
+    poolKeys.forEach(key => {
+        // Search Attributes
+        let val = window.state.dots.attr[key];
+        
+        // Search Abilities
+        if (val === undefined) val = window.state.dots.abil[key];
+        
+        // Search Virtues
+        if (val === undefined) val = window.state.dots.virt[key];
+        
+        // Fallback or specific lookups (Self-Control vs Instincts, etc.)
+        if (key === 'Self-Control/Instinct') {
+            const hasInstinct = window.state.dots.virt['Instincts'] > 0;
+            key = hasInstinct ? 'Instincts' : 'Self-Control';
+            val = window.state.dots.virt[key] || 1;
+        }
+        
+        if (val === undefined) val = 0; // Default if not found
+        
+        window.state.activePool.push({name: key, val: val});
+        displayParts.push(`${key} (${val})`);
+    });
+    
+    const diffInput = document.getElementById('roll-diff');
+    if (diffInput) diffInput.value = defaultDiff;
+    
+    const display = document.getElementById('pool-display');
+    if (display) {
+        setSafeText('pool-display', `${powerName}: ${displayParts.join(' + ')}`);
+        display.classList.add('text-purple-400');
+    }
+    
+    const tray = document.getElementById('dice-tray');
+    if (tray) tray.classList.add('open');
+}
+window.rollDiscipline = rollDiscipline;
+
 
 export function toggleDiceTray() {
     const tray = document.getElementById('dice-tray');
