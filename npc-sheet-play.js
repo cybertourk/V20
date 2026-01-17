@@ -662,8 +662,8 @@ function bindPlayInteractions(modal) {
                 if (action === 'init') {
                     if (typeof clearPool === 'function') clearPool();
                     const score = v1 + v2; 
-                    toggleStat(`Initiative (+${score})`, 1, 'custom');
-                    showNotification(`Initiative: Roll 1d10 + ${score}. (Total Score: [Die Result] + ${score})`);
+                    toggleStat(`Initiative Die`, 1, 'custom');
+                    showNotification(`Base Rating: ${score}. Roll Result + ${score} = Total Initiative.`);
                 }
                 else if (action === 'soak') {
                     toggleStat('Stamina', v1, 'attribute');
