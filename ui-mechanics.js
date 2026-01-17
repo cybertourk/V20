@@ -477,9 +477,14 @@ export function rollPool() {
     const initiativeItem = window.state.activePool.find(p => p.name.includes("Initiative"));
     
     if (initiativeItem) {
-        // ROBUST PARSING: Handles "Initiative (+5)", "Initiative +5", "Initiative ( + 5 )", etc.
-        const match = initiativeItem.name.match(/[+(]\s*\+?\s*(\d+)/);
-        const mod = match ? parseInt(match[1]) : 0;
+        // ROBUST PARSING: Prefer direct value, fallback to Regex parsing for legacy support
+        let mod = initiativeItem.val;
+        
+        // If val is 0, check if we need to parse it from the name (legacy behavior)
+        if (mod === 0 && initiativeItem.name.includes("(")) {
+            const match = initiativeItem.name.match(/[+(]\s*\+?\s*(\d+)/);
+            if (match) mod = parseInt(match[1]);
+        }
         
         // Roll 1d10
         const die = Math.floor(Math.random() * 10) + 1;
@@ -638,6 +643,23 @@ export function rollCombat(name, diff, attr, ability) {
     if (tray) tray.classList.add('open');
 }
 window.rollCombat = rollCombat;
+
+// --- ADDED INITIATIVE FUNCTION ---
+export function rollInitiative(rating) {
+    window.clearPool();
+    // Add Special "Initiative" item to pool with rating as value
+    window.state.activePool.push({name: "Initiative", val: rating});
+    
+    const display = document.getElementById('pool-display');
+    if (display) {
+        setSafeText('pool-display', `Initiative Rating: ${rating}`);
+        display.classList.add('text-yellow-500');
+    }
+    
+    const tray = document.getElementById('dice-tray');
+    if (tray) tray.classList.add('open');
+}
+window.rollInitiative = rollInitiative;
 
 
 export function toggleDiceTray() {
