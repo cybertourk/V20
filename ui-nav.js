@@ -719,6 +719,10 @@ export function updateWalkthrough() {
          }
     }
     renderPrintSheet();
+    // Update Walkthrough Modal content if open
+    if (document.getElementById('walkthrough-modal') && !document.getElementById('walkthrough-modal').classList.contains('hidden')) {
+        renderWalkthroughModalContent();
+    }
 }
 window.updateWalkthrough = updateWalkthrough;
 
@@ -789,6 +793,7 @@ export function changeStep(s) {
         }
     }
     updatePools();
+    updateWalkthrough(); // Update button states/modal if active
 }
 window.changeStep = changeStep;
 
@@ -827,6 +832,13 @@ export function togglePlayMode() {
     
     const pBtn = document.getElementById('play-mode-btn'); const pBtnText = document.getElementById('play-btn-text');
     if(pBtnText) pBtnText.innerText = window.state.isPlayMode ? "Edit" : "Play";
+    
+    // Toggle Walkthrough Button Visibility
+    const guideBtn = document.getElementById('walkthrough-btn');
+    if(guideBtn) {
+        if(window.state.isPlayMode) guideBtn.classList.add('hidden');
+        else guideBtn.classList.remove('hidden');
+    }
     
     document.querySelectorAll('input, select, textarea').forEach(el => {
         if (['save-filename', 'char-select', 'roll-diff', 'use-specialty', 'c-path-name', 'c-path-name-create', 'c-bearing-name', 'c-bearing-value', 'custom-weakness-input', 'xp-points-input', 'blood-per-turn-input', 'custom-dice-input', 'spend-willpower', 'c-xp-total', 'frenzy-diff', 'rotschreck-diff', 'play-merit-notes', 'dmg-input-val', 'tray-use-armor',
@@ -1859,4 +1871,170 @@ window.addEventListener('beforeunload', (e) => {
         e.returnValue = ''; // Legacy support for Chrome
         return "Unsaved changes may be lost.";
     }
+});
+
+// ==========================================
+// --- WALKTHROUGH / GUIDE SYSTEM ---
+// ==========================================
+
+const GUIDE_TEXT = {
+    1: { // Phase 1: Concept
+        title: "Step One: Character Concept",
+        body: `
+            <p>Concept is the birthing chamber for who a character will become. It only needs to be a general idea — brute; slick mobster; manic Malkavian kidnapper — but it should be enough to ignite your imagination.</p>
+            <p>This stage involves the selection of the character’s concept, Clan, Nature, and Demeanor.</p>
+            <h4 class="text-gold mt-2 font-bold uppercase">Concept</h4>
+            <p>Refers to who the character was before becoming a vampire. Echoes of their mortal lives are all that stand between many Kindred and madness.</p>
+            <h4 class="text-gold mt-2 font-bold uppercase">Clan</h4>
+            <p>A character’s Clan is her vampire “family.” Vampires are always of the same Clan as their sires. If you wish to be clanless, write “Caitiff”.</p>
+            <h4 class="text-gold mt-2 font-bold uppercase">Nature & Demeanor</h4>
+            <ul class="list-disc pl-4 mt-1">
+                <li><strong>Demeanor:</strong> The mask worn for the world. The attitude adopted most often.</li>
+                <li><strong>Nature:</strong> The character's true self. Used to regain Willpower points.</li>
+            </ul>
+        `
+    },
+    2: { // Phase 2: Attributes
+        title: "Step Two: Select Attributes",
+        body: `
+            <p>Attributes are the natural abilities and raw capabilities a character is made of. All Vampire characters have nine Attributes divided into Physical, Social, and Mental.</p>
+            <p>First, prioritize your categories:</p>
+            <ul class="list-disc pl-4 mt-1">
+                <li><strong>Primary:</strong> 7 dots</li>
+                <li><strong>Secondary:</strong> 5 dots</li>
+                <li><strong>Tertiary:</strong> 3 dots</li>
+            </ul>
+            <p class="mt-2 text-sm italic">Note: All characters start with one dot in each Attribute automatically (except Nosferatu Appearance).</p>
+        `
+    },
+    3: { // Phase 3: Abilities
+        title: "Step Three: Select Abilities",
+        body: `
+            <p>Abilities are divided into Talents (intuitive), Skills (trained), and Knowledges (academic).</p>
+            <p>Prioritize your categories:</p>
+            <ul class="list-disc pl-4 mt-1">
+                <li><strong>Primary:</strong> 13 dots</li>
+                <li><strong>Secondary:</strong> 9 dots</li>
+                <li><strong>Tertiary:</strong> 5 dots</li>
+            </ul>
+            <p class="mt-2 text-sm italic">Note: No Ability may be purchased above 3 dots during this stage. You may raise them higher with freebie points later.</p>
+        `
+    },
+    4: { // Phase 4: Disciplines (Advantages)
+        title: "Step Four: Select Advantages (Disciplines)",
+        body: `
+            <p>Advantages make the vampire a contender in the hierarchy of the night.</p>
+            <h4 class="text-gold mt-2 font-bold uppercase">Disciplines</h4>
+            <p>Each character begins with <strong>3 dots</strong> of Disciplines. These must be from your Clan Disciplines (unless Caitiff).</p>
+        `
+    },
+    5: { // Phase 5: Backgrounds
+        title: "Step Four: Select Advantages (Backgrounds)",
+        body: `
+            <h4 class="text-gold mt-2 font-bold uppercase">Backgrounds</h4>
+            <p>A starting character has <strong>5 dots</strong> worth of Backgrounds to distribute.</p>
+            <p class="mt-2 text-sm italic">Optional: At Storyteller discretion, Sabbat vampires may take 4 dots in Disciplines instead of Backgrounds.</p>
+        `
+    },
+    6: { // Phase 6: Virtues
+        title: "Step Four: Select Advantages (Virtues)",
+        body: `
+            <p>Virtues determine how well the character resists the Beast. Every character starts with 1 dot in Conscience and Self-Control (or Conviction/Instinct for Sabbat).</p>
+            <p>You have <strong>7 additional dots</strong> to distribute.</p>
+            <ul class="list-disc pl-4 mt-1">
+                <li><strong>Conscience/Conviction:</strong> Sense of right/wrong.</li>
+                <li><strong>Self-Control/Instinct:</strong> Composure and hunger resistance.</li>
+                <li><strong>Courage:</strong> Gumption and resistance to fear (Rötschreck).</li>
+            </ul>
+        `
+    },
+    7: { // Phase 7 (Wait, checking code... Phase 7 is often Humanity/Willpower)
+        title: "Step Five: Last Touches",
+        body: `
+            <h4 class="text-gold mt-2 font-bold uppercase">Calculated Traits</h4>
+            <ul class="list-disc pl-4 mt-1">
+                <li><strong>Humanity:</strong> Conscience + Self-Control (5-10).</li>
+                <li><strong>Willpower:</strong> Equals Courage rating (1-5).</li>
+                <li><strong>Blood Pool:</strong> Determined by generation (roll d10 for starting pool).</li>
+            </ul>
+        `
+    },
+    8: { // Phase 8: Freebies
+        title: "Step Five: Freebie Points",
+        body: `
+            <p>The player may spend <strong>15 freebie points</strong> to purchase additional dots.</p>
+            <p>You may also take up to 7 points of Flaws to gain more freebie points.</p>
+            <h4 class="text-gold mt-2 font-bold uppercase">Spark of Life</h4>
+            <p>Breathe life into the traits! Why does she have Appearance 3? Did she want to be a movie star? Is her Ally an ex-lover? Make your character unique, fascinating, and passionate.</p>
+        `
+    }
+};
+
+function createWalkthroughButton() {
+    if (document.getElementById('walkthrough-btn')) return;
+
+    const btn = document.createElement('button');
+    btn.id = 'walkthrough-btn';
+    btn.className = "fixed bottom-5 left-5 z-[100] w-10 h-10 rounded-full bg-[#333] border border-[#d4af37] text-[#d4af37] hover:bg-[#d4af37] hover:text-black transition-all flex items-center justify-center shadow-[0_0_10px_rgba(0,0,0,0.8)]";
+    btn.innerHTML = '<i class="fas fa-question text-lg"></i>';
+    btn.title = "Character Creation Walkthrough";
+    btn.onclick = window.toggleWalkthrough;
+    document.body.appendChild(btn);
+}
+
+function createWalkthroughModal() {
+    if (document.getElementById('walkthrough-modal')) return;
+
+    const modal = document.createElement('div');
+    modal.id = 'walkthrough-modal';
+    modal.className = "fixed inset-0 bg-black/80 z-[101] hidden flex items-center justify-center p-4 backdrop-blur-sm";
+    
+    modal.innerHTML = `
+        <div class="bg-[#1a1a1a] border-2 border-[#d4af37] rounded-lg max-w-lg w-full max-h-[80vh] flex flex-col shadow-[0_0_20px_rgba(212,175,55,0.2)]">
+            <div class="p-3 border-b border-[#333] flex justify-between items-center bg-[#111]">
+                <h3 id="wt-title" class="text-gold font-serif font-bold text-lg uppercase tracking-wider">Walkthrough</h3>
+                <button onclick="window.toggleWalkthrough()" class="text-gray-400 hover:text-white text-xl">&times;</button>
+            </div>
+            <div id="wt-body" class="p-5 overflow-y-auto text-gray-300 text-sm leading-relaxed flex-1 font-serif">
+                <!-- Content goes here -->
+            </div>
+            <div class="p-3 border-t border-[#333] bg-[#111] flex justify-between items-center">
+                <span class="text-[10px] text-gray-500 italic">V20 Core Rules</span>
+                <button onclick="window.toggleWalkthrough()" class="px-4 py-1 bg-[#8b0000] hover:bg-red-700 text-white text-xs font-bold rounded uppercase">Close</button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+}
+
+function renderWalkthroughModalContent() {
+    const titleEl = document.getElementById('wt-title');
+    const bodyEl = document.getElementById('wt-body');
+    if (!titleEl || !bodyEl) return;
+
+    // Determine current phase
+    const phase = window.state.currentPhase || 1;
+    const data = GUIDE_TEXT[phase] || GUIDE_TEXT[1];
+
+    titleEl.innerText = data.title;
+    bodyEl.innerHTML = data.body;
+}
+
+window.toggleWalkthrough = function() {
+    createWalkthroughModal(); // Ensure it exists
+    const modal = document.getElementById('walkthrough-modal');
+    const isHidden = modal.classList.contains('hidden');
+    
+    if (isHidden) {
+        renderWalkthroughModalContent();
+        modal.classList.remove('hidden');
+    } else {
+        modal.classList.add('hidden');
+    }
+};
+
+// Initialize the button on load
+document.addEventListener('DOMContentLoaded', () => {
+    createWalkthroughButton();
 });
