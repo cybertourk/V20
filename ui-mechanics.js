@@ -102,10 +102,7 @@ function updateClanMechanicsUI() {
     // --- 3. CLAN ACTION PANELS (PLAY MODE) ---
     
     // TARGET CONTAINER LOGIC:
-    // FIX: Using the exact ID from index.html -> 'weakness-play-container' (Column 1)
     let weaknessContainer = document.getElementById('weakness-play-container');
-    
-    // Ultimate Fallback if needed
     const fallbackContainer = document.getElementById('health-chart-play')?.parentNode;
 
     // TARGET FOR GANGREL (Column 3 - Beast Container)
@@ -178,7 +175,6 @@ function updateClanMechanicsUI() {
     }
 
     // --- 4. NOSFERATU: APPEARANCE ENFORCEMENT & VISUALS ---
-    // Always refresh Appearance row to ensure styles (strikethrough) and dots (0 vs 1) match current clan
     refreshTraitRow("Appearance", "attr");
 
     // Force data consistency
@@ -271,7 +267,6 @@ window.removeBeastTrait = function(idx) {
 // --- DERANGEMENT MANAGEMENT (Shared + Malkavian Logic) ---
 
 window.addDerangement = function() {
-    // Attempt to find input from various possible IDs depending on where it's rendered
     const input = document.getElementById('derangement-input') || document.getElementById('malk-new-d');
     const val = input?.value;
     if (!val) {
@@ -291,7 +286,6 @@ window.addDerangement = function() {
     
     if(input) input.value = '';
     
-    // Refresh relevant views
     if(window.renderSocialProfile) window.renderSocialProfile(); 
     if(window.renderPrintSheet) window.renderPrintSheet();
     if(window.renderBioTab) window.renderBioTab();
@@ -300,7 +294,6 @@ window.addDerangement = function() {
 window.removeDerangement = function(idx) {
     const clan = window.state.textFields['c-clan'] || document.getElementById('c-clan')?.value || "None";
     
-    // Malkavian Weakness: Cannot remove the first derangement
     if (clan === "Malkavian" && idx === 0) {
         showNotification("Malkavian Weakness: Cannot remove the original Incurable Derangement!");
         return;
@@ -338,7 +331,6 @@ export function clearPool() {
     const cb = document.getElementById('use-specialty'); 
     if(cb) cb.checked = false;
     
-    // Clear Custom Dice Slider
     const slider = document.getElementById('custom-dice-input');
     if(slider) {
         slider.value = 0;
@@ -346,8 +338,6 @@ export function clearPool() {
         if(valDisplay) valDisplay.innerText = "0";
     }
     
-    // --- RESET DICE TRAY UI (Standard Mode) ---
-    // Show Willpower & Reset State (Fix for Brujah Curse persistence)
     const wpCont = document.getElementById('willpower-spend-container');
     if(wpCont) {
         wpCont.style.display = 'flex';
@@ -360,15 +350,12 @@ export function clearPool() {
         if(wpLabel) wpLabel.innerText = "Spend Willpower (Auto Success)";
     }
     
-    // Hide Tray Armor Toggle if it exists
     const armorCont = document.getElementById('tray-armor-toggle-container');
     if(armorCont) armorCont.style.display = 'none';
 
-    // Reset Setite Light Toggle if exists
     const lightToggle = document.getElementById('setite-light-toggle');
     if (lightToggle) lightToggle.checked = false;
 
-    // Refresh Clan UI Elements (This ensures Tzimisce/Setite/Gangrel inputs persist correctly)
     updateClanMechanicsUI();
 
     document.getElementById('dice-tray').classList.remove('open');
@@ -377,7 +364,6 @@ window.clearPool = clearPool;
 
 
 export function handleTraitClick(name, type) {
-    // If we were in a special mode (Soak), clear first to reset UI
     const armorCont = document.getElementById('tray-armor-toggle-container');
     if(armorCont && armorCont.style.display !== 'none') {
         window.clearPool();
@@ -434,7 +420,7 @@ export function handleTraitClick(name, type) {
             }
         }
         document.getElementById('dice-tray').classList.add('open');
-        updateClanMechanicsUI(); // Ensure toggle is visible and updated
+        updateClanMechanicsUI(); 
     } else {
         window.clearPool();
     }
@@ -443,7 +429,6 @@ window.handleTraitClick = handleTraitClick;
 
 // ADDED: Direct toggle function for NPCs or manual overrides (accepts rating directly)
 export function toggleStat(name, rating, type) {
-    // Check/Reset special modes
     const armorCont = document.getElementById('tray-armor-toggle-container');
     if(armorCont && armorCont.style.display !== 'none') {
         window.clearPool();
@@ -460,10 +445,8 @@ export function toggleStat(name, rating, type) {
         window.state.activePool.push({name, val}); 
     }
     
-    // UI Update - Highlight existing traits if they exist in main DOM (Optional, mostly for visual sync)
     document.querySelectorAll('.trait-label').forEach(el => el.classList.toggle('selected', window.state.activePool.some(p => p.name === el.innerText)));
     
-    // Update Pool Display
     const display = document.getElementById('pool-display');
     const hint = document.getElementById('specialty-hint');
     
@@ -476,9 +459,8 @@ export function toggleStat(name, rating, type) {
     
     if (window.state.activePool.length > 0) {
         setSafeText('pool-display', window.state.activePool.map(p => `${p.name} (${p.val})`).join(' + '));
-        // Note: Specialties from PC are likely irrelevant for NPC roll unless using shared context
         const hintEl = document.getElementById('specialty-hint');
-        if (hintEl) hintEl.innerHTML = ''; // Clear PC hints for cleanliness
+        if (hintEl) hintEl.innerHTML = ''; 
         
         document.getElementById('dice-tray').classList.add('open');
         if(typeof updateClanMechanicsUI === 'function') updateClanMechanicsUI();
@@ -490,21 +472,58 @@ window.toggleStat = toggleStat;
 
 
 export function rollPool() {
+    // --- SPECIAL ROLL INTERCEPTION: INITIATIVE ---
+    // Check if the current pool contains an Initiative entry
+    const initiativeItem = window.state.activePool.find(p => p.name.includes("Initiative"));
+    
+    if (initiativeItem) {
+        // Parse modifier from string: "Initiative (+5)" -> 5
+        const match = initiativeItem.name.match(/\+(\d+)/);
+        const mod = match ? parseInt(match[1]) : 0;
+        
+        // Roll 1d10
+        const die = Math.floor(Math.random() * 10) + 1;
+        const total = die + mod;
+        
+        // Render Result immediately
+        const tray = document.getElementById('roll-results');
+        const row = document.createElement('div');
+        row.className = 'bg-black/60 p-2 border border-[#333] text-[10px] mb-2 animate-in fade-in slide-in-from-right-4 duration-300';
+        
+        row.innerHTML = `
+            <div class="flex justify-between border-b border-[#444] pb-1 mb-1">
+                <span class="text-[#d4af37] font-bold uppercase">Initiative Roll</span>
+                <span class="text-white font-black text-sm">${total}</span>
+            </div>
+            <div class="tracking-widest flex flex-wrap justify-center py-2 items-center gap-2">
+                <span class="text-gray-400 font-bold bg-black/50 px-2 py-1 rounded">1d10 <span class="text-white">(${die})</span></span>
+                <span class="text-gray-500 font-black">+</span>
+                <span class="text-[#d4af37] font-bold">${mod}</span>
+                <span class="text-gray-500 font-black">=</span>
+                <span class="text-[#4ade80] font-black text-lg border border-[#d4af37] px-3 py-1 rounded bg-[#d4af37]/10">${total}</span>
+            </div>
+            <div class="text-[9px] text-gray-500 italic text-center mt-1">Declare actions in reverse order (Lowest to Highest). Resolve Highest to Lowest.</div>
+        `;
+        
+        tray.insertBefore(row, tray.firstChild);
+        return; // EXIT FUNCTION: Skip standard success counting
+    }
+
+    // --- STANDARD DICE POOL LOGIC ---
     const spendWP = document.getElementById('spend-willpower')?.checked;
     let autoSuccesses = 0;
     
-    // Willpower Spending Logic
     if (spendWP) {
         if ((window.state.status.tempWillpower || 0) > 0) {
              window.state.status.tempWillpower--;
              autoSuccesses = 1;
-             window.updatePools(); // Update UI to show spent point
+             window.updatePools(); 
              window.showNotification("Willpower spent: +1 Auto Success");
-             document.getElementById('spend-willpower').checked = false; // Reset checkbox
+             document.getElementById('spend-willpower').checked = false; 
         } else {
             window.showNotification("Cannot spend Willpower: Pool is empty!");
             document.getElementById('spend-willpower').checked = false;
-            return; // Abort roll
+            return; 
         }
     }
 
@@ -514,23 +533,18 @@ export function rollPool() {
     // --- CLAN WEAKNESSES: POOL MODIFIERS ---
     const clan = window.state.textFields['c-clan'] || "None";
     
-    // 1. FOLLOWERS OF SET (Bright Light)
     const lightToggle = document.getElementById('setite-light-toggle');
     if (clan === "Followers of Set" && lightToggle && lightToggle.checked) {
         poolSize -= 1;
     }
 
-    // 2. TZIMISCE (Native Soil)
-    // "limit all of the Tzimisce’s dice pools to one-half, cumulatively, until she has only a single die"
     const soilDaysInput = document.getElementById('tzimisce-soil-days');
     if (clan === "Tzimisce" && soilDaysInput) {
         const daysAway = parseInt(soilDaysInput.value) || 0;
         if (daysAway > 0) {
             for(let i=0; i<daysAway; i++) {
-                // Halve the pool, rounding down
                 poolSize = Math.floor(poolSize / 2);
             }
-            // Minimum of 1 die per V20 rules for this specific weakness
             if(poolSize < 1) poolSize = 1;
         }
     }
@@ -554,16 +568,12 @@ export function rollPool() {
         }
     }
     
-    // Net Calculation:
-    // 1. Raw Successes - Ones (min 0)
     let net = Math.max(0, rawSuccesses - ones);
     
-    // 2. Add Auto Successes (cannot be cancelled)
     net += autoSuccesses;
 
     let outcome = "", outcomeClass = "";
     
-    // Botch: No successes (raw or auto), and ones rolled.
     if (rawSuccesses === 0 && autoSuccesses === 0 && ones > 0) { 
         outcome = "BOTCH"; outcomeClass = "dice-botch"; 
     } 
@@ -591,7 +601,6 @@ export function rollPool() {
     let extras = "";
     if (autoSuccesses > 0) extras += `<div class="text-[9px] text-blue-300 font-bold mt-1 text-center border-t border-[#333] pt-1 uppercase">Willpower Applied (+1 Success)</div>`;
     
-    // Log Weakness Applications in Result
     if (clan === "Followers of Set" && lightToggle && lightToggle.checked) {
         extras += `<div class="text-[9px] text-yellow-500 font-bold mt-1 text-center border-t border-[#333] pt-1 uppercase">Bright Light Penalty (-1 Die)</div>`;
     }
@@ -652,7 +661,6 @@ export function rollFrenzy() {
 
     const clan = window.state.textFields['c-clan'] || document.getElementById('c-clan')?.value || "None";
     
-    // 1. Determine Base Difficulty
     let difficulty = 6; 
     let diffMsg = "";
 
@@ -662,12 +670,10 @@ export function rollFrenzy() {
         diffMsg = " (Custom)";
     }
 
-    // 2. Apply Brujah Weakness regardless of custom input
     if (clan === "Brujah") {
         difficulty += 2;
         diffMsg += " (Brujah Curse)";
         
-        // --- BRUJAH CURSE IMPLEMENTATION: NO WP TO AVOID FRENZY ---
         const wpCheck = document.getElementById('spend-willpower');
         if (wpCheck) {
             wpCheck.checked = false;
@@ -680,7 +686,6 @@ export function rollFrenzy() {
         window.showNotification("Brujah: +2 Diff, No Willpower");
     }
     
-    // 3. Gangrel Frenzy Notification
     if (clan === "Gangrel") {
         window.showNotification("GANGREL: If Frenzy occurs, you gain a Beast Trait!");
         diffMsg += " (Gangrel: Beast Trait Risk)";
@@ -735,7 +740,6 @@ window.rollRotschreck = rollRotschreck;
 // --- TOREADOR WEAKNESS SETUP ---
 export function setupToreadorWeakness() {
     window.clearPool();
-    // V20: Self-Control or Instincts
     const traitName = window.state.dots.virt["Instincts"] ? "Instincts" : "Self-Control";
     const traitVal = window.state.dots.virt[traitName] || 1;
     
@@ -761,7 +765,6 @@ window.setupToreadorWeakness = setupToreadorWeakness;
 // --- RAVNOS WEAKNESS SETUP ---
 export function setupRavnosWeakness() {
     window.clearPool();
-    // V20: Self-Control or Instincts
     const traitName = window.state.dots.virt["Instincts"] ? "Instincts" : "Self-Control";
     const traitVal = window.state.dots.virt[traitName] || 1;
     
@@ -771,7 +774,7 @@ export function setupRavnosWeakness() {
     const diffInput = document.getElementById('roll-diff');
     if (diffInput) diffInput.value = difficulty;
     
-    const viceInput = document.getElementById('ravnos-vice-input-panel'); // Updated ID check
+    const viceInput = document.getElementById('ravnos-vice-input-panel'); 
     const vice = viceInput && viceInput.value ? viceInput.value : "Vice";
 
     const display = document.getElementById('pool-display');
@@ -797,7 +800,6 @@ export function applyDamage(typeStr) {
 
     let amount = parseInt(document.getElementById('dmg-input-val')?.value) || 1;
     
-    // --- CLAN WEAKNESS: FOLLOWERS OF SET (Sunlight) ---
     const clan = window.state.textFields['c-clan'] || "None";
     const sunlightToggle = document.getElementById('setite-sunlight-toggle');
     if (clan === "Followers of Set" && sunlightToggle && sunlightToggle.checked) {
@@ -805,29 +807,23 @@ export function applyDamage(typeStr) {
         window.showNotification("Sunlight: +2 Health Levels (Setite Weakness)");
     }
 
-    // Ensure health_states exists
     let currentHealth = (window.state.status.health_states && Array.isArray(window.state.status.health_states)) 
         ? [...window.state.status.health_states] 
         : [0,0,0,0,0,0,0];
     
-    // 1. Flatten existing damage to list
     let damageList = currentHealth.filter(x => x > 0);
     
-    // 2. Add new damage
     for(let i=0; i<amount; i++) {
         damageList.push(val);
     }
     
-    // 3. Sort: Agg (3) > Lethal (2) > Bash (1)
     damageList.sort((a,b) => b - a);
     
-    // 4. Handle Overflow (Limit to 7)
     while(damageList.length > 7) {
         damageList.pop();
         window.showNotification("Health Track Full! Check Torpor/Death rules.");
     }
 
-    // 5. Re-fill array
     let newStates = [0,0,0,0,0,0,0];
     for(let i=0; i<7; i++) {
         if(i < damageList.length) newStates[i] = damageList[i];
@@ -836,14 +832,12 @@ export function applyDamage(typeStr) {
     
     window.state.status.health_states = newStates;
     
-    // Update UI
     if(window.renderPrintSheet) window.renderPrintSheet();
-    updatePools(); // Refresh health boxes
+    updatePools(); 
 }
 window.applyDamage = applyDamage;
 
 export function setupSoak() {
-    // 1. Manipulate UI: Hide Willpower, Show Armor Toggle in Dice Tray
     const wpCont = document.getElementById('willpower-spend-container');
     if(wpCont) wpCont.style.display = 'none';
 
@@ -857,43 +851,34 @@ export function setupSoak() {
             <input type="checkbox" id="tray-use-armor" class="w-4 h-4 cursor-pointer accent-gray-500">
             <label for="tray-use-armor" class="text-[10px] uppercase font-black text-gray-300 cursor-pointer tracking-tight">Add Armor to Soak</label>
         `;
-        // Insert before Roll Button wrapper (or roll btn itself)
         const rollBtn = document.getElementById('roll-btn');
         if(rollBtn && rollBtn.parentNode) {
-            // Find the flex container wrapping diff and roll btn
             const rollRow = rollBtn.parentNode;
             tray.insertBefore(trayArmorContainer, rollRow);
         } else {
             tray.appendChild(trayArmorContainer);
         }
         
-        // Add Listener
         const trayToggle = trayArmorContainer.querySelector('input');
         trayToggle.onchange = () => window.setupSoak();
     }
     trayArmorContainer.style.display = 'flex';
 
-    // 2. Sync Logic between Health Toggle and Tray Toggle
     const healthToggle = document.getElementById('soak-armor-toggle');
     const trayToggle = document.getElementById('tray-use-armor');
     
-    // If Health Toggle triggered this, update Tray Toggle
     if (healthToggle && document.activeElement === healthToggle) {
         if(trayToggle) trayToggle.checked = healthToggle.checked;
     }
-    // If Tray Toggle triggered this, update Health Toggle
     else if (trayToggle && document.activeElement === trayToggle) {
         if(healthToggle) healthToggle.checked = trayToggle.checked;
     }
-    // Initial / Default
     else if (healthToggle && trayToggle) {
         trayToggle.checked = healthToggle.checked;
     }
 
-    // 3. Clear Active Pool (but don't trigger UI reset via clearPool() standard)
     window.state.activePool = [];
     
-    // 4. Calculate Values
     const stam = window.state.dots.attr['Stamina'] || 1;
     const fort = window.state.dots.disc['Fortitude'] || 0;
     
@@ -903,23 +888,19 @@ export function setupSoak() {
     if (isArmorActive && window.state.inventory && Array.isArray(window.state.inventory)) {
         const armors = window.state.inventory.filter(i => i.type === 'Armor' && i.status === 'carried');
         armors.forEach(a => {
-            // Robust parsing
             let r = 0;
             if (a.stats && a.stats.rating) r = parseInt(a.stats.rating);
             if (!isNaN(r)) armorRating += r;
         });
     }
     
-    // 5. Build Pool
     window.state.activePool.push({name: 'Stamina', val: stam});
     if(fort > 0) window.state.activePool.push({name: 'Fortitude', val: fort});
     if(armorRating > 0) window.state.activePool.push({name: 'Armor', val: armorRating});
     
-    // 6. Update Text
     const armorText = armorRating > 0 ? ` + Armor (${armorRating})` : '';
     setSafeText('pool-display', `Soak Roll: Stamina (${stam}) ${fort>0 ? `+ Fortitude (${fort})` : ''}${armorText}`);
     
-    // 7. Open Tray
     document.getElementById('dice-tray').classList.add('open');
     showNotification("Soak Pool Ready.");
 }
@@ -937,7 +918,6 @@ export function healOneLevel() {
         return;
     }
     
-    // Get the "least severe" or "last marked" wound
     const lastWound = damageList[damageList.length - 1];
     
     if(lastWound === 3) {
@@ -945,20 +925,15 @@ export function healOneLevel() {
         return;
     }
     
-    // Check Blood
     const curBlood = window.state.status.blood || 0;
     if(curBlood < 1) {
         showNotification("Not enough Blood (Need 1 BP).");
         return;
     }
     
-    // Spend Blood
     window.state.status.blood = curBlood - 1;
-    
-    // Heal (Remove last item)
     damageList.pop();
     
-    // Rebuild State
     let newStates = [0,0,0,0,0,0,0];
     for(let i=0; i<7; i++) {
         if(i < damageList.length) newStates[i] = damageList[i];
@@ -1032,8 +1007,6 @@ export function updatePools() {
              if (forbiddenIndex > -1) {
                  window.state.merits.splice(forbiddenIndex, 1);
                  showNotification("Restriction: Caitiff cannot take Additional Discipline.");
-                 // Re-render merit list in UI if possible, or wait for next render cycle
-                 // Note: Since this modifies state, the cost calculation below will be correct immediately.
                  if(window.renderMeritsFlaws) window.renderMeritsFlaws(); 
              }
          }
