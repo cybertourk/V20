@@ -482,5 +482,661 @@ export const DISCIPLINES_DATA = {
                 defaultDiff: 8
             }
         }
+    },
+    "Fortitude": {
+        1: {
+            name: "Endurance",
+            desc: "Passive: Adds 1 die to Stamina rolls for soaking bashing/lethal damage. Can use Fortitude to soak aggravated damage.",
+            system: "Passive effect.",
+            roll: null
+        },
+        2: {
+            name: "Mettle",
+            desc: "Passive: Adds 2 dice to Stamina rolls for soaking bashing/lethal damage. Can use Fortitude to soak aggravated damage.",
+            system: "Passive effect.",
+            roll: null
+        },
+        3: {
+            name: "Resilience",
+            desc: "Passive: Adds 3 dice to Stamina rolls for soaking bashing/lethal damage. Can use Fortitude to soak aggravated damage.",
+            system: "Passive effect.",
+            roll: null
+        },
+        4: {
+            name: "Resistance",
+            desc: "Passive: Adds 4 dice to Stamina rolls for soaking bashing/lethal damage. Can use Fortitude to soak aggravated damage.",
+            system: "Passive effect.",
+            roll: null
+        },
+        5: {
+            name: "Vigor",
+            desc: "Passive: Adds 5 dice to Stamina rolls for soaking bashing/lethal damage. Can use Fortitude to soak aggravated damage.",
+            system: "Passive effect.",
+            roll: null
+        },
+        6: {
+            name: "Personal Armor",
+            desc: "Shatters weapons that strike the vampire.",
+            system: "Spend 2 BP. When hit, roll Fortitude (Diff 8). If successes exceed attacker's, normal weapon breaks. Attacker takes damage equal to impact.",
+            roll: {
+                pool: ["Fortitude"],
+                diffLabel: "Difficulty 8",
+                defaultDiff: 8
+            }
+        },
+        7: {
+            name: "Shared Strength",
+            desc: "Lend Fortitude to another being by marking them with blood.",
+            system: "Spend 1 WP + X Blood (1 BP per dot shared). Roll Stamina + Survival (Diff 8, or 9 if target is supernatural).",
+            roll: {
+                pool: ["Stamina", "Survival"],
+                diffLabel: "Diff 8 or 9",
+                defaultDiff: 8
+            }
+        },
+        8: {
+            name: "Adamantine",
+            desc: "Like Personal Armor, but the vampire takes NO damage from attacks that shatter on their skin.",
+            system: "Functions as Personal Armor, but negates damage if successful.",
+            roll: {
+                pool: ["Fortitude"],
+                diffLabel: "Difficulty 8",
+                defaultDiff: 8
+            }
+        }
+    },
+    "Obfuscate": {
+        1: {
+            name: "Cloak of Shadows",
+            desc: "Hide in shadows/cover. Must remain silent and motionless.",
+            system: "No roll required if criteria met. Fades if user moves/attacks or if directly observed.",
+            roll: null
+        },
+        2: {
+            name: "Unseen Presence",
+            desc: "Move without being seen. Minds slide off the vampire's presence.",
+            system: "Wits + Stealth only if risking exposure (e.g. creaky floor). Diff varies. Speaking/attacking breaks effect.",
+            roll: {
+                pool: ["Wits", "Stealth"],
+                diffLabel: "Diff Varies (Env)",
+                defaultDiff: 6
+            }
+        },
+        3: {
+            name: "Mask of a Thousand Faces",
+            desc: "Influence perception to appear as someone else (stranger or specific person).",
+            system: "Roll Manipulation + Performance (Difficulty 7). Successes determine accuracy/detail of disguise.",
+            roll: {
+                pool: ["Manipulation", "Performance"],
+                diffLabel: "Difficulty 7",
+                defaultDiff: 7
+            }
+        },
+        4: {
+            name: "Vanish from the Mind's Eye",
+            desc: "Disappear from plain view, even directly in front of someone.",
+            system: "Roll Charisma + Stealth (Diff = Target Wits + Alertness). 3 successes to fully vanish. Startling to witnesses.",
+            roll: {
+                pool: ["Charisma", "Stealth"],
+                diffLabel: "Target Wits+Alert",
+                defaultDiff: 6
+            }
+        },
+        5: {
+            name: "Cloak the Gathering",
+            desc: "Extend Obfuscate to cover a group. Vampire must stay present.",
+            system: "Conceals 1 extra person per dot of Stealth. Uses the base power's roll (e.g. Wits+Stealth for Unseen Presence).",
+            roll: {
+                pool: ["Wits", "Stealth"],
+                diffLabel: "Diff Varies",
+                defaultDiff: 6
+            }
+        },
+        6: {
+            name: "Conceal",
+            desc: "Mask a large inanimate object (up to house size) or vehicle.",
+            system: "Functions as Unseen Presence. Hides contents. Traffic flows around concealed vehicles.",
+            roll: {
+                pool: ["Wits", "Stealth"],
+                diffLabel: "Diff Varies",
+                defaultDiff: 6
+            }
+        },
+        7: {
+            name: "Veil of Blissful Ignorance",
+            desc: "Force Obfuscate upon an unwilling victim, removing them from others' notice.",
+            system: "Touch victim. Spend 1 BP and roll Wits + Stealth (Diff = Victim Appearance + 3). Successes = Duration.",
+            roll: {
+                pool: ["Wits", "Stealth"],
+                diffLabel: "Target App + 3",
+                defaultDiff: 6
+            }
+        },
+        8: {
+            name: "Old Friend",
+            desc: "Probe subconscious to appear as the individual the victim trusts most.",
+            system: "Roll Manipulation + Subterfuge (Diff = Perception + Alertness). Affects one victim at a time.",
+            roll: {
+                pool: ["Manipulation", "Subterfuge"],
+                diffLabel: "Target Percep+Alert",
+                defaultDiff: 6
+            }
+        },
+        9: {
+            name: "Create Name",
+            desc: "Create a completely new, flawless identity (face, aura, nature) that fools even Auspex.",
+            system: "Extended roll: Intelligence + Subterfuge (Diff 8). 20 successes needed. 3 hours/night.",
+            roll: {
+                pool: ["Intelligence", "Subterfuge"],
+                diffLabel: "Difficulty 8",
+                defaultDiff: 8
+            }
+        }
+    },
+    "Obtenebration": {
+        1: {
+            name: "Shadow Play",
+            desc: "Control ambient shadows. Gain +1 Stealth/Intimidation, +1 Diff to ranged attacks against you. Can smother victims (Stamina drain).",
+            system: "Spend 1 BP for scene. No roll to activate. Opponents hampered by shadows lose 1 die from Stamina pools.",
+            roll: null
+        },
+        2: {
+            name: "Shroud of Night",
+            desc: "Create a cloud of inky blackness (10ft diam) that obscures light and sound.",
+            system: "Roll Manipulation + Occult (Diff 7). Successes = Size. Victims inside suffer +2 Diff (Blind) and -2 Stamina dice.",
+            roll: {
+                pool: ["Manipulation", "Occult"],
+                diffLabel: "Difficulty 7",
+                defaultDiff: 7
+            }
+        },
+        3: {
+            name: "Arms of the Abyss",
+            desc: "Summon tentacles from shadows to grasp or constrict foes.",
+            system: "Spend 1 BP. Roll Manipulation + Occult (Diff 7). Each success = 1 Tentacle (Str/Dex = Obtenebration rating).",
+            roll: {
+                pool: ["Manipulation", "Occult"],
+                diffLabel: "Difficulty 7",
+                defaultDiff: 7
+            }
+        },
+        4: {
+            name: "Black Metamorphosis",
+            desc: "Become a demonic hybrid of matter and shadow. +3 Intimidation, tentacles reduce foe Stamina/Soak by 2.",
+            system: "Spend 2 BP. Roll Manipulation + Courage (Diff 7). Failure = No change. Botch = 2 Lethal unsoakable.",
+            roll: {
+                pool: ["Manipulation", "Courage"],
+                diffLabel: "Difficulty 7",
+                defaultDiff: 7
+            }
+        },
+        5: {
+            name: "Tenebrous Form",
+            desc: "Physically become a patch of shadow. Invulnerable to physical (except fire/sun). Can slither/envelop.",
+            system: "Spend 3 BP. Transformation takes time based on Gen. Immune to phys attacks. Can use mental Disciplines.",
+            roll: null
+        },
+        6: {
+            name: "The Darkness Within",
+            desc: "Vomit a turbulent shadow that engulfs a target, draining blood.",
+            system: "Spend 1 BP and roll Willpower (Diff 6). Target loses 1 BP/turn (Resist with Stamina Diff 6).",
+            roll: {
+                pool: ["Willpower"],
+                diffLabel: "Difficulty 6",
+                defaultDiff: 6
+            }
+        },
+        7: {
+            name: "Shadow Twin",
+            desc: "Animate a shadow into a semi-sentient servant.",
+            system: "Spend 1 BP and roll Willpower (Diff 8). Twin has half user's stats. Lasts 1 hour/success.",
+            roll: {
+                pool: ["Willpower"],
+                diffLabel: "Difficulty 8",
+                defaultDiff: 8
+            }
+        },
+        8: {
+            name: "Oubliette",
+            desc: "Entrap a victim in a chamber of pure darkness with no air.",
+            system: "Spend 1 BP to create. To trap: Contested Wits + Larceny vs Target Dex + Occult (Diff 7).",
+            roll: {
+                pool: ["Wits", "Larceny"],
+                diffLabel: "Contested (Diff 7)",
+                defaultDiff: 7
+            }
+        },
+        9: {
+            name: "Ahriman's Demesne",
+            desc: "Summon a 50ft void that destroys everything within it.",
+            system: "Spend 2 WP, concentrate 3 turns. Roll Manipulation + Occult (Diff 6). Successes = Aggravated Damage (automatic levels).",
+            roll: {
+                pool: ["Manipulation", "Occult"],
+                diffLabel: "Difficulty 6",
+                defaultDiff: 6
+            }
+        }
+    },
+    "Potence": {
+        1: {
+            name: "Prowess",
+            desc: "Passive: Adds 1 die to Strength rolls.",
+            system: "Spend 1 Blood Point to turn Potence dice into automatic successes for one turn. Affects Strength rolls and Melee/Brawl damage.",
+            roll: null
+        },
+        2: {
+            name: "Might",
+            desc: "Passive: Adds 2 dice to Strength rolls.",
+            system: "Spend 1 Blood Point to turn Potence dice into automatic successes for one turn.",
+            roll: null
+        },
+        3: {
+            name: "Vigor",
+            desc: "Passive: Adds 3 dice to Strength rolls.",
+            system: "Spend 1 Blood Point to turn Potence dice into automatic successes for one turn.",
+            roll: null
+        },
+        4: {
+            name: "Intensity",
+            desc: "Passive: Adds 4 dice to Strength rolls.",
+            system: "Spend 1 Blood Point to turn Potence dice into automatic successes for one turn.",
+            roll: null
+        },
+        5: {
+            name: "Puissance",
+            desc: "Passive: Adds 5 dice to Strength rolls.",
+            system: "Spend 1 Blood Point to turn Potence dice into automatic successes for one turn.",
+            roll: null
+        },
+        6: {
+            name: "Imprint",
+            desc: "Squeeze objects/surfaces to leave permanent imprints or create handholds.",
+            system: "Spend 1 BP. Lasts for one scene. Can crush thin objects or dig into steel/stone.",
+            roll: null
+        },
+        7: {
+            name: "Earthshock",
+            desc: "Strike the ground to create a shockwave geyser under a distant target.",
+            system: "Spend 2 BP. Roll Dexterity + Brawl. Attack can be dodged (Diff +2). Range: 10ft per Potence level.",
+            roll: {
+                pool: ["Dexterity", "Brawl"],
+                diffLabel: "Normal Attack",
+                defaultDiff: 6
+            }
+        },
+        8: {
+            name: "Flick",
+            desc: "A slight gesture (snap, wave) unleashes a full-force physical blow at range.",
+            system: "Spend 1 BP. Roll Dexterity + Brawl (Diff 6). Range: Perception limit. Deals full punch damage.",
+            roll: {
+                pool: ["Dexterity", "Brawl"],
+                diffLabel: "Difficulty 6",
+                defaultDiff: 6
+            }
+        }
+    },
+    "Presence": {
+        1: {
+            name: "Awe",
+            desc: "Draws others to be receptive to the vampire's point of view. Good for mass communication.",
+            system: "Spend 1 BP. Roll Charisma + Performance (Diff 7). Successes determine # of people. Persists for scene.",
+            roll: {
+                pool: ["Charisma", "Performance"],
+                diffLabel: "Difficulty 7",
+                defaultDiff: 7
+            }
+        },
+        2: {
+            name: "Dread Gaze",
+            desc: "Reveal true vampiric nature (fangs, claws, hiss) to terrify a victim into madness or flight.",
+            system: "Roll Charisma + Intimidation (Diff = Target Wits + Courage). Successes subtract from victim's dice pools next turn.",
+            roll: {
+                pool: ["Charisma", "Intimidation"],
+                diffLabel: "Target Wits + Courage",
+                defaultDiff: 6
+            }
+        },
+        3: {
+            name: "Entrancement",
+            desc: "Make a victim a willing servant through supernatural devotion.",
+            system: "Spend 1 BP. Roll Appearance + Empathy (Diff = Target's current Willpower). Successes = Duration (1 hour to 1 year).",
+            roll: {
+                pool: ["Appearance", "Empathy"],
+                diffLabel: "Target Current WP",
+                defaultDiff: 6
+            }
+        },
+        4: {
+            name: "Summon",
+            desc: "Call any person ever met to come to the vampire's location immediately.",
+            system: "Spend 1 BP. Roll Charisma + Subterfuge (Diff 5 base, +2 if met briefly). Successes determine speed/haste.",
+            roll: {
+                pool: ["Charisma", "Subterfuge"],
+                diffLabel: "Diff 5 (Base)",
+                defaultDiff: 5
+            }
+        },
+        5: {
+            name: "Majesty",
+            desc: "Inspire universal respect, devotion, and fear. Almost impossible to attack or be rude to.",
+            system: "Spend 1 WP. No roll to activate. Subjects must roll Courage (Diff = Charisma + Intimidation) to act against you.",
+            roll: {
+                pool: ["Charisma", "Intimidation"], 
+                diffLabel: "Resist Diff (For Foe)",
+                defaultDiff: 6
+            }
+        },
+        6: {
+            name: "Love",
+            desc: "Simulate a blood bond without the blood. Victim feels intense attachment.",
+            system: "Spend 1 BP. Roll Charisma + Subterfuge (Diff = Target's current WP). Successes reduce victim's social dice pools.",
+            roll: {
+                pool: ["Charisma", "Subterfuge"],
+                diffLabel: "Target Current WP",
+                defaultDiff: 6
+            }
+        },
+        7: {
+            name: "Paralyzing Glance",
+            desc: "Freeze a victim in sheer terror with a look.",
+            system: "Roll Manipulation + Intimidation (Diff = Target's current WP). Victim rendered catatonic for duration based on successes.",
+            roll: {
+                pool: ["Manipulation", "Intimidation"],
+                diffLabel: "Target Current WP",
+                defaultDiff: 6
+            }
+        },
+        8: {
+            name: "Spark of Rage",
+            desc: "Incitate anger, arguments, and frenzy in others with minimal effort.",
+            system: "Spend 1 BP. Roll Manipulation + Subterfuge (Diff 8). Vampires must resist Frenzy.",
+            roll: {
+                pool: ["Manipulation", "Subterfuge"],
+                diffLabel: "Difficulty 8",
+                defaultDiff: 8
+            }
+        },
+        9: {
+            name: "Pulse of the City",
+            desc: "Control the emotional climate of an entire city region.",
+            system: "Spend 1 WP. Roll Charisma + Streetwise (Diff 9). Successes determine duration of projected emotion.",
+            roll: {
+                pool: ["Charisma", "Streetwise"],
+                diffLabel: "Difficulty 9",
+                defaultDiff: 9
+            }
+        }
+    },
+    "Protean": {
+        1: {
+            name: "Eyes of the Beast",
+            desc: "The vampire sees perfectly well in pitch darkness, not requiring a light source. Eyes glow red.",
+            system: "No roll. 1 turn to change. +1 Diff to Social rolls with mortals if eyes visible.",
+            roll: null
+        },
+        2: {
+            name: "Feral Claws",
+            desc: "The vampire's nails transform into long, bestial claws. Wickedly sharp.",
+            system: "Spend 1 BP. 1 turn. Claws deal Str+1 Aggravated damage. -2 Diff to climbing.",
+            roll: null
+        },
+        3: {
+            name: "Earth Meld",
+            desc: "Enables the vampire to become one with the earth, sinking into bare ground.",
+            system: "Spend 1 BP. 1 turn. Sink into bare earth. Immune to sun.",
+            roll: null
+        },
+        4: {
+            name: "Shape of the Beast",
+            desc: "Transform into a wolf or bat.",
+            system: "Spend 1 BP. 3 turns (reduce with blood). Wolf (Str+1 Agg, x2 Speed) or Bat (Fly, Str 1).",
+            roll: null
+        },
+        5: {
+            name: "Mist Form",
+            desc: "Turn into mist. Immune to physical attacks.",
+            system: "Spend 1 BP. 3 turns. Insubstantial mist. Immune to physical, -1 die from fire/sun.",
+            roll: null
+        },
+        6: {
+            name: "Earth Control",
+            desc: "Move through the earth as if it were water.",
+            system: "Passive. Move through earth while Melded at half walk speed. Sense surroundings 50yds.",
+            roll: null
+        },
+        7: {
+            name: "Shape of the Beast's Wrath",
+            desc: "Shift into a huge, monstrous form (War Form).",
+            system: "Spend 3 BP. 3 turns. War Form: +7 Physical Attributes (max 5/attr). Deals Str+2 Agg. Social -> 1.",
+            roll: null
+        },
+        8: {
+            name: "Spectral Body",
+            desc: "Become completely insubstantial but visible. Can ignore gravity.",
+            system: "Spend 3 BP. 1 turn. Completely insubstantial but visible. Flight (walk speed). Ignore gravity.",
+            roll: null
+        },
+        9: {
+            name: "Inward Focus",
+            desc: "Heighten internal efficiency to undreamed levels.",
+            system: "Spend 4 BP + 2/turn. Extra actions = Dex. Damage +3 dice. Halve incoming damage after soak.",
+            roll: null
+        }
+    },
+    "Quietus": {
+        1: {
+            name: "Silence of Death",
+            desc: "Create a 20ft radius of absolute silence around the vampire.",
+            system: "Spend 1 BP. Lasts 1 hour. Silences all noise inside zone.",
+            roll: null
+        },
+        2: {
+            name: "Scorpion's Touch",
+            desc: "Convert blood to poison that reduces Stamina.",
+            system: "Spend BP + Roll Willpower (Diff 6). On hit, target loses Stamina = BP spent. Resist with Stamina + Fortitude.",
+            roll: {
+                pool: ["Willpower"],
+                diffLabel: "Difficulty 6",
+                defaultDiff: 6
+            }
+        },
+        3: {
+            name: "Dagon's Call",
+            desc: "Drown a target in their own blood after touching them.",
+            system: "Spend 1 WP. Contested Stamina roll (Diff = Opponent's Perm WP). Successes = Lethal Damage.",
+            roll: {
+                pool: ["Stamina"],
+                diffLabel: "Target Perm WP",
+                defaultDiff: 6
+            }
+        },
+        4: {
+            name: "Baal's Caress",
+            desc: "Coat a bladed weapon with blood to deal Aggravated damage.",
+            system: "No roll. Spend 1 BP per hit. Weapon inflicts Aggravated damage.",
+            roll: null
+        },
+        5: {
+            name: "Taste of Death",
+            desc: "Spit caustic blood at a target.",
+            system: "Roll Stamina + Athletics (Diff 6). Range: 10ft per Str+Pot. 2 dice Aggravated dmg per BP spent.",
+            roll: {
+                pool: ["Stamina", "Athletics"],
+                diffLabel: "Difficulty 6",
+                defaultDiff: 6
+            }
+        },
+        6: {
+            name: "Selective Silence",
+            desc: "Silence only specific targets or objects.",
+            system: "Spend 2 BP. Roll Stamina + Stealth (Diff 7). Each success silences one target for mins = Willpower.",
+            roll: {
+                pool: ["Stamina", "Stealth"],
+                diffLabel: "Difficulty 7",
+                defaultDiff: 7
+            }
+        },
+        7: {
+            name: "Baal's Bloody Talons",
+            desc: "Corrosive blood poison that deals extra damage and destroys weapons.",
+            system: "Spend BP. Roll Willpower (Diff 7). Weapon deals Agg + Extra dice (Successes + BP). Weapon degrades.",
+            roll: {
+                pool: ["Willpower"],
+                diffLabel: "Difficulty 7",
+                defaultDiff: 7
+            }
+        },
+        8: {
+            name: "Songs of Distant Vitae",
+            desc: "Overwhelm victim with terrifying flashbacks from their blood's history.",
+            system: "Spend 4 BP. Roll Wits + Intimidation vs Target Perm WP (Diff 7). Net successes cause Stun/Fear.",
+            roll: {
+                pool: ["Wits", "Intimidation"],
+                diffLabel: "Target Perm WP",
+                defaultDiff: 7
+            }
+        },
+        9: {
+            name: "Condemn the Sins of the Father",
+            desc: "Apply a lesser Quietus power to a victim's entire lineage.",
+            system: "Spend 1 Perm WP + 10 BP. Roll Stamina + Occult (Diff 4 + Generations). Affects all descendants.",
+            roll: {
+                pool: ["Stamina", "Occult"],
+                diffLabel: "4 + Gens",
+                defaultDiff: 8
+            }
+        }
+    },
+    "Serpentis": {
+        1: {
+            name: "Eyes of the Serpent",
+            desc: "Hypnotic gaze that immobilizes mortals. Supernaturals must resist to act.",
+            system: "No roll. Mortals frozen while eye contact maintained. Supernaturals resist with Willpower (Diff 9).",
+            roll: null
+        },
+        2: {
+            name: "The Tongue of the Asp",
+            desc: "Lengthen tongue to 18 inches, forked. Deals Agg damage and can drink blood on hit.",
+            system: "Attack with tongue. Difficulty 6. Damage = Strength (Aggravated). Halves darkness penalties.",
+            roll: null
+        },
+        3: {
+            name: "The Skin of the Adder",
+            desc: "Transform skin into scaly hide. Flexible and tough.",
+            system: "Spend 1 BP + 1 WP. Soak Diff 5. Can soak Agg (claws/fangs) with Stamina. Bite +1 die. Appearance drops to 1.",
+            roll: null
+        },
+        4: {
+            name: "The Form of the Cobra",
+            desc: "Transform into a huge black cobra (10ft long). Venom is fatal to mortals.",
+            system: "Spend 1 BP. 3 turns. Venom kills mortals in 1 min. Supernaturals take (10 - Stamina - Fortitude) Agg damage over 5 mins.",
+            roll: null
+        },
+        5: {
+            name: "The Heart of Darkness",
+            desc: "Remove heart and hide it. Immune to staking while heart is safe.",
+            system: "No roll. -2 Difficulty to resist Frenzy. Staking the removed heart paralyzes the vampire.",
+            roll: null
+        },
+        6: {
+            name: "Cobra Fangs",
+            desc: "Grow hollow, venomous fangs without full transformation.",
+            system: "Spend 1 BP. Bite delivers venom. Kills mortals. Supernaturals take Agg damage over time.",
+            roll: null
+        },
+        7: {
+            name: "Divine Image",
+            desc: "Take the physical form of a Setite god (Set, Sobek, etc.).",
+            system: "Spend 3 BP. +2 Str/Stam, +1 Cha/Man, +2 Willpower. Appearance 1. Lasts one scene.",
+            roll: null
+        },
+        8: {
+            name: "Heart Thief",
+            desc: "Pull a vampire's heart from their chest in combat.",
+            system: "Spend 1 WP. Roll Dex + Brawl (Diff 9). Need 3 successes. Victim takes 1 Agg unsoakable + loses heart benefits.",
+            roll: {
+                pool: ["Dexterity", "Brawl"],
+                diffLabel: "Diff 9 (Need 3 Succ)",
+                defaultDiff: 9
+            }
+        },
+        9: {
+            name: "Shadow of Apep",
+            desc: "Become a giant serpent of fluid darkness. Immune to physical force.",
+            system: "Spend 1 WP. Immune to physical attacks (pass through). Fire/Sun/Magic still hurt. +3 Physical Attributes.",
+            roll: null
+        }
+    },
+    "Vicissitude": {
+        1: {
+            name: "Malleable Visage",
+            desc: "Alter your own bodily parameters: height, build, voice, facial features, and skin tone.",
+            system: "Spend 1 BP per body part. Roll Intelligence + Medicine (Diff 6). Duplicate person/voice needs Perception + Medicine (Diff 8).",
+            roll: {
+                pool: ["Intelligence", "Medicine"],
+                diffLabel: "Difficulty 6 (or 8)",
+                defaultDiff: 6
+            }
+        },
+        2: {
+            name: "Fleshcraft",
+            desc: "Perform drastic, grotesque alterations on other creatures (flesh only, no bone).",
+            system: "Spend 1 BP. Grapple victim. Roll Dexterity + Medicine (Diff 5 to 9). Can increase/decrease Attributes or add armor (at cost of Str/Health).",
+            roll: {
+                pool: ["Dexterity", "Medicine"],
+                diffLabel: "Diff Varies (5-9)",
+                defaultDiff: 6
+            }
+        },
+        3: {
+            name: "Bonecraft",
+            desc: "Manipulate bone in the same manner as flesh. Create quills, spikes, or deform victims.",
+            system: "Spend 1 BP. Roll Strength + Medicine (Diff 7). Offensive bone spikes cause 1 Lethal self-damage to create. Rib cage attack needs 5 successes.",
+            roll: {
+                pool: ["Strength", "Medicine"],
+                diffLabel: "Difficulty 7",
+                defaultDiff: 7
+            }
+        },
+        4: {
+            name: "Horrid Form",
+            desc: "Transform into a hideous 8ft monster. Black chitin skin, spines, oily grease.",
+            system: "Spend 2 BP. +3 Physical Attributes. Social Attributes drop to 0. Brawl damage +1. Hand-to-hand damage increases.",
+            roll: null
+        },
+        5: {
+            name: "Bloodform",
+            desc: "Physically transform all or part of the body into sentient vitae.",
+            system: "Spend 1 BP per limb converted. Immune to physical attacks (cut/bludgeon/pierce). Vulnerable to Fire/Sun. Can use mental Disciplines.",
+            roll: null
+        },
+        6: {
+            name: "Chiropteran Marauder",
+            desc: "Transform into a terrifying bipedal bat. Flight and sharp claws.",
+            system: "Spend 3 BP. Same bonuses as Horrid Form. Flight (25mph). Hearing rolls -2, Vision rolls +1. Claws deal Str+2 Agg.",
+            roll: null
+        },
+        7: {
+            name: "Blood of Acid",
+            desc: "Convert blood to viscous acid. Corrodes anything it touches.",
+            system: "Passive. Anyone drinking blood or struck by spatter takes 5 dice of Aggravated damage. Cannot Embrace/Ghoul.",
+            roll: null
+        },
+        8: {
+            name: "Cocoon",
+            desc: "Form an opaque, hard cocoon from excreted fluids. Protects from sun and fire.",
+            system: "Spend 3 BP. 10 mins to form. Immune to sunlight. Soak dice = 2x Stamina. Can use mental Disciplines inside.",
+            roll: null
+        },
+        9: {
+            name: "Breath of the Dragon",
+            desc: "Exhale a deadly gout of flame like a dragon.",
+            system: "Exhale flame cloud (6ft area). Deals 2 dice of Aggravated damage to all in area. Ignites flammables.",
+            roll: {
+                pool: ["Dexterity", "Athletics"], // To aim
+                diffLabel: "Dex + Athletics (Aim)",
+                defaultDiff: 6
+            }
+        }
     }
 };
