@@ -6,6 +6,8 @@ import {
 } from "./data.js";
 
 import { DISCIPLINES_DATA } from "./disciplines-data.js";
+import { THAUMATURGY_DATA } from "./thaumaturgy-data.js";
+import { NECROMANCY_DATA } from "./necromancy-data.js";
 
 import { checkStepComplete } from "./v20-rules.js";
 
@@ -122,8 +124,12 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                 // --- XP COSTS FOR NEW TRAITS ---
                 if (type === 'disc') { 
                     // V20 Rules: New Path is 7, New Discipline is 10
-                    // Heuristic: If it contains "Path", treat as Path
-                    if (newVal.toLowerCase().includes('path')) {
+                    // Check against known Paths or string heuristic
+                    const isThaumPath = THAUMATURGY_DATA && THAUMATURGY_DATA[newVal];
+                    const isNecroPath = NECROMANCY_DATA && NECROMANCY_DATA[newVal];
+                    const hasPathName = newVal.toLowerCase().includes('path');
+
+                    if (isThaumPath || isNecroPath || hasPathName) {
                         baseCost = 7;
                         costType = 'New Path';
                     } else {
