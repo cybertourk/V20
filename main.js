@@ -32,6 +32,24 @@ import {
 } from "./ui-renderer.js"; 
 import { openGhoulCreator } from "./ghoul-creator.js";
 
+// --- NEW DATA IMPORTS & MERGING ---
+import { DISCIPLINES_DATA } from './disciplines-data.js';
+import { THAUMATURGY_DATA } from './thaumaturgy-data.js';
+import { NECROMANCY_DATA } from './necromancy-data.js';
+import { THAUMATURGY_RITUALS } from './thaumaturgy-rituals.js';
+import { NECROMANCY_RITUALS } from './necromancy-rituals.js';
+
+// Merge Thaumaturgy and Necromancy Paths into the main Disciplines object
+// This ensures the UI renders their details/rolls exactly like standard Disciplines
+Object.assign(DISCIPLINES_DATA, THAUMATURGY_DATA, NECROMANCY_DATA);
+
+// Create a global container for Rituals
+// This allows the UI to access rituals by school and level
+window.RITUALS_DATA = {
+    "Thaumaturgy": THAUMATURGY_RITUALS,
+    "Necromancy": NECROMANCY_RITUALS
+};
+
 // --- ERROR HANDLER ---
 window.onerror = function(msg, url, line) {
     const notif = document.getElementById('notification');
