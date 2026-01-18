@@ -11,3 +11,4 @@ export * from "./ui-common.js";
 export * from "./ui-mechanics.js";
 export * from "./ui-nav.js";
 export * from "./disciplines-data.js"; // Added to ensure data is loaded
+export * from "./thaumaturgy-data.js"; // Added Thaumaturgy data
