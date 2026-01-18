@@ -905,83 +905,19 @@ export function togglePlayMode() {
             });
         }
         
-        // --- UPDATED ADVANTAGES ROW (Detailed Disciplines) ---
+        // --- RESTORE SIMPLE ADVANTAGES ROW (Dots Only) FOR PHASE 1 ---
         const rc = document.getElementById('play-row-adv'); 
         if (rc) {
             rc.innerHTML = '';
-            
-            // 1. DISCIPLINES (Detailed View)
-            const ds = document.createElement('div'); 
-            ds.className='sheet-section !mt-0'; 
-            ds.innerHTML='<div class="column-title">Disciplines</div>';
-            
-            // Check if DISCIPLINES_DATA exists to prevent crashes
-            const safeDisciplineData = typeof DISCIPLINES_DATA !== 'undefined' ? DISCIPLINES_DATA : {};
-
-            // Iterate known disciplines
-            Object.entries(window.state.dots.disc).forEach(([name, val]) => { 
-                if(val > 0) {
-                    // Standard Row
-                    renderRow(ds, name, 'disc', 0);
-                    
-                    // Normalize Name (remove trailing spaces, case-insensitive match attempt)
-                    const cleanName = name.trim();
-                    
-                    // Try exact match, then try case-insensitive
-                    let matchedData = safeDisciplineData[cleanName];
-                    if (!matchedData) {
-                        const key = Object.keys(safeDisciplineData).find(k => k.toLowerCase() === cleanName.toLowerCase());
-                        if (key) matchedData = safeDisciplineData[key];
-                    }
-
-                    // Detailed Power Expansion
-                    if (matchedData) {
-                        const powersDiv = document.createElement('div');
-                        powersDiv.className = "mb-4 pl-2 border-l border-[#444] ml-1 mt-1";
-                        
-                        for (let level = 1; level <= val; level++) {
-                            const power = matchedData[level];
-                            if (power) {
-                                const pRow = document.createElement('div');
-                                pRow.className = "mb-3 group";
-                                
-                                let rollBtn = "";
-                                if (power.roll) {
-                                    // Serialize pool for onclick
-                                    const poolStr = JSON.stringify(power.roll.pool).replace(/"/g, "'");
-                                    rollBtn = `<button onclick="window.rollDiscipline('${power.name}', ${poolStr}, ${power.roll.defaultDiff})" class="float-right bg-[#8b0000] hover:bg-red-700 text-white text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-wider opacity-60 group-hover:opacity-100 transition-opacity">Roll</button>`;
-                                }
-                                
-                                pRow.innerHTML = `
-                                    <div class="flex justify-between items-center mb-0.5">
-                                        <div class="text-[#d4af37] font-bold text-xs">
-                                            <span class="text-[9px] text-gray-500 mr-1">●${level}</span> ${power.name}
-                                        </div>
-                                        ${rollBtn}
-                                    </div>
-                                    <div class="text-[10px] text-gray-300 italic leading-tight mb-1">${power.desc}</div>
-                                    <div class="text-[9px] text-gray-500 font-mono"><span class="text-gray-400 font-bold">System:</span> ${power.system}</div>
-                                `;
-                                powersDiv.appendChild(pRow);
-                            }
-                        }
-                        ds.appendChild(powersDiv);
-                    }
-                } 
-            }); 
+            const ds = document.createElement('div'); ds.className='sheet-section !mt-0'; ds.innerHTML='<div class="column-title">Disciplines</div>';
             rc.appendChild(ds);
+            Object.entries(window.state.dots.disc).forEach(([n,v]) => { if(v>0) renderRow(ds,n,'disc',0); }); 
             
-            // 2. BACKGROUNDS
-            const bs = document.createElement('div'); 
-            bs.className='sheet-section !mt-0'; 
-            bs.innerHTML='<div class="column-title">Backgrounds</div>';
+            const bs = document.createElement('div'); bs.className='sheet-section !mt-0'; bs.innerHTML='<div class="column-title">Backgrounds</div>';
             rc.appendChild(bs);
             Object.entries(window.state.dots.back).forEach(([n,v]) => { if(v>0) renderRow(bs,n,'back',0); }); 
             
-            // 3. VIRTUES
-            const vs = document.createElement('div'); 
-            vs.className='sheet-section !mt-0'; 
-            vs.innerHTML='<div class="column-title">Virtues</div>';
+            const vs = document.createElement('div'); vs.className='sheet-section !mt-0'; vs.innerHTML='<div class="column-title">Virtues</div>';
             rc.appendChild(vs);
             VIRTUES.forEach(v => renderRow(vs, v, 'virt', 1)); 
         }
@@ -1176,6 +1112,9 @@ export function togglePlayMode() {
         
         // --- MOVEMENT SPEED SECTION (PLAY MODE 2) ---
         renderMovementSection();
+        
+        // --- INJECT DETAILED DISCIPLINES (PHASE 2 / TRAITS TAB) ---
+        renderDetailedDisciplines();
 
         if(document.getElementById('rituals-list-play')) document.getElementById('rituals-list-play').innerText = document.getElementById('rituals-list-create-ta').value;
         let carried = []; let owned = []; if(window.state.inventory) { window.state.inventory.forEach(i => { const str = `${i.displayName || i.name} ${i.type === 'Armor' ? `(R:${i.stats.rating} P:${i.stats.penalty})` : ''}`; if(i.status === 'carried') carried.push(str); else owned.push(str); }); }
@@ -1394,6 +1333,98 @@ export function renderMovementSection() {
     `;
 }
 window.renderMovementSection = renderMovementSection;
+
+// --- NEW FUNCTION: RENDER DETAILED DISCIPLINES (PHASE 2) ---
+function renderDetailedDisciplines() {
+    const pm2 = document.getElementById('play-mode-2');
+    if (!pm2) return;
+
+    let container = document.getElementById('detailed-disciplines-list');
+    if (!container) {
+        // Create the wrapper section if it doesn't exist
+        const section = document.createElement('div');
+        section.className = 'sheet-section !mt-0 mb-8';
+        section.innerHTML = '<div class="section-title">Disciplines & Powers</div>';
+        
+        container = document.createElement('div');
+        container.id = 'detailed-disciplines-list';
+        container.className = 'space-y-6 mt-4';
+        
+        section.appendChild(container);
+        
+        // Insert at the VERY TOP of Phase 2
+        pm2.insertBefore(section, pm2.firstChild);
+    }
+
+    container.innerHTML = '';
+    
+    // Safety check for data
+    const safeData = typeof DISCIPLINES_DATA !== 'undefined' ? DISCIPLINES_DATA : {};
+
+    // Get learned disciplines
+    const learned = Object.entries(window.state.dots.disc).filter(([name, val]) => val > 0);
+
+    if (learned.length === 0) {
+        container.innerHTML = '<div class="text-gray-500 italic text-xs text-center py-4">No Disciplines learned.</div>';
+        return;
+    }
+
+    learned.forEach(([name, val]) => {
+        // Normalize lookup
+        const cleanName = name.trim();
+        let data = safeData[cleanName];
+        
+        // Case-insensitive fallback
+        if (!data) {
+             const key = Object.keys(safeData).find(k => k.toLowerCase() === cleanName.toLowerCase());
+             if(key) data = safeData[key];
+        }
+
+        const discBlock = document.createElement('div');
+        discBlock.className = 'bg-black/40 border border-[#333] p-4 rounded mb-4';
+        
+        // Header (Name + Dots)
+        discBlock.innerHTML = `
+            <div class="flex justify-between items-center border-b border-[#555] pb-2 mb-3">
+                <h3 class="text-lg text-[#d4af37] font-cinzel font-bold uppercase tracking-widest">${name}</h3>
+                <div class="text-white font-bold text-sm bg-[#8b0000] px-2 rounded">${val} Dots</div>
+            </div>
+        `;
+
+        // Powers List
+        if (data) {
+            for (let i = 1; i <= val; i++) {
+                const power = data[i];
+                if (power) {
+                    const pDiv = document.createElement('div');
+                    pDiv.className = 'mb-4 last:mb-0 group';
+                    
+                    let rollHtml = '';
+                    if (power.roll) {
+                         const poolStr = JSON.stringify(power.roll.pool).replace(/"/g, "'");
+                         rollHtml = `<button onclick="window.rollDiscipline('${power.name}', ${poolStr}, ${power.roll.defaultDiff})" class="float-right bg-[#333] border border-gray-600 text-gray-300 hover:text-white hover:border-[#d4af37] text-[9px] font-bold px-3 py-1 rounded uppercase tracking-wider transition-all shadow-sm hover:shadow-gold"><i class="fas fa-dice-d20 mr-1"></i> Roll</button>`;
+                    }
+
+                    pDiv.innerHTML = `
+                        <div class="flex justify-between items-start mb-1">
+                            <div class="font-bold text-white text-sm">
+                                <span class="text-[#8b0000] mr-1">●</span> ${power.name}
+                            </div>
+                            ${rollHtml}
+                        </div>
+                        <div class="text-[11px] text-gray-400 italic mb-1 pl-4 border-l-2 border-[#333]">${power.desc}</div>
+                        <div class="text-[10px] text-gray-500 font-mono pl-4"><span class="text-[#d4af37]">System:</span> ${power.system}</div>
+                    `;
+                    discBlock.appendChild(pDiv);
+                }
+            }
+        } else {
+            discBlock.innerHTML += `<div class="text-xs text-gray-500 italic">Detailed data not available for ${name}.</div>`;
+        }
+        
+        container.appendChild(discBlock);
+    });
+}
 
 // --- NPC TAB RENDERER (Was Retainers) ---
 
