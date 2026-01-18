@@ -1398,5 +1398,213 @@ export const DISCIPLINES_DATA = {
                 defaultDiff: 8
             }
         }
+    },
+    "Neptune's Might": {
+        1: {
+            name: "Eyes of the Sea",
+            desc: "Peer into a body of standing water to view events that transpired on, in, or around it in the past.",
+            system: "Roll Willpower (Diff 4). Successes determine time depth (1 day to 10 years). Requires standing water.",
+            roll: {
+                pool: ["Willpower"],
+                diffLabel: "Difficulty 4",
+                defaultDiff: 4
+            }
+        },
+        2: {
+            name: "Prison of Water",
+            desc: "Animate water to imprison a subject in unbreakable chains of fluid.",
+            system: "Roll Willpower (Diff 5). Victim must score equal successes on Strength roll (Diff 8) to break free. Needs water source.",
+            roll: {
+                pool: ["Willpower"],
+                diffLabel: "Difficulty 5",
+                defaultDiff: 5
+            }
+        },
+        3: {
+            name: "Blood to Water",
+            desc: "Transmute liquids to water with a touch. deadly to mortals, weakening to vampires.",
+            system: "Touch. Roll Willpower (Diff 6). Successes = Blood Points converted to water. 1 success kills mortals. Vampires suffer wound penalties for BP lost.",
+            roll: {
+                pool: ["Willpower"],
+                diffLabel: "Difficulty 6",
+                defaultDiff: 6
+            }
+        },
+        4: {
+            name: "Flowing Wall",
+            desc: "Animate water to rise up and form an impassable barrier.",
+            system: "Touch water. Spend 1 BP + 3 WP. Roll Willpower (Diff 7). 1 success = 10ft x 10ft. Supernaturals need 3 WP successes (Diff 9) to pass.",
+            roll: {
+                pool: ["Willpower"],
+                diffLabel: "Difficulty 7",
+                defaultDiff: 7
+            }
+        },
+        5: {
+            name: "Dehydrate",
+            desc: "Attack living or unliving targets by extracting water from their bodies.",
+            system: "Roll Willpower (Diff 8). Victim resists with Stamina + Fortitude (Diff 9). Net successes = Lethal dmg (Mortal) or BP loss (Vampire). Victim must roll Courage (Diff = Caster Succ + 3) or be stunned.",
+            roll: {
+                pool: ["Willpower"],
+                diffLabel: "Difficulty 8",
+                defaultDiff: 8
+            }
+        }
+    },
+    "Movement of the Mind": {
+        1: {
+            name: "One Pound (0.5 kg)",
+            desc: "Telekinetically lift, spin, or manipulate objects weighing up to 1 lb / 0.5 kg.",
+            system: "Spend 1 BP. Roll Willpower (Diff 4). Duration based on successes (1 turn to Scene). Living subjects contest with Willpower.",
+            roll: {
+                pool: ["Willpower"],
+                diffLabel: "Difficulty 4",
+                defaultDiff: 4
+            }
+        },
+        2: {
+            name: "Twenty Pounds (10 kg)",
+            desc: "Telekinetically lift, spin, or manipulate objects weighing up to 20 lbs / 10 kg.",
+            system: "Spend 1 BP. Roll Willpower (Diff 5). Duration based on successes. Living subjects contest with Willpower.",
+            roll: {
+                pool: ["Willpower"],
+                diffLabel: "Difficulty 5",
+                defaultDiff: 5
+            }
+        },
+        3: {
+            name: "Two Hundred Pounds (100 kg)",
+            desc: "Telekinetically lift up to 200 lbs / 100 kg. Can levitate self (fly at running speed).",
+            system: "Spend 1 BP. Roll Willpower (Diff 6). Flight possible. Living subjects contest with Willpower.",
+            roll: {
+                pool: ["Willpower"],
+                diffLabel: "Difficulty 6",
+                defaultDiff: 6
+            }
+        },
+        4: {
+            name: "Five Hundred Pounds (250 kg)",
+            desc: "Telekinetically lift up to 500 lbs / 250 kg. Can 'throw' objects dealing damage (Str = Path Rating).",
+            system: "Spend 1 BP. Roll Willpower (Diff 7). Thrown objects use Path Rating as Strength. Living subjects contest with Willpower.",
+            roll: {
+                pool: ["Willpower"],
+                diffLabel: "Difficulty 7",
+                defaultDiff: 7
+            }
+        },
+        5: {
+            name: "One Thousand Pounds (500 kg)",
+            desc: "Telekinetically lift, spin, or manipulate objects weighing up to 1000 lbs / 500 kg.",
+            system: "Spend 1 BP. Roll Willpower (Diff 8). Duration based on successes. Living subjects contest with Willpower.",
+            roll: {
+                pool: ["Willpower"],
+                diffLabel: "Difficulty 8",
+                defaultDiff: 8
+            }
+        }
+    },
+    "The Path of Conjuring": {
+        1: {
+            name: "Summon the Simple Form",
+            desc: "Conjure simple, inanimate objects (no moving parts, single material).",
+            system: "Spend 1 Willpower point per turn to maintain. Successes determine quality (1 shoddy, 5 perfect).",
+            roll: {
+                pool: ["Willpower"],
+                diffLabel: "Difficulty 4",
+                defaultDiff: 4
+            }
+        },
+        2: {
+            name: "Permanency",
+            desc: "Conjured simple objects are permanent. No WP maintenance cost.",
+            system: "Invest 3 Blood Points to make the object real. No maintenance required.",
+            roll: {
+                pool: ["Willpower"],
+                diffLabel: "Difficulty 5",
+                defaultDiff: 5
+            }
+        },
+        3: {
+            name: "Magic of the Smith",
+            desc: "Conjure complex objects with moving parts and multiple materials (e.g., guns, bicycles).",
+            system: "Permanent. Cost 5 Blood Points. Complex items may require Craft/Science roll in addition to basic roll.",
+            roll: {
+                pool: ["Willpower"],
+                diffLabel: "Difficulty 6",
+                defaultDiff: 6
+            }
+        },
+        4: {
+            name: "Reverse Conjuration",
+            desc: "Banish previously conjured objects (even those created by others) into non-existence.",
+            system: "Extended action. Accumulate successes equal to original caster's successes to banish.",
+            roll: {
+                pool: ["Willpower"],
+                diffLabel: "Difficulty 7",
+                defaultDiff: 7
+            }
+        },
+        5: {
+            name: "Power Over Life",
+            desc: "Create simulacra of creatures or people. Mindless, follow simple instructions.",
+            system: "Spend 10 Blood Points. Simulacra last 1 week before vanishing. Can be Possessed (Dominate 5).",
+            roll: {
+                pool: ["Willpower"],
+                diffLabel: "Difficulty 8",
+                defaultDiff: 8
+            }
+        }
+    },
+    "The Path of Corruption": {
+        1: {
+            name: "Contradict",
+            desc: "Interrupt a subject's thought processes, forcing them to reverse their current course of action.",
+            system: "Roll Willpower (Diff 4). Target resists with Perception + Subterfuge (Diff = Caster Successes + 2).",
+            roll: {
+                pool: ["Willpower"],
+                diffLabel: "Difficulty 4",
+                defaultDiff: 4
+            }
+        },
+        2: {
+            name: "Subvert",
+            desc: "Release a subject's dark, self-destructive side. Victim acts on suppressed temptations.",
+            system: "Eye contact. Roll Willpower (Diff 5). Target resists with Perception + Subterfuge (Diff = Target's Manip + Subterfuge). Duration based on successes.",
+            roll: {
+                pool: ["Willpower"],
+                diffLabel: "Difficulty 5",
+                defaultDiff: 5
+            }
+        },
+        3: {
+            name: "Dissociate",
+            desc: "Break social ties of interpersonal relationships. Victim becomes withdrawn and suspicious.",
+            system: "Touch. Roll Willpower (Diff 6). Target resists with Willpower (Diff = Caster's Manip + Empathy). Victim loses 3 dice from Social rolls.",
+            roll: {
+                pool: ["Willpower"],
+                diffLabel: "Difficulty 6",
+                defaultDiff: 6
+            }
+        },
+        4: {
+            name: "Addiction",
+            desc: "Create a powerful psychological dependence on a sensation, substance, or action.",
+            system: "Touch. Roll Willpower (Diff 7). Victim resists with Self-Control/Instinct (Diff = Caster Successes + 3). Failure creates instant addiction.",
+            roll: {
+                pool: ["Willpower"],
+                diffLabel: "Difficulty 7",
+                defaultDiff: 7
+            }
+        },
+        5: {
+            name: "Dependence",
+            desc: "Tie the victim's soul to the caster, causing lethargy and helplessness when not in their presence.",
+            system: "Conversation. Roll Willpower (Diff 8). Victim rolls Self-Control/Instinct (Diff = Caster Successes + 3). Failure bonds victim for 1 night/success.",
+            roll: {
+                pool: ["Willpower"],
+                diffLabel: "Difficulty 8",
+                defaultDiff: 8
+            }
+        }
     }
 };
