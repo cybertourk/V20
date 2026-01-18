@@ -47,54 +47,55 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
     } else { if (window.state.dots[type]) existingItems = Object.keys(window.state.dots[type]); }
 
     // RENDER FUNCTION
-    const buildRow = (name = "") => {
-        const row = document.createElement('div'); 
-        row.className = 'flex items-center justify-between gap-1 mb-2 advantage-row w-full';
-        
-        let inputField;
-        const isLocked = !window.state.freebieMode && !window.state.xpMode && !!name; 
-        
-        if (isAbil) { 
-            inputField = document.createElement('input'); 
-            inputField.type = 'text'; 
-            inputField.placeholder = "Write-in..."; 
-            inputField.className = 'font-bold uppercase !bg-black/20 !border-b !border-[#333] text-[11px] w-24 flex-shrink-0'; 
-            inputField.value = name;
-            inputField.disabled = isLocked;
-        } else { 
-            inputField = document.createElement('select'); 
-            inputField.className = 'font-bold uppercase text-[11px] w-24 flex-shrink-0'; 
-            inputField.innerHTML = `<option value="">-- Choose ${type} --</option>` + list.map(item => `<option value="${item}" ${item === name ? 'selected' : ''}>${item}</option>`).join(''); 
-            inputField.disabled = isLocked;
-             if (name && list.includes(name)) inputField.value = name;
-             else if (name) {
-                 const opt = document.createElement('option');
-                 opt.value = name;
-                 opt.innerText = name;
-                 opt.selected = true;
-                 inputField.add(opt);
-             }
-        }
+window.togglePlayMode = function() {
+    console.log("Toggling Play Mode...");
 
-        let showSpecialty = false;
-        if (name && (isAbil || type === 'attr')) { 
-             const currentVal = window.state.dots[type][name] || 0;
-             if (currentVal >= 1) showSpecialty = true;
-        }
+    // 1. Sync Text Fields to State before switching
+    // We use a safe helper to avoid "property of null" errors if elements are missing
+    const safeVal = (id) => {
+        const el = document.getElementById(id);
+        if (el) return el.value;
+        // Fallback: keep existing value in state, or empty string
+        return window.state.textFields[id] || "";
+    };
 
-        const specWrapper = document.createElement('div');
-        specWrapper.className = 'flex-1 mx-2 relative'; 
-        
-        if (showSpecialty) {
-             const specVal = window.state.specialties[name] || "";
-             if (window.state.isPlayMode && !specVal) specWrapper.innerHTML = ''; 
-             else {
-                 const listId = `list-${name.replace(/[^a-zA-Z0-9]/g, '')}`;
-                 let optionsHTML = '';
-                 if (SPECIALTY_EXAMPLES[name]) optionsHTML = SPECIALTY_EXAMPLES[name].map(s => `<option value="${s}">`).join('');
-                 specWrapper.innerHTML = `<input type="text" list="${listId}" class="specialty-input w-full text-[10px] italic bg-transparent border-b border-gray-700 text-[#d4af37] text-center" placeholder="Specialty..." value="${specVal}"><datalist id="${listId}">${optionsHTML}</datalist>`;
-                 const inp = specWrapper.querySelector('input');
-                 inp.onblur = (e) => { window.state.specialties[name] = e.target.value; renderPrintSheet(); };
+    // List of standard text fields to sync
+    const fieldsToSync = [
+        'c-name', 'c-nature', 'c-demeanor', 'c-clan', 'c-gen', 
+        'c-player', 'c-concept', 'c-sire', 'c-chronicle', 
+        'c-path-name', 'c-path-rating', 'c-xp-total', 'c-freebie-total'
+    ];
+
+    fieldsToSync.forEach(id => {
+        window.state.textFields[id] = safeVal(id);
+    });
+
+    // Handle Clan Weakness specifically (TextArea)
+    const wEl = document.getElementById('c-clan-weakness');
+    if (wEl) window.state.textFields['c-clan-weakness'] = wEl.value;
+
+    // 2. Validate essential fields (Generation)
+    // Ensure Generation is a valid number for pool calculations
+    let gen = parseInt(window.state.textFields['c-gen']);
+    if (isNaN(gen) || gen < 3 || gen > 15) {
+        console.warn("Invalid Generation detected (" + gen + "), defaulting to 13");
+        gen = 13;
+        window.state.textFields['c-gen'] = "13";
+    }
+
+    // 3. Toggle Mode State
+    window.state.isPlayMode = !window.state.isPlayMode;
+
+    // 4. Trigger Full Refresh (Handles DOM reconstruction)
+    if (window.fullRefresh) {
+        window.fullRefresh();
+    } else {
+        console.error("window.fullRefresh is missing!");
+    }
+    
+    // 5. Scroll to top for UX
+    window.scrollTo(0, 0);
+};
                  inp.disabled = window.state.isPlayMode;
              }
         }
