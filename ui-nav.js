@@ -420,70 +420,138 @@ window.renderDerangementsList = renderDerangementsList;
 export function renderDynamicHavenRow() {
     const container = document.getElementById('multi-haven-list'); 
     if (!container) return;
-    
-    // Clear to prevent duplicate rows on load
     container.innerHTML = ''; 
-
     const buildRow = (data = null) => {
         const row = document.createElement('div'); 
         row.className = 'border-b border-[#222] pb-4 advantage-row';
-        
         const nameVal = data ? data.name : "";
         const locVal = data ? data.loc : "";
         const descVal = data ? data.desc : "";
-
-        row.innerHTML = `
-            <div class="flex justify-between items-center mb-2">
-                <input type="text" placeholder="Haven Title..." class="flex-1 text-[10px] font-bold text-gold uppercase !border-b !border-[#333]" value="${nameVal}">
-                <div class="remove-btn">&times;</div>
-            </div>
-            <input type="text" placeholder="Location..." class="text-xs mb-2 !border-b !border-[#333]" value="${locVal}">
-            <textarea class="h-16 text-xs" placeholder="Details...">${descVal}</textarea>
-        `;
-        
-        const nameIn = row.querySelectorAll('input')[0]; 
-        const locIn = row.querySelectorAll('input')[1]; 
-        const descIn = row.querySelector('textarea'); 
-        const del = row.querySelector('.remove-btn');
-        
+        row.innerHTML = `<div class="flex justify-between items-center mb-2"><input type="text" placeholder="Haven Title..." class="flex-1 text-[10px] font-bold text-gold uppercase !border-b !border-[#333]" value="${nameVal}"><div class="remove-btn">&times;</div></div><input type="text" placeholder="Location..." class="text-xs mb-2 !border-b !border-[#333]" value="${locVal}"><textarea class="h-16 text-xs" placeholder="Details...">${descVal}</textarea>`;
+        const nameIn = row.querySelectorAll('input')[0]; const locIn = row.querySelectorAll('input')[1]; const descIn = row.querySelector('textarea'); const del = row.querySelector('.remove-btn');
         if (!data) del.style.visibility = 'hidden';
-
         const onUpd = () => {
-            window.state.havens = Array.from(container.querySelectorAll('.advantage-row')).map(r => ({ 
-                name: r.querySelectorAll('input')[0].value, 
-                loc: r.querySelectorAll('input')[1].value, 
-                desc: r.querySelector('textarea').value 
-            })).filter(h => h.name || h.loc);
-            
-            if (container.lastElementChild === row && nameIn.value !== "") {
-                del.style.visibility = 'visible';
-                renderDynamicHavenRow(); 
-            }
-            
-            updatePools(); 
-            renderPrintSheet();
+            window.state.havens = Array.from(container.querySelectorAll('.advantage-row')).map(r => ({ name: r.querySelectorAll('input')[0].value, loc: r.querySelectorAll('input')[1].value, desc: r.querySelector('textarea').value })).filter(h => h.name || h.loc);
+            if (container.lastElementChild === row && nameIn.value !== "") { del.style.visibility = 'visible'; renderDynamicHavenRow(); }
+            updatePools(); renderPrintSheet();
         };
-        
         [nameIn, locIn, descIn].forEach(el => el.onblur = onUpd); 
-        
-        del.onclick = () => { 
-            row.remove(); 
-            if(container.children.length === 0) buildRow();
-            onUpd(); 
-        };
-        
+        del.onclick = () => { row.remove(); if(container.children.length === 0) buildRow(); onUpd(); };
         container.appendChild(row);
     };
-
-    // 1. Rebuild from state
-    if (window.state.havens && Array.isArray(window.state.havens)) {
-        window.state.havens.forEach(h => buildRow(h));
-    }
-    
-    // 2. Append trailing blank row
+    if (window.state.havens && Array.isArray(window.state.havens)) { window.state.havens.forEach(h => buildRow(h)); }
     buildRow();
 }
 window.renderDynamicHavenRow = renderDynamicHavenRow;
+
+// --- NEW DYNAMIC RITUALS RENDERER ---
+export function renderRitualsEdit() {
+    const container = document.getElementById('rituals-list-create');
+    if (!container) return;
+
+    // Check if we need to replace the old Textarea with the new container
+    if (container.querySelector('textarea')) {
+        container.innerHTML = '<div id="dynamic-rituals-list" class="space-y-2"></div>';
+        if (!window.state.rituals) window.state.rituals = [];
+    }
+
+    const listCont = document.getElementById('dynamic-rituals-list');
+    if (!listCont) return;
+    listCont.innerHTML = '';
+
+    // Initialize state if missing
+    if (!window.state.rituals) window.state.rituals = [];
+
+    // Helper to build a row
+    const buildRow = (data = null) => {
+        const row = document.createElement('div');
+        row.className = 'flex items-center gap-2 border-b border-[#333] pb-1 mb-1 ritual-row';
+        
+        const nameVal = data ? data.name : "";
+        const lvlVal = data ? data.level : 1;
+
+        row.innerHTML = `
+            <div class="flex-1">
+                <input type="text" placeholder="Ritual Name..." class="w-full text-xs bg-transparent border-none text-white focus:border-gold" value="${nameVal}">
+            </div>
+            <div class="w-12">
+                <input type="number" min="1" max="10" class="w-full text-center text-xs bg-[#111] border border-[#333] text-gold font-bold" value="${lvlVal}" title="Level">
+            </div>
+            <div class="remove-btn cursor-pointer text-red-500 hover:text-red-300">&times;</div>
+        `;
+
+        const nameInput = row.querySelector('input[type="text"]');
+        const lvlInput = row.querySelector('input[type="number"]');
+        const delBtn = row.querySelector('.remove-btn');
+
+        if (!data) delBtn.style.visibility = 'hidden';
+
+        const sync = () => {
+            const rows = listCont.querySelectorAll('.ritual-row');
+            const newData = [];
+            rows.forEach(r => {
+                const n = r.querySelector('input[type="text"]').value;
+                const l = parseInt(r.querySelector('input[type="number"]').value) || 1;
+                if (n) newData.push({ name: n, level: l });
+            });
+            window.state.rituals = newData;
+            
+            // Add new row if last one is used
+            if (row === listCont.lastElementChild && nameInput.value !== "") {
+                delBtn.style.visibility = 'visible';
+                buildRow();
+            }
+            
+            renderPrintSheet();
+            // Update Play Mode view if active (handled by renderPrintSheet largely or specific call)
+            updateRitualsPlayView();
+        };
+
+        nameInput.onblur = sync;
+        lvlInput.onchange = sync;
+        delBtn.onclick = () => {
+            row.remove();
+            if(listCont.children.length === 0) buildRow();
+            sync();
+        };
+
+        listCont.appendChild(row);
+    };
+
+    // Populate existing
+    window.state.rituals.forEach(r => buildRow(r));
+    // Add empty row
+    buildRow();
+}
+window.renderRitualsEdit = renderRitualsEdit;
+
+function updateRitualsPlayView() {
+    const playCont = document.getElementById('rituals-list-play');
+    if (!playCont) return;
+    
+    if (!window.state.rituals || window.state.rituals.length === 0) {
+        playCont.innerHTML = '<span class="text-gray-500 italic">No Rituals learned.</span>';
+        return;
+    }
+
+    // Group by Level
+    const byLevel = {};
+    window.state.rituals.forEach(r => {
+        if (!byLevel[r.level]) byLevel[r.level] = [];
+        byLevel[r.level].push(r.name);
+    });
+
+    let html = '';
+    Object.keys(byLevel).sort((a,b) => a-b).forEach(lvl => {
+        html += `<div class="mb-2"><span class="text-[#d4af37] font-bold text-[10px] uppercase block border-b border-[#333] mb-1">Level ${lvl}</span>`;
+        byLevel[lvl].forEach(name => {
+            html += `<div class="text-xs text-gray-300 ml-2">• ${name}</div>`;
+        });
+        html += `</div>`;
+    });
+    playCont.innerHTML = html;
+    playCont.className = ""; // Remove default styling that might conflict
+}
 
 // --- NAVIGATION & MODES ---
 
@@ -765,6 +833,11 @@ export function changeStep(s) {
             document.getElementById('play-mode-sheet').appendChild(pm6);
         }
         renderNpcTab();
+    }
+    
+    // --- SPECIAL: RITUALS INJECTION FOR PHASE 6 ---
+    if (!window.state.isPlayMode && s === 6) {
+        renderRitualsEdit();
     }
 
     const target = document.getElementById(prefix + s);
@@ -1115,8 +1188,11 @@ export function togglePlayMode() {
         
         // --- INJECT DETAILED DISCIPLINES (PHASE 2 / TRAITS TAB) ---
         renderDetailedDisciplines();
+        
+        // --- UPDATE RITUALS LIST (PHASE 2 / TRAITS TAB) ---
+        updateRitualsPlayView();
 
-        if(document.getElementById('rituals-list-play')) document.getElementById('rituals-list-play').innerText = document.getElementById('rituals-list-create-ta').value;
+        if(document.getElementById('rituals-list-play')) document.getElementById('rituals-list-play').innerText = document.getElementById('rituals-list-create-ta').value; // Keeping fallback but handled by updateRitualsPlayView now
         let carried = []; let owned = []; if(window.state.inventory) { window.state.inventory.forEach(i => { const str = `${i.displayName || i.name} ${i.type === 'Armor' ? `(R:${i.stats.rating} P:${i.stats.penalty})` : ''}`; if(i.status === 'carried') carried.push(str); else owned.push(str); }); }
         setSafeText('play-gear-carried', carried.join(', ')); setSafeText('play-gear-owned', owned.join(', '));
         if(document.getElementById('play-bio-desc')) document.getElementById('play-bio-desc').innerText = document.getElementById('bio-desc').value;
