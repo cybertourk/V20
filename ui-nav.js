@@ -66,27 +66,75 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
         const specWrapper = document.createElement('div');
         specWrapper.className = 'flex-1 mr-2 relative';
 
-        const inputField = document.createElement('input');
-        inputField.type = 'text';
-        inputField.className = 'w-full bg-transparent border-b border-[#333] text-xs font-bold text-white uppercase focus:border-gold outline-none';
-        inputField.placeholder = "Name...";
-        inputField.value = name || "";
-        if (window.state.isPlayMode) inputField.disabled = true;
+        let inputField;
+        let selectField = null;
 
-        // Visual Indicator for Primary Path
-        if (type === 'disc' && name) {
-            if (window.state.primaryThaumPath === name) {
-                inputField.classList.add('text-[#d4af37]'); // Gold text for Primary
-                inputField.title = "Primary Thaumaturgy Path";
-            } else if (window.state.primaryNecroPath === name) {
-                inputField.classList.add('text-gray-400'); // Greyish for Necro Primary? Or just style it.
-                inputField.title = "Primary Necromancy Path";
+        // VISUAL INDICATOR FOR PRIMARY PATH (Setup before creating element to apply classes later if needed)
+        const isPrimaryThaum = type === 'disc' && name && window.state.primaryThaumPath === name;
+        const isPrimaryNecro = type === 'disc' && name && window.state.primaryNecroPath === name;
+
+        // --- DROPDOWN VS INPUT LOGIC ---
+        if (list && list.length > 0) {
+            // 1. Create SELECT
+            selectField = document.createElement('select');
+            selectField.className = 'w-full bg-[#111] border-b border-[#333] text-xs font-bold text-white uppercase focus:border-gold outline-none';
+            if (isPrimaryThaum) selectField.classList.add('text-[#d4af37]');
+            
+            let html = `<option value="">-- Select --</option>`;
+            list.forEach(item => {
+                const val = typeof item === 'string' ? item : item.name;
+                // Don't show already selected items in the dropdown for new rows (optional, but cleaner)
+                // However, for existing rows, we need the option there.
+                const isSelected = name === val;
+                html += `<option value="${val}" ${isSelected ? 'selected' : ''}>${val}</option>`;
+            });
+            // Add Custom Option
+            const isCustom = name && !list.includes(name);
+            html += `<option value="Custom" ${isCustom ? 'selected' : ''}>-- Custom / Write-in --</option>`;
+            selectField.innerHTML = html;
+
+            // 2. Create INPUT (Hidden by default unless custom)
+            inputField = document.createElement('input');
+            inputField.type = 'text';
+            inputField.className = 'w-full bg-transparent border-b border-[#333] text-xs font-bold text-white uppercase focus:border-gold outline-none';
+            inputField.placeholder = "Name...";
+            inputField.value = name || "";
+            
+            if (isCustom) {
+                selectField.style.display = 'none';
+                inputField.style.display = 'block';
+            } else {
+                selectField.style.display = 'block';
+                inputField.style.display = 'none';
             }
+            
+            if (window.state.isPlayMode) {
+                selectField.disabled = true;
+                inputField.disabled = true;
+            }
+
+            specWrapper.appendChild(selectField);
+            specWrapper.appendChild(inputField);
+
+        } else {
+            // Fallback: Just Text Input
+            inputField = document.createElement('input');
+            inputField.type = 'text';
+            inputField.className = 'w-full bg-transparent border-b border-[#333] text-xs font-bold text-white uppercase focus:border-gold outline-none';
+            inputField.placeholder = "Name...";
+            inputField.value = name || "";
+            if (window.state.isPlayMode) inputField.disabled = true;
+            
+            if (isPrimaryThaum) inputField.classList.add('text-[#d4af37]');
+
+            specWrapper.appendChild(inputField);
         }
 
-        specWrapper.appendChild(inputField);
+        // Apply Title for Primary Path
+        if (isPrimaryThaum) (selectField || inputField).title = "Primary Thaumaturgy Path";
+        if (isPrimaryNecro) (selectField || inputField).title = "Primary Necromancy Path";
 
-        // Specialty Logic
+        // Specialty Logic (Unchanged)
         if (isAbil && name) {
             const hasSpec = window.state.specialties && window.state.specialties[name];
             if (hasSpec || (window.state.dots.abil[name] >= 4) || SPECIALTY_EXAMPLES[name]) {
@@ -127,12 +175,8 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
 
             // --- THAUMATURGY INTERCEPTOR ---
             if (type === 'disc' && newVal.toLowerCase() === 'thaumaturgy') {
-                // Determine Path List
                 const availablePaths = THAUMATURGY_DATA ? Object.keys(THAUMATURGY_DATA) : ["The Path of Blood", "Lure of Flames", "Movement of the Mind", "The Path of Conjuring", "Hands of Destruction"];
-                
-                let selectedPath = "The Path of Blood"; // Default
-                
-                // Simple prompt for selection (Since we are in a single file edit, avoiding complex HTML modal injection for now)
+                let selectedPath = "The Path of Blood"; 
                 let promptMsg = "Select Primary Path for Thaumaturgy:\n";
                 availablePaths.slice(0, 8).forEach((p, i) => promptMsg += `${i+1}. ${p}\n`);
                 promptMsg += "\nEnter number or type name:";
@@ -141,15 +185,12 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                 if (userChoice) {
                     const idx = parseInt(userChoice) - 1;
                     if (!isNaN(idx) && availablePaths[idx]) selectedPath = availablePaths[idx];
-                    else if (userChoice.length > 3) selectedPath = userChoice; // Assume typed name
+                    else if (userChoice.length > 3) selectedPath = userChoice;
                 }
 
-                // Set Metadata
                 if (!window.state.primaryThaumPath) {
                     window.state.primaryThaumPath = selectedPath;
                     showNotification(`Primary Path set: ${selectedPath}`);
-                    
-                    // Grant Free Ritual 1
                     if (!window.state.rituals) window.state.rituals = [];
                     if (!window.state.rituals.some(r => r.level === 1)) {
                          window.state.rituals.push({ name: "Defense of the Sacred Haven", level: 1 });
@@ -157,8 +198,14 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                     }
                 }
                 
-                // Swap the input value
-                inputField.value = selectedPath;
+                if (selectField) {
+                     // Since "The Path of Blood" isn't in the standard discipline list dropdown usually, we switch to custom/text
+                     selectField.style.display = 'none';
+                     inputField.style.display = 'block';
+                     inputField.value = selectedPath;
+                } else {
+                    inputField.value = selectedPath;
+                }
                 newVal = selectedPath;
             }
 
@@ -175,7 +222,14 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                     else if (userChoice.length > 3) selectedPath = userChoice;
                 }
                 if (!window.state.primaryNecroPath) window.state.primaryNecroPath = selectedPath;
-                inputField.value = selectedPath;
+                
+                if (selectField) {
+                     selectField.style.display = 'none';
+                     inputField.style.display = 'block';
+                     inputField.value = selectedPath;
+                } else {
+                    inputField.value = selectedPath;
+                }
                 newVal = selectedPath;
             }
 
@@ -207,11 +261,13 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                 
                 if (baseCost > (totalXP - spentXP)) {
                     showNotification(`Need ${baseCost} XP for ${costType}.`);
+                    if(selectField) selectField.value = "";
                     inputField.value = ""; 
                     return;
                 }
 
                 if (!confirm(`Spend ${baseCost} XP to learn ${newVal}?`)) {
+                    if(selectField) selectField.value = "";
                     inputField.value = "";
                     return;
                 }
@@ -233,10 +289,8 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                 const dots = window.state.dots[type][curName]; delete window.state.dots[type][curName]; 
                 if (window.state.customAbilityCategories && window.state.customAbilityCategories[curName]) delete window.state.customAbilityCategories[curName];
                 if (newVal) window.state.dots[type][newVal] = dots || 0; 
-                // Transfer Primary Status if renaming
                 if (window.state.primaryThaumPath === curName) window.state.primaryThaumPath = newVal;
                 if (window.state.primaryNecroPath === curName) window.state.primaryNecroPath = newVal;
-                
                 if(window.state.specialties[curName]) { window.state.specialties[newVal] = window.state.specialties[curName]; delete window.state.specialties[curName]; }
             } else if (!curName && newVal && !window.state.xpMode) {
                  window.state.dots[type][newVal] = 0; 
@@ -259,12 +313,41 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
             renderPrintSheet();
         };
         
-        if (isAbil) inputField.onblur = (e) => onUpdate(e.target.value); else inputField.onchange = (e) => onUpdate(e.target.value);
+        // Attach Events to Elements
+        if (selectField) {
+            selectField.onchange = (e) => {
+                const val = e.target.value;
+                if (val === 'Custom') {
+                    selectField.style.display = 'none';
+                    inputField.style.display = 'block';
+                    inputField.focus();
+                    inputField.value = ""; // Ready for typing
+                } else if (val) {
+                    onUpdate(val);
+                }
+            };
+            
+            inputField.onblur = (e) => {
+                const val = e.target.value;
+                if (!val && !curName) {
+                    // Revert to dropdown if empty and not committed
+                    inputField.style.display = 'none';
+                    selectField.style.display = 'block';
+                    selectField.value = "";
+                } else {
+                    onUpdate(val);
+                }
+            };
+        } else {
+            // Text Only events
+            if (isAbil) inputField.onblur = (e) => onUpdate(e.target.value); 
+            else inputField.onchange = (e) => onUpdate(e.target.value);
+        }
+
         removeBtn.onclick = () => { 
             if (curName) { 
                 delete window.state.dots[type][curName]; 
                 if (window.state.customAbilityCategories && window.state.customAbilityCategories[curName]) delete window.state.customAbilityCategories[curName]; 
-                // Clear Primary status if deleted
                 if (window.state.primaryThaumPath === curName) delete window.state.primaryThaumPath;
                 if (window.state.primaryNecroPath === curName) delete window.state.primaryNecroPath;
             } 
@@ -279,32 +362,16 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
             const newDots = parseInt(e.target.dataset.v);
             
             // --- THAUMATURGY VALIDATION ---
-            // Rule: Secondary paths cannot exceed Primary path (unless Primary is 5)
-            // Rule: Primary path level = Thaumaturgy rating
             if (type === 'disc') {
                 const isThaum = isMagicPath(curName) === 'thaum';
-                const isNecro = isMagicPath(curName) === 'necro';
-                
                 if (isThaum && window.state.primaryThaumPath) {
                     const primaryName = window.state.primaryThaumPath;
                     const primaryRating = window.state.dots.disc[primaryName] || 0;
                     
-                    // Case 1: Increasing a Secondary Path
                     if (curName !== primaryName) {
                         if (primaryRating < 5 && newDots >= primaryRating) {
-                            showNotification("Secondary Path cannot equal or exceed Primary Path (until Primary is 5).");
+                            showNotification("Secondary Path cannot equal or exceed Primary Path.");
                             return; 
-                        }
-                    }
-                    // Case 2: Decreasing Primary Path (check Secondaries)
-                    else if (curName === primaryName) {
-                        const secondaries = Object.keys(window.state.dots.disc).filter(k => k !== primaryName && isMagicPath(k) === 'thaum');
-                        const maxSec = Math.max(0, ...secondaries.map(s => window.state.dots.disc[s]));
-                        
-                        if (newDots <= maxSec && newDots < 5) { // If dropping primary below secondary
-                             // Usually we just warn, or cap secondaries. For simplicity, just warn.
-                             // V20: "Primary path must always be at least one dot higher... until she has mastered her primary"
-                             // We allow the drop but user should fix secondaries.
                         }
                     }
                 }
