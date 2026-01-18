@@ -46,6 +46,19 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
         if (window.state.customAbilityCategories) { existingItems = Object.keys(window.state.dots.abil).filter(k => window.state.customAbilityCategories[k] === category); }
     } else { if (window.state.dots[type]) existingItems = Object.keys(window.state.dots[type]); }
 
+    // --- THAUMATURGY / NECROMANCY HELPER ---
+    // Identify if a discipline name corresponds to a known path
+    const isMagicPath = (name) => {
+        if (!name) return false;
+        const n = name.toLowerCase();
+        // Check Data files
+        if (THAUMATURGY_DATA && Object.keys(THAUMATURGY_DATA).some(k => k.toLowerCase() === n)) return 'thaum';
+        if (NECROMANCY_DATA && Object.keys(NECROMANCY_DATA).some(k => k.toLowerCase() === n)) return 'necro';
+        // Heuristics
+        if (n.includes('path') || n.includes('lure of') || n.includes('gift of') || n.includes('weather control') || n.includes('movement of the mind')) return 'thaum'; // Basic heuristic
+        return false;
+    };
+
     const buildRow = (name = null) => {
         const row = document.createElement('div');
         row.className = 'flex justify-between items-center mb-1 advantage-row';
@@ -60,12 +73,22 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
         inputField.value = name || "";
         if (window.state.isPlayMode) inputField.disabled = true;
 
+        // Visual Indicator for Primary Path
+        if (type === 'disc' && name) {
+            if (window.state.primaryThaumPath === name) {
+                inputField.classList.add('text-[#d4af37]'); // Gold text for Primary
+                inputField.title = "Primary Thaumaturgy Path";
+            } else if (window.state.primaryNecroPath === name) {
+                inputField.classList.add('text-gray-400'); // Greyish for Necro Primary? Or just style it.
+                inputField.title = "Primary Necromancy Path";
+            }
+        }
+
         specWrapper.appendChild(inputField);
 
         // Specialty Logic
         if (isAbil && name) {
             const hasSpec = window.state.specialties && window.state.specialties[name];
-            // Show star if they have specialty, or 4+ dots, or it's a known ability with specialties
             if (hasSpec || (window.state.dots.abil[name] >= 4) || SPECIALTY_EXAMPLES[name]) {
                 const specBtn = document.createElement('div');
                 specBtn.className = "absolute right-0 top-0 text-[9px] cursor-pointer hover:text-gold";
@@ -74,7 +97,6 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                 specBtn.title = hasSpec ? `Specialty: ${hasSpec}` : "Add Specialty";
                 
                 specBtn.onclick = () => {
-                     // Check if modal function exists, otherwise simple prompt
                      if(window.openSpecialtyModal) window.openSpecialtyModal(name);
                      else {
                          const s = prompt(`Enter specialty for ${name}:`, hasSpec || "");
@@ -103,16 +125,68 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
         const onUpdate = (newVal) => {
             if (!newVal) return;
 
+            // --- THAUMATURGY INTERCEPTOR ---
+            if (type === 'disc' && newVal.toLowerCase() === 'thaumaturgy') {
+                // Determine Path List
+                const availablePaths = THAUMATURGY_DATA ? Object.keys(THAUMATURGY_DATA) : ["The Path of Blood", "Lure of Flames", "Movement of the Mind", "The Path of Conjuring", "Hands of Destruction"];
+                
+                let selectedPath = "The Path of Blood"; // Default
+                
+                // Simple prompt for selection (Since we are in a single file edit, avoiding complex HTML modal injection for now)
+                let promptMsg = "Select Primary Path for Thaumaturgy:\n";
+                availablePaths.slice(0, 8).forEach((p, i) => promptMsg += `${i+1}. ${p}\n`);
+                promptMsg += "\nEnter number or type name:";
+
+                const userChoice = prompt(promptMsg, "1");
+                if (userChoice) {
+                    const idx = parseInt(userChoice) - 1;
+                    if (!isNaN(idx) && availablePaths[idx]) selectedPath = availablePaths[idx];
+                    else if (userChoice.length > 3) selectedPath = userChoice; // Assume typed name
+                }
+
+                // Set Metadata
+                if (!window.state.primaryThaumPath) {
+                    window.state.primaryThaumPath = selectedPath;
+                    showNotification(`Primary Path set: ${selectedPath}`);
+                    
+                    // Grant Free Ritual 1
+                    if (!window.state.rituals) window.state.rituals = [];
+                    if (!window.state.rituals.some(r => r.level === 1)) {
+                         window.state.rituals.push({ name: "Defense of the Sacred Haven", level: 1 });
+                         showNotification("Learned Ritual: Defense of the Sacred Haven (Free)");
+                    }
+                }
+                
+                // Swap the input value
+                inputField.value = selectedPath;
+                newVal = selectedPath;
+            }
+
+            // --- NECROMANCY INTERCEPTOR ---
+            if (type === 'disc' && newVal.toLowerCase() === 'necromancy') {
+                const availablePaths = NECROMANCY_DATA ? Object.keys(NECROMANCY_DATA) : ["The Sepulchre Path", "The Bone Path", "The Ash Path"];
+                let selectedPath = "The Sepulchre Path";
+                let promptMsg = "Select Primary Necromancy Path:\n";
+                availablePaths.slice(0, 5).forEach((p, i) => promptMsg += `${i+1}. ${p}\n`);
+                const userChoice = prompt(promptMsg, "1");
+                if (userChoice) {
+                     const idx = parseInt(userChoice) - 1;
+                    if (!isNaN(idx) && availablePaths[idx]) selectedPath = availablePaths[idx];
+                    else if (userChoice.length > 3) selectedPath = userChoice;
+                }
+                if (!window.state.primaryNecroPath) window.state.primaryNecroPath = selectedPath;
+                inputField.value = selectedPath;
+                newVal = selectedPath;
+            }
+
             if (window.state.xpMode && !curName) {
                 let baseCost = 0;
                 let costType = '';
                 
                 // --- XP COSTS FOR NEW TRAITS ---
                 if (type === 'disc') { 
-                    // V20 Rules: New Path is 7, New Discipline is 10
-                    // Check against known Paths or string heuristic
-                    const isThaumPath = THAUMATURGY_DATA && THAUMATURGY_DATA[newVal];
-                    const isNecroPath = NECROMANCY_DATA && NECROMANCY_DATA[newVal];
+                    const isThaumPath = isMagicPath(newVal) === 'thaum';
+                    const isNecroPath = isMagicPath(newVal) === 'necro';
                     const hasPathName = newVal.toLowerCase().includes('path');
 
                     if (isThaumPath || isNecroPath || hasPathName) {
@@ -159,6 +233,10 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                 const dots = window.state.dots[type][curName]; delete window.state.dots[type][curName]; 
                 if (window.state.customAbilityCategories && window.state.customAbilityCategories[curName]) delete window.state.customAbilityCategories[curName];
                 if (newVal) window.state.dots[type][newVal] = dots || 0; 
+                // Transfer Primary Status if renaming
+                if (window.state.primaryThaumPath === curName) window.state.primaryThaumPath = newVal;
+                if (window.state.primaryNecroPath === curName) window.state.primaryNecroPath = newVal;
+                
                 if(window.state.specialties[curName]) { window.state.specialties[newVal] = window.state.specialties[curName]; delete window.state.specialties[curName]; }
             } else if (!curName && newVal && !window.state.xpMode) {
                  window.state.dots[type][newVal] = 0; 
@@ -182,11 +260,57 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
         };
         
         if (isAbil) inputField.onblur = (e) => onUpdate(e.target.value); else inputField.onchange = (e) => onUpdate(e.target.value);
-        removeBtn.onclick = () => { if (curName) { delete window.state.dots[type][curName]; if (window.state.customAbilityCategories && window.state.customAbilityCategories[curName]) delete window.state.customAbilityCategories[curName]; } row.remove(); updatePools(); if(type==='back') renderSocialProfile(); renderPrintSheet(); };
+        removeBtn.onclick = () => { 
+            if (curName) { 
+                delete window.state.dots[type][curName]; 
+                if (window.state.customAbilityCategories && window.state.customAbilityCategories[curName]) delete window.state.customAbilityCategories[curName]; 
+                // Clear Primary status if deleted
+                if (window.state.primaryThaumPath === curName) delete window.state.primaryThaumPath;
+                if (window.state.primaryNecroPath === curName) delete window.state.primaryNecroPath;
+            } 
+            row.remove(); 
+            updatePools(); 
+            if(type==='back') renderSocialProfile(); 
+            renderPrintSheet(); 
+        };
         
         dotCont.onclick = (e) => { 
             if (!curName || !e.target.dataset.v) return; 
-            setDots(curName, type, parseInt(e.target.dataset.v), 0, 5);
+            const newDots = parseInt(e.target.dataset.v);
+            
+            // --- THAUMATURGY VALIDATION ---
+            // Rule: Secondary paths cannot exceed Primary path (unless Primary is 5)
+            // Rule: Primary path level = Thaumaturgy rating
+            if (type === 'disc') {
+                const isThaum = isMagicPath(curName) === 'thaum';
+                const isNecro = isMagicPath(curName) === 'necro';
+                
+                if (isThaum && window.state.primaryThaumPath) {
+                    const primaryName = window.state.primaryThaumPath;
+                    const primaryRating = window.state.dots.disc[primaryName] || 0;
+                    
+                    // Case 1: Increasing a Secondary Path
+                    if (curName !== primaryName) {
+                        if (primaryRating < 5 && newDots >= primaryRating) {
+                            showNotification("Secondary Path cannot equal or exceed Primary Path (until Primary is 5).");
+                            return; 
+                        }
+                    }
+                    // Case 2: Decreasing Primary Path (check Secondaries)
+                    else if (curName === primaryName) {
+                        const secondaries = Object.keys(window.state.dots.disc).filter(k => k !== primaryName && isMagicPath(k) === 'thaum');
+                        const maxSec = Math.max(0, ...secondaries.map(s => window.state.dots.disc[s]));
+                        
+                        if (newDots <= maxSec && newDots < 5) { // If dropping primary below secondary
+                             // Usually we just warn, or cap secondaries. For simplicity, just warn.
+                             // V20: "Primary path must always be at least one dot higher... until she has mastered her primary"
+                             // We allow the drop but user should fix secondaries.
+                        }
+                    }
+                }
+            }
+
+            setDots(curName, type, newDots, 0, 5);
         };
 
         row.appendChild(specWrapper);
