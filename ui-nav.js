@@ -46,58 +46,43 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
         if (window.state.customAbilityCategories) { existingItems = Object.keys(window.state.dots.abil).filter(k => window.state.customAbilityCategories[k] === category); }
     } else { if (window.state.dots[type]) existingItems = Object.keys(window.state.dots[type]); }
 
-    // RENDER FUNCTION
-window.togglePlayMode = function() {
-    console.log("Toggling Play Mode...");
+    const buildRow = (name = null) => {
+        const row = document.createElement('div');
+        row.className = 'flex justify-between items-center mb-1 advantage-row';
 
-    // 1. Sync Text Fields to State before switching
-    // We use a safe helper to avoid "property of null" errors if elements are missing
-    const safeVal = (id) => {
-        const el = document.getElementById(id);
-        if (el) return el.value;
-        // Fallback: keep existing value in state, or empty string
-        return window.state.textFields[id] || "";
-    };
+        const specWrapper = document.createElement('div');
+        specWrapper.className = 'flex-1 mr-2 relative';
 
-    // List of standard text fields to sync
-    const fieldsToSync = [
-        'c-name', 'c-nature', 'c-demeanor', 'c-clan', 'c-gen', 
-        'c-player', 'c-concept', 'c-sire', 'c-chronicle', 
-        'c-path-name', 'c-path-rating', 'c-xp-total', 'c-freebie-total'
-    ];
+        const inputField = document.createElement('input');
+        inputField.type = 'text';
+        inputField.className = 'w-full bg-transparent border-b border-[#333] text-xs font-bold text-white uppercase focus:border-gold outline-none';
+        inputField.placeholder = "Name...";
+        inputField.value = name || "";
+        if (window.state.isPlayMode) inputField.disabled = true;
 
-    fieldsToSync.forEach(id => {
-        window.state.textFields[id] = safeVal(id);
-    });
+        specWrapper.appendChild(inputField);
 
-    // Handle Clan Weakness specifically (TextArea)
-    const wEl = document.getElementById('c-clan-weakness');
-    if (wEl) window.state.textFields['c-clan-weakness'] = wEl.value;
-
-    // 2. Validate essential fields (Generation)
-    // Ensure Generation is a valid number for pool calculations
-    let gen = parseInt(window.state.textFields['c-gen']);
-    if (isNaN(gen) || gen < 3 || gen > 15) {
-        console.warn("Invalid Generation detected (" + gen + "), defaulting to 13");
-        gen = 13;
-        window.state.textFields['c-gen'] = "13";
-    }
-
-    // 3. Toggle Mode State
-    window.state.isPlayMode = !window.state.isPlayMode;
-
-    // 4. Trigger Full Refresh (Handles DOM reconstruction)
-    if (window.fullRefresh) {
-        window.fullRefresh();
-    } else {
-        console.error("window.fullRefresh is missing!");
-    }
-    
-    // 5. Scroll to top for UX
-    window.scrollTo(0, 0);
-};
-                 inp.disabled = window.state.isPlayMode;
-             }
+        // Specialty Logic
+        if (isAbil && name) {
+            const hasSpec = window.state.specialties && window.state.specialties[name];
+            // Show star if they have specialty, or 4+ dots, or it's a known ability with specialties
+            if (hasSpec || (window.state.dots.abil[name] >= 4) || SPECIALTY_EXAMPLES[name]) {
+                const specBtn = document.createElement('div');
+                specBtn.className = "absolute right-0 top-0 text-[9px] cursor-pointer hover:text-gold";
+                specBtn.className += hasSpec ? " text-gold" : " text-gray-600";
+                specBtn.innerHTML = '<i class="fas fa-star"></i>';
+                specBtn.title = hasSpec ? `Specialty: ${hasSpec}` : "Add Specialty";
+                
+                specBtn.onclick = () => {
+                     // Check if modal function exists, otherwise simple prompt
+                     if(window.openSpecialtyModal) window.openSpecialtyModal(name);
+                     else {
+                         const s = prompt(`Enter specialty for ${name}:`, hasSpec || "");
+                         if(s) { window.state.specialties[name] = s; renderDynamicAdvantageRow(containerId, type, list, isAbil); }
+                     }
+                };
+                specWrapper.appendChild(specBtn);
+            }
         }
 
         const dotCont = document.createElement('div'); 
@@ -204,7 +189,6 @@ window.togglePlayMode = function() {
             setDots(curName, type, parseInt(e.target.dataset.v), 0, 5);
         };
 
-        row.appendChild(inputField);
         row.appendChild(specWrapper);
         row.appendChild(dotCont);
         row.appendChild(removeBtn);
@@ -903,6 +887,42 @@ window.toggleSidebarLedger = toggleSidebarLedger;
 // --- PLAY MODE ---
 
 export function togglePlayMode() {
+    console.log("Toggling Play Mode...");
+
+    // 1. Sync Text Fields to State before switching
+    // We use a safe helper to avoid "property of null" errors if elements are missing
+    const safeVal = (id) => {
+        const el = document.getElementById(id);
+        if (el) return el.value;
+        // Fallback: keep existing value in state, or empty string
+        return window.state.textFields[id] || "";
+    };
+
+    // List of standard text fields to sync
+    const fieldsToSync = [
+        'c-name', 'c-nature', 'c-demeanor', 'c-clan', 'c-gen', 
+        'c-player', 'c-concept', 'c-sire', 'c-chronicle', 
+        'c-path-name', 'c-path-rating', 'c-xp-total', 'c-freebie-total'
+    ];
+
+    fieldsToSync.forEach(id => {
+        window.state.textFields[id] = safeVal(id);
+    });
+
+    // Handle Clan Weakness specifically (TextArea)
+    const wEl = document.getElementById('c-clan-weakness');
+    if (wEl) window.state.textFields['c-clan-weakness'] = wEl.value;
+
+    // 2. Validate essential fields (Generation)
+    // Ensure Generation is a valid number for pool calculations
+    let gen = parseInt(window.state.textFields['c-gen']);
+    if (isNaN(gen) || gen < 3 || gen > 15) {
+        console.warn("Invalid Generation detected (" + gen + "), defaulting to 13");
+        gen = 13;
+        window.state.textFields['c-gen'] = "13";
+    }
+
+    // 3. Toggle Mode State
     window.state.isPlayMode = !window.state.isPlayMode;
     document.body.classList.toggle('play-mode', window.state.isPlayMode);
     
