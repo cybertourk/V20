@@ -1138,5 +1138,265 @@ export const DISCIPLINES_DATA = {
                 defaultDiff: 6
             }
         }
+    },
+    "Path of Blood": {
+        1: {
+            name: "A Taste for Blood",
+            desc: "Determine how much blood is in a victim, their generation, and if they are a vampire/ghoul.",
+            system: "Taste touch of blood. Roll Willpower (Diff 4). Successes reveal info (1: Vamp/Mort/Ghoul, 2: Blood Pool, 3: Generation, etc.)",
+            roll: {
+                pool: ["Willpower"],
+                diffLabel: "Difficulty 4",
+                defaultDiff: 4
+            }
+        },
+        2: {
+            name: "Blood Rage",
+            desc: "Force another vampire to spend blood against their will.",
+            system: "Touch target. Spend 1 BP. Roll Willpower (Diff 5). Each success forces target to spend 1 BP (often inducing hunger/frenzy).",
+            roll: {
+                pool: ["Willpower"],
+                diffLabel: "Difficulty 5",
+                defaultDiff: 5
+            }
+        },
+        3: {
+            name: "Blood of Potency",
+            desc: "Temporarily lower your own Generation.",
+            system: "Spend 1 BP. Roll Willpower (Diff 6). Successes lower Gen by 1 (max to 4th or 5th Gen usually). Lasts 1 hour.",
+            roll: {
+                pool: ["Willpower"],
+                diffLabel: "Difficulty 6",
+                defaultDiff: 6
+            }
+        },
+        4: {
+            name: "Theft of Vitae",
+            desc: "Steal blood from a target at a distance.",
+            system: "Spend 1 BP. Roll Willpower (Diff 7). Successes = Blood points stolen and transferred to you.",
+            roll: {
+                pool: ["Willpower"],
+                diffLabel: "Difficulty 7",
+                defaultDiff: 7
+            }
+        },
+        5: {
+            name: "Cauldron of Blood",
+            desc: "Boil a subject's blood in their veins, causing massive damage.",
+            system: "Spend 1 WP. Touch target. Roll Willpower (Diff 8). Successes = Blood Points boiled. 1 BP boiled = 1 Lethal (Mortal) or 1 Agg (Vampire) damage.",
+            roll: {
+                pool: ["Willpower"],
+                diffLabel: "Difficulty 8",
+                defaultDiff: 8
+            }
+        }
+    },
+    "Hands of Destruction": {
+        1: {
+            name: "Decay",
+            desc: "Accelerate the decrepitude of an inanimate target (or dead organic matter).",
+            system: "Roll Willpower (Diff 4). Object ages 10 years per minute of touch.",
+            roll: {
+                pool: ["Willpower"],
+                diffLabel: "Difficulty 4",
+                defaultDiff: 4
+            }
+        },
+        2: {
+            name: "Gnarl Wood",
+            desc: "Warp and bend wooden objects with a glance.",
+            system: "Spend BP. Roll Willpower (Diff 5). Warps 50 lbs of wood per BP spent.",
+            roll: {
+                pool: ["Willpower"],
+                diffLabel: "Difficulty 5",
+                defaultDiff: 5
+            }
+        },
+        3: {
+            name: "Acidic Touch",
+            desc: "Secrete bilious, acidic fluid from the body. Corrodes metal, wood, and flesh.",
+            system: "Spend 1 BP. Roll Willpower (Diff 6). Acid damage is Aggravated. Burns through steel/wood.",
+            roll: {
+                pool: ["Willpower"],
+                diffLabel: "Difficulty 6",
+                defaultDiff: 6
+            }
+        },
+        4: {
+            name: "Atrophy",
+            desc: "Wither a victim's limb, leaving a mummified husk.",
+            system: "Touch target. Roll Willpower (Diff 7). Victim resists with Stamina + Athletics (Diff 8). Failure = Crippled limb.",
+            roll: {
+                pool: ["Willpower"],
+                diffLabel: "Difficulty 7",
+                defaultDiff: 7
+            }
+        },
+        5: {
+            name: "Turn to Dust",
+            desc: "Accelerate decrepitude in a victim, aging them decades in moments.",
+            system: "Touch target. Roll Willpower (Diff 8). Victim resists with Stamina + Courage (Diff 8). Net successes = Aging (10 years/success).",
+            roll: {
+                pool: ["Willpower"],
+                diffLabel: "Difficulty 8",
+                defaultDiff: 8
+            }
+        }
+    },
+    "Elemental Mastery": {
+        1: {
+            name: "Elemental Strength",
+            desc: "Draw upon the strength and resilience of the earth or objects to increase physical prowess.",
+            system: "Spend 1 BP. Roll Willpower (Diff 4). Allocate 3 temporary dots to Strength and/or Stamina. Duration = Successes (turns). Spend 1 WP to extend by 1 turn.",
+            roll: {
+                pool: ["Willpower"],
+                diffLabel: "Difficulty 4",
+                defaultDiff: 4
+            }
+        },
+        2: {
+            name: "Wooden Tongues",
+            desc: "Speak with the spirit of any inanimate object to learn what it has experienced.",
+            system: "Spend 1 BP. Roll Willpower (Diff 5). Successes determine clarity and relevance of information.",
+            roll: {
+                pool: ["Willpower"],
+                diffLabel: "Difficulty 5",
+                defaultDiff: 5
+            }
+        },
+        3: {
+            name: "Animate the Unmoving",
+            desc: "Cause inanimate objects to move and act as directed. Flexible within reason (guns twist, statues walk).",
+            system: "Spend 1 BP. Roll Willpower (Diff 6). Spend 1 WP if < 4 successes. Duration: Line of sight or 1 hour.",
+            roll: {
+                pool: ["Willpower"],
+                diffLabel: "Difficulty 6",
+                defaultDiff: 6
+            }
+        },
+        4: {
+            name: "Elemental Form",
+            desc: "Take the shape of any inanimate object of roughly equal mass (e.g. desk, bicycle).",
+            system: "Spend 1 BP. Roll Willpower (Diff 7). 3+ successes needed to use senses/Disciplines in form. Lasts for the night.",
+            roll: {
+                pool: ["Willpower"],
+                diffLabel: "Difficulty 7",
+                defaultDiff: 7
+            }
+        },
+        5: {
+            name: "Summon Elemental",
+            desc: "Summon a spirit of fire, air, earth, or water.",
+            system: "Spend 1 BP. Roll Willpower (Diff 8) to summon. Then roll Manipulation + Occult (Diff = Casting Successes + 4) to control.",
+            roll: {
+                pool: ["Willpower"],
+                diffLabel: "Difficulty 8",
+                defaultDiff: 8
+            }
+        }
+    },
+    "The Green Path": {
+        1: {
+            name: "Herbal Wisdom",
+            desc: "Commune with the spirit of a plant to gain information.",
+            system: "Touch plant. Roll Willpower (Diff 4). Successes determine clarity and amount of info.",
+            roll: {
+                pool: ["Willpower"],
+                diffLabel: "Difficulty 4",
+                defaultDiff: 4
+            }
+        },
+        2: {
+            name: "Speed the Season's Passing",
+            desc: "Accelerate plant growth or decay with a touch.",
+            system: "Touch plant. Roll Willpower (Diff 5). 1 success for brief spurt, 5 for instant fruit/dust. Can weaken wooden weapons.",
+            roll: {
+                pool: ["Willpower"],
+                diffLabel: "Difficulty 5",
+                defaultDiff: 5
+            }
+        },
+        3: {
+            name: "Dance of Vines",
+            desc: "Animate a mass of vegetation up to user's size.",
+            system: "Roll Willpower (Diff 6). Duration: 1 turn/success. Plants have Str/Dex = 1/2 User WP, Brawl = User Brawl - 1.",
+            roll: {
+                pool: ["Willpower"],
+                diffLabel: "Difficulty 6",
+                defaultDiff: 6
+            }
+        },
+        4: {
+            name: "Verdant Haven",
+            desc: "Weave a temporary, impenetrable shelter from vegetation.",
+            system: "Roll Willpower (Diff 7). 3 turns to form. Entry requires Wits+Survival > Successes. Protects from sun.",
+            roll: {
+                pool: ["Willpower"],
+                diffLabel: "Difficulty 7",
+                defaultDiff: 7
+            }
+        },
+        5: {
+            name: "Awaken the Forest Giants",
+            desc: "Animate an entire tree to move and fight.",
+            system: "Spend 1 BP + 1 BP/success. Roll Willpower (Diff 8). Duration: 1 turn/success. Tree has Str/Stam = Thaumaturgy Rating.",
+            roll: {
+                pool: ["Willpower"],
+                diffLabel: "Difficulty 8",
+                defaultDiff: 8
+            }
+        }
+    },
+    "The Lure of Flames": {
+        1: {
+            name: "Candle",
+            desc: "Create a small flame (candle-sized). Fire requires no fuel but burns normally once released.",
+            system: "Spend 1 BP. Roll Willpower (Diff 4). Successes determine accuracy/range. 1 success = in hand. Fire deals 1 Aggravated dmg/turn (Diff 3 to soak).",
+            roll: {
+                pool: ["Willpower"],
+                diffLabel: "Difficulty 4",
+                defaultDiff: 4
+            }
+        },
+        2: {
+            name: "Palm of Flame",
+            desc: "Create a handful of flame. Can be thrown.",
+            system: "Spend 1 BP. Roll Willpower (Diff 5). Successes determine accuracy/range. Fire deals 1 Aggravated dmg/turn (Diff 4 to soak).",
+            roll: {
+                pool: ["Willpower"],
+                diffLabel: "Difficulty 5",
+                defaultDiff: 5
+            }
+        },
+        3: {
+            name: "Campfire",
+            desc: "Create a campfire-sized flame.",
+            system: "Spend 1 BP. Roll Willpower (Diff 6). Successes determine accuracy/range. Fire deals 2 Aggravated dmg/turn (Diff 5 to soak).",
+            roll: {
+                pool: ["Willpower"],
+                diffLabel: "Difficulty 6",
+                defaultDiff: 6
+            }
+        },
+        4: {
+            name: "Bonfire",
+            desc: "Create a large bonfire-sized flame.",
+            system: "Spend 1 BP. Roll Willpower (Diff 7). Successes determine accuracy/range. Fire deals 2 Aggravated dmg/turn (Diff 7 to soak).",
+            roll: {
+                pool: ["Willpower"],
+                diffLabel: "Difficulty 7",
+                defaultDiff: 7
+            }
+        },
+        5: {
+            name: "Inferno",
+            desc: "Create a massive inferno.",
+            system: "Spend 1 BP. Roll Willpower (Diff 8). Successes determine accuracy/range. Fire deals 3 Aggravated dmg/turn (Diff 9 to soak).",
+            roll: {
+                pool: ["Willpower"],
+                diffLabel: "Difficulty 8",
+                defaultDiff: 8
+            }
+        }
     }
 };
