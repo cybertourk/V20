@@ -1348,7 +1348,8 @@ function renderDetailedDisciplines() {
         
         container = document.createElement('div');
         container.id = 'detailed-disciplines-list';
-        container.className = 'space-y-6 mt-4';
+        // CHANGE 1: Grid Layout (2 Columns)
+        container.className = 'grid grid-cols-1 md:grid-cols-2 gap-6 mt-4';
         
         section.appendChild(container);
         
@@ -1365,7 +1366,7 @@ function renderDetailedDisciplines() {
     const learned = Object.entries(window.state.dots.disc).filter(([name, val]) => val > 0);
 
     if (learned.length === 0) {
-        container.innerHTML = '<div class="text-gray-500 italic text-xs text-center py-4">No Disciplines learned.</div>';
+        container.innerHTML = '<div class="col-span-1 md:col-span-2 text-gray-500 italic text-xs text-center py-4">No Disciplines learned.</div>';
         return;
     }
 
@@ -1381,45 +1382,79 @@ function renderDetailedDisciplines() {
         }
 
         const discBlock = document.createElement('div');
-        discBlock.className = 'bg-black/40 border border-[#333] p-4 rounded mb-4';
+        discBlock.className = 'bg-black/40 border border-[#333] p-3 rounded flex flex-col h-fit';
         
         // Header (Name + Dots)
         discBlock.innerHTML = `
-            <div class="flex justify-between items-center border-b border-[#555] pb-2 mb-3">
-                <h3 class="text-lg text-[#d4af37] font-cinzel font-bold uppercase tracking-widest">${name}</h3>
-                <div class="text-white font-bold text-sm bg-[#8b0000] px-2 rounded">${val} Dots</div>
+            <div class="flex justify-between items-center border-b border-[#555] pb-2 mb-2">
+                <h3 class="text-base text-[#d4af37] font-cinzel font-bold uppercase tracking-widest truncate mr-2">${name}</h3>
+                <div class="text-white font-bold text-xs bg-[#8b0000] px-2 py-0.5 rounded flex-shrink-0">${val} Dots</div>
             </div>
         `;
 
         // Powers List
         if (data) {
+            const listContainer = document.createElement('div');
+            listContainer.className = "space-y-1";
+
             for (let i = 1; i <= val; i++) {
                 const power = data[i];
                 if (power) {
                     const pDiv = document.createElement('div');
-                    pDiv.className = 'mb-4 last:mb-0 group';
+                    pDiv.className = 'border border-[#333] bg-[#111] rounded overflow-hidden';
                     
+                    // Power Header (Always Visible)
+                    const pHeader = document.createElement('div');
+                    pHeader.className = "flex justify-between items-center p-2 cursor-pointer hover:bg-[#222] transition-colors";
+                    
+                    // Roll Button Logic
                     let rollHtml = '';
                     if (power.roll) {
                          const poolStr = JSON.stringify(power.roll.pool).replace(/"/g, "'");
-                         rollHtml = `<button onclick="window.rollDiscipline('${power.name}', ${poolStr}, ${power.roll.defaultDiff})" class="float-right bg-[#333] border border-gray-600 text-gray-300 hover:text-white hover:border-[#d4af37] text-[9px] font-bold px-3 py-1 rounded uppercase tracking-wider transition-all shadow-sm hover:shadow-gold"><i class="fas fa-dice-d20 mr-1"></i> Roll</button>`;
+                         // Note: e.stopPropagation() is crucial here so clicking roll doesn't toggle accordion
+                         rollHtml = `<button onclick="event.stopPropagation(); window.rollDiscipline('${power.name}', ${poolStr}, ${power.roll.defaultDiff})" class="bg-[#333] border border-gray-600 text-gray-300 hover:text-white hover:border-[#d4af37] text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-wider transition-all shadow-sm hover:shadow-gold flex-shrink-0 ml-2"><i class="fas fa-dice-d20"></i></button>`;
                     }
 
-                    pDiv.innerHTML = `
-                        <div class="flex justify-between items-start mb-1">
-                            <div class="font-bold text-white text-sm">
-                                <span class="text-[#8b0000] mr-1">●</span> ${power.name}
+                    pHeader.innerHTML = `
+                        <div class="flex items-center gap-2 overflow-hidden">
+                            <i class="fas fa-chevron-right text-[9px] text-gray-500 transition-transform duration-200 chevron"></i>
+                            <div class="font-bold text-white text-xs truncate">
+                                <span class="text-[#8b0000] text-[10px] mr-1">●${i}</span> ${power.name}
                             </div>
-                            ${rollHtml}
                         </div>
-                        <div class="text-[11px] text-gray-400 italic mb-1 pl-4 border-l-2 border-[#333]">${power.desc}</div>
-                        <div class="text-[10px] text-gray-500 font-mono pl-4"><span class="text-[#d4af37]">System:</span> ${power.system}</div>
+                        ${rollHtml}
                     `;
-                    discBlock.appendChild(pDiv);
+
+                    // Power Details (Hidden by Default)
+                    const pDetails = document.createElement('div');
+                    pDetails.className = "hidden p-2 border-t border-[#333] bg-black/50 text-[10px]";
+                    pDetails.innerHTML = `
+                        <div class="text-gray-300 italic leading-snug mb-2">${power.desc}</div>
+                        <div class="text-gray-500 font-mono"><span class="text-[#d4af37] font-bold">System:</span> ${power.system}</div>
+                    `;
+
+                    // Toggle Logic
+                    pHeader.onclick = () => {
+                        const isHidden = pDetails.classList.contains('hidden');
+                        if (isHidden) {
+                            pDetails.classList.remove('hidden');
+                            pHeader.querySelector('.chevron').classList.add('rotate-90');
+                            pHeader.querySelector('.chevron').classList.replace('text-gray-500', 'text-gold');
+                        } else {
+                            pDetails.classList.add('hidden');
+                            pHeader.querySelector('.chevron').classList.remove('rotate-90');
+                            pHeader.querySelector('.chevron').classList.replace('text-gold', 'text-gray-500');
+                        }
+                    };
+
+                    pDiv.appendChild(pHeader);
+                    pDiv.appendChild(pDetails);
+                    listContainer.appendChild(pDiv);
                 }
             }
+            discBlock.appendChild(listContainer);
         } else {
-            discBlock.innerHTML += `<div class="text-xs text-gray-500 italic">Detailed data not available for ${name}.</div>`;
+            discBlock.innerHTML += `<div class="text-xs text-gray-500 italic">Detailed data not available.</div>`;
         }
         
         container.appendChild(discBlock);
