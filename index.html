@@ -865,19 +865,38 @@
         </div>
     </div>
 
-    <!-- Scripts restored from original config -->
+    <!-- SCRIPTS CONFIGURATION -->
     <script type="module" src="data.js"></script>
     <script type="module" src="v20-rules.js"></script>
-    <script type="module" src="disciplines-data.js"></script> <!-- ADDED -->
+    
+    <!-- Data Modules -->
+    <script type="module" src="disciplines-data.js"></script>
+    <script type="module" src="thaumaturgy-data.js"></script>
+    <script type="module" src="necromancy-data.js"></script>
+    
+    <!-- UI Core -->
     <script type="module" src="ui-common.js"></script>
     <script type="module" src="ui-renderer.js"></script>
     <script type="module" src="ui-mechanics.js"></script>
+    
+    <!-- Refactored UI Modules (REPLACES OLD UI-NAV ALONE) -->
+    <script type="module" src="ui-advantages.js"></script>
+    <script type="module" src="ui-print.js"></script>
+    <script type="module" src="ui-play.js"></script>
     <script type="module" src="ui-nav.js"></script>
+
+    <!-- Subsystems -->
     <script type="module" src="ui-journal.js"></script>
     <script type="module" src="firebase-config.js"></script>
     <script type="module" src="firebase-manager.js"></script>
 
-    <!-- NEW NPC SYSTEM -->
+    <!-- NPC SYSTEM -->
+    <script type="module" src="npc-logic.js"></script>
+    <script type="module" src="npc-mortal.js"></script>
+    <script type="module" src="npc-ghoul.js"></script>
+    <script type="module" src="npc-animal.js"></script>
+    <script type="module" src="npc-sheet-play.js"></script>
+    <script type="module" src="npc-sheet-edit.js"></script>
     <script type="module" src="npc-creator.js"></script>
     
     <!-- MAIN ENTRY -->
