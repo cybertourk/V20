@@ -418,4 +418,4 @@ export const GEAR = [
 ];
 
 // --- ADDED MISSING EXPORT ---
-export const V20_VEHICLES = V20_VEHICLE_LIST;
+export const V20_VEHICLES = V20_VEHICLES_LIST;
