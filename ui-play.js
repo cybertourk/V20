@@ -15,6 +15,10 @@ import {
 
 import { openNpcCreator, openNpcSheet } from "./npc-creator.js";
 
+// --- CRITICAL FIX: Attach NPC functions to Window ---
+window.openNpcCreator = openNpcCreator;
+window.openNpcSheet = openNpcSheet;
+
 // --- PLAY MODE MAIN TOGGLE ---
 
 export function togglePlayMode() {
