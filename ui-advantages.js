@@ -60,6 +60,13 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
         dotCont.innerHTML = renderDots(val, 5);
         dotCont.title = `Primary Path Rating (${primaryKey || 'None'})`;
         
+        // CRITICAL FIX: Link this header to the Primary Path's ID
+        // This ensures setDots() finds this element when updating the path
+        if (primaryKey) {
+            dotCont.dataset.n = primaryKey;
+            dotCont.dataset.t = type;
+        }
+        
         // Click Logic for Parent Dots (Edits Primary Path)
         dotCont.onclick = (e) => {
             if (!primaryKey || !e.target.dataset.v) return;
@@ -125,7 +132,6 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
             list.forEach(item => {
                 const val = typeof item === 'string' ? item : item.name;
                 const isSelected = name === val;
-                // For sub-menus (new rows), exclude already selected items could be cleaner, but standard behavior allows re-selection
                 html += `<option value="${val}" ${isSelected ? 'selected' : ''}>${val}</option>`;
             });
             const isCustom = name && !list.includes(name);
@@ -210,134 +216,94 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
         const onUpdate = (newVal) => {
             if (!newVal) return;
 
-            // --- DROPDOWN SUB-MENU INTERCEPTOR (THE CORE FEATURE) ---
+            // --- DROPDOWN SUB-MENU INTERCEPTOR ---
             if (type === 'disc' && selectField && selectField.style.display !== 'none') {
                 const lower = newVal.toLowerCase();
                 
-                // 1. If user selected "Thaumaturgy", show Paths instead
                 if (lower === 'thaumaturgy') {
-                    const paths = THAUMATURGY_DATA ? Object.keys(THAUMATURGY_DATA) : ["The Path of Blood"];
-                    
+                    const paths = THAUMATURGY_DATA ? Object.keys(THAUMATURGY_DATA) : [];
                     let html = `<option value="">-- Select Path --</option>`;
                     paths.forEach(p => html += `<option value="${p}">${p}</option>`);
                     html += `<option value="BACK_TO_MAIN">-- Back --</option>`;
-                    
                     selectField.innerHTML = html;
-                    selectField.classList.add('text-gold', 'border-gold'); // Highlight to show we are in sub-menu
-                    selectField.value = ""; // Reset to force a fresh 'change' event on next pick
-                    return; // EXIT FUNCTION: Do not create a trait called "Thaumaturgy"
+                    selectField.classList.add('text-gold');
+                    selectField.value = ""; 
+                    return;
                 }
 
-                // 2. If user selected "Necromancy", show Paths instead
                 if (lower === 'necromancy') {
-                    const paths = NECROMANCY_DATA ? Object.keys(NECROMANCY_DATA) : ["The Sepulchre Path"];
+                    const paths = NECROMANCY_DATA ? Object.keys(NECROMANCY_DATA) : [];
                     let html = `<option value="">-- Select Path --</option>`;
                     paths.forEach(p => html += `<option value="${p}">${p}</option>`);
                     html += `<option value="BACK_TO_MAIN">-- Back --</option>`;
                     selectField.innerHTML = html;
-                    selectField.classList.add('text-gold', 'border-gold');
+                    selectField.classList.add('text-gold');
                     selectField.value = "";
                     return;
                 }
 
-                // 3. Handle Back Button
                 if (newVal === 'BACK_TO_MAIN') {
                      let html = `<option value="">-- Select --</option>`;
-                     list.forEach(item => {
-                        const val = typeof item === 'string' ? item : item.name;
-                        html += `<option value="${val}">${val}</option>`;
-                    });
-                    html += `<option value="Custom">-- Custom / Write-in --</option>`;
-                    selectField.innerHTML = html;
-                    selectField.classList.remove('text-gold', 'border-gold');
-                    selectField.value = "";
-                    return;
+                     list.forEach(item => html += `<option value="${typeof item === 'string' ? item : item.name}">${typeof item === 'string' ? item : item.name}</option>`);
+                     html += `<option value="Custom">-- Custom --</option>`;
+                     selectField.innerHTML = html;
+                     selectField.classList.remove('text-gold');
+                     selectField.value = "";
+                     return;
                 }
             }
 
             // --- PRIMARY PATH LOGIC ---
             if (type === 'disc') {
                 const magicType = isMagicPath(newVal);
-                if (magicType === 'thaum') {
-                    if (!window.state.primaryThaumPath) {
-                        window.state.primaryThaumPath = newVal;
-                        showNotification(`Primary Path set: ${newVal}`);
-                        
-                        // Auto-add free ritual
-                        if (!window.state.rituals) window.state.rituals = [];
-                        if (!window.state.rituals.some(r => r.level === 1)) {
-                             window.state.rituals.push({ name: "Defense of the Sacred Haven", level: 1 });
-                             showNotification("Learned: Defense of the Sacred Haven (Free)");
-                        }
+                if (magicType === 'thaum' && !window.state.primaryThaumPath) {
+                    window.state.primaryThaumPath = newVal;
+                    // Add free ritual
+                    if (!window.state.rituals) window.state.rituals = [];
+                    if (!window.state.rituals.some(r => r.level === 1)) {
+                         window.state.rituals.push({ name: "Defense of the Sacred Haven", level: 1 });
+                         showNotification("Primary Path Set. Learned Lv1 Ritual.");
                     }
-                } else if (magicType === 'necro') {
-                    if (!window.state.primaryNecroPath) {
-                        window.state.primaryNecroPath = newVal;
-                        showNotification(`Primary Necromancy Path set: ${newVal}`);
-                    }
+                } else if (magicType === 'necro' && !window.state.primaryNecroPath) {
+                    window.state.primaryNecroPath = newVal;
                 }
             }
 
             // --- XP & CHANGE LOGIC ---
             if (window.state.xpMode && !curName) {
                 let baseCost = 0;
-                let costType = '';
-                
                 if (type === 'disc') { 
-                    const isThaumPath = isMagicPath(newVal) === 'thaum';
-                    const isNecroPath = isMagicPath(newVal) === 'necro';
-                    const hasPathName = newVal.toLowerCase().includes('path');
-
-                    if (isThaumPath || isNecroPath || hasPathName) {
-                        baseCost = 7;
-                        costType = 'New Path';
-                    } else {
-                        baseCost = 10; 
-                        costType = 'New Discipline'; 
-                    }
-                }
-                else if (isAbil) { 
-                    baseCost = 3; 
-                    costType = 'New Ability'; 
-                }
+                    const isMagic = isMagicPath(newVal);
+                    const isPath = newVal.toLowerCase().includes('path');
+                    baseCost = (isMagic || isPath) ? 7 : 10;
+                } else if (isAbil) baseCost = 3;
                 
                 const totalXP = parseInt(document.getElementById('c-xp-total')?.value) || 0;
                 let spentXP = window.state.xpLog ? window.state.xpLog.reduce((acc, log) => acc + log.cost, 0) : 0;
                 
                 if (baseCost > (totalXP - spentXP)) {
-                    showNotification(`Need ${baseCost} XP for ${costType}.`);
-                    if(selectField) selectField.value = "";
-                    inputField.value = ""; 
+                    showNotification(`Need ${baseCost} XP.`);
+                    if(selectField) selectField.value = ""; else inputField.value = ""; 
                     return;
                 }
 
-                if (!confirm(`Spend ${baseCost} XP to learn ${newVal}?`)) {
-                    if(selectField) selectField.value = "";
-                    inputField.value = "";
+                if (!confirm(`Spend ${baseCost} XP?`)) {
+                    if(selectField) selectField.value = ""; else inputField.value = "";
                     return;
                 }
                 
                  if (!window.state.xpLog) window.state.xpLog = [];
-                 window.state.xpLog.push({
-                    trait: newVal,
-                    old: 0,
-                    new: 1, 
-                    cost: baseCost,
-                    type: type,
-                    date: new Date().toISOString()
-                });
-                
+                 window.state.xpLog.push({ trait: newVal, old: 0, new: 1, cost: baseCost, type: type, date: new Date().toISOString() });
                  window.state.dots[type][newVal] = 1; 
-                 showNotification(`Learned ${newVal} (${baseCost} XP)`);
+                 showNotification(`Learned ${newVal}`);
             }
             else if (curName && curName !== newVal) { 
                 const dots = window.state.dots[type][curName]; delete window.state.dots[type][curName]; 
-                if (window.state.customAbilityCategories && window.state.customAbilityCategories[curName]) delete window.state.customAbilityCategories[curName];
+                if (window.state.customAbilityCategories?.[curName]) delete window.state.customAbilityCategories[curName];
                 if (newVal) window.state.dots[type][newVal] = dots || 0; 
                 
                 if (window.state.primaryThaumPath === curName) window.state.primaryThaumPath = newVal;
                 if (window.state.primaryNecroPath === curName) window.state.primaryNecroPath = newVal;
-                
                 if(window.state.specialties[curName]) { window.state.specialties[newVal] = window.state.specialties[curName]; delete window.state.specialties[curName]; }
             } else if (!curName && newVal && !window.state.xpMode) {
                  window.state.dots[type][newVal] = 0; 
@@ -346,7 +312,6 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
             curName = newVal;
             if (newVal) { 
                 if (window.state.dots[type][newVal] === undefined) window.state.dots[type][newVal] = window.state.xpMode ? 1 : 0;
-
                 dotCont.innerHTML = renderDots(window.state.dots[type][newVal], 5);
                 dotCont.dataset.n = newVal; dotCont.dataset.t = type;
                 if (category) { if (!window.state.customAbilityCategories) window.state.customAbilityCategories = {}; window.state.customAbilityCategories[newVal] = category; }
@@ -357,7 +322,7 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                 }
             }
             updatePools();
-            renderPrintSheet();
+            if(renderPrintSheet) renderPrintSheet();
         };
         
         if (selectField) {
@@ -367,58 +332,47 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                     selectField.style.display = 'none';
                     inputField.style.display = 'block';
                     inputField.focus();
-                    inputField.value = ""; 
-                } else if (val) {
-                    onUpdate(val);
-                }
+                    inputField.value = "";
+                } else if (val) onUpdate(val);
             };
             inputField.onblur = (e) => {
                 const val = e.target.value;
-                if (!val && !curName) {
-                    inputField.style.display = 'none';
-                    selectField.style.display = 'block';
-                    selectField.value = "";
-                } else {
-                    onUpdate(val);
-                }
+                if (!val && !curName) { inputField.style.display = 'none'; selectField.style.display = 'block'; selectField.value = ""; } else onUpdate(val);
             };
         } else {
-            if (isAbil) inputField.onblur = (e) => onUpdate(e.target.value); 
-            else inputField.onchange = (e) => onUpdate(e.target.value);
+            if (isAbil) inputField.onblur = (e) => onUpdate(e.target.value); else inputField.onchange = (e) => onUpdate(e.target.value);
         }
 
         removeBtn.onclick = () => { 
             if (curName) { 
                 delete window.state.dots[type][curName]; 
-                if (window.state.customAbilityCategories && window.state.customAbilityCategories[curName]) delete window.state.customAbilityCategories[curName]; 
+                if (window.state.customAbilityCategories?.[curName]) delete window.state.customAbilityCategories[curName]; 
                 if (window.state.primaryThaumPath === curName) delete window.state.primaryThaumPath;
                 if (window.state.primaryNecroPath === curName) delete window.state.primaryNecroPath;
             } 
             row.remove(); 
             updatePools(); 
             if(type==='back') renderSocialProfile(); 
-            renderPrintSheet(); 
+            if(renderPrintSheet) renderPrintSheet(); 
+            renderDynamicAdvantageRow(containerId, type, list, isAbil);
         };
         
         dotCont.onclick = (e) => { 
             if (!curName || !e.target.dataset.v) return; 
             const newDots = parseInt(e.target.dataset.v);
             
+            // Limit secondary paths to not exceed primary
             if (type === 'disc') {
                 const isThaum = isMagicPath(curName) === 'thaum';
                 if (isThaum && window.state.primaryThaumPath) {
                     const primaryName = window.state.primaryThaumPath;
                     const primaryRating = window.state.dots.disc[primaryName] || 0;
-                    
-                    if (curName !== primaryName) {
-                        if (primaryRating < 5 && newDots >= primaryRating) {
-                            showNotification("Secondary Path cannot equal or exceed Primary Path.");
-                            return; 
-                        }
+                    if (curName !== primaryName && primaryRating < 5 && newDots >= primaryRating) {
+                        showNotification("Secondary Path cannot exceed Primary Path.");
+                        return; 
                     }
                 }
             }
-
             setDots(curName, type, newDots, 0, 5);
         };
 
@@ -428,7 +382,7 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
         container.appendChild(row);
     };
 
-    // --- SORTING AND GROUPING LOGIC ---
+    // --- SORTING AND GROUPING FOR RENDERING ---
     if (type === 'disc') {
         const standardDiscs = [];
         const thaumPaths = [];
@@ -446,15 +400,17 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
 
         // 2. Thaumaturgy Block
         if (thaumPaths.length > 0) {
+            // Determine Primary
             if (!window.state.primaryThaumPath || !thaumPaths.includes(window.state.primaryThaumPath)) {
-                window.state.primaryThaumPath = thaumPaths[0]; // Default to first
+                window.state.primaryThaumPath = thaumPaths[0]; // Default to first if not set
             }
             const prim = window.state.primaryThaumPath;
             
-            // HEADER
+            // Render Header (Value linked to Primary Path)
             buildParentHeader("Thaumaturgy", prim, thaumPaths);
             
-            // PATHS (Indented)
+            // Render All Paths (indented)
+            // Primary first, then others
             const sortedThaum = [prim, ...thaumPaths.filter(p => p !== prim)];
             sortedThaum.forEach(path => buildRow(path, true)); 
         }
@@ -465,11 +421,7 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                 window.state.primaryNecroPath = necroPaths[0];
             }
             const prim = window.state.primaryNecroPath;
-            
-            // HEADER
             buildParentHeader("Necromancy", prim, necroPaths);
-            
-            // PATHS (Indented)
             const sortedNecro = [prim, ...necroPaths.filter(p => p !== prim)];
             sortedNecro.forEach(path => buildRow(path, true));
         }
