@@ -662,6 +662,7 @@ function renderDetailedDisciplines() {
         
         container = document.createElement('div');
         container.id = 'detailed-disciplines-list';
+        // CHANGE 1: Grid Layout (2 Columns)
         container.className = 'grid grid-cols-1 md:grid-cols-2 gap-6 mt-4';
         
         section.appendChild(container);
@@ -674,6 +675,8 @@ function renderDetailedDisciplines() {
     
     // Safety check for data
     const safeData = typeof DISCIPLINES_DATA !== 'undefined' ? DISCIPLINES_DATA : {};
+
+    // Get learned disciplines
     const learned = Object.entries(window.state.dots.disc).filter(([name, val]) => val > 0);
 
     if (learned.length === 0) {
@@ -682,9 +685,11 @@ function renderDetailedDisciplines() {
     }
 
     learned.forEach(([name, val]) => {
+        // Normalize lookup
         const cleanName = name.trim();
         let data = safeData[cleanName];
         
+        // Case-insensitive fallback
         if (!data) {
              const key = Object.keys(safeData).find(k => k.toLowerCase() === cleanName.toLowerCase());
              if(key) data = safeData[key];
@@ -693,6 +698,7 @@ function renderDetailedDisciplines() {
         const discBlock = document.createElement('div');
         discBlock.className = 'bg-black/40 border border-[#333] p-3 rounded flex flex-col h-fit';
         
+        // Header (Name + Dots)
         discBlock.innerHTML = `
             <div class="flex justify-between items-center border-b border-[#555] pb-2 mb-2">
                 <h3 class="text-base text-[#d4af37] font-cinzel font-bold uppercase tracking-widest truncate mr-2">${name}</h3>
@@ -711,12 +717,15 @@ function renderDetailedDisciplines() {
                     const pDiv = document.createElement('div');
                     pDiv.className = 'border border-[#333] bg-[#111] rounded overflow-hidden';
                     
+                    // Power Header (Always Visible)
                     const pHeader = document.createElement('div');
                     pHeader.className = "flex justify-between items-center p-2 cursor-pointer hover:bg-[#222] transition-colors";
                     
+                    // Roll Button Logic
                     let rollHtml = '';
                     if (power.roll) {
                          const poolStr = JSON.stringify(power.roll.pool).replace(/"/g, "'");
+                         // Note: e.stopPropagation() is crucial here so clicking roll doesn't toggle accordion
                          rollHtml = `<button onclick="event.stopPropagation(); window.rollDiscipline('${power.name}', ${poolStr}, ${power.roll.defaultDiff})" class="bg-[#333] border border-gray-600 text-gray-300 hover:text-white hover:border-[#d4af37] text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-wider transition-all shadow-sm hover:shadow-gold flex-shrink-0 ml-2"><i class="fas fa-dice-d20"></i></button>`;
                     }
 
@@ -730,6 +739,7 @@ function renderDetailedDisciplines() {
                         ${rollHtml}
                     `;
 
+                    // Power Details (Hidden by Default)
                     const pDetails = document.createElement('div');
                     pDetails.className = "hidden p-2 border-t border-[#333] bg-black/50 text-[10px]";
                     pDetails.innerHTML = `
@@ -737,6 +747,7 @@ function renderDetailedDisciplines() {
                         <div class="text-gray-500 font-mono"><span class="text-[#d4af37] font-bold">System:</span> ${power.system}</div>
                     `;
 
+                    // Toggle Logic
                     pHeader.onclick = () => {
                         const isHidden = pDetails.classList.contains('hidden');
                         if (isHidden) {
@@ -764,12 +775,13 @@ function renderDetailedDisciplines() {
     });
 }
 
-// --- NPC TAB RENDERER ---
+// --- NPC TAB RENDERER (Was Retainers) ---
 
 export function renderNpcTab() {
     const container = document.getElementById('play-mode-6');
     if (!container) return;
     
+    // Ensure data exists
     const retainers = window.state.retainers || [];
 
     let html = `
@@ -796,6 +808,7 @@ export function renderNpcTab() {
     html += `<div class="grid grid-cols-1 gap-4">`;
 
     retainers.forEach((npc, index) => {
+        // Safely handle potentially missing fields
         const name = npc.name || "Unnamed";
         
         let displayType = "Unknown";
@@ -805,10 +818,13 @@ export function renderNpcTab() {
         } else if (npc.template === 'mortal') {
             displayType = "Mortal";
         } else {
+            // Default/Ghoul
             displayType = npc.type || "Ghoul";
         }
         
         const concept = npc.concept || "";
+        
+        // Removed Quick stats for summary per user request
         
         html += `
             <div class="bg-gray-900 border border-gray-700 rounded p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 hover:border-red-900/50 transition-colors">
@@ -840,17 +856,21 @@ export function renderNpcTab() {
     html += `</div></div>`;
     container.innerHTML = html;
 }
-window.renderNpcTab = renderNpcTab; 
-window.renderRetainersTab = renderNpcTab; // Backward Compatibility
+window.renderNpcTab = renderNpcTab; // Assign to window for call by changeStep
+// Backwards compatibility alias if needed by other modules
+window.renderRetainersTab = renderNpcTab; 
 
 // --- NPC HELPERS ---
 window.editNpc = function(index) {
     if (window.state.retainers && window.state.retainers[index]) {
+        // Pass the actual object and the index
+        // Default to 'ghoul' template if not specified (backward compatibility)
         const npc = window.state.retainers[index];
         const type = npc.template || 'ghoul';
         if(window.openNpcCreator) window.openNpcCreator(type, npc, index);
     }
 };
+// Backward compat alias
 window.editRetainer = window.editNpc;
 
 window.viewNpc = function(index) {
@@ -865,11 +885,14 @@ window.deleteNpc = function(index) {
     if(confirm("Permanently release this NPC? This cannot be undone.")) {
         if(window.state.retainers) {
             window.state.retainers.splice(index, 1);
+            // Re-render
             renderNpcTab();
+            // Trigger auto-save if available
             if(window.performSave) window.performSave(true); 
         }
     }
 };
+// Backward compat alias
 window.deleteRetainer = window.deleteNpc;
 
 // --- RITUALS PLAY VIEW ---
@@ -891,7 +914,8 @@ export function updateRitualsPlayView() {
 
     let html = '';
     Object.keys(byLevel).sort((a,b) => a-b).forEach(lvl => {
-        html += `<div class="mb-2"><span class="text-[#d4af37] font-bold text-[10px] uppercase block border-b border-[#333] mb-1">Level ${lvl}</span>`;
+        // CHANGED: Added "Rituals" to the header text
+        html += `<div class="mb-2"><span class="text-[#d4af37] font-bold text-[10px] uppercase block border-b border-[#333] mb-1">Level ${lvl} Rituals</span>`;
         byLevel[lvl].forEach(name => {
             html += `<div class="text-xs text-gray-300 ml-2">• ${name}</div>`;
         });
