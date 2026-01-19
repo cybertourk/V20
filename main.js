@@ -13,6 +13,9 @@ import {
     CLAN_WEAKNESSES, CLAN_DISCIPLINES, GEN_LIMITS 
 } from "./data.js";
 import * as FBManager from "./firebase-manager.js";
+
+// --- UI IMPORTS (REFACTORED) ---
+// 1. Core Renderers (Still in ui-renderer.js)
 import { 
     renderDots, 
     renderSocialProfile, 
@@ -20,16 +23,24 @@ import {
     renderRow, 
     refreshTraitRow,
     hydrateInputs, 
+    renderInventoryList, 
+    setDots
+} from "./ui-renderer.js"; 
+
+// 2. New Modules (Split from ui-nav.js)
+import { 
     renderDynamicAdvantageRow, 
     renderDynamicTraitRow, 
     renderDerangementsList, 
     renderBloodBondRow, 
-    renderDynamicHavenRow, 
-    renderInventoryList, 
-    updateWalkthrough,
-    setDots,
-    renderPrintSheet 
-} from "./ui-renderer.js"; 
+    renderDynamicHavenRow,
+    renderRitualsEdit 
+} from "./ui-advantages.js";
+
+import { renderPrintSheet } from "./ui-print.js";
+import { togglePlayMode } from "./ui-play.js";
+import { changeStep, updateWalkthrough } from "./ui-nav.js";
+
 import { openGhoulCreator } from "./ghoul-creator.js";
 
 // --- NEW DATA IMPORTS & MERGING ---
@@ -197,7 +208,7 @@ window.fullRefresh = function() {
         // 1. Text Fields
         hydrateInputs();
         
-        // 2. Dynamic Rows
+        // 2. Dynamic Rows (Using imported functions from ui-advantages.js)
         renderDynamicAdvantageRow('list-disc', 'disc', DISCIPLINES);
         renderDynamicAdvantageRow('list-back', 'back', BACKGROUNDS);
         renderDynamicAdvantageRow('custom-talents', 'abil', [], true);
@@ -209,6 +220,7 @@ window.fullRefresh = function() {
         renderInventoryList();
         renderDynamicTraitRow('merits-list-create', 'Merit', V20_MERITS_LIST);
         renderDynamicTraitRow('flaws-list-create', 'Flaw', V20_FLAWS_LIST);
+        if(renderRitualsEdit) renderRitualsEdit();
         
         // 3. Priority Buttons
         if (window.state.prios) {
@@ -258,7 +270,7 @@ window.fullRefresh = function() {
         if (window.updatePools) window.updatePools();
         if (renderPrintSheet) renderPrintSheet();
 
-        // 9. SMART AUTOFILL PROTECTION (FIXED)
+        // 9. SMART AUTOFILL PROTECTION
         setTimeout(() => {
             const inputs = document.querySelectorAll('#sheet-content input[type="text"], #sheet-content textarea, #sheet-content input[type="number"]');
             inputs.forEach(input => {
@@ -273,7 +285,7 @@ window.fullRefresh = function() {
         console.log("UI Refresh Complete.");
         
         // Restore Phase
-        if(window.state.furthestPhase) window.changeStep(window.state.furthestPhase);
+        if(window.state.furthestPhase) changeStep(window.state.furthestPhase);
 
     } catch(e) {
         console.error("Refresh Error:", e);
@@ -441,8 +453,9 @@ function initUI() {
         // REMOVED cmd-ghoul handler
         const confirmSave = document.getElementById('confirm-save-btn');
         if(confirmSave) confirmSave.onclick = window.performSave;
+        
         const topPlayBtn = document.getElementById('play-mode-btn');
-        if(topPlayBtn) topPlayBtn.onclick = window.togglePlayMode;
+        if(topPlayBtn) topPlayBtn.onclick = togglePlayMode; // Updated to use imported function
         
         // --- LOCAL FILE HANDLERS (Export/Import/Print) ---
         const exportBtn = document.getElementById('export-btn');
@@ -600,7 +613,7 @@ function initUI() {
             window.updatePools();
         });
 
-        window.changeStep(1); 
+        changeStep(1); 
 
     } catch(e) {
         console.error("UI Init Error:", e);
