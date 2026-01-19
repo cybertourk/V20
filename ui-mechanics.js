@@ -13,6 +13,9 @@ import {
     renderDots, renderBoxes, showNotification, setSafeText, renderSocialProfile 
 } from "./ui-common.js";
 
+// --- NEW IMPORT FOR PRINT SHEET SYNC ---
+import { renderPrintSheet } from "./ui-print.js";
+
 
 // --- CLAN MECHANICS UI HELPER ---
 function updateClanMechanicsUI() {
@@ -252,7 +255,7 @@ window.addBeastTrait = function() {
     
     const panel = document.getElementById('gangrel-beast-panel');
     if(panel) renderGangrelPanel(panel);
-    if(window.renderPrintSheet) window.renderPrintSheet();
+    if(renderPrintSheet) renderPrintSheet();
 };
 
 window.removeBeastTrait = function(idx) {
@@ -260,7 +263,7 @@ window.removeBeastTrait = function(idx) {
         window.state.beastTraits.splice(idx, 1);
         const panel = document.getElementById('gangrel-beast-panel');
         if(panel) renderGangrelPanel(panel);
-        if(window.renderPrintSheet) window.renderPrintSheet();
+        if(renderPrintSheet) renderPrintSheet();
     }
 };
 
@@ -287,7 +290,7 @@ window.addDerangement = function() {
     if(input) input.value = '';
     
     if(window.renderSocialProfile) window.renderSocialProfile(); 
-    if(window.renderPrintSheet) window.renderPrintSheet();
+    if(renderPrintSheet) renderPrintSheet();
     if(window.renderBioTab) window.renderBioTab();
 };
 
@@ -302,7 +305,7 @@ window.removeDerangement = function(idx) {
     if(confirm("Remove this Derangement?")) {
         window.state.derangements.splice(idx, 1);
         if(window.renderSocialProfile) window.renderSocialProfile();
-        if(window.renderPrintSheet) window.renderPrintSheet();
+        if(renderPrintSheet) renderPrintSheet();
         if(window.renderBioTab) window.renderBioTab();
     }
 };
@@ -311,6 +314,7 @@ window.suppressDerangement = function() {
     if ((window.state.status.tempWillpower || 0) > 0) {
         window.state.status.tempWillpower--;
         updatePools(); // Update WP dots/boxes
+        if(renderPrintSheet) renderPrintSheet();
         showNotification("Spent 1 WP: Derangements suppressed for 1 Scene.");
     } else {
         showNotification("Not enough Willpower!");
@@ -897,7 +901,7 @@ export function applyDamage(typeStr) {
     
     window.state.status.health_states = newStates;
     
-    if(window.renderPrintSheet) window.renderPrintSheet();
+    if(renderPrintSheet) renderPrintSheet();
     updatePools(); 
 }
 window.applyDamage = applyDamage;
@@ -1006,7 +1010,7 @@ export function healOneLevel() {
     }
     window.state.status.health_states = newStates;
     
-    if(window.renderPrintSheet) window.renderPrintSheet();
+    if(renderPrintSheet) renderPrintSheet();
     updatePools();
     showNotification("Healed 1 wound level (1 BP).");
 }
@@ -1311,6 +1315,9 @@ export function updatePools() {
 
     // --- CLAN MECHANICS UPDATE ---
     updateClanMechanicsUI();
+    
+    // --- FINAL RENDER SYNC ---
+    if(renderPrintSheet) renderPrintSheet();
 }
 window.updatePools = updatePools;
 
@@ -1394,7 +1401,10 @@ export function refreshTraitRow(label, type, targetEl) {
     if(showSpecialty && (!window.state.isPlayMode || (window.state.isPlayMode && window.state.specialties[label]))) {
         const input = rowDiv.querySelector('input');
         if(input) {
-            input.onblur = (e) => { window.state.specialties[label] = e.target.value; if(window.renderPrintSheet) window.renderPrintSheet(); };
+            input.onblur = (e) => { 
+                window.state.specialties[label] = e.target.value; 
+                if(renderPrintSheet) renderPrintSheet(); 
+            };
             if (warningMsg) { input.onfocus = () => window.showNotification(warningMsg); }
             input.disabled = window.state.isPlayMode;
         }
@@ -1477,7 +1487,7 @@ export function setDots(name, type, val, min, max = 5) {
                 
                 window.showNotification(`Refunded ${name} to ${val}`);
                 updatePools();
-                if(window.renderPrintSheet) window.renderPrintSheet();
+                if(renderPrintSheet) renderPrintSheet();
                 return;
             } else {
                 window.showNotification("Cannot refund: Trait not raised with XP (or history lost).");
@@ -1538,7 +1548,7 @@ export function setDots(name, type, val, min, max = 5) {
 
         window.showNotification(`Purchased ${name} ${val} (${cost} XP)`);
         updatePools(); // Refresh UI including sidebar
-        if(window.renderPrintSheet) window.renderPrintSheet();
+        if(renderPrintSheet) renderPrintSheet();
         
         return;
     }
@@ -1559,7 +1569,7 @@ export function setDots(name, type, val, min, max = 5) {
             window.state.status.tempWillpower = val;
         }
         updatePools(); 
-        if(window.renderPrintSheet) window.renderPrintSheet();
+        if(renderPrintSheet) renderPrintSheet();
         return;
     }
 
@@ -1648,6 +1658,6 @@ export function setDots(name, type, val, min, max = 5) {
     }
     updatePools();
     if(type === 'back') renderSocialProfile();
-    if(window.renderPrintSheet) window.renderPrintSheet();
+    if(renderPrintSheet) renderPrintSheet();
 }
 window.setDots = setDots;
