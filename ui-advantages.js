@@ -243,15 +243,12 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
 
                 if (newVal === 'BACK_TO_MAIN') {
                      let html = `<option value="">-- Select --</option>`;
-                     list.forEach(item => {
-                        const val = typeof item === 'string' ? item : item.name;
-                        html += `<option value="${val}">${val}</option>`;
-                    });
-                    html += `<option value="Custom">-- Custom / Write-in --</option>`;
-                    selectField.innerHTML = html;
-                    selectField.classList.remove('text-gold', 'border-gold');
-                    selectField.value = "";
-                    return;
+                     list.forEach(item => html += `<option value="${typeof item === 'string' ? item : item.name}">${typeof item === 'string' ? item : item.name}</option>`);
+                     html += `<option value="Custom">-- Custom --</option>`;
+                     selectField.innerHTML = html;
+                     selectField.classList.remove('text-gold', 'border-gold');
+                     selectField.value = "";
+                     return;
                 }
             }
 
@@ -274,8 +271,6 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
             // --- XP & CHANGE LOGIC ---
             if (window.state.xpMode && !curName) {
                 let baseCost = 0;
-                let costType = '';
-                
                 if (type === 'disc') { 
                     const isMagic = isMagicPath(newVal);
                     const isPath = newVal.toLowerCase().includes('path');
@@ -370,7 +365,7 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                     const primaryName = window.state.primaryThaumPath;
                     const primaryRating = window.state.dots.disc[primaryName] || 0;
                     if (curName !== primaryName && primaryRating < 5 && newDots >= primaryRating) {
-                        showNotification("Secondary Path cannot equal or exceed Primary Path.");
+                        showNotification("Secondary Path cannot exceed Primary Path.");
                         return; 
                     }
                 }
@@ -490,7 +485,7 @@ export function renderRitualsEdit() {
             // Iterate Levels 1 to MaxLevel
             for (let i = 1; i <= maxLevel; i++) {
                 if (window.RITUALS_DATA.Thaumaturgy && window.RITUALS_DATA.Thaumaturgy[i]) {
-                    // CHANGED: Update optgroup label
+                    // CHANGED: Update optgroup label to include "Rituals"
                     ritualOptions += `<optgroup label="Level ${i} Rituals">`;
                     Object.values(window.RITUALS_DATA.Thaumaturgy[i]).forEach(r => {
                         const sel = nameVal === r.name ? 'selected' : '';
@@ -614,9 +609,6 @@ function isKnownRitual(name) {
     }
     return false;
 }
-
-// ... [Existing renderDynamicTraitRow, renderBloodBondRow, etc. unchanged] ...
-// (I will include them in the final block to ensure file integrity)
 
 export function renderDynamicTraitRow(containerId, type, list) {
     const container = document.getElementById(containerId);
