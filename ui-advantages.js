@@ -43,7 +43,7 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
         return false;
     };
 
-    // --- PARENT HEADER BUILDER (Visual Only container for Primary Path rating) ---
+    // --- PARENT HEADER BUILDER (The "Thaumaturgy: ●●●" Row) ---
     const buildParentHeader = (label, primaryKey, allChildKeys) => {
         const row = document.createElement('div');
         row.className = 'flex justify-between items-center mb-1 advantage-row bg-[#1a1a1a] p-1 rounded border border-[#333]';
@@ -333,8 +333,8 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                 const val = e.target.value;
                 if (val === 'Custom') {
                     selectField.style.display = 'none';
-                    inputField.style.display = 'block';
-                    inputField.focus();
+                    input.style.display = 'block';
+                    input.focus();
                     inputField.value = ""; 
                 } else if (val) onUpdate(val);
             };
@@ -363,6 +363,7 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
             if (!curName || !e.target.dataset.v) return; 
             const newDots = parseInt(e.target.dataset.v);
             
+            // Limit secondary paths to not exceed primary
             if (type === 'disc') {
                 const isThaum = isMagicPath(curName) === 'thaum';
                 if (isThaum && window.state.primaryThaumPath) {
@@ -486,13 +487,11 @@ export function renderRitualsEdit() {
         // --- RITUAL DROPDOWN ---
         let ritualOptions = `<option value="">-- Select Ritual --</option>`;
         if (window.RITUALS_DATA) {
-            // Group by School or Level? Level is key.
-            // But we need to flatten it for the dropdown or use optgroups
-            
             // Iterate Levels 1 to MaxLevel
             for (let i = 1; i <= maxLevel; i++) {
                 if (window.RITUALS_DATA.Thaumaturgy && window.RITUALS_DATA.Thaumaturgy[i]) {
-                    ritualOptions += `<optgroup label="Level ${i} (Thaumaturgy)">`;
+                    // CHANGED: Update optgroup label
+                    ritualOptions += `<optgroup label="Level ${i} Rituals">`;
                     Object.values(window.RITUALS_DATA.Thaumaturgy[i]).forEach(r => {
                         const sel = nameVal === r.name ? 'selected' : '';
                         ritualOptions += `<option value="${r.name}" data-lvl="${i}" ${sel}>${r.name}</option>`;
