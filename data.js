@@ -416,3 +416,6 @@ export const GEAR = [
     "Binoculars", "Laptop", "First Aid Kit", "Crowbar", "Duct Tape",
     "Backpack", "Camera", "GPS Receiver", "Multi-tool"
 ];
+
+// --- ADDED MISSING EXPORT ---
+export const V20_VEHICLES = V20_VEHICLE_LIST;
