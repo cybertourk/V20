@@ -102,7 +102,7 @@ export function setupInventoryListeners() {
             let source = [];
             if(t==='Weapon') source = V20_WEAPONS_LIST;
             if(t==='Armor') source = V20_ARMOR_LIST;
-            if(t==='Vehicle') source = V20_VEHICLE_LIST;
+            if(t==='Vehicle') source = V20_VEHICLES_LIST;
             source.forEach((item, i) => { baseSelect.add(new Option(item.name, i)); });
         } else {
             baseWrapper.classList.add('hidden');
@@ -117,7 +117,7 @@ export function setupInventoryListeners() {
         let item = null;
         if(t==='Weapon') item = V20_WEAPONS_LIST[idx];
         if(t==='Armor') item = V20_ARMOR_LIST[idx];
-        if(t==='Vehicle') item = V20_VEHICLE_LIST[idx];
+        if(t==='Vehicle') item = V20_VEHICLES_LIST[idx];
         
         if (item) {
             document.getElementById('inv-name').value = item.name;
