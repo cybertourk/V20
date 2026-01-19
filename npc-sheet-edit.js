@@ -351,7 +351,7 @@ export function renderEditorModal() {
             
             if (t === 'Weapon') list = [...(WEAPONS||[]), ...(RANGED_WEAPONS||[])];
             else if (t === 'Armor') list = ARMOR || [];
-            else if (t === 'Vehicle') list = V20_VEHICLE_LIST || [];
+            else if (t === 'Vehicle') list = V20_VEHICLES_LIST || [];
             // GEAR intentionally left blank so list remains empty and wrapper hides
             
             if(list.length > 0) {
