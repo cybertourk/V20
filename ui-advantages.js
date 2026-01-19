@@ -34,26 +34,23 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
     } else { if (window.state.dots[type]) existingItems = Object.keys(window.state.dots[type]); }
 
     // --- THAUMATURGY / NECROMANCY HELPER ---
-    // Identify if a discipline name corresponds to a known path
     const isMagicPath = (name) => {
         if (!name) return false;
         const n = name.toLowerCase();
-        // Check Data files
         if (THAUMATURGY_DATA && Object.keys(THAUMATURGY_DATA).some(k => k.toLowerCase() === n)) return 'thaum';
         if (NECROMANCY_DATA && Object.keys(NECROMANCY_DATA).some(k => k.toLowerCase() === n)) return 'necro';
-        // Heuristics
         if (n.includes('path') || n.includes('lure of') || n.includes('gift of') || n.includes('weather control') || n.includes('movement of the mind')) return 'thaum'; 
         return false;
     };
 
-    // --- PARENT ROW BUILDER (For Thaumaturgy/Necromancy Headers) ---
-    const buildParentRow = (label, primaryKey, allChildKeys) => {
+    // --- PARENT HEADER BUILDER (The "Thaumaturgy: ●●●" Row) ---
+    const buildParentHeader = (label, primaryKey, allChildKeys) => {
         const row = document.createElement('div');
-        row.className = 'flex justify-between items-center mb-1 advantage-row parent-row bg-[#111] p-1 rounded border border-[#333]';
+        row.className = 'flex justify-between items-center mb-1 advantage-row bg-[#1a1a1a] p-1 rounded border border-[#333]';
 
         // Title Section
         const titleDiv = document.createElement('div');
-        titleDiv.className = 'flex-1 font-cinzel font-bold text-[#d4af37] text-sm flex items-center gap-2';
+        titleDiv.className = 'flex-1 font-cinzel font-bold text-[#d4af37] text-sm flex items-center gap-2 pl-1';
         titleDiv.innerHTML = `<i class="fas fa-book-open text-[10px]"></i> ${label}`;
         
         // Dots (Linked to Primary Path)
@@ -61,28 +58,25 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
         dotCont.className = 'dot-row flex-shrink-0';
         const val = primaryKey ? (window.state.dots.disc[primaryKey] || 0) : 0;
         dotCont.innerHTML = renderDots(val, 5);
-        dotCont.dataset.n = primaryKey; // Link clicks to primary path
-        dotCont.dataset.t = type;
+        dotCont.title = `Primary Path Rating (${primaryKey || 'None'})`;
         
         // Click Logic for Parent Dots (Edits Primary Path)
         dotCont.onclick = (e) => {
             if (!primaryKey || !e.target.dataset.v) return;
-            // Pass through to setDots targeting the primary key
             setDots(primaryKey, type, parseInt(e.target.dataset.v), 0, 5);
         };
 
         // Remove Button (Deletes ALL paths of this type)
         const removeBtn = document.createElement('div');
         removeBtn.className = 'remove-btn flex-shrink-0 ml-2 text-red-500 hover:text-red-300 cursor-pointer';
-        removeBtn.innerHTML = '<i class="fas fa-trash"></i>';
-        removeBtn.title = "Remove Discipline and all Paths";
+        removeBtn.innerHTML = '&times;';
+        removeBtn.title = `Remove ${label} and all paths`;
         
-        if (window.state.xpMode) removeBtn.style.visibility = 'hidden'; // Hard to calculate refund for bulk delete, safer to hide
+        if (window.state.xpMode) removeBtn.style.visibility = 'hidden'; 
         
         removeBtn.onclick = () => {
             if (confirm(`Remove ${label} and all learned paths?`)) {
                 allChildKeys.forEach(k => delete window.state.dots.disc[k]);
-                // Clear Primary Preference
                 if (label === 'Thaumaturgy') delete window.state.primaryThaumPath;
                 if (label === 'Necromancy') delete window.state.primaryNecroPath;
                 
@@ -98,16 +92,15 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
         container.appendChild(row);
     };
 
+    // --- STANDARD ROW BUILDER ---
     const buildRow = (name = null, isChild = false) => {
         const row = document.createElement('div');
-        
-        // Standard Row Classes
         row.className = 'flex justify-between items-center mb-1 advantage-row';
         
-        // Child Indentation Styles
+        // Indentation for children (Sub-Disciplines)
         if (isChild) {
-            row.classList.add('ml-6', 'pl-2', 'border-l', 'border-[#444]', 'pr-1');
-            row.style.width = "calc(100% - 1.5rem)";
+            row.classList.add('ml-4', 'pl-3', 'border-l-2', 'border-[#333]', 'pr-1');
+            row.style.width = "calc(100% - 1rem)";
         }
 
         const specWrapper = document.createElement('div');
@@ -119,18 +112,20 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
         // Visual check for Primary
         const isPrimaryThaum = type === 'disc' && name && window.state.primaryThaumPath === name;
         const isPrimaryNecro = type === 'disc' && name && window.state.primaryNecroPath === name;
+        const isPrimary = isPrimaryThaum || isPrimaryNecro;
 
         // --- DROPDOWN VS INPUT LOGIC ---
         if (list && list.length > 0) {
             selectField = document.createElement('select');
             selectField.className = 'w-full bg-[#111] border-b border-[#333] text-xs font-bold text-white uppercase focus:border-gold outline-none';
-            if (isChild) selectField.classList.add('text-gray-300', 'italic'); 
-            if (isPrimaryThaum || isPrimaryNecro) selectField.classList.add('text-[#d4af37]', 'not-italic');
+            if (isChild) selectField.classList.add('text-gray-400', 'italic', 'text-[11px]'); 
+            if (isPrimary) selectField.classList.add('text-[#d4af37]', 'not-italic', 'font-black');
 
             let html = `<option value="">-- Select --</option>`;
             list.forEach(item => {
                 const val = typeof item === 'string' ? item : item.name;
                 const isSelected = name === val;
+                // For sub-menus (new rows), exclude already selected items could be cleaner, but standard behavior allows re-selection
                 html += `<option value="${val}" ${isSelected ? 'selected' : ''}>${val}</option>`;
             });
             const isCustom = name && !list.includes(name);
@@ -140,8 +135,8 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
             inputField = document.createElement('input');
             inputField.type = 'text';
             inputField.className = 'w-full bg-transparent border-b border-[#333] text-xs font-bold text-white uppercase focus:border-gold outline-none';
-            if (isChild) inputField.classList.add('text-gray-300', 'italic');
-            if (isPrimaryThaum || isPrimaryNecro) inputField.classList.add('text-[#d4af37]', 'not-italic');
+            if (isChild) inputField.classList.add('text-gray-300', 'italic', 'text-[11px]');
+            if (isPrimary) inputField.classList.add('text-[#d4af37]', 'not-italic', 'font-black');
             
             inputField.placeholder = "Name...";
             inputField.value = name || "";
@@ -169,13 +164,12 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
             inputField.placeholder = "Name...";
             inputField.value = name || "";
             if (window.state.isPlayMode) inputField.disabled = true;
-            if (isPrimaryThaum || isPrimaryNecro) inputField.classList.add('text-[#d4af37]');
+            if (isPrimary) inputField.classList.add('text-[#d4af37]', 'font-black');
 
             specWrapper.appendChild(inputField);
         }
 
-        if (isPrimaryThaum) (selectField || inputField).title = "Primary Thaumaturgy Path";
-        if (isPrimaryNecro) (selectField || inputField).title = "Primary Necromancy Path";
+        if (isPrimary) (selectField || inputField).title = "Primary Path";
 
         // Specialty Logic
         if (isAbil && name) {
@@ -216,64 +210,60 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
         const onUpdate = (newVal) => {
             if (!newVal) return;
 
-            // --- THAUMATURGY & NECROMANCY DROPDOWN INTERCEPTOR ---
-            // Allows user to pick a path from a sub-menu instead of a prompt
+            // --- DROPDOWN SUB-MENU INTERCEPTOR (THE CORE FEATURE) ---
             if (type === 'disc' && selectField && selectField.style.display !== 'none') {
                 const lower = newVal.toLowerCase();
                 
-                // Switch to Thaumaturgy Paths
+                // 1. If user selected "Thaumaturgy", show Paths instead
                 if (lower === 'thaumaturgy') {
-                    const paths = THAUMATURGY_DATA ? Object.keys(THAUMATURGY_DATA) : ["The Path of Blood", "Lure of Flames", "Movement of the Mind", "The Path of Conjuring", "Hands of Destruction"];
+                    const paths = THAUMATURGY_DATA ? Object.keys(THAUMATURGY_DATA) : ["The Path of Blood"];
                     
                     let html = `<option value="">-- Select Path --</option>`;
                     paths.forEach(p => html += `<option value="${p}">${p}</option>`);
-                    html += `<option value="BACK_TO_MAIN">-- Back to Disciplines --</option>`;
+                    html += `<option value="BACK_TO_MAIN">-- Back --</option>`;
                     
                     selectField.innerHTML = html;
-                    selectField.classList.add('text-[#d4af37]', 'border-[#d4af37]');
-                    selectField.value = ""; // Reset value to wait for user selection
-                    return; // Stop processing, wait for next change event
+                    selectField.classList.add('text-gold', 'border-gold'); // Highlight to show we are in sub-menu
+                    selectField.value = ""; // Reset to force a fresh 'change' event on next pick
+                    return; // EXIT FUNCTION: Do not create a trait called "Thaumaturgy"
                 }
 
-                // Switch to Necromancy Paths
+                // 2. If user selected "Necromancy", show Paths instead
                 if (lower === 'necromancy') {
-                    const paths = NECROMANCY_DATA ? Object.keys(NECROMANCY_DATA) : ["The Sepulchre Path", "The Bone Path", "The Ash Path"];
-                    
+                    const paths = NECROMANCY_DATA ? Object.keys(NECROMANCY_DATA) : ["The Sepulchre Path"];
                     let html = `<option value="">-- Select Path --</option>`;
                     paths.forEach(p => html += `<option value="${p}">${p}</option>`);
-                    html += `<option value="BACK_TO_MAIN">-- Back to Disciplines --</option>`;
-                    
+                    html += `<option value="BACK_TO_MAIN">-- Back --</option>`;
                     selectField.innerHTML = html;
-                    selectField.classList.add('text-[#d4af37]', 'border-[#d4af37]');
+                    selectField.classList.add('text-gold', 'border-gold');
                     selectField.value = "";
                     return;
                 }
 
-                // Handle Back Button
+                // 3. Handle Back Button
                 if (newVal === 'BACK_TO_MAIN') {
-                    let html = `<option value="">-- Select --</option>`;
-                    list.forEach(item => {
+                     let html = `<option value="">-- Select --</option>`;
+                     list.forEach(item => {
                         const val = typeof item === 'string' ? item : item.name;
                         html += `<option value="${val}">${val}</option>`;
                     });
                     html += `<option value="Custom">-- Custom / Write-in --</option>`;
                     selectField.innerHTML = html;
-                    selectField.classList.remove('text-[#d4af37]', 'border-[#d4af37]');
+                    selectField.classList.remove('text-gold', 'border-gold');
                     selectField.value = "";
                     return;
                 }
             }
 
-            // --- PRIMARY PATH AUTO-ASSIGNMENT ---
+            // --- PRIMARY PATH LOGIC ---
             if (type === 'disc') {
                 const magicType = isMagicPath(newVal);
-                
                 if (magicType === 'thaum') {
                     if (!window.state.primaryThaumPath) {
                         window.state.primaryThaumPath = newVal;
                         showNotification(`Primary Path set: ${newVal}`);
                         
-                        // Auto-add free ritual (Defense of Sacred Haven)
+                        // Auto-add free ritual
                         if (!window.state.rituals) window.state.rituals = [];
                         if (!window.state.rituals.some(r => r.level === 1)) {
                              window.state.rituals.push({ name: "Defense of the Sacred Haven", level: 1 });
@@ -288,6 +278,7 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                 }
             }
 
+            // --- XP & CHANGE LOGIC ---
             if (window.state.xpMode && !curName) {
                 let baseCost = 0;
                 let costType = '';
@@ -366,7 +357,7 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                 }
             }
             updatePools();
-            if(renderPrintSheet) renderPrintSheet();
+            renderPrintSheet();
         };
         
         if (selectField) {
@@ -406,8 +397,7 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
             row.remove(); 
             updatePools(); 
             if(type==='back') renderSocialProfile(); 
-            if(renderPrintSheet) renderPrintSheet(); 
-            renderDynamicAdvantageRow(containerId, type, list, isAbil);
+            renderPrintSheet(); 
         };
         
         dotCont.onclick = (e) => { 
@@ -451,24 +441,35 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
             else standardDiscs.push(item);
         });
 
+        // 1. Standard Disciplines
         standardDiscs.forEach(item => buildRow(item));
 
+        // 2. Thaumaturgy Block
         if (thaumPaths.length > 0) {
             if (!window.state.primaryThaumPath || !thaumPaths.includes(window.state.primaryThaumPath)) {
-                window.state.primaryThaumPath = thaumPaths[0];
+                window.state.primaryThaumPath = thaumPaths[0]; // Default to first
             }
             const prim = window.state.primaryThaumPath;
-            buildParentRow("Thaumaturgy", prim, thaumPaths);
+            
+            // HEADER
+            buildParentHeader("Thaumaturgy", prim, thaumPaths);
+            
+            // PATHS (Indented)
             const sortedThaum = [prim, ...thaumPaths.filter(p => p !== prim)];
             sortedThaum.forEach(path => buildRow(path, true)); 
         }
 
+        // 3. Necromancy Block
         if (necroPaths.length > 0) {
              if (!window.state.primaryNecroPath || !necroPaths.includes(window.state.primaryNecroPath)) {
                 window.state.primaryNecroPath = necroPaths[0];
             }
             const prim = window.state.primaryNecroPath;
-            buildParentRow("Necromancy", prim, necroPaths);
+            
+            // HEADER
+            buildParentHeader("Necromancy", prim, necroPaths);
+            
+            // PATHS (Indented)
             const sortedNecro = [prim, ...necroPaths.filter(p => p !== prim)];
             sortedNecro.forEach(path => buildRow(path, true));
         }
@@ -476,6 +477,8 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
     } else {
         existingItems.forEach(item => buildRow(item));
     }
+    
+    // Add empty row at bottom for new additions
     buildRow(); 
 }
 window.renderDynamicAdvantageRow = renderDynamicAdvantageRow;
@@ -543,7 +546,7 @@ export function renderDynamicTraitRow(containerId, type, list) {
             });
             if (type === 'Merit') window.state.merits = newState; else window.state.flaws = newState;
             updatePools();
-            if(renderPrintSheet) renderPrintSheet();
+            renderPrintSheet();
         };
         
         selectEl.addEventListener('change', () => {
@@ -615,7 +618,7 @@ export function renderBloodBondRow() {
             if (cont.lastElementChild === row && nI.value !== "") { del.style.visibility = 'visible'; buildRow(); }
             
             updatePools(); 
-            if(renderPrintSheet) renderPrintSheet();
+            renderPrintSheet();
         };
         
         typeSel.onchange = onUpd; nI.onblur = onUpd; rI.onblur = onUpd; 
@@ -639,7 +642,7 @@ export function renderDerangementsList() {
         const row = document.createElement('div'); row.className = "flex justify-between items-center text-xs text-white border-b border-[#333] py-1";
         
         let labelHTML = `<span>${d}</span>`;
-        let deleteBtnHTML = `<span class="remove-btn text-red-500" onclick="window.state.derangements.splice(${idx}, 1); renderDerangementsList(); window.updatePools(); if(window.renderPrintSheet) window.renderPrintSheet();">&times;</span>`;
+        let deleteBtnHTML = `<span class="remove-btn text-red-500" onclick="window.state.derangements.splice(${idx}, 1); renderDerangementsList(); window.updatePools(); renderPrintSheet();">&times;</span>`;
         
         if (isMalk && idx === 0) {
             labelHTML = `<span class="text-[#a855f7] font-bold" title="Incurable Weakness">${d}</span>`;
@@ -658,7 +661,7 @@ export function renderDerangementsList() {
     sel.onchange = () => { if (sel.value === 'Custom') { sel.classList.add('hidden'); inp.classList.remove('hidden'); inp.focus(); } };
     btn.onclick = () => {
         let val = sel.value === 'Custom' ? inp.value : sel.value;
-        if (val && val !== 'Custom') { window.state.derangements.push(val); renderDerangementsList(); updatePools(); if(renderPrintSheet) renderPrintSheet(); }
+        if (val && val !== 'Custom') { window.state.derangements.push(val); renderDerangementsList(); updatePools(); renderPrintSheet(); }
     };
 }
 window.renderDerangementsList = renderDerangementsList;
@@ -679,7 +682,7 @@ export function renderDynamicHavenRow() {
         const onUpd = () => {
             window.state.havens = Array.from(container.querySelectorAll('.advantage-row')).map(r => ({ name: r.querySelectorAll('input')[0].value, loc: r.querySelectorAll('input')[1].value, desc: r.querySelector('textarea').value })).filter(h => h.name || h.loc);
             if (container.lastElementChild === row && nameIn.value !== "") { del.style.visibility = 'visible'; renderDynamicHavenRow(); }
-            updatePools(); if(renderPrintSheet) renderPrintSheet();
+            updatePools(); renderPrintSheet();
         };
         [nameIn, locIn, descIn].forEach(el => el.onblur = onUpd); 
         del.onclick = () => { row.remove(); if(container.children.length === 0) buildRow(); onUpd(); };
