@@ -91,6 +91,10 @@ window.state = {
     havens: [], bloodBonds: [], vehicles: [], customAbilityCategories: {},
     derangements: [], merits: [], flaws: [], inventory: [],
     retainers: [], // New Retainers Array
+    // New Rituals & Primary Paths state initialization
+    rituals: [],
+    primaryThaumPath: null,
+    primaryNecroPath: null,
     meta: { filename: "", folder: "" } 
 };
 
@@ -153,6 +157,7 @@ function handleImport(event) {
             if(!window.state.meta) window.state.meta = { filename: file.name.replace('.json',''), folder: "" };
             if(!window.state.specialties) window.state.specialties = {}; 
             if(!window.state.retainers) window.state.retainers = [];
+            if(!window.state.rituals) window.state.rituals = []; // Ensure rituals array exists
             if (!window.state.furthestPhase) window.state.furthestPhase = 1;
             if (window.state.status && window.state.status.tempWillpower === undefined) {
                 window.state.status.tempWillpower = window.state.status.willpower || 5;
