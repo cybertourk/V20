@@ -374,7 +374,7 @@ export function renderEditorModal() {
             let item = null;
             if (t === 'Weapon') item = [...(WEAPONS||[]), ...(RANGED_WEAPONS||[])].find(x => x.name === name);
             else if (t === 'Armor') item = (ARMOR||[]).find(x => x.name === name);
-            else if (t === 'Vehicle') item = (V20_VEHICLE_LIST||[]).find(x => x.name === name);
+            else if (t === 'Vehicle') item = (V20_VEHICLES_LIST||[]).find(x => x.name === name);
 
             if(item) {
                 if(t === 'Weapon') {
