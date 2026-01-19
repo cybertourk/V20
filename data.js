@@ -370,7 +370,7 @@ export const V20_ARMOR_LIST = [
     { name: "Class Five (Full Riot Gear)", rating: 5, penalty: 3 }
 ];
 
-export const V20_VEHICLE_LIST = [
+export const V20_VEHICLES_LIST = [
     { name: "6-Wheel Truck", safe: "60/95", max: "90/145", man: "3" },
     { name: "Tank (modern)", safe: "60/95", max: "100/160", man: "4" },
     { name: "Tank (WWII)", safe: "30/50", max: "40/65", man: "3" },
