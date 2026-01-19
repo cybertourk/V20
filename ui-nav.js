@@ -47,21 +47,78 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
     } else { if (window.state.dots[type]) existingItems = Object.keys(window.state.dots[type]); }
 
     // --- THAUMATURGY / NECROMANCY HELPER ---
-    // Identify if a discipline name corresponds to a known path
     const isMagicPath = (name) => {
         if (!name) return false;
         const n = name.toLowerCase();
-        // Check Data files
         if (THAUMATURGY_DATA && Object.keys(THAUMATURGY_DATA).some(k => k.toLowerCase() === n)) return 'thaum';
         if (NECROMANCY_DATA && Object.keys(NECROMANCY_DATA).some(k => k.toLowerCase() === n)) return 'necro';
-        // Heuristics
-        if (n.includes('path') || n.includes('lure of') || n.includes('gift of') || n.includes('weather control') || n.includes('movement of the mind')) return 'thaum'; // Basic heuristic
+        if (n.includes('path') || n.includes('lure of') || n.includes('gift of') || n.includes('weather control') || n.includes('movement of the mind')) return 'thaum'; 
         return false;
     };
 
-    const buildRow = (name = null) => {
+    // --- PARENT ROW BUILDER (For Thaumaturgy/Necromancy Headers) ---
+    const buildParentRow = (label, primaryKey, allChildKeys) => {
         const row = document.createElement('div');
+        row.className = 'flex justify-between items-center mb-1 advantage-row parent-row bg-[#111] p-1 rounded border border-[#333]';
+
+        // Title Section
+        const titleDiv = document.createElement('div');
+        titleDiv.className = 'flex-1 font-cinzel font-bold text-[#d4af37] text-sm flex items-center gap-2';
+        titleDiv.innerHTML = `<i class="fas fa-book-open text-[10px]"></i> ${label}`;
+        
+        // Dots (Linked to Primary Path)
+        const dotCont = document.createElement('div');
+        dotCont.className = 'dot-row flex-shrink-0';
+        const val = primaryKey ? (window.state.dots.disc[primaryKey] || 0) : 0;
+        dotCont.innerHTML = renderDots(val, 5);
+        dotCont.dataset.n = primaryKey; // Link clicks to primary path
+        dotCont.dataset.t = type;
+        
+        // Click Logic for Parent Dots (Edits Primary Path)
+        dotCont.onclick = (e) => {
+            if (!primaryKey || !e.target.dataset.v) return;
+            // Pass through to setDots targeting the primary key
+            setDots(primaryKey, type, parseInt(e.target.dataset.v), 0, 5);
+        };
+
+        // Remove Button (Deletes ALL paths of this type)
+        const removeBtn = document.createElement('div');
+        removeBtn.className = 'remove-btn flex-shrink-0 ml-2 text-red-500 hover:text-red-300 cursor-pointer';
+        removeBtn.innerHTML = '<i class="fas fa-trash"></i>';
+        removeBtn.title = "Remove Discipline and all Paths";
+        
+        if (window.state.xpMode) removeBtn.style.visibility = 'hidden'; // Hard to calculate refund for bulk delete, safer to hide
+        
+        removeBtn.onclick = () => {
+            if (confirm(`Remove ${label} and all learned paths?`)) {
+                allChildKeys.forEach(k => delete window.state.dots.disc[k]);
+                // Clear Primary Preference
+                if (label === 'Thaumaturgy') delete window.state.primaryThaumPath;
+                if (label === 'Necromancy') delete window.state.primaryNecroPath;
+                
+                updatePools();
+                renderPrintSheet();
+                renderDynamicAdvantageRow(containerId, type, list, isAbil);
+            }
+        };
+
+        row.appendChild(titleDiv);
+        row.appendChild(dotCont);
+        row.appendChild(removeBtn);
+        container.appendChild(row);
+    };
+
+    const buildRow = (name = null, isChild = false) => {
+        const row = document.createElement('div');
+        
+        // Standard Row Classes
         row.className = 'flex justify-between items-center mb-1 advantage-row';
+        
+        // Child Indentation Styles
+        if (isChild) {
+            row.classList.add('ml-6', 'pl-2', 'border-l', 'border-[#444]', 'pr-1');
+            row.style.width = "calc(100% - 1.5rem)";
+        }
 
         const specWrapper = document.createElement('div');
         specWrapper.className = 'flex-1 mr-2 relative';
@@ -69,34 +126,33 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
         let inputField;
         let selectField = null;
 
-        // VISUAL INDICATOR FOR PRIMARY PATH (Setup before creating element to apply classes later if needed)
+        // Visual check for Primary
         const isPrimaryThaum = type === 'disc' && name && window.state.primaryThaumPath === name;
         const isPrimaryNecro = type === 'disc' && name && window.state.primaryNecroPath === name;
 
         // --- DROPDOWN VS INPUT LOGIC ---
         if (list && list.length > 0) {
-            // 1. Create SELECT
             selectField = document.createElement('select');
             selectField.className = 'w-full bg-[#111] border-b border-[#333] text-xs font-bold text-white uppercase focus:border-gold outline-none';
-            if (isPrimaryThaum) selectField.classList.add('text-[#d4af37]');
-            
+            if (isChild) selectField.classList.add('text-gray-300', 'italic'); 
+            if (isPrimaryThaum || isPrimaryNecro) selectField.classList.add('text-[#d4af37]', 'not-italic');
+
             let html = `<option value="">-- Select --</option>`;
             list.forEach(item => {
                 const val = typeof item === 'string' ? item : item.name;
-                // Don't show already selected items in the dropdown for new rows (optional, but cleaner)
-                // However, for existing rows, we need the option there.
                 const isSelected = name === val;
                 html += `<option value="${val}" ${isSelected ? 'selected' : ''}>${val}</option>`;
             });
-            // Add Custom Option
             const isCustom = name && !list.includes(name);
             html += `<option value="Custom" ${isCustom ? 'selected' : ''}>-- Custom / Write-in --</option>`;
             selectField.innerHTML = html;
 
-            // 2. Create INPUT (Hidden by default unless custom)
             inputField = document.createElement('input');
             inputField.type = 'text';
             inputField.className = 'w-full bg-transparent border-b border-[#333] text-xs font-bold text-white uppercase focus:border-gold outline-none';
+            if (isChild) inputField.classList.add('text-gray-300', 'italic');
+            if (isPrimaryThaum || isPrimaryNecro) inputField.classList.add('text-[#d4af37]', 'not-italic');
+            
             inputField.placeholder = "Name...";
             inputField.value = name || "";
             
@@ -117,24 +173,21 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
             specWrapper.appendChild(inputField);
 
         } else {
-            // Fallback: Just Text Input
             inputField = document.createElement('input');
             inputField.type = 'text';
             inputField.className = 'w-full bg-transparent border-b border-[#333] text-xs font-bold text-white uppercase focus:border-gold outline-none';
             inputField.placeholder = "Name...";
             inputField.value = name || "";
             if (window.state.isPlayMode) inputField.disabled = true;
-            
-            if (isPrimaryThaum) inputField.classList.add('text-[#d4af37]');
+            if (isPrimaryThaum || isPrimaryNecro) inputField.classList.add('text-[#d4af37]');
 
             specWrapper.appendChild(inputField);
         }
 
-        // Apply Title for Primary Path
         if (isPrimaryThaum) (selectField || inputField).title = "Primary Thaumaturgy Path";
         if (isPrimaryNecro) (selectField || inputField).title = "Primary Necromancy Path";
 
-        // Specialty Logic (Unchanged)
+        // Specialty Logic
         if (isAbil && name) {
             const hasSpec = window.state.specialties && window.state.specialties[name];
             if (hasSpec || (window.state.dots.abil[name] >= 4) || SPECIALTY_EXAMPLES[name]) {
@@ -173,14 +226,13 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
         const onUpdate = (newVal) => {
             if (!newVal) return;
 
-            // --- THAUMATURGY INTERCEPTOR ---
+            // --- THAUMATURGY INTERCEPTOR (For "Thaumaturgy" typed explicitly) ---
             if (type === 'disc' && newVal.toLowerCase() === 'thaumaturgy') {
                 const availablePaths = THAUMATURGY_DATA ? Object.keys(THAUMATURGY_DATA) : ["The Path of Blood", "Lure of Flames", "Movement of the Mind", "The Path of Conjuring", "Hands of Destruction"];
                 let selectedPath = "The Path of Blood"; 
                 let promptMsg = "Select Primary Path for Thaumaturgy:\n";
                 availablePaths.slice(0, 8).forEach((p, i) => promptMsg += `${i+1}. ${p}\n`);
-                promptMsg += "\nEnter number or type name:";
-
+                
                 const userChoice = prompt(promptMsg, "1");
                 if (userChoice) {
                     const idx = parseInt(userChoice) - 1;
@@ -194,12 +246,11 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                     if (!window.state.rituals) window.state.rituals = [];
                     if (!window.state.rituals.some(r => r.level === 1)) {
                          window.state.rituals.push({ name: "Defense of the Sacred Haven", level: 1 });
-                         showNotification("Learned Ritual: Defense of the Sacred Haven (Free)");
                     }
                 }
                 
+                // Force Update input to the selected Path immediately
                 if (selectField) {
-                     // Since "The Path of Blood" isn't in the standard discipline list dropdown usually, we switch to custom/text
                      selectField.style.display = 'none';
                      inputField.style.display = 'block';
                      inputField.value = selectedPath;
@@ -237,7 +288,6 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                 let baseCost = 0;
                 let costType = '';
                 
-                // --- XP COSTS FOR NEW TRAITS ---
                 if (type === 'disc') { 
                     const isThaumPath = isMagicPath(newVal) === 'thaum';
                     const isNecroPath = isMagicPath(newVal) === 'necro';
@@ -289,8 +339,11 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                 const dots = window.state.dots[type][curName]; delete window.state.dots[type][curName]; 
                 if (window.state.customAbilityCategories && window.state.customAbilityCategories[curName]) delete window.state.customAbilityCategories[curName];
                 if (newVal) window.state.dots[type][newVal] = dots || 0; 
+                
+                // Migrate Primary Path Preference
                 if (window.state.primaryThaumPath === curName) window.state.primaryThaumPath = newVal;
                 if (window.state.primaryNecroPath === curName) window.state.primaryNecroPath = newVal;
+                
                 if(window.state.specialties[curName]) { window.state.specialties[newVal] = window.state.specialties[curName]; delete window.state.specialties[curName]; }
             } else if (!curName && newVal && !window.state.xpMode) {
                  window.state.dots[type][newVal] = 0; 
@@ -306,14 +359,14 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                 
                 if (row === container.lastElementChild) { 
                     removeBtn.style.visibility = window.state.xpMode ? 'hidden' : 'visible'; 
-                    buildRow(); 
+                    // This forces a re-render to catch grouping logic if a path was added
+                    renderDynamicAdvantageRow(containerId, type, list, isAbil);
                 }
             }
             updatePools();
             renderPrintSheet();
         };
         
-        // Attach Events to Elements
         if (selectField) {
             selectField.onchange = (e) => {
                 const val = e.target.value;
@@ -321,16 +374,14 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                     selectField.style.display = 'none';
                     inputField.style.display = 'block';
                     inputField.focus();
-                    inputField.value = ""; // Ready for typing
+                    inputField.value = ""; 
                 } else if (val) {
                     onUpdate(val);
                 }
             };
-            
             inputField.onblur = (e) => {
                 const val = e.target.value;
                 if (!val && !curName) {
-                    // Revert to dropdown if empty and not committed
                     inputField.style.display = 'none';
                     selectField.style.display = 'block';
                     selectField.value = "";
@@ -339,7 +390,6 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                 }
             };
         } else {
-            // Text Only events
             if (isAbil) inputField.onblur = (e) => onUpdate(e.target.value); 
             else inputField.onchange = (e) => onUpdate(e.target.value);
         }
@@ -355,6 +405,8 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
             updatePools(); 
             if(type==='back') renderSocialProfile(); 
             renderPrintSheet(); 
+            // Re-render to cleanup grouping
+            renderDynamicAdvantageRow(containerId, type, list, isAbil);
         };
         
         dotCont.onclick = (e) => { 
@@ -385,7 +437,58 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
         row.appendChild(removeBtn);
         container.appendChild(row);
     };
-    existingItems.forEach(item => buildRow(item));
+
+    // --- SORTING AND GROUPING LOGIC ---
+    if (type === 'disc') {
+        const standardDiscs = [];
+        const thaumPaths = [];
+        const necroPaths = [];
+
+        existingItems.forEach(item => {
+            const check = isMagicPath(item);
+            if (check === 'thaum') thaumPaths.push(item);
+            else if (check === 'necro') necroPaths.push(item);
+            else standardDiscs.push(item);
+        });
+
+        // 1. Render Standard Disciplines
+        standardDiscs.forEach(item => buildRow(item));
+
+        // 2. Render Thaumaturgy Block
+        if (thaumPaths.length > 0) {
+            // Ensure a primary path is set if missing
+            if (!window.state.primaryThaumPath || !thaumPaths.includes(window.state.primaryThaumPath)) {
+                window.state.primaryThaumPath = thaumPaths[0];
+            }
+            const prim = window.state.primaryThaumPath;
+            
+            // Render Parent
+            buildParentRow("Thaumaturgy", prim, thaumPaths);
+            
+            // Render Children (Sort Primary first, then others)
+            const sortedThaum = [prim, ...thaumPaths.filter(p => p !== prim)];
+            sortedThaum.forEach(path => buildRow(path, true)); // isChild = true
+        }
+
+        // 3. Render Necromancy Block
+        if (necroPaths.length > 0) {
+             if (!window.state.primaryNecroPath || !necroPaths.includes(window.state.primaryNecroPath)) {
+                window.state.primaryNecroPath = necroPaths[0];
+            }
+            const prim = window.state.primaryNecroPath;
+            
+            buildParentRow("Necromancy", prim, necroPaths);
+            
+            const sortedNecro = [prim, ...necroPaths.filter(p => p !== prim)];
+            sortedNecro.forEach(path => buildRow(path, true));
+        }
+
+    } else {
+        // Non-discipline rows (Backgrounds, Abilities)
+        existingItems.forEach(item => buildRow(item));
+    }
+
+    // Always append the empty "Add New" row at the bottom
     buildRow(); 
 }
 window.renderDynamicAdvantageRow = renderDynamicAdvantageRow;
