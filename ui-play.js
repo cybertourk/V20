@@ -647,8 +647,7 @@ export function renderMovementSection() {
 }
 window.renderMovementSection = renderMovementSection;
 
-// --- DETAILED DISCIPLINES (EXPANDED VIEW) ---
-
+// --- NEW FUNCTION: RENDER DETAILED DISCIPLINES (PHASE 2) ---
 function renderDetailedDisciplines() {
     const pm2 = document.getElementById('play-mode-2');
     if (!pm2) return;
