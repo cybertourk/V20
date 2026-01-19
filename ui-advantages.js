@@ -34,11 +34,14 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
     } else { if (window.state.dots[type]) existingItems = Object.keys(window.state.dots[type]); }
 
     // --- THAUMATURGY / NECROMANCY HELPER ---
+    // Identify if a discipline name corresponds to a known path
     const isMagicPath = (name) => {
         if (!name) return false;
         const n = name.toLowerCase();
+        // Check Data files
         if (THAUMATURGY_DATA && Object.keys(THAUMATURGY_DATA).some(k => k.toLowerCase() === n)) return 'thaum';
         if (NECROMANCY_DATA && Object.keys(NECROMANCY_DATA).some(k => k.toLowerCase() === n)) return 'necro';
+        // Heuristics
         if (n.includes('path') || n.includes('lure of') || n.includes('gift of') || n.includes('weather control') || n.includes('movement of the mind')) return 'thaum'; 
         return false;
     };
@@ -213,61 +216,76 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
         const onUpdate = (newVal) => {
             if (!newVal) return;
 
-            // --- THAUMATURGY INTERCEPTOR ---
-            if (type === 'disc' && newVal.toLowerCase() === 'thaumaturgy') {
-                const availablePaths = THAUMATURGY_DATA ? Object.keys(THAUMATURGY_DATA) : ["The Path of Blood", "Lure of Flames", "Movement of the Mind", "The Path of Conjuring", "Hands of Destruction"];
-                let selectedPath = "The Path of Blood"; 
-                let promptMsg = "Select Primary Path for Thaumaturgy:\n";
-                availablePaths.slice(0, 8).forEach((p, i) => promptMsg += `${i+1}. ${p}\n`);
+            // --- THAUMATURGY & NECROMANCY DROPDOWN INTERCEPTOR ---
+            // Allows user to pick a path from a sub-menu instead of a prompt
+            if (type === 'disc' && selectField && selectField.style.display !== 'none') {
+                const lower = newVal.toLowerCase();
                 
-                const userChoice = prompt(promptMsg, "1");
-                if (userChoice) {
-                    const idx = parseInt(userChoice) - 1;
-                    if (!isNaN(idx) && availablePaths[idx]) selectedPath = availablePaths[idx];
-                    else if (userChoice.length > 3) selectedPath = userChoice;
+                // Switch to Thaumaturgy Paths
+                if (lower === 'thaumaturgy') {
+                    const paths = THAUMATURGY_DATA ? Object.keys(THAUMATURGY_DATA) : ["The Path of Blood", "Lure of Flames", "Movement of the Mind", "The Path of Conjuring", "Hands of Destruction"];
+                    
+                    let html = `<option value="">-- Select Path --</option>`;
+                    paths.forEach(p => html += `<option value="${p}">${p}</option>`);
+                    html += `<option value="BACK_TO_MAIN">-- Back to Disciplines --</option>`;
+                    
+                    selectField.innerHTML = html;
+                    selectField.classList.add('text-[#d4af37]', 'border-[#d4af37]');
+                    selectField.value = ""; // Reset value to wait for user selection
+                    return; // Stop processing, wait for next change event
                 }
 
-                if (!window.state.primaryThaumPath) {
-                    window.state.primaryThaumPath = selectedPath;
-                    showNotification(`Primary Path set: ${selectedPath}`);
-                    if (!window.state.rituals) window.state.rituals = [];
-                    if (!window.state.rituals.some(r => r.level === 1)) {
-                         window.state.rituals.push({ name: "Defense of the Sacred Haven", level: 1 });
-                    }
+                // Switch to Necromancy Paths
+                if (lower === 'necromancy') {
+                    const paths = NECROMANCY_DATA ? Object.keys(NECROMANCY_DATA) : ["The Sepulchre Path", "The Bone Path", "The Ash Path"];
+                    
+                    let html = `<option value="">-- Select Path --</option>`;
+                    paths.forEach(p => html += `<option value="${p}">${p}</option>`);
+                    html += `<option value="BACK_TO_MAIN">-- Back to Disciplines --</option>`;
+                    
+                    selectField.innerHTML = html;
+                    selectField.classList.add('text-[#d4af37]', 'border-[#d4af37]');
+                    selectField.value = "";
+                    return;
                 }
-                
-                if (selectField) {
-                     selectField.style.display = 'none';
-                     inputField.style.display = 'block';
-                     inputField.value = selectedPath;
-                } else {
-                    inputField.value = selectedPath;
+
+                // Handle Back Button
+                if (newVal === 'BACK_TO_MAIN') {
+                    let html = `<option value="">-- Select --</option>`;
+                    list.forEach(item => {
+                        const val = typeof item === 'string' ? item : item.name;
+                        html += `<option value="${val}">${val}</option>`;
+                    });
+                    html += `<option value="Custom">-- Custom / Write-in --</option>`;
+                    selectField.innerHTML = html;
+                    selectField.classList.remove('text-[#d4af37]', 'border-[#d4af37]');
+                    selectField.value = "";
+                    return;
                 }
-                newVal = selectedPath;
             }
 
-            // --- NECROMANCY INTERCEPTOR ---
-            if (type === 'disc' && newVal.toLowerCase() === 'necromancy') {
-                const availablePaths = NECROMANCY_DATA ? Object.keys(NECROMANCY_DATA) : ["The Sepulchre Path", "The Bone Path", "The Ash Path"];
-                let selectedPath = "The Sepulchre Path";
-                let promptMsg = "Select Primary Necromancy Path:\n";
-                availablePaths.slice(0, 5).forEach((p, i) => promptMsg += `${i+1}. ${p}\n`);
-                const userChoice = prompt(promptMsg, "1");
-                if (userChoice) {
-                     const idx = parseInt(userChoice) - 1;
-                    if (!isNaN(idx) && availablePaths[idx]) selectedPath = availablePaths[idx];
-                    else if (userChoice.length > 3) selectedPath = userChoice;
-                }
-                if (!window.state.primaryNecroPath) window.state.primaryNecroPath = selectedPath;
+            // --- PRIMARY PATH AUTO-ASSIGNMENT ---
+            if (type === 'disc') {
+                const magicType = isMagicPath(newVal);
                 
-                if (selectField) {
-                     selectField.style.display = 'none';
-                     inputField.style.display = 'block';
-                     inputField.value = selectedPath;
-                } else {
-                    inputField.value = selectedPath;
+                if (magicType === 'thaum') {
+                    if (!window.state.primaryThaumPath) {
+                        window.state.primaryThaumPath = newVal;
+                        showNotification(`Primary Path set: ${newVal}`);
+                        
+                        // Auto-add free ritual (Defense of Sacred Haven)
+                        if (!window.state.rituals) window.state.rituals = [];
+                        if (!window.state.rituals.some(r => r.level === 1)) {
+                             window.state.rituals.push({ name: "Defense of the Sacred Haven", level: 1 });
+                             showNotification("Learned: Defense of the Sacred Haven (Free)");
+                        }
+                    }
+                } else if (magicType === 'necro') {
+                    if (!window.state.primaryNecroPath) {
+                        window.state.primaryNecroPath = newVal;
+                        showNotification(`Primary Necromancy Path set: ${newVal}`);
+                    }
                 }
-                newVal = selectedPath;
             }
 
             if (window.state.xpMode && !curName) {
