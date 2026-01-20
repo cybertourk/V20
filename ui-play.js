@@ -891,7 +891,7 @@ window.deleteNpc = function(index) {
 // Backward compat alias
 window.deleteRetainer = window.deleteNpc;
 
-// --- RITUALS PLAY VIEW ---
+// --- RITUALS PLAY VIEW (INTERACTIVE) ---
 
 export function updateRitualsPlayView() {
     const playCont = document.getElementById('rituals-list-play');
@@ -908,9 +908,7 @@ export function updateRitualsPlayView() {
         byLevel[r.level].push(r.name);
     });
 
-    let html = '';
-    // FIXED: Wrapped in container to prevent layout collision with "Other Traits"
-    html += '<div class="flex flex-col gap-4 mt-2">'; 
+    let html = '<div class="flex flex-col gap-4 mt-2">';
     
     Object.keys(byLevel).sort((a,b) => a-b).forEach(lvl => {
         if (lvl > 0) {
@@ -922,7 +920,42 @@ export function updateRitualsPlayView() {
                 <div class="space-y-1">`;
                 
             byLevel[lvl].forEach(name => {
-                html += `<div class="text-xs text-gray-300 ml-2 flex items-start"><span class="text-gold mr-1">•</span> ${name}</div>`;
+                // Lookup Data
+                let rData = null;
+                if (window.RITUALS_DATA) {
+                    if (window.RITUALS_DATA.Thaumaturgy && window.RITUALS_DATA.Thaumaturgy[lvl] && window.RITUALS_DATA.Thaumaturgy[lvl][name]) {
+                        rData = window.RITUALS_DATA.Thaumaturgy[lvl][name];
+                    } else if (window.RITUALS_DATA.Necromancy && window.RITUALS_DATA.Necromancy[lvl] && window.RITUALS_DATA.Necromancy[lvl][name]) {
+                        rData = window.RITUALS_DATA.Necromancy[lvl][name];
+                    }
+                }
+
+                if (rData) {
+                    // INTERACTIVE RENDER
+                    const diff = Math.min(9, 3 + parseInt(lvl));
+                    const uid = `rit-${name.replace(/[^a-zA-Z0-9]/g, '')}`;
+
+                    html += `
+                    <div class="border border-[#333] bg-[#111] rounded overflow-hidden mb-1">
+                        <div class="flex justify-between items-center p-1.5 cursor-pointer hover:bg-[#222] transition-colors" onclick="document.getElementById('${uid}').classList.toggle('hidden');">
+                            <div class="flex items-center gap-2 overflow-hidden">
+                                <i class="fas fa-chevron-right text-[8px] text-gray-500"></i>
+                                <div class="font-bold text-gray-300 text-[10px] truncate">${name}</div>
+                            </div>
+                            <button onclick="event.stopPropagation(); window.rollDiscipline('${name.replace(/'/g, "\\'")}', ['Intelligence', 'Occult'], ${diff})" class="bg-[#333] border border-gray-600 text-gray-400 hover:text-white hover:border-[#d4af37] text-[8px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider transition-all" title="Roll Int+Occult (Diff ${diff})">
+                                <i class="fas fa-dice-d20"></i>
+                            </button>
+                        </div>
+                        <div id="${uid}" class="hidden p-2 border-t border-[#333] bg-black/50 text-[10px]">
+                            <div class="text-gray-400 italic leading-snug mb-1">${rData.desc || "No description."}</div>
+                            <div class="text-gray-500 font-mono"><span class="text-[#d4af37] font-bold">System:</span> ${rData.system || "See rulebook."}</div>
+                        </div>
+                    </div>`;
+
+                } else {
+                    // FALLBACK (No data found, maybe custom)
+                    html += `<div class="text-xs text-gray-400 ml-2 flex items-start py-1"><span class="text-gold mr-1">•</span> ${name}</div>`;
+                }
             });
             
             html += `</div></div>`;
