@@ -116,9 +116,6 @@ export function togglePlayMode() {
         // --- UPDATE RITUALS LIST ---
         updateRitualsPlayView();
 
-        // Misc Text Updates
-        // REMOVED LEGACY RITUAL OVERWRITE HERE to fix display issue
-        
         let carried = []; let owned = []; 
         if(window.state.inventory) { 
             window.state.inventory.forEach(i => { 
@@ -912,13 +909,27 @@ export function updateRitualsPlayView() {
     });
 
     let html = '';
+    // FIXED: Wrapped in container to prevent layout collision with "Other Traits"
+    html += '<div class="flex flex-col gap-4 mt-2">'; 
+    
     Object.keys(byLevel).sort((a,b) => a-b).forEach(lvl => {
-        html += `<div class="mb-2"><span class="text-[#d4af37] font-bold text-[10px] uppercase block border-b border-[#333] mb-1">Level ${lvl} Rituals</span>`;
-        byLevel[lvl].forEach(name => {
-            html += `<div class="text-xs text-gray-300 ml-2">• ${name}</div>`;
-        });
-        html += `</div>`;
+        if (lvl > 0) {
+            html += `
+            <div class="bg-black/30 border border-[#333] rounded p-2">
+                <div class="text-[#d4af37] font-bold text-[10px] uppercase border-b border-[#333] pb-1 mb-1">
+                    Level ${lvl} Rituals
+                </div>
+                <div class="space-y-1">`;
+                
+            byLevel[lvl].forEach(name => {
+                html += `<div class="text-xs text-gray-300 ml-2 flex items-start"><span class="text-gold mr-1">•</span> ${name}</div>`;
+            });
+            
+            html += `</div></div>`;
+        }
     });
+    html += '</div>';
+    
     playCont.innerHTML = html;
     playCont.className = "";
 }
