@@ -117,7 +117,7 @@ export function togglePlayMode() {
         updateRitualsPlayView();
 
         // Misc Text Updates
-        if(document.getElementById('rituals-list-play')) document.getElementById('rituals-list-play').innerText = document.getElementById('rituals-list-create-ta')?.value || ""; 
+        // REMOVED LEGACY RITUAL OVERWRITE HERE to fix display issue
         
         let carried = []; let owned = []; 
         if(window.state.inventory) { 
@@ -913,7 +913,6 @@ export function updateRitualsPlayView() {
 
     let html = '';
     Object.keys(byLevel).sort((a,b) => a-b).forEach(lvl => {
-        // CHANGED: Added "Rituals" to the header text
         html += `<div class="mb-2"><span class="text-[#d4af37] font-bold text-[10px] uppercase block border-b border-[#333] mb-1">Level ${lvl} Rituals</span>`;
         byLevel[lvl].forEach(name => {
             html += `<div class="text-xs text-gray-300 ml-2">• ${name}</div>`;
