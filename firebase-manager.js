@@ -131,6 +131,12 @@ export async function performSave() {
             opt.value = folder;
             dl.appendChild(opt);
         }
+        
+        // Refresh browser if open
+        if(document.getElementById('load-modal').classList.contains('active')) {
+            await renderFileBrowser(user);
+        }
+
     } catch (e) { 
         console.error("Save Error:", e); 
         notify("Save Failed: " + e.message, "error");
@@ -153,9 +159,8 @@ export async function deleteCharacter(id, name, event) {
     }
 }
 
-// --- BROWSER UI (REDESIGNED) ---
+// --- BROWSER UI (REDESIGNED & FIXED SORTING) ---
 
-// Fetches data and updates local state
 export async function renderFileBrowser(user) {
     const browser = document.getElementById('file-browser');
     
@@ -176,7 +181,6 @@ export async function renderFileBrowser(user) {
     }
 }
 
-// Renders the HTML based on local state (Supports Sorting/Collapsing)
 function renderLoadMenuUI() {
     const browser = document.getElementById('file-browser');
     if (!browser) return;
@@ -212,13 +216,33 @@ function renderLoadMenuUI() {
         structure[f].push(char);
     });
 
-    const folders = Object.keys(structure).sort((a,b) => a === "Unsorted" ? 1 : b === "Unsorted" ? -1 : a.localeCompare(b));
-    
-    // Update Datalist for Save Dialog
+    // --- FIX: SORT FOLDERS THEMSELVES ---
+    // Helper to get max date in a folder
+    const getFolderDate = (folderItems) => {
+        if (!folderItems || folderItems.length === 0) return 0;
+        return Math.max(...folderItems.map(i => i.meta?.lastModified ? new Date(i.meta.lastModified).getTime() : 0));
+    };
+
+    const folders = Object.keys(structure).sort((a,b) => {
+        // Always force 'Unsorted' to the bottom
+        if (a === "Unsorted") return 1;
+        if (b === "Unsorted") return -1;
+
+        if (loadMenuState.sort === 'date') {
+            const dateA = getFolderDate(structure[a]);
+            const dateB = getFolderDate(structure[b]);
+            return dateB - dateA; // Newest folders first
+        } else {
+            return a.localeCompare(b); // Alphabetical
+        }
+    });
+
+    // Update Datalist for Save Dialog (Using Alpha sort for saving dropdown usually better)
     const dl = document.getElementById('folder-datalist');
     if(dl) {
         dl.innerHTML = ''; 
-        folders.forEach(f => { const opt = document.createElement('option'); opt.value = f; dl.appendChild(opt); });
+        // Always sort datalist alpha for consistent saving UI
+        [...folders].sort().forEach(f => { const opt = document.createElement('option'); opt.value = f; dl.appendChild(opt); });
     }
 
     // 3. Render Folders
@@ -302,7 +326,6 @@ window.loadSelectedCharFromId = (id) => {
 
 // --- MIGRATION TOOL (HIDDEN BUT AVAILABLE) ---
 window.migrateOldData = async function(oldCollectionName = "characters") {
-    // Implementation kept for emergency console use, but removed from UI per request.
     const user = auth.currentUser;
     if (!user) return alert("Please log in.");
     if (!confirm(`Migrate from '${oldCollectionName}'?`)) return;
