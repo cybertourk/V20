@@ -24,8 +24,6 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
     if (!container) return;
     container.innerHTML = '';
     
-    // NOTE: Removed auto-migration logic to allow users to select their own Primary Path
-    
     let existingItems = [];
     if (type === 'abil') {
         let category = '';
@@ -40,7 +38,6 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
         if (!name) return false;
         const n = name.toLowerCase();
         
-        // Catch literal discipline names just in case
         if (n === 'thaumaturgy') return 'thaum';
         if (n === 'necromancy') return 'necro';
         
@@ -50,49 +47,41 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
         return false;
     };
 
-    // --- HELPER: FORCE VISUAL SYNC ---
-    const syncAllDots = (name, type) => {
-        if (!name || !type || !window.state.dots[type]) return;
-        const val = window.state.dots[type][name] || 0;
-        // Find all dot containers for this trait in the current container and update them
-        // Escape quotes in name just in case
+    // --- SYNC HELPER ---
+    const syncDotUI = (name, type, val) => {
         const safeName = name.replace(/"/g, '\\"');
         const matches = container.querySelectorAll(`.dot-row[data-n="${safeName}"][data-t="${type}"]`);
         matches.forEach(el => el.innerHTML = renderDots(val, 5));
     };
 
-    // --- PARENT HEADER BUILDER (The "Thaumaturgy: ●●●" Row) ---
+    // --- PARENT HEADER BUILDER ---
     const buildParentHeader = (label, primaryKey, allChildKeys) => {
         const row = document.createElement('div');
         row.className = 'flex justify-between items-center mb-1 advantage-row bg-[#1a1a1a] p-1 rounded border border-[#333]';
 
-        // Title Section
         const titleDiv = document.createElement('div');
         titleDiv.className = 'flex-1 font-cinzel font-bold text-[#d4af37] text-sm flex items-center gap-2 pl-1';
         titleDiv.innerHTML = `<i class="fas fa-book-open text-[10px]"></i> ${label}`;
         
-        // Dots (Linked to Primary Path)
         const dotCont = document.createElement('div');
         dotCont.className = 'dot-row flex-shrink-0';
         const val = primaryKey ? (window.state.dots.disc[primaryKey] || 0) : 0;
         dotCont.innerHTML = renderDots(val, 5);
         dotCont.title = `Primary Path Rating (${primaryKey || 'None'})`;
         
-        // Link to Primary for updates
         if (primaryKey) {
             dotCont.dataset.n = primaryKey;
             dotCont.dataset.t = type;
         }
         
-        // Click Logic for Parent Dots (Edits Primary Path)
         dotCont.onclick = (e) => {
             if (!primaryKey || !e.target.dataset.v) return;
             const newDots = parseInt(e.target.dataset.v);
             setDots(primaryKey, type, newDots, 0, 5);
-            syncAllDots(primaryKey, type); // Force sync
+            dotCont.innerHTML = renderDots(newDots, 5);
+            syncDotUI(primaryKey, type, newDots);
         };
 
-        // Remove Button (Deletes ALL paths of this type)
         const removeBtn = document.createElement('div');
         removeBtn.className = 'remove-btn flex-shrink-0 ml-2 text-red-500 hover:text-red-300 cursor-pointer';
         removeBtn.innerHTML = '&times;';
@@ -123,7 +112,6 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
         const row = document.createElement('div');
         row.className = 'flex justify-between items-center mb-1 advantage-row';
         
-        // Indentation for children (Sub-Disciplines)
         if (isChild) {
             row.classList.add('ml-4', 'pl-3', 'border-l-2', 'border-[#333]', 'pr-1');
             row.style.width = "calc(100% - 1rem)";
@@ -135,22 +123,18 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
         let inputField;
         let selectField = null;
 
-        // Visual check for Primary
         const isPrimaryThaum = type === 'disc' && name && window.state.primaryThaumPath === name;
         const isPrimaryNecro = type === 'disc' && name && window.state.primaryNecroPath === name;
         const isPrimary = isPrimaryThaum || isPrimaryNecro;
 
-        // Detect Generic Magic Names (Needs Selection)
         const isGenericMagic = (name === 'Thaumaturgy' || name === 'Necromancy');
 
-        // --- DROPDOWN VS INPUT LOGIC ---
         if (list && list.length > 0) {
             selectField = document.createElement('select');
             selectField.className = 'w-full bg-[#111] border-b border-[#333] text-xs font-bold text-white uppercase focus:border-gold outline-none';
             if (isChild) selectField.classList.add('text-gray-400', 'italic', 'text-[11px]'); 
             if (isPrimary && !isGenericMagic) selectField.classList.add('text-[#d4af37]', 'not-italic', 'font-black');
 
-            // --- SPECIAL: Force Path Selection if name is Generic ---
             if (isGenericMagic) {
                 const isThaum = name === 'Thaumaturgy';
                 const paths = isThaum ? (THAUMATURGY_DATA ? Object.keys(THAUMATURGY_DATA) : []) : (NECROMANCY_DATA ? Object.keys(NECROMANCY_DATA) : []);
@@ -158,16 +142,25 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                 let html = `<option value="">-- Select Primary Path --</option>`;
                 paths.forEach(p => html += `<option value="${p}">${p}</option>`);
                 selectField.innerHTML = html;
-                selectField.classList.add('text-gold', 'border-gold', 'animate-pulse'); // Visual cue to select
+                selectField.classList.add('text-gold', 'border-gold', 'animate-pulse'); 
                 selectField.title = "Please select your Primary Path";
-                selectField.value = ""; // Force empty value to compel selection
+                selectField.value = ""; 
             } else {
-                // Standard List
                 let html = `<option value="">-- Select --</option>`;
                 list.forEach(item => {
                     const val = typeof item === 'string' ? item : item.name;
                     const isSelected = name === val;
-                    html += `<option value="${val}" ${isSelected ? 'selected' : ''}>${val}</option>`;
+                    // PREVENT DUPLICATE GENERICS
+                    const isTakenGeneric = (val === 'Thaumaturgy' && window.state.dots.disc['Thaumaturgy'] !== undefined && name !== 'Thaumaturgy') ||
+                                           (val === 'Necromancy' && window.state.dots.disc['Necromancy'] !== undefined && name !== 'Necromancy');
+                    
+                    // Also prevent selecting generic if Primary Path is already set (user should add path via button/auto)
+                    const isRedundantGeneric = (val === 'Thaumaturgy' && window.state.primaryThaumPath) || 
+                                               (val === 'Necromancy' && window.state.primaryNecroPath);
+
+                    if (!isTakenGeneric && !isRedundantGeneric) {
+                        html += `<option value="${val}" ${isSelected ? 'selected' : ''}>${val}</option>`;
+                    }
                 });
                 const isCustom = name && !list.includes(name);
                 html += `<option value="Custom" ${isCustom ? 'selected' : ''}>-- Custom / Write-in --</option>`;
@@ -215,7 +208,6 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
 
         if (isPrimary) (selectField || inputField).title = "Primary Path";
 
-        // Specialty Logic
         if (isAbil && name) {
             const hasSpec = window.state.specialties && window.state.specialties[name];
             if (hasSpec || (window.state.dots.abil[name] >= 4) || SPECIALTY_EXAMPLES[name]) {
@@ -254,58 +246,30 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
         const onUpdate = (newVal) => {
             if (!newVal) return;
 
-            // --- DROPDOWN SUB-MENU INTERCEPTOR ---
             if (type === 'disc' && selectField && selectField.style.display !== 'none') {
                 const lower = newVal.toLowerCase();
                 
-                // If user somehow selects generic again, prompt paths (already handled by buildRow special logic)
+                // Allow "Back" or switching specific paths within magic types
                 if (lower === 'thaumaturgy' && curName !== 'Thaumaturgy') {
-                    // Logic to show paths if they selected "Thaumaturgy" from the main list manually
-                    const paths = THAUMATURGY_DATA ? Object.keys(THAUMATURGY_DATA) : [];
-                    let html = `<option value="">-- Select Path --</option>`;
-                    paths.forEach(p => html += `<option value="${p}">${p}</option>`);
-                    html += `<option value="BACK_TO_MAIN">-- Back --</option>`;
-                    selectField.innerHTML = html;
-                    selectField.classList.add('text-gold', 'border-gold');
-                    selectField.value = ""; 
-                    return;
+                    // Logic already handled by buildRow - generic Thaumaturgy triggers path selector
                 }
 
-                if (lower === 'necromancy' && curName !== 'Necromancy') {
-                    const paths = NECROMANCY_DATA ? Object.keys(NECROMANCY_DATA) : [];
-                    let html = `<option value="">-- Select Path --</option>`;
-                    paths.forEach(p => html += `<option value="${p}">${p}</option>`);
-                    html += `<option value="BACK_TO_MAIN">-- Back --</option>`;
-                    selectField.innerHTML = html;
-                    selectField.classList.add('text-gold', 'border-gold');
-                    selectField.value = "";
-                    return;
-                }
-
-                if (newVal === 'BACK_TO_MAIN') {
-                     let html = `<option value="">-- Select --</option>`;
-                     list.forEach(item => html += `<option value="${typeof item === 'string' ? item : item.name}">${typeof item === 'string' ? item : item.name}</option>`);
-                     html += `<option value="Custom">-- Custom --</option>`;
-                     selectField.innerHTML = html;
-                     selectField.classList.remove('text-gold', 'border-gold');
-                     selectField.value = "";
-                     return;
-                }
+                // If user selected generic 'Thaumaturgy' manually (not auto-fill), let buildRow handle the swap to path selector
             }
 
             // --- PRIMARY PATH LOGIC ---
             if (type === 'disc') {
                 const magicType = isMagicPath(newVal);
                 
-                // If transitioning FROM Generic TO Specific Path
                 if (curName === 'Thaumaturgy' && magicType === 'thaum') {
                     window.state.primaryThaumPath = newVal;
-                    // Auto-Add Lv1 Ritual if it's the first time setting up
                     if (!window.state.rituals) window.state.rituals = [];
                     if (!window.state.rituals.some(r => r.level === 1)) {
                          window.state.rituals.push({ name: "Defense of the Sacred Haven", level: 1 });
                          showNotification("Learned Lv1 Ritual: Defense of the Sacred Haven");
                     }
+                    // Auto-Add new row for Secondary Path
+                    buildRow(); 
                 } 
                 else if (curName === 'Necromancy' && magicType === 'necro') {
                     window.state.primaryNecroPath = newVal;
@@ -314,8 +278,9 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                          window.state.rituals.push({ name: "Call of the Hungry Dead", level: 1 });
                          showNotification("Learned Lv1 Ritual: Call of the Hungry Dead");
                     }
+                    // Auto-Add new row for Secondary Path
+                    buildRow();
                 }
-                // Standard selection
                 else if (magicType === 'thaum' && !window.state.primaryThaumPath) {
                     window.state.primaryThaumPath = newVal;
                 } else if (magicType === 'necro' && !window.state.primaryNecroPath) {
@@ -413,7 +378,6 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
             if (!curName || !e.target.dataset.v) return; 
             const newDots = parseInt(e.target.dataset.v);
             
-            // Limit secondary paths to not exceed primary
             if (type === 'disc') {
                 const isThaum = isMagicPath(curName) === 'thaum';
                 if (isThaum && window.state.primaryThaumPath) {
@@ -425,8 +389,13 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                     }
                 }
             }
+            
             setDots(curName, type, newDots, 0, 5);
-            syncAllDots(curName, type); // Force sync
+            dotCont.innerHTML = renderDots(newDots, 5);
+            
+            if (isPrimary) {
+                syncDotUI(curName, type, newDots);
+            }
         };
 
         row.appendChild(specWrapper);
@@ -454,18 +423,21 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
         // 2. Thaumaturgy Block
         if (thaumPaths.length > 0) {
             if (!window.state.primaryThaumPath || !thaumPaths.includes(window.state.primaryThaumPath)) {
-                // If generically named "Thaumaturgy" exists, default to it so it renders the selector row
                 if (thaumPaths.includes("Thaumaturgy")) window.state.primaryThaumPath = "Thaumaturgy";
                 else window.state.primaryThaumPath = thaumPaths[0];
             }
             const prim = window.state.primaryThaumPath;
             
-            // HEADER
             buildParentHeader("Thaumaturgy", prim, thaumPaths);
             
-            // PATHS (Indented)
             const sortedThaum = [prim, ...thaumPaths.filter(p => p !== prim)];
             sortedThaum.forEach(path => buildRow(path, true)); 
+            
+            // Add "Add Path" Button Logic (Only if not generic "Thaumaturgy")
+            if (prim !== 'Thaumaturgy' && (!window.state.xpMode || (window.state.xpMode && window.state.dots.disc[prim] >= 1))) {
+                 // The empty row at the bottom handles generic adding, but this ensures a slot specifically after Thaum block if desired
+                 // or effectively just use the generic adder at bottom which filters correctly
+            }
         }
 
         // 3. Necromancy Block
@@ -510,18 +482,15 @@ export function renderRitualsEdit() {
     let maxThaum = 0;
     let maxNecro = 0;
     
-    // Check Thaumaturgy Rating (Primary Path is stored in state but dots are in disc array)
     if (window.state.primaryThaumPath && window.state.dots.disc[window.state.primaryThaumPath]) {
         maxThaum = window.state.dots.disc[window.state.primaryThaumPath];
     }
-    // Check Necromancy Rating
     if (window.state.primaryNecroPath && window.state.dots.disc[window.state.primaryNecroPath]) {
         maxNecro = window.state.dots.disc[window.state.primaryNecroPath];
     }
     
     let loopMax = Math.max(maxThaum, maxNecro);
 
-    // Display Max Level Info
     if (loopMax === 0) {
         const info = document.createElement('div');
         info.className = "text-gray-500 italic text-[10px] text-center mb-2";
@@ -541,12 +510,9 @@ export function renderRitualsEdit() {
         const nameVal = data ? data.name : "";
         const lvlVal = data ? data.level : 1;
 
-        // --- RITUAL DROPDOWN ---
         let ritualOptions = `<option value="">-- Select Ritual --</option>`;
         if (window.RITUALS_DATA) {
-            // Iterate Levels 1 to MaxLevel
             for (let i = 1; i <= loopMax; i++) {
-                // Thaumaturgy Check
                 if (i <= maxThaum && window.RITUALS_DATA.Thaumaturgy && window.RITUALS_DATA.Thaumaturgy[i]) {
                     ritualOptions += `<optgroup label="Thaumaturgy Level ${i}">`;
                     Object.values(window.RITUALS_DATA.Thaumaturgy[i]).forEach(r => {
@@ -556,7 +522,6 @@ export function renderRitualsEdit() {
                     ritualOptions += `</optgroup>`;
                 }
                 
-                // Necromancy Check
                 if (i <= maxNecro && window.RITUALS_DATA.Necromancy && window.RITUALS_DATA.Necromancy[i]) {
                     ritualOptions += `<optgroup label="Necromancy Level ${i}">`;
                     Object.values(window.RITUALS_DATA.Necromancy[i]).forEach(r => {
@@ -569,19 +534,16 @@ export function renderRitualsEdit() {
         }
         ritualOptions += `<option value="Custom" ${nameVal && !isKnownRitual(nameVal) ? 'selected' : ''}>-- Custom / Write-in --</option>`;
 
-        // Create Dropdown Element
         const select = document.createElement('select');
         select.className = "flex-1 text-xs bg-[#111] border-b border-[#333] text-white focus:border-gold outline-none";
         select.innerHTML = ritualOptions;
         
-        // Create Text Input (Hidden by default)
         const input = document.createElement('input');
         input.type = "text";
         input.className = "flex-1 text-xs bg-transparent border-b border-[#333] text-white focus:border-gold outline-none hidden";
         input.placeholder = "Custom Name...";
         input.value = nameVal;
 
-        // Logic to show input if Custom
         if (nameVal && !isKnownRitual(nameVal)) {
             select.style.display = 'none';
             input.style.display = 'block';
@@ -590,14 +552,13 @@ export function renderRitualsEdit() {
         row.appendChild(select);
         row.appendChild(input);
 
-        // Level Display (Read-only for known, editable for custom)
         const lvlInput = document.createElement('input');
         lvlInput.type = "number";
         lvlInput.min = 1;
         lvlInput.max = 10;
         lvlInput.className = "w-10 text-center text-xs bg-[#111] border border-[#333] text-gold font-bold";
         lvlInput.value = lvlVal;
-        lvlInput.disabled = (nameVal && isKnownRitual(nameVal)); // Lock if known
+        lvlInput.disabled = (nameVal && isKnownRitual(nameVal)); 
         
         row.appendChild(lvlInput);
 
@@ -608,7 +569,6 @@ export function renderRitualsEdit() {
         
         row.appendChild(delBtn);
 
-        // --- HANDLERS ---
         const sync = () => {
             const rows = listCont.querySelectorAll('.ritual-row');
             const newData = [];
@@ -641,7 +601,6 @@ export function renderRitualsEdit() {
                 input.focus();
                 lvlInput.disabled = false;
             } else if (val) {
-                // Auto-set Level from Data
                 const opt = select.options[select.selectedIndex];
                 const lvl = opt.getAttribute('data-lvl');
                 if (lvl) {
@@ -668,21 +627,19 @@ export function renderRitualsEdit() {
     };
 
     window.state.rituals.forEach(r => buildRow(r));
-    if (loopMax > 0) buildRow(); // Only show empty row if user has Magic
+    if (loopMax > 0) buildRow(); 
 }
 window.renderRitualsEdit = renderRitualsEdit;
 
 function isKnownRitual(name) {
     if (!window.RITUALS_DATA) return false;
     
-    // Check Thaumaturgy
     if (window.RITUALS_DATA.Thaumaturgy) {
         for (const lvl in window.RITUALS_DATA.Thaumaturgy) {
             if (window.RITUALS_DATA.Thaumaturgy[lvl][name]) return true;
         }
     }
     
-    // Check Necromancy
     if (window.RITUALS_DATA.Necromancy) {
         for (const lvl in window.RITUALS_DATA.Necromancy) {
             if (window.RITUALS_DATA.Necromancy[lvl][name]) return true;
