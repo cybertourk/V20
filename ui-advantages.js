@@ -46,7 +46,6 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
     };
 
     // --- HELPER: Sync Dots Visually ---
-    // Updates ALL dot containers for a specific trait name in this container
     const syncDotUI = (name, type, val) => {
         if (!name) return;
         const safeName = name.replace(/"/g, '\\"');
@@ -69,7 +68,6 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
         dotCont.innerHTML = renderDots(val, 5);
         dotCont.title = `Primary Path Rating (${primaryKey || 'None'})`;
         
-        // Ensure this header is linked to the PRIMARY KEY for syncing
         if (primaryKey) {
             dotCont.dataset.n = primaryKey;
             dotCont.dataset.t = type;
@@ -79,13 +77,13 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
             if (!primaryKey || !e.target.dataset.v) return;
             const clickVal = parseInt(e.target.dataset.v);
             
-            // Attempt Update
+            // Update State
             setDots(primaryKey, type, clickVal, 0, 5);
             
-            // READ BACK ACTUAL STATE (Handles point limits, refunds, toggles)
+            // Read back actual value
             const actualVal = window.state.dots[type][primaryKey] || 0;
             
-            // Sync UI to Reality
+            // Sync UI
             dotCont.innerHTML = renderDots(actualVal, 5);
             syncDotUI(primaryKey, type, actualVal);
         };
@@ -174,6 +172,8 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                 list.forEach(item => {
                     const val = typeof item === 'string' ? item : item.name;
                     const isSelected = name === val;
+                    // Filter out Generic options IF they are already present as primary
+                    // This prevents re-selecting "Thaumaturgy" if you already have it, unless you are adding a secondary path
                     html += `<option value="${val}" ${isSelected ? 'selected' : ''}>${val}</option>`;
                 });
                 const isCustom = name && !list.includes(name);
@@ -190,7 +190,6 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
             inputField.placeholder = "Name...";
             inputField.value = name || "";
             
-            // Hide input if we are forcing a selection
             const showInput = (name && !list.includes(name) && !isGenericMagic && !forceSecondarySelect);
             
             if (showInput) {
@@ -262,50 +261,51 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
         const onUpdate = (newVal) => {
             if (!newVal) return;
 
-            // --- LOGIC: HANDLE GENERIC SELECTION ---
-            if (type === 'disc') {
-                const magicType = isMagicPath(newVal);
+            // --- DROPDOWN SUB-MENU LOGIC ---
+            if (type === 'disc' && selectField && selectField.style.display !== 'none') {
+                const lower = newVal.toLowerCase();
                 
-                // Case 1: Setting Primary Path (from Generic placeholder)
-                if (curName === 'Thaumaturgy' && magicType === 'thaum') {
-                    window.state.primaryThaumPath = newVal;
-                    // Auto-Add Lv1 Ritual
-                    if (!window.state.rituals) window.state.rituals = [];
-                    if (!window.state.rituals.some(r => r.level === 1)) {
-                         window.state.rituals.push({ name: "Defense of the Sacred Haven", level: 1 });
-                         showNotification("Learned Lv1 Ritual: Defense of the Sacred Haven");
+                // If user selected "Thaumaturgy" from the list to add a secondary path
+                if (lower === 'thaumaturgy' && curName !== 'Thaumaturgy') {
+                    // Do NOT commit "Thaumaturgy" to state yet if Primary already exists.
+                    // Just update UI to show path selector.
+                    if (window.state.primaryThaumPath) {
+                        const paths = THAUMATURGY_DATA ? Object.keys(THAUMATURGY_DATA) : [];
+                        let html = `<option value="">-- Select Additional Path --</option>`;
+                        paths.forEach(p => { if(!window.state.dots.disc[p]) html += `<option value="${p}">${p}</option>`; });
+                        html += `<option value="BACK_TO_MAIN">-- Back --</option>`;
+                        selectField.innerHTML = html;
+                        selectField.classList.add('text-gold', 'border-gold');
+                        selectField.value = ""; 
+                        return; // Stop here, don't update state yet
                     }
-                    
-                    // Cleanup: Remove the generic "Thaumaturgy" key if it exists
-                    if (window.state.dots.disc['Thaumaturgy'] !== undefined) {
-                        const dots = window.state.dots.disc['Thaumaturgy'];
-                        delete window.state.dots.disc['Thaumaturgy'];
-                        // Set the new path to have those dots
-                        window.state.dots.disc[newVal] = dots;
+                }
+
+                if (lower === 'necromancy' && curName !== 'Necromancy') {
+                    if (window.state.primaryNecroPath) {
+                        const paths = NECROMANCY_DATA ? Object.keys(NECROMANCY_DATA) : [];
+                        let html = `<option value="">-- Select Additional Path --</option>`;
+                        paths.forEach(p => { if(!window.state.dots.disc[p]) html += `<option value="${p}">${p}</option>`; });
+                        html += `<option value="BACK_TO_MAIN">-- Back --</option>`;
+                        selectField.innerHTML = html;
+                        selectField.classList.add('text-gold', 'border-gold');
+                        selectField.value = "";
+                        return;
                     }
-                    
-                    renderDynamicAdvantageRow(containerId, type, list, isAbil);
-                    return;
-                } 
-                
-                if (curName === 'Necromancy' && magicType === 'necro') {
-                    window.state.primaryNecroPath = newVal;
-                    if (!window.state.rituals) window.state.rituals = [];
-                    if (!window.state.rituals.some(r => r.name === "Call of the Hungry Dead")) {
-                         window.state.rituals.push({ name: "Call of the Hungry Dead", level: 1 });
-                         showNotification("Learned Lv1 Ritual: Call of the Hungry Dead");
-                    }
-                    if (window.state.dots.disc['Necromancy'] !== undefined) {
-                        const dots = window.state.dots.disc['Necromancy'];
-                        delete window.state.dots.disc['Necromancy'];
-                        window.state.dots.disc[newVal] = dots;
-                    }
-                    renderDynamicAdvantageRow(containerId, type, list, isAbil);
-                    return;
+                }
+
+                if (newVal === 'BACK_TO_MAIN') {
+                     let html = `<option value="">-- Select --</option>`;
+                     list.forEach(item => html += `<option value="${typeof item === 'string' ? item : item.name}">${typeof item === 'string' ? item : item.name}</option>`);
+                     html += `<option value="Custom">-- Custom --</option>`;
+                     selectField.innerHTML = html;
+                     selectField.classList.remove('text-gold', 'border-gold');
+                     selectField.value = "";
+                     return;
                 }
             }
 
-            // --- XP & CHANGE LOGIC ---
+            // --- XP CHECK (Before State Update) ---
             if (window.state.xpMode && !curName) {
                 let baseCost = 0;
                 if (type === 'disc') { 
@@ -330,37 +330,70 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                 
                  if (!window.state.xpLog) window.state.xpLog = [];
                  window.state.xpLog.push({ trait: newVal, old: 0, new: 1, cost: baseCost, type: type, date: new Date().toISOString() });
-                 window.state.dots[type][newVal] = 1; 
-                 showNotification(`Learned ${newVal}`);
             }
-            else if (curName && curName !== newVal) { 
-                const dots = window.state.dots[type][curName]; delete window.state.dots[type][curName]; 
-                if (window.state.customAbilityCategories?.[curName]) delete window.state.customAbilityCategories[curName];
-                if (newVal) window.state.dots[type][newVal] = dots || 0; 
+
+            // --- UPDATE STATE ---
+            // Only remove old key if it exists and isn't the primary path key we might be clobbering
+            if (curName && curName !== newVal) { 
+                const isProtectedPrimary = (curName === window.state.primaryThaumPath || curName === window.state.primaryNecroPath);
+                
+                // If we are replacing a generic placeholder that IS the primary path, we handle it carefully
+                // But normally curName shouldn't be the primary path unless we are editing that specific row.
+                // The issue was deleting "Thaumaturgy" when it WAS the primary key.
+                
+                if (!isProtectedPrimary || (isProtectedPrimary && newVal)) { 
+                    const dots = window.state.dots[type][curName]; 
+                    delete window.state.dots[type][curName]; 
+                    if (window.state.customAbilityCategories?.[curName]) delete window.state.customAbilityCategories[curName];
+                    if (newVal) window.state.dots[type][newVal] = dots || (window.state.xpMode ? 1 : 0);
+                }
+                
                 if (window.state.primaryThaumPath === curName) window.state.primaryThaumPath = newVal;
                 if (window.state.primaryNecroPath === curName) window.state.primaryNecroPath = newVal;
                 if(window.state.specialties[curName]) { window.state.specialties[newVal] = window.state.specialties[curName]; delete window.state.specialties[curName]; }
-            } else if (!curName && newVal && !window.state.xpMode) {
-                 window.state.dots[type][newVal] = 0; 
+            } else if (!curName && newVal) {
+                 // New Item
+                 window.state.dots[type][newVal] = window.state.xpMode ? 1 : 0; 
+            }
+            
+            // --- PRIMARY PATH LOGIC (Post-Update) ---
+            if (type === 'disc') {
+                const magicType = isMagicPath(newVal);
+                
+                if (curName === 'Thaumaturgy' && magicType === 'thaum') {
+                    window.state.primaryThaumPath = newVal;
+                    if (!window.state.rituals) window.state.rituals = [];
+                    if (!window.state.rituals.some(r => r.level === 1)) {
+                         window.state.rituals.push({ name: "Defense of the Sacred Haven", level: 1 });
+                         showNotification("Learned Lv1 Ritual");
+                    }
+                } 
+                else if (curName === 'Necromancy' && magicType === 'necro') {
+                    window.state.primaryNecroPath = newVal;
+                    if (!window.state.rituals) window.state.rituals = [];
+                    if (!window.state.rituals.some(r => r.name === "Call of the Hungry Dead")) {
+                         window.state.rituals.push({ name: "Call of the Hungry Dead", level: 1 });
+                         showNotification("Learned Lv1 Ritual");
+                    }
+                }
+                else if (magicType === 'thaum' && !window.state.primaryThaumPath) {
+                    window.state.primaryThaumPath = newVal;
+                } else if (magicType === 'necro' && !window.state.primaryNecroPath) {
+                    window.state.primaryNecroPath = newVal;
+                }
             }
             
             curName = newVal;
             if (newVal) { 
-                if (window.state.dots[type][newVal] === undefined) window.state.dots[type][newVal] = window.state.xpMode ? 1 : 0;
+                if (window.state.dots[type][newVal] === undefined) window.state.dots[type][newVal] = 0;
                 
-                // If this is a primary path update, ensure we sync UI immediately
-                const isThaum = isMagicPath(newVal) === 'thaum';
-                if (isThaum && window.state.primaryThaumPath === newVal) {
-                    syncDotUI(newVal, type, window.state.dots[type][newVal]);
-                }
+                dotCont.innerHTML = renderDots(window.state.dots[type][newVal], 5);
+                dotCont.dataset.n = newVal; dotCont.dataset.t = type;
+                if (category) { if (!window.state.customAbilityCategories) window.state.customAbilityCategories = {}; window.state.customAbilityCategories[newVal] = category; }
                 
-                // If it's a new row, re-render to ensure sorting and new empty row
+                // If we just added a new row, render again to add the next empty row
                 if (row === container.lastElementChild) { 
                     renderDynamicAdvantageRow(containerId, type, list, isAbil);
-                } else {
-                    // Update this row's dots just in case
-                    dotCont.innerHTML = renderDots(window.state.dots[type][newVal], 5);
-                    dotCont.dataset.n = newVal; dotCont.dataset.t = type;
                 }
             }
             updatePools();
@@ -407,7 +440,6 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                 if (isThaum && window.state.primaryThaumPath) {
                     const primaryName = window.state.primaryThaumPath;
                     const primaryRating = window.state.dots.disc[primaryName] || 0;
-                    // Secondary paths cannot exceed primary
                     if (curName !== primaryName && primaryRating < 5 && clickVal >= primaryRating) {
                         showNotification("Secondary Path cannot exceed Primary Path.");
                         return; 
@@ -415,19 +447,10 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                 }
             }
             
-            // Attempt Update
             setDots(curName, type, clickVal, 0, 5);
-            
-            // READ BACK ACTUAL STATE (Handles point limits, refunds, toggles)
             const actualVal = window.state.dots[type][curName] || 0;
-            
-            // Sync UI to Reality
             dotCont.innerHTML = renderDots(actualVal, 5);
-            
-            // If primary, sync other instances
-            if (isPrimary) {
-                syncDotUI(curName, type, actualVal);
-            }
+            if (isPrimary) syncDotUI(curName, type, actualVal);
         };
 
         row.appendChild(specWrapper);
@@ -455,13 +478,11 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
         // 2. Thaumaturgy Block
         if (thaumPaths.length > 0) {
             if (!window.state.primaryThaumPath || !thaumPaths.includes(window.state.primaryThaumPath)) {
-                // If generic "Thaumaturgy" exists, it is the primary (pending selection)
                 if (thaumPaths.includes("Thaumaturgy")) window.state.primaryThaumPath = "Thaumaturgy";
                 else window.state.primaryThaumPath = thaumPaths[0];
             }
             const prim = window.state.primaryThaumPath;
             
-            // Only build Header if specific path chosen (not generic placeholder)
             if (prim !== 'Thaumaturgy') {
                 buildParentHeader("Thaumaturgy", prim, thaumPaths);
             }
