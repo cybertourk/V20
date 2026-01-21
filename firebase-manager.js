@@ -9,7 +9,8 @@ import {
     query, 
     deleteDoc,
     signInAnonymously,
-    where
+    where,
+    appId // Import the App ID
 } from "./firebase-config.js";
 
 // Helper for UI notifications
@@ -39,15 +40,10 @@ export function handleNew() {
 }
 
 export function handleSaveClick() {
-    // Safety: Initialize state if missing
     if (!window.state) window.state = { meta: { filename: "", folder: "" }, textFields: {} };
-
     syncInputs();
-    
-    // Safety: Initialize meta if missing
     if (!window.state.meta) window.state.meta = { filename: "", folder: "" };
     
-    // Pre-fill inputs if existing
     const nameIn = document.getElementById('save-name-input');
     const folderIn = document.getElementById('save-folder-input');
     
@@ -55,7 +51,6 @@ export function handleSaveClick() {
         if(window.state.meta.filename) nameIn.value = window.state.meta.filename;
         else nameIn.value = document.getElementById('c-name')?.value || "Unnamed Vampire";
     }
-    
     if(folderIn && window.state.meta.folder) folderIn.value = window.state.meta.folder;
     
     const modal = document.getElementById('save-modal');
@@ -65,7 +60,6 @@ export function handleSaveClick() {
 export async function handleLoadClick() {
     const modal = document.getElementById('load-modal');
     const list = document.getElementById('file-browser');
-    
     if (!modal || !list) return;
     
     modal.classList.add('active');
@@ -85,12 +79,13 @@ export async function handleLoadClick() {
     await renderFileBrowser(user);
 }
 
-// --- MIGRATION TOOL (Attached to Window for Console Access too) ---
+// --- MIGRATION TOOL ---
+// Scans ROOT collection (old insecure) and moves to ARTIFACTS collection (new secure)
 window.migrateOldData = async function(oldCollectionName = "characters") {
     const user = auth.currentUser;
     if (!user) return alert("Please log in/wait for auth first.");
 
-    if (!confirm(`Attempt to migrate data from '${oldCollectionName}' to your secure folder?`)) return;
+    if (!confirm(`Attempt to migrate data from root '${oldCollectionName}' to your secure folder?`)) return;
 
     try {
         const list = document.getElementById('file-browser');
@@ -99,31 +94,28 @@ window.migrateOldData = async function(oldCollectionName = "characters") {
         console.log(`Scanning old collection: ${oldCollectionName}...`);
         
         // 1. Read from OLD root collection
-        // Note: This requires the temporary Security Rule to be active!
         const oldRef = collection(db, oldCollectionName);
         const snapshot = await getDocs(oldRef);
 
         if (snapshot.empty) {
-            alert(`No files found in '${oldCollectionName}'. Check the collection name in Firebase Console.`);
-            if(list) renderFileBrowser(user); // Restore view
+            alert(`No files found in root '${oldCollectionName}'. Your files might already be in the correct folder.`);
+            if(list) renderFileBrowser(user); 
             return;
         }
 
         let count = 0;
-        
-        // 2. Write to NEW user collection
         const batchPromises = [];
+        
         snapshot.forEach(docSnap => {
             const data = docSnap.data();
             const safeId = docSnap.id;
             
-            // Add metadata ownership
             if (!data.meta) data.meta = {};
             data.meta.uid = user.uid;
             data.meta.migrated = new Date().toISOString();
 
-            // Save to new path
-            const newRef = doc(db, 'users', user.uid, 'characters', safeId);
+            // Save to NEW Artifact path
+            const newRef = doc(db, 'artifacts', appId, 'users', user.uid, 'characters', safeId);
             batchPromises.push(setDoc(newRef, data));
             count++;
         });
@@ -135,8 +127,8 @@ window.migrateOldData = async function(oldCollectionName = "characters") {
         
     } catch (e) {
         console.error("Migration Error:", e);
-        alert("Migration Failed: " + e.message + "\n\n(Did you add the temporary rule to Firestore Rules?)");
-        if(document.getElementById('file-browser')) renderFileBrowser(user); // Restore view
+        alert("Migration Failed: " + e.message);
+        if(document.getElementById('file-browser')) renderFileBrowser(user);
     }
 };
 
@@ -161,26 +153,23 @@ export async function performSave() {
     let folder = folderIn ? folderIn.value.trim() : "Unsorted";
     
     if(!rawName) return notify("Filename required", "error");
-    
-    // Sanitize ID
     const safeId = rawName.replace(/[^a-zA-Z0-9 _-]/g, "");
     
     if (!window.state.meta) window.state.meta = {};
     window.state.meta.filename = safeId;
     window.state.meta.folder = folder;
     window.state.meta.lastModified = new Date().toISOString();
-    window.state.meta.uid = user.uid; // Store owner ID
+    window.state.meta.uid = user.uid;
     
     try {
-        // Path: /users/{userId}/characters/{safeId}
-        const docRef = doc(db, 'users', user.uid, 'characters', safeId);
+        // CORRECT PATH: artifacts/{appId}/users/{uid}/characters/{docId}
+        const docRef = doc(db, 'artifacts', appId, 'users', user.uid, 'characters', safeId);
         
         const dataToSave = JSON.parse(JSON.stringify(window.state));
         
         await setDoc(docRef, dataToSave);
         
         notify("Character Inscribed.");
-        
         const modal = document.getElementById('save-modal');
         if(modal) modal.classList.remove('active');
         
@@ -199,15 +188,14 @@ export async function performSave() {
 export async function deleteCharacter(id, name, event) {
     if(event) event.stopPropagation();
     if(!confirm(`Permanently delete "${name}"? This cannot be undone.`)) return;
-    
     const user = auth.currentUser;
     if (!user) return;
-
     try {
-        const docRef = doc(db, 'users', user.uid, 'characters', id);
+        // CORRECT PATH
+        const docRef = doc(db, 'artifacts', appId, 'users', user.uid, 'characters', id);
         await deleteDoc(docRef);
         notify("Deleted.");
-        await renderFileBrowser(user); // Refresh list
+        await renderFileBrowser(user);
     } catch (e) {
         console.error("Delete Error:", e);
         notify("Delete Failed.", "error");
@@ -218,21 +206,20 @@ export async function deleteCharacter(id, name, event) {
 
 export async function renderFileBrowser(user) {
     const browser = document.getElementById('file-browser');
-    
     try {
-        // Path: /users/{userId}/characters
-        const q = query(collection(db, 'users', user.uid, 'characters'));
+        // CORRECT PATH: query artifacts/{appId}/users/{uid}/characters
+        const q = query(collection(db, 'artifacts', appId, 'users', user.uid, 'characters'));
         const snap = await getDocs(q);
         
         browser.innerHTML = '';
 
-        // --- ALWAYS SHOW MIGRATION BUTTON (Top of List) ---
+        // Migration Header
         const migrateHeader = document.createElement('div');
         migrateHeader.className = "p-2 bg-red-900/20 border-b border-red-900/50 mb-2 text-center";
         migrateHeader.innerHTML = `
             <div class="text-[10px] text-red-300 mb-1">Missing old files?</div>
             <button class="bg-red-900 hover:bg-red-800 text-white text-xs font-bold px-3 py-1 rounded" onclick="window.migrateOldData('characters')">
-                <i class="fas fa-sync mr-1"></i> Migrate Legacy Data
+                <i class="fas fa-sync mr-1"></i> Check Legacy Storage
             </button>
         `;
         browser.appendChild(migrateHeader);
@@ -240,13 +227,12 @@ export async function renderFileBrowser(user) {
         if (snap.empty) {
             const emptyMsg = document.createElement('div');
             emptyMsg.className = "text-center text-gray-500 italic mt-4 text-xs";
-            emptyMsg.innerText = "Secure Archive is empty.";
+            emptyMsg.innerText = "No secure archives found.";
             browser.appendChild(emptyMsg);
             return;
         }
 
         const structure = {};
-        
         snap.forEach(d => {
             const data = d.data();
             const f = data.meta?.folder || "Unsorted";
@@ -254,15 +240,12 @@ export async function renderFileBrowser(user) {
             structure[f].push({ id: d.id, ...data });
         });
         
-        // Sort folders (Unsorted last)
         const folders = Object.keys(structure).sort((a,b) => a === "Unsorted" ? 1 : b === "Unsorted" ? -1 : a.localeCompare(b));
-        
         const dl = document.getElementById('folder-datalist');
-        if(dl) dl.innerHTML = ''; // Reset datalist
+        if(dl) dl.innerHTML = ''; 
         
         folders.forEach(f => {
             if(dl) { const opt = document.createElement('option'); opt.value = f; dl.appendChild(opt); }
-            
             const header = document.createElement('div');
             header.className = "text-[#d4af37] font-bold text-xs uppercase border-b border-[#333] mb-1 sticky top-0 bg-[#050505] py-1 mt-2";
             header.innerHTML = `<i class="fas fa-folder mr-2"></i> ${f}`;
@@ -271,7 +254,6 @@ export async function renderFileBrowser(user) {
             structure[f].forEach(char => {
                 const row = document.createElement('div');
                 row.className = "flex justify-between items-center p-2 hover:bg-[#222] rounded cursor-pointer group transition-colors text-xs border-b border-[#111]";
-                
                 const date = char.meta?.lastModified ? new Date(char.meta.lastModified).toLocaleDateString() : "";
                 const charName = char.meta?.filename || char.textFields?.['c-name'] || char.id;
                 const clanName = char.textFields?.['c-clan'] || 'Unknown Clan';
@@ -284,20 +266,15 @@ export async function renderFileBrowser(user) {
                     </div>
                     <div class="flex items-center gap-3">
                         <div class="text-[10px] text-gray-600">${date}</div>
-                        <button class="file-delete-btn text-red-900 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity px-2" title="Delete">
-                            <i class="fas fa-trash"></i>
-                        </button>
+                        <button class="file-delete-btn text-red-900 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity px-2" title="Delete"><i class="fas fa-trash"></i></button>
                     </div>
                 `;
-                
                 const deleteBtn = row.querySelector('.file-delete-btn');
                 deleteBtn.onclick = (e) => deleteCharacter(char.id, charName, e);
-                
                 row.onclick = async (e) => {
                     if(e.target.closest('.file-delete-btn')) return;
                     await loadSelectedChar(char);
                 };
-                
                 browser.appendChild(row);
             });
         });
@@ -310,13 +287,10 @@ export async function renderFileBrowser(user) {
 
 export async function loadSelectedChar(data) {
     if (!data) return;
-
     if(!confirm(`Recall ${data.meta?.filename || "Character"}? Unsaved progress will be lost.`)) return;
     
-    // Deep copy to break reference
     window.state = JSON.parse(JSON.stringify(data));
     
-    // Legacy Data Patches / Safety Checks
     if(!window.state.meta) window.state.meta = { filename: data.id || "Loaded Character", folder: "" };
     if(!window.state.specialties) window.state.specialties = {}; 
     if(!window.state.rituals) window.state.rituals = [];
@@ -330,20 +304,14 @@ export async function loadSelectedChar(data) {
         if (window.state.status.health_states === undefined || !Array.isArray(window.state.status.health_states)) {
             const oldDamage = window.state.status.health || 0;
             window.state.status.health_states = [0,0,0,0,0,0,0];
-            for(let i=0; i<oldDamage && i<7; i++) {
-                window.state.status.health_states[i] = 2; 
-            }
+            for(let i=0; i<oldDamage && i<7; i++) window.state.status.health_states[i] = 2; 
         }
     } else {
         window.state.status = { humanity: 7, willpower: 5, tempWillpower: 5, health_states: [0,0,0,0,0,0,0], blood: 10 };
     }
     
-    if (window.fullRefresh) {
-        window.fullRefresh();
-    } else {
-        console.error("Refresh function missing.");
-        window.location.reload(); 
-    }
+    if (window.fullRefresh) window.fullRefresh();
+    else window.location.reload();
     
     const modal = document.getElementById('load-modal');
     if(modal) modal.classList.remove('active');
