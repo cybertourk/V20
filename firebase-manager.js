@@ -10,7 +10,7 @@ import {
     deleteDoc,
     signInAnonymously,
     where,
-    appId // Import the App ID
+    appId 
 } from "./firebase-config.js";
 
 // Helper for UI notifications
@@ -31,6 +31,13 @@ function syncInputs() {
         }
     });
 }
+
+// --- LOCAL UI STATE FOR LOAD MENU ---
+let loadMenuState = {
+    characters: [],
+    sort: 'date', // 'date' or 'alpha'
+    expandedFolders: {}
+};
 
 // --- MAIN ACTIONS ---
 
@@ -79,58 +86,6 @@ export async function handleLoadClick() {
     await renderFileBrowser(user);
 }
 
-// --- MIGRATION TOOL ---
-window.migrateOldData = async function(oldCollectionName = "characters") {
-    const user = auth.currentUser;
-    if (!user) return alert("Please log in/wait for auth first.");
-
-    if (!confirm(`Attempt to migrate data from root '${oldCollectionName}' to your secure folder?`)) return;
-
-    try {
-        const list = document.getElementById('file-browser');
-        if(list) list.innerHTML = '<div class="text-center text-gold italic mt-4">Migrating data... please wait...</div>';
-
-        console.log(`Scanning old collection: ${oldCollectionName}...`);
-        
-        // 1. Read from OLD root collection
-        const oldRef = collection(db, oldCollectionName);
-        const snapshot = await getDocs(oldRef);
-
-        if (snapshot.empty) {
-            alert(`No files found in root '${oldCollectionName}'. Your files might already be in the correct folder.`);
-            if(list) renderFileBrowser(user); 
-            return;
-        }
-
-        let count = 0;
-        const batchPromises = [];
-        
-        snapshot.forEach(docSnap => {
-            const data = docSnap.data();
-            const safeId = docSnap.id;
-            
-            if (!data.meta) data.meta = {};
-            data.meta.uid = user.uid;
-            data.meta.migrated = new Date().toISOString();
-
-            // Save to NEW Artifact path
-            const newRef = doc(db, 'artifacts', appId, 'users', user.uid, 'characters', safeId);
-            batchPromises.push(setDoc(newRef, data));
-            count++;
-        });
-
-        await Promise.all(batchPromises);
-
-        alert(`Success! Migrated ${count} characters. Reloading list...`);
-        await renderFileBrowser(user);
-        
-    } catch (e) {
-        console.error("Migration Error:", e);
-        alert("Migration Failed: " + e.message);
-        if(document.getElementById('file-browser')) renderFileBrowser(user);
-    }
-};
-
 // --- CORE OPERATIONS ---
 
 export async function performSave() {
@@ -161,9 +116,7 @@ export async function performSave() {
     window.state.meta.uid = user.uid;
     
     try {
-        // CORRECT PATH: artifacts/{appId}/users/{uid}/characters/{docId}
         const docRef = doc(db, 'artifacts', appId, 'users', user.uid, 'characters', safeId);
-        
         const dataToSave = JSON.parse(JSON.stringify(window.state));
         
         await setDoc(docRef, dataToSave);
@@ -190,7 +143,6 @@ export async function deleteCharacter(id, name, event) {
     const user = auth.currentUser;
     if (!user) return;
     try {
-        // CORRECT PATH
         const docRef = doc(db, 'artifacts', appId, 'users', user.uid, 'characters', id);
         await deleteDoc(docRef);
         notify("Deleted.");
@@ -201,89 +153,182 @@ export async function deleteCharacter(id, name, event) {
     }
 }
 
-// --- BROWSER UI ---
+// --- BROWSER UI (REDESIGNED) ---
 
+// Fetches data and updates local state
 export async function renderFileBrowser(user) {
     const browser = document.getElementById('file-browser');
     
-    // 1. Render Structure first to ensure Button exists even on error
-    browser.innerHTML = '';
-    
-    const migrateHeader = document.createElement('div');
-    migrateHeader.className = "p-2 bg-red-900/20 border-b border-red-900/50 mb-2 text-center";
-    migrateHeader.innerHTML = `
-        <div class="text-[10px] text-red-300 mb-1">Missing old files?</div>
-        <button class="bg-red-900 hover:bg-red-800 text-white text-xs font-bold px-3 py-1 rounded" onclick="window.migrateOldData('characters')">
-            <i class="fas fa-sync mr-1"></i> Check Legacy Storage
-        </button>
-    `;
-    browser.appendChild(migrateHeader);
-
-    const listContainer = document.createElement('div');
-    browser.appendChild(listContainer);
-
     try {
-        // Path: query artifacts/{appId}/users/{uid}/characters
         const q = query(collection(db, 'artifacts', appId, 'users', user.uid, 'characters'));
         const snap = await getDocs(q);
         
-        if (snap.empty) {
-            listContainer.innerHTML = '<div class="text-center text-gray-500 italic mt-4 text-xs">No secure archives found.</div>';
-            return;
-        }
-
-        const structure = {};
+        loadMenuState.characters = [];
         snap.forEach(d => {
-            const data = d.data();
-            const f = data.meta?.folder || "Unsorted";
-            if(!structure[f]) structure[f] = [];
-            structure[f].push({ id: d.id, ...data });
+            loadMenuState.characters.push({ id: d.id, ...d.data() });
         });
         
-        const folders = Object.keys(structure).sort((a,b) => a === "Unsorted" ? 1 : b === "Unsorted" ? -1 : a.localeCompare(b));
-        const dl = document.getElementById('folder-datalist');
-        if(dl) dl.innerHTML = ''; 
-        
-        folders.forEach(f => {
-            if(dl) { const opt = document.createElement('option'); opt.value = f; dl.appendChild(opt); }
-            const header = document.createElement('div');
-            header.className = "text-[#d4af37] font-bold text-xs uppercase border-b border-[#333] mb-1 sticky top-0 bg-[#050505] py-1 mt-2";
-            header.innerHTML = `<i class="fas fa-folder mr-2"></i> ${f}`;
-            listContainer.appendChild(header);
-            
-            structure[f].forEach(char => {
-                const row = document.createElement('div');
-                row.className = "flex justify-between items-center p-2 hover:bg-[#222] rounded cursor-pointer group transition-colors text-xs border-b border-[#111]";
-                const date = char.meta?.lastModified ? new Date(char.meta.lastModified).toLocaleDateString() : "";
-                const charName = char.meta?.filename || char.textFields?.['c-name'] || char.id;
-                const clanName = char.textFields?.['c-clan'] || 'Unknown Clan';
-                const natureName = char.textFields?.['c-nature'] || 'Unknown Nature';
-
-                row.innerHTML = `
-                    <div class="flex-1">
-                        <div class="font-bold text-white">${charName}</div>
-                        <div class="text-[10px] text-gray-500">${clanName} • ${natureName}</div>
-                    </div>
-                    <div class="flex items-center gap-3">
-                        <div class="text-[10px] text-gray-600">${date}</div>
-                        <button class="file-delete-btn text-red-900 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity px-2" title="Delete"><i class="fas fa-trash"></i></button>
-                    </div>
-                `;
-                const deleteBtn = row.querySelector('.file-delete-btn');
-                deleteBtn.onclick = (e) => deleteCharacter(char.id, charName, e);
-                row.onclick = async (e) => {
-                    if(e.target.closest('.file-delete-btn')) return;
-                    await loadSelectedChar(char);
-                };
-                listContainer.appendChild(row);
-            });
-        });
+        renderLoadMenuUI();
         
     } catch (e) {
         console.error("Browser Error:", e);
-        listContainer.innerHTML = `<div class="text-red-500 text-center mt-10">Archive Error: ${e.message}<br><span class="text-gray-500 text-[10px]">Check Firestore Rules.</span></div>`;
+        browser.innerHTML = `<div class="text-red-500 text-center mt-10">Archive Error: ${e.message}<br><span class="text-gray-500 text-[10px]">Check Firestore Rules.</span></div>`;
     }
 }
+
+// Renders the HTML based on local state (Supports Sorting/Collapsing)
+function renderLoadMenuUI() {
+    const browser = document.getElementById('file-browser');
+    if (!browser) return;
+    browser.innerHTML = '';
+
+    // 1. Controls Header
+    const controls = document.createElement('div');
+    controls.className = "flex justify-between items-center mb-3 px-1 border-b border-[#333] pb-2";
+    
+    const sortHtml = `
+        <div class="flex gap-2 text-[10px] uppercase font-bold text-gray-500">
+            <span>Sort:</span>
+            <button class="${loadMenuState.sort === 'alpha' ? 'text-gold' : 'hover:text-gray-300'}" onclick="window.setLoadSort('alpha')">A-Z</button>
+            <span>|</span>
+            <button class="${loadMenuState.sort === 'date' ? 'text-gold' : 'hover:text-gray-300'}" onclick="window.setLoadSort('date')">Recent</button>
+        </div>
+    `;
+    const refreshHtml = `<button class="text-gray-500 hover:text-white" title="Refresh" onclick="window.handleLoadClick()"><i class="fas fa-sync"></i></button>`;
+    
+    controls.innerHTML = sortHtml + refreshHtml;
+    browser.appendChild(controls);
+
+    if (loadMenuState.characters.length === 0) {
+        browser.innerHTML += '<div class="text-center text-gray-500 italic mt-4 text-xs">No secure archives found.</div>';
+        return;
+    }
+
+    // 2. Group Characters by Folder
+    const structure = {};
+    loadMenuState.characters.forEach(char => {
+        const f = char.meta?.folder || "Unsorted";
+        if(!structure[f]) structure[f] = [];
+        structure[f].push(char);
+    });
+
+    const folders = Object.keys(structure).sort((a,b) => a === "Unsorted" ? 1 : b === "Unsorted" ? -1 : a.localeCompare(b));
+    
+    // Update Datalist for Save Dialog
+    const dl = document.getElementById('folder-datalist');
+    if(dl) {
+        dl.innerHTML = ''; 
+        folders.forEach(f => { const opt = document.createElement('option'); opt.value = f; dl.appendChild(opt); });
+    }
+
+    // 3. Render Folders
+    folders.forEach(f => {
+        // Sort Items within Folder
+        const items = structure[f].sort((a,b) => {
+            if (loadMenuState.sort === 'date') {
+                const da = a.meta?.lastModified ? new Date(a.meta.lastModified) : new Date(0);
+                const db = b.meta?.lastModified ? new Date(b.meta.lastModified) : new Date(0);
+                return db - da; 
+            } else {
+                const na = a.meta?.filename || a.textFields?.['c-name'] || "Unknown";
+                const nb = b.meta?.filename || b.textFields?.['c-name'] || "Unknown";
+                return na.localeCompare(nb);
+            }
+        });
+
+        // Folder Container
+        const folderDiv = document.createElement('div');
+        folderDiv.className = "mb-2";
+        
+        const isOpen = loadMenuState.expandedFolders[f];
+        
+        // Header Row
+        const header = document.createElement('div');
+        header.className = `flex items-center gap-2 p-2 rounded cursor-pointer transition-colors select-none ${isOpen ? 'bg-[#222] border-gold border text-white' : 'bg-[#111] border border-[#333] text-gray-400 hover:border-gray-500'}`;
+        header.innerHTML = `
+            <i class="fas fa-folder${isOpen ? '-open' : ''} ${isOpen ? 'text-gold' : ''}"></i>
+            <span class="text-xs font-bold flex-1 truncate">${f}</span>
+            <span class="text-[9px] bg-black/50 px-1.5 py-0.5 rounded text-gray-500">${items.length}</span>
+            <i class="fas fa-chevron-${isOpen ? 'down' : 'right'} text-[10px]"></i>
+        `;
+        
+        header.onclick = () => {
+            loadMenuState.expandedFolders[f] = !isOpen;
+            renderLoadMenuUI();
+        };
+        folderDiv.appendChild(header);
+
+        // Character List
+        if (isOpen) {
+            const listDiv = document.createElement('div');
+            listDiv.className = "ml-3 pl-2 border-l border-[#333] mt-1 space-y-1 bg-[#0a0a0a] py-1";
+            
+            items.forEach(char => {
+                const row = document.createElement('div');
+                row.className = "flex justify-between items-center p-2 hover:bg-[#222] rounded cursor-pointer group transition-colors text-xs";
+                
+                const date = char.meta?.lastModified ? new Date(char.meta.lastModified).toLocaleDateString() : "";
+                const charName = char.meta?.filename || char.textFields?.['c-name'] || char.id;
+                const clan = char.textFields?.['c-clan'] || "Unknown";
+
+                row.innerHTML = `
+                    <div class="flex-1 overflow-hidden" onclick="window.loadSelectedCharFromId('${char.id}')">
+                        <div class="font-bold text-gray-200 group-hover:text-white truncate">${charName}</div>
+                        <div class="text-[10px] text-gray-600 group-hover:text-gray-500 truncate">${clan} • ${date}</div>
+                    </div>
+                    <button class="text-red-900 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity px-2" onclick="window.deleteCharacter('${char.id}', '${charName.replace(/'/g, "\\'")}', event)" title="Delete">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                `;
+                listDiv.appendChild(row);
+            });
+            folderDiv.appendChild(listDiv);
+        }
+        
+        browser.appendChild(folderDiv);
+    });
+}
+
+// --- GLOBAL HELPERS FOR HTML EVENTS ---
+window.setLoadSort = (mode) => {
+    loadMenuState.sort = mode;
+    renderLoadMenuUI();
+};
+
+window.loadSelectedCharFromId = (id) => {
+    const char = loadMenuState.characters.find(c => c.id === id);
+    if(char) loadSelectedChar(char);
+}
+
+// --- MIGRATION TOOL (HIDDEN BUT AVAILABLE) ---
+window.migrateOldData = async function(oldCollectionName = "characters") {
+    // Implementation kept for emergency console use, but removed from UI per request.
+    const user = auth.currentUser;
+    if (!user) return alert("Please log in.");
+    if (!confirm(`Migrate from '${oldCollectionName}'?`)) return;
+    try {
+        console.log(`Scanning...`);
+        const oldRef = collection(db, oldCollectionName);
+        const snapshot = await getDocs(oldRef);
+        if (snapshot.empty) return alert(`No files in '${oldCollectionName}'.`);
+        let count = 0;
+        const batchPromises = [];
+        snapshot.forEach(docSnap => {
+            const data = docSnap.data();
+            if (!data.meta) data.meta = {};
+            data.meta.uid = user.uid;
+            data.meta.migrated = new Date().toISOString();
+            const newRef = doc(db, 'artifacts', appId, 'users', user.uid, 'characters', docSnap.id);
+            batchPromises.push(setDoc(newRef, data));
+            count++;
+        });
+        await Promise.all(batchPromises);
+        alert(`Migrated ${count} files.`);
+        await renderFileBrowser(user);
+    } catch (e) {
+        alert("Migration Failed: " + e.message);
+    }
+};
 
 export async function loadSelectedChar(data) {
     if (!data) return;
@@ -298,9 +343,7 @@ export async function loadSelectedChar(data) {
     if (!window.state.furthestPhase) window.state.furthestPhase = 1;
     
     if (window.state.status) {
-        if (window.state.status.tempWillpower === undefined) {
-            window.state.status.tempWillpower = window.state.status.willpower || 5;
-        }
+        if (window.state.status.tempWillpower === undefined) window.state.status.tempWillpower = window.state.status.willpower || 5;
         if (window.state.status.health_states === undefined || !Array.isArray(window.state.status.health_states)) {
             const oldDamage = window.state.status.health || 0;
             window.state.status.health_states = [0,0,0,0,0,0,0];
