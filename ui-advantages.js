@@ -50,9 +50,6 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
     const syncDotUI = (name, type, val) => {
         if (!name) return;
         const safeName = name.replace(/"/g, '\\"');
-        // Select any dot-row that matches the name OR the primary key if this is a header
-        // But for simplicity, buildParentHeader sets data-n to the Primary Key.
-        // So we just search for data-n matching the trait name.
         const matches = container.querySelectorAll(`.dot-row[data-n="${safeName}"][data-t="${type}"]`);
         matches.forEach(el => el.innerHTML = renderDots(val, 5));
     };
@@ -80,10 +77,17 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
         
         dotCont.onclick = (e) => {
             if (!primaryKey || !e.target.dataset.v) return;
-            const newDots = parseInt(e.target.dataset.v);
-            setDots(primaryKey, type, newDots, 0, 5);
-            // Sync ALL instances (Header + Child Row)
-            syncDotUI(primaryKey, type, newDots);
+            const clickVal = parseInt(e.target.dataset.v);
+            
+            // Attempt Update
+            setDots(primaryKey, type, clickVal, 0, 5);
+            
+            // READ BACK ACTUAL STATE (Handles point limits, refunds, toggles)
+            const actualVal = window.state.dots[type][primaryKey] || 0;
+            
+            // Sync UI to Reality
+            dotCont.innerHTML = renderDots(actualVal, 5);
+            syncDotUI(primaryKey, type, actualVal);
         };
 
         const removeBtn = document.createElement('div');
@@ -134,7 +138,6 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
         const isGenericMagic = (name === 'Thaumaturgy' || name === 'Necromancy');
 
         // Check if we need to force Secondary Selection
-        // i.e., user selected "Thaumaturgy" again in a new row
         let forceSecondarySelect = false;
         if (type === 'disc' && name === 'Thaumaturgy' && window.state.primaryThaumPath && window.state.primaryThaumPath !== 'Thaumaturgy') {
             forceSecondarySelect = true;
@@ -171,8 +174,6 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                 list.forEach(item => {
                     const val = typeof item === 'string' ? item : item.name;
                     const isSelected = name === val;
-                    // Logic to show "Thaumaturgy" only if it's the *only* way to add paths
-                    // Actually, keep it simple: always show it. If they pick it and have a primary, onUpdate handles it.
                     html += `<option value="${val}" ${isSelected ? 'selected' : ''}>${val}</option>`;
                 });
                 const isCustom = name && !list.includes(name);
@@ -302,15 +303,6 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                     renderDynamicAdvantageRow(containerId, type, list, isAbil);
                     return;
                 }
-                
-                // Case 2: Adding a Secondary Path (User selected "Thaumaturgy" in a new row)
-                if (newVal === 'Thaumaturgy' && window.state.primaryThaumPath) {
-                    // Don't actually add "Thaumaturgy". Re-render. 
-                    // The buildRow logic will see "Thaumaturgy" key, check Primary exists, and force Secondary Selector.
-                    // But we need to ensure the key is saved temporarily to trigger the render.
-                    // Wait, better approach: Don't save "Thaumaturgy". Just ignore if duplicate?
-                    // No, we need to trigger the dropdown swap.
-                }
             }
 
             // --- XP & CHANGE LOGIC ---
@@ -408,7 +400,7 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
         
         dotCont.onclick = (e) => { 
             if (!curName || !e.target.dataset.v) return; 
-            const newDots = parseInt(e.target.dataset.v);
+            const clickVal = parseInt(e.target.dataset.v);
             
             if (type === 'disc') {
                 const isThaum = isMagicPath(curName) === 'thaum';
@@ -416,16 +408,26 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                     const primaryName = window.state.primaryThaumPath;
                     const primaryRating = window.state.dots.disc[primaryName] || 0;
                     // Secondary paths cannot exceed primary
-                    if (curName !== primaryName && primaryRating < 5 && newDots >= primaryRating) {
+                    if (curName !== primaryName && primaryRating < 5 && clickVal >= primaryRating) {
                         showNotification("Secondary Path cannot exceed Primary Path.");
                         return; 
                     }
                 }
             }
             
-            setDots(curName, type, newDots, 0, 5);
-            // SYNC UI
-            syncDotUI(curName, type, newDots);
+            // Attempt Update
+            setDots(curName, type, clickVal, 0, 5);
+            
+            // READ BACK ACTUAL STATE (Handles point limits, refunds, toggles)
+            const actualVal = window.state.dots[type][curName] || 0;
+            
+            // Sync UI to Reality
+            dotCont.innerHTML = renderDots(actualVal, 5);
+            
+            // If primary, sync other instances
+            if (isPrimary) {
+                syncDotUI(curName, type, actualVal);
+            }
         };
 
         row.appendChild(specWrapper);
