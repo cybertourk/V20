@@ -220,6 +220,69 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
         const primaryKey = isThaum ? window.state.primaryThaumPath : window.state.primaryNecroPath;
         const dataObj = isThaum ? THAUMATURGY_DATA : NECROMANCY_DATA;
         
+        // --- Custom XP Logic for Primary Path (Discipline Rating) ---
+        const handlePrimaryClick = (e) => {
+             if (!primaryKey) {
+                showNotification("Select a Primary Path first.");
+                return;
+            }
+            if (!e.target.dataset.v) return;
+            const newVal = parseInt(e.target.dataset.v);
+            const currentVal = window.state.dots.disc[primaryKey] || 0;
+            
+            // If in XP mode and raising logic
+            if (window.state.xpMode && newVal > currentVal) {
+                if (!window.state.xp) window.state.xp = { current: 0, spent: 0, total: 0, log: [] };
+
+                // Determine Multiplier
+                // V20: In-Clan x5, Out-of-Clan x7, Caitiff x6
+                const clan = window.state.textFields['c-clan'] || "None";
+                let multiplier = 7; // Default Out-of-Clan
+                
+                if (clan === "Caitiff") {
+                    multiplier = 6;
+                } else if ((isThaum && clan === "Tremere") || (!isThaum && clan === "Giovanni")) {
+                    // Basic check. Ideally we'd check window.state.clanDisciplines if available.
+                    multiplier = 5;
+                }
+                // Note: If user has 'Additional Discipline' merit for this, it's not caught here 
+                // without access to Merits list, but this covers 95% of cases.
+
+                let totalCost = 0;
+                for (let v = currentVal + 1; v <= newVal; v++) {
+                    // Level 1 of a Discipline (Primary Path IS the Discipline) is 10 XP
+                    if (v === 1) totalCost += 10;
+                    else totalCost += (v - 1) * multiplier;
+                }
+
+                if (window.state.xp.current < totalCost) {
+                    showNotification(`Not enough XP. Cost: ${totalCost}`);
+                    return;
+                }
+
+                if (!confirm(`Spend ${totalCost} XP to raise ${label} (Primary: ${primaryKey}) to ${newVal}?`)) return;
+
+                window.state.xp.current -= totalCost;
+                window.state.xp.spent += totalCost;
+                if (!window.state.xpLog) window.state.xpLog = [];
+                window.state.xpLog.push({
+                    date: new Date().toLocaleString(),
+                    // Use "Discipline" keyword so tracker categorizes it correctly
+                    entry: `Raised Discipline ${label} (${primaryKey}) to ${newVal}`,
+                    cost: totalCost
+                });
+
+                window.state.dots.disc[primaryKey] = newVal;
+                renderDynamicAdvantageRow(containerId, type, list, isAbil);
+                updatePools();
+                return;
+            }
+
+            // Fallback for non-XP mode or lowering
+            setDots(primaryKey, type, newVal, 0, 5);
+            renderDynamicAdvantageRow(containerId, type, list, isAbil);
+        };
+
         // 1. The HEADER Row (Thaumaturgy/Necromancy)
         const headerRow = document.createElement('div');
         headerRow.className = "flex justify-between items-center mb-1 advantage-row";
@@ -236,16 +299,7 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
         const primaryVal = primaryKey ? (window.state.dots.disc[primaryKey] || 0) : 0;
         headerDots.innerHTML = renderDots(primaryVal, 5);
         
-        headerDots.onclick = (e) => {
-            if (!primaryKey) {
-                showNotification("Select a Primary Path first.");
-                return;
-            }
-            if (!e.target.dataset.v) return;
-            const clickVal = parseInt(e.target.dataset.v);
-            setDots(primaryKey, type, clickVal, 0, 5);
-            renderDynamicAdvantageRow(containerId, type, list, isAbil);
-        };
+        headerDots.onclick = handlePrimaryClick;
 
         // Remove (Clears all)
         const headerRemove = document.createElement('div');
@@ -306,11 +360,7 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
             pDots.className = "dot-row cursor-pointer flex-shrink-0";
             pDots.innerHTML = renderDots(window.state.dots.disc[primaryKey] || 0, 5);
             
-            pDots.onclick = (e) => {
-                if(!e.target.dataset.v) return;
-                setDots(primaryKey, type, parseInt(e.target.dataset.v), 0, 5);
-                renderDynamicAdvantageRow(containerId, type, list, isAbil);
-            };
+            pDots.onclick = handlePrimaryClick;
             
             // Allow changing/resetting primary
             const pReset = document.createElement('div');
@@ -373,6 +423,9 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                     // --- XP Mode Logic Override for Secondary Paths ---
                     // Rule: New Path = 7 XP. Raise Path = Current Rating * 4.
                     if (window.state.xpMode && newVal > currentVal) {
+                        // FIX: Ensure state.xp exists before accessing it
+                        if (!window.state.xp) window.state.xp = { current: 0, spent: 0, total: 0, log: [] };
+
                         let totalCost = 0;
                         for (let v = currentVal + 1; v <= newVal; v++) {
                             // If target is level 1, it's a NEW path = 7 XP
