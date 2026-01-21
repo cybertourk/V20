@@ -30,8 +30,12 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
         if (containerId === 'custom-talents') category = 'Talents';
         else if (containerId === 'custom-skills') category = 'Skills';
         else if (containerId === 'custom-knowledges') category = 'Knowledges';
-        if (window.state.customAbilityCategories) { existingItems = Object.keys(window.state.dots.abil).filter(k => window.state.customAbilityCategories[k] === category); }
-    } else { if (window.state.dots[type]) existingItems = Object.keys(window.state.dots[type]); }
+        if (window.state.customAbilityCategories) { 
+            existingItems = Object.keys(window.state.dots.abil).filter(k => window.state.customAbilityCategories[k] === category); 
+        }
+    } else { 
+        if (window.state.dots[type]) existingItems = Object.keys(window.state.dots[type]); 
+    }
 
     // --- HELPER: Identify Magic Paths ---
     const isMagicPath = (name) => {
@@ -71,7 +75,6 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
         dotCont.innerHTML = renderDots(val, 5);
         dotCont.title = `Primary Path Rating (${primaryKey || 'None'})`;
         
-        // Link to Primary for updates (if exists)
         if (primaryKey) {
             dotCont.dataset.n = primaryKey;
             dotCont.dataset.t = type;
@@ -84,10 +87,8 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
             // Update State
             setDots(primaryKey, type, clickVal, 0, 5);
             
-            // READ BACK ACTUAL STATE
-            const actualVal = window.state.dots[type][primaryKey] || 0;
-            
             // Sync UI
+            const actualVal = window.state.dots[type][primaryKey] || 0;
             dotCont.innerHTML = renderDots(actualVal, 5);
             syncDotUI(primaryKey, type, actualVal);
         };
@@ -118,7 +119,7 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
     };
 
     // --- STANDARD ROW BUILDER ---
-    const buildRow = (name = null, isChild = false) => {
+    const buildRow = (name = null, isChild = false, forceMagicType = null) => {
         const row = document.createElement('div');
         row.className = 'flex justify-between items-center mb-1 advantage-row';
         
@@ -139,11 +140,12 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
 
         const isGenericMagic = (name === 'Thaumaturgy' || name === 'Necromancy');
 
-        // Force selection if this is a generic placeholder OR explicitly adding a secondary path
+        // Check if we need to force Secondary Selection
         let forceSecondarySelect = false;
         if (type === 'disc') {
             if (name === 'Thaumaturgy' && window.state.primaryThaumPath && window.state.primaryThaumPath !== 'Thaumaturgy') forceSecondarySelect = true;
             if (name === 'Necromancy' && window.state.primaryNecroPath && window.state.primaryNecroPath !== 'Necromancy') forceSecondarySelect = true;
+            if (forceMagicType) forceSecondarySelect = true;
         }
 
         if (list && list.length > 0) {
@@ -154,7 +156,7 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
 
             // --- SPECIAL: Force Path Selection ---
             if (isGenericMagic || forceSecondarySelect) {
-                const isThaum = (name === 'Thaumaturgy');
+                const isThaum = (name === 'Thaumaturgy' || forceMagicType === 'thaum');
                 const paths = isThaum ? (THAUMATURGY_DATA ? Object.keys(THAUMATURGY_DATA) : []) : (NECROMANCY_DATA ? Object.keys(NECROMANCY_DATA) : []);
                 
                 let label = isGenericMagic && !forceSecondarySelect ? "-- Select Primary Path --" : "-- Select Additional Path --";
@@ -175,7 +177,18 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                 list.forEach(item => {
                     const val = typeof item === 'string' ? item : item.name;
                     const isSelected = name === val;
-                    html += `<option value="${val}" ${isSelected ? 'selected' : ''}>${val}</option>`;
+                    
+                    // PREVENT DUPLICATE GENERICS
+                    const isTakenGeneric = (val === 'Thaumaturgy' && window.state.dots.disc['Thaumaturgy'] !== undefined && name !== 'Thaumaturgy') ||
+                                           (val === 'Necromancy' && window.state.dots.disc['Necromancy'] !== undefined && name !== 'Necromancy');
+                    
+                    // Prevent selecting generic if Primary Path is already set (use the Add Path row instead)
+                    const isRedundantGeneric = (val === 'Thaumaturgy' && window.state.primaryThaumPath) || 
+                                               (val === 'Necromancy' && window.state.primaryNecroPath);
+
+                    if (!isTakenGeneric && !isRedundantGeneric) {
+                        html += `<option value="${val}" ${isSelected ? 'selected' : ''}>${val}</option>`;
+                    }
                 });
                 const isCustom = name && !list.includes(name);
                 html += `<option value="Custom" ${isCustom ? 'selected' : ''}>-- Custom / Write-in --</option>`;
@@ -253,7 +266,8 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
         const removeBtn = document.createElement('div'); 
         removeBtn.className = 'remove-btn flex-shrink-0 ml-1'; 
         removeBtn.innerHTML = '&times;';
-        if (!name || (window.state.xpMode && val > 0)) removeBtn.style.visibility = 'hidden';
+        // Only allow removing actual entries, not the "Add Path" rows
+        if ((!name && !forceMagicType) || (window.state.xpMode && val > 0)) removeBtn.style.visibility = 'hidden';
 
         let curName = name;
         let category = null;
@@ -262,48 +276,7 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
         const onUpdate = (newVal) => {
             if (!newVal) return;
 
-            // --- DROPDOWN SUB-MENU LOGIC ---
-            if (type === 'disc' && selectField && selectField.style.display !== 'none') {
-                const lower = newVal.toLowerCase();
-                
-                if (lower === 'thaumaturgy' && curName !== 'Thaumaturgy') {
-                    if (window.state.primaryThaumPath) {
-                        const paths = THAUMATURGY_DATA ? Object.keys(THAUMATURGY_DATA) : [];
-                        let html = `<option value="">-- Select Additional Path --</option>`;
-                        paths.forEach(p => { if(!window.state.dots.disc[p]) html += `<option value="${p}">${p}</option>`; });
-                        html += `<option value="BACK_TO_MAIN">-- Back --</option>`;
-                        selectField.innerHTML = html;
-                        selectField.classList.add('text-gold', 'border-gold');
-                        selectField.value = ""; 
-                        return; 
-                    }
-                }
-
-                if (lower === 'necromancy' && curName !== 'Necromancy') {
-                    if (window.state.primaryNecroPath) {
-                        const paths = NECROMANCY_DATA ? Object.keys(NECROMANCY_DATA) : [];
-                        let html = `<option value="">-- Select Additional Path --</option>`;
-                        paths.forEach(p => { if(!window.state.dots.disc[p]) html += `<option value="${p}">${p}</option>`; });
-                        html += `<option value="BACK_TO_MAIN">-- Back --</option>`;
-                        selectField.innerHTML = html;
-                        selectField.classList.add('text-gold', 'border-gold');
-                        selectField.value = "";
-                        return;
-                    }
-                }
-
-                if (newVal === 'BACK_TO_MAIN') {
-                     let html = `<option value="">-- Select --</option>`;
-                     list.forEach(item => html += `<option value="${typeof item === 'string' ? item : item.name}">${typeof item === 'string' ? item : item.name}</option>`);
-                     html += `<option value="Custom">-- Custom --</option>`;
-                     selectField.innerHTML = html;
-                     selectField.classList.remove('text-gold', 'border-gold');
-                     selectField.value = "";
-                     return;
-                }
-            }
-
-            // --- XP CHECK (Before State Update) ---
+            // --- XP CHECK ---
             if (window.state.xpMode && !curName) {
                 let baseCost = 0;
                 if (type === 'disc') { 
@@ -345,7 +318,6 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                 if (window.state.primaryNecroPath === curName) window.state.primaryNecroPath = newVal;
                 if(window.state.specialties[curName]) { window.state.specialties[newVal] = window.state.specialties[curName]; delete window.state.specialties[curName]; }
             } else if (!curName && newVal) {
-                 // New Item
                  window.state.dots[type][newVal] = window.state.xpMode ? 1 : 0; 
             }
             
@@ -379,7 +351,8 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                 dotCont.dataset.n = newVal; dotCont.dataset.t = type;
                 if (category) { if (!window.state.customAbilityCategories) window.state.customAbilityCategories = {}; window.state.customAbilityCategories[newVal] = category; }
                 
-                if (row === container.lastElementChild) { 
+                // If it's a new row (or a forced secondary row), render again to update lists/add next row
+                if (row === container.lastElementChild || forceMagicType) { 
                     renderDynamicAdvantageRow(containerId, type, list, isAbil);
                 }
             }
@@ -406,6 +379,7 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
         }
 
         removeBtn.onclick = () => { 
+            if (forceMagicType && !curName) { row.remove(); return; }
             if (curName) { 
                 delete window.state.dots[type][curName]; 
                 if (window.state.customAbilityCategories?.[curName]) delete window.state.customAbilityCategories[curName]; 
@@ -435,11 +409,9 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
             }
             
             setDots(curName, type, clickVal, 0, 5);
-            
-            // Read back actual
+            // READ BACK actual value to ensure UI syncs with logic (limits, etc)
             const actualVal = window.state.dots[type][curName] || 0;
             dotCont.innerHTML = renderDots(actualVal, 5);
-            
             if (isPrimary) syncDotUI(curName, type, actualVal);
         };
 
@@ -473,11 +445,16 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
             }
             const prim = window.state.primaryThaumPath;
             
-            // ALWAYS build header if Thaumaturgy exists
-            buildParentHeader("Thaumaturgy", prim !== "Thaumaturgy" ? prim : null, thaumPaths);
+            // Build header even if prim is "Thaumaturgy" (generic)
+            buildParentHeader("Thaumaturgy", prim, thaumPaths);
             
             const sortedThaum = [prim, ...thaumPaths.filter(p => p !== prim)];
             sortedThaum.forEach(path => buildRow(path, true)); 
+            
+            // AUTO-ADD: Secondary Path Selector
+            if (prim !== 'Thaumaturgy') {
+               buildRow(null, true, 'thaum');
+            }
         }
 
         // 3. Necromancy Block
@@ -488,18 +465,21 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
             }
             const prim = window.state.primaryNecroPath;
             
-            // ALWAYS build header if Necromancy exists
-            buildParentHeader("Necromancy", prim !== "Necromancy" ? prim : null, necroPaths);
+            buildParentHeader("Necromancy", prim, necroPaths);
             
             const sortedNecro = [prim, ...necroPaths.filter(p => p !== prim)];
             sortedNecro.forEach(path => buildRow(path, true));
+            
+            if (prim !== 'Necromancy') {
+               buildRow(null, true, 'necro');
+            }
         }
 
     } else {
         existingItems.forEach(item => buildRow(item));
     }
     
-    // Add empty row at bottom for new additions
+    // Add empty row at bottom for new standard disciplines
     buildRow(); 
 }
 window.renderDynamicAdvantageRow = renderDynamicAdvantageRow;
@@ -695,87 +675,335 @@ function isKnownRitual(name) {
 export function renderDynamicTraitRow(containerId, type, list) {
     const container = document.getElementById(containerId);
     if (!container) return;
+    
     const stateArray = type === 'Merit' ? (window.state.merits || []) : (window.state.flaws || []);
     container.innerHTML = '';
+    
     const clan = window.state.textFields['c-clan'] || document.getElementById('c-clan')?.value || "None";
+    
     const appendRow = (data = null) => {
-        const row = document.createElement('div'); row.className = 'flex gap-2 items-center mb-2 trait-row';
+        const row = document.createElement('div');
+        row.className = 'flex gap-2 items-center mb-2 trait-row';
+        
         let options = `<option value="">-- Select ${type} --</option>`;
         list.forEach(item => { 
-            let disabledAttr = ""; let styleAttr = "";
-            if (type === 'Merit' && clan === "Caitiff" && item.n === "Additional Discipline") { disabledAttr = "disabled"; styleAttr = "color: #555; font-style: italic;"; }
+            let disabledAttr = ""; 
+            let styleAttr = "";
+            if (type === 'Merit' && clan === "Caitiff" && item.n === "Additional Discipline") { 
+                disabledAttr = "disabled"; 
+                styleAttr = "color: #555; font-style: italic;"; 
+            }
             options += `<option value="${item.n}" data-val="${item.v}" data-var="${item.variable||false}" ${disabledAttr} style="${styleAttr}">${item.n} (${item.range ? item.range + 'pt' : item.v + 'pt'})</option>`; 
         });
         options += '<option value="Custom">-- Custom / Write-in --</option>';
-        row.innerHTML = `<div class="flex-1 relative"><select class="w-full text-[11px] font-bold uppercase bg-[#111] text-white border-b border-[#444]">${options}</select><input type="text" placeholder="Custom Name..." class="hidden w-full text-[11px] font-bold uppercase border-b border-[#444] bg-transparent text-white"></div><input type="number" class="w-10 text-center text-[11px] !border !border-[#444] font-bold" min="1"><div class="remove-btn">&times;</div>`;
+        
+        row.innerHTML = `
+            <div class="flex-1 relative">
+                <select class="w-full text-[11px] font-bold uppercase bg-[#111] text-white border-b border-[#444]">${options}</select>
+                <input type="text" placeholder="Custom Name..." class="hidden w-full text-[11px] font-bold uppercase border-b border-[#444] bg-transparent text-white">
+            </div>
+            <input type="number" class="w-10 text-center text-[11px] !border !border-[#444] font-bold" min="1">
+            <div class="remove-btn">&times;</div>
+        `;
+        
         container.appendChild(row);
-        const selectEl = row.querySelector('select'); const textEl = row.querySelector('input[type="text"]'); const numEl = row.querySelector('input[type="number"]'); const removeBtn = row.querySelector('.remove-btn'); const isLocked = !window.state.freebieMode;
-        selectEl.disabled = isLocked; textEl.disabled = isLocked; numEl.disabled = isLocked;
-        if(isLocked) { selectEl.classList.add('opacity-50'); textEl.classList.add('opacity-50'); numEl.classList.add('opacity-50'); }
+        
+        const selectEl = row.querySelector('select'); 
+        const textEl = row.querySelector('input[type="text"]'); 
+        const numEl = row.querySelector('input[type="number"]'); 
+        const removeBtn = row.querySelector('.remove-btn'); 
+        
+        const isLocked = !window.state.freebieMode;
+        selectEl.disabled = isLocked; 
+        textEl.disabled = isLocked; 
+        numEl.disabled = isLocked;
+        
+        if(isLocked) { 
+            selectEl.classList.add('opacity-50'); 
+            textEl.classList.add('opacity-50'); 
+            numEl.classList.add('opacity-50'); 
+        }
+        
         if (data) {
             const exists = list.some(l => l.n === data.name);
-            if (exists) { selectEl.value = data.name; numEl.value = data.val; const itemData = list.find(l => l.n === data.name); if (itemData && !itemData.variable) { numEl.disabled = true; numEl.classList.add('opacity-50'); } } 
-            else { selectEl.value = "Custom"; selectEl.classList.add('hidden'); textEl.classList.remove('hidden'); textEl.value = data.name; numEl.value = data.val; }
-        } else { numEl.value = ""; removeBtn.style.visibility = 'hidden'; }
+            if (exists) { 
+                selectEl.value = data.name; 
+                numEl.value = data.val; 
+                const itemData = list.find(l => l.n === data.name); 
+                if (itemData && !itemData.variable) { 
+                    numEl.disabled = true; 
+                    numEl.classList.add('opacity-50'); 
+                } 
+            } else { 
+                selectEl.value = "Custom"; 
+                selectEl.classList.add('hidden'); 
+                textEl.classList.remove('hidden'); 
+                textEl.value = data.name; 
+                numEl.value = data.val; 
+            }
+        } else { 
+            numEl.value = ""; 
+            removeBtn.style.visibility = 'hidden'; 
+        }
+        
         const syncState = () => {
-            const allRows = container.querySelectorAll('.trait-row'); const newState = [];
-            allRows.forEach(r => { const s = r.querySelector('select'); const t = r.querySelector('input[type="text"]'); const n = r.querySelector('input[type="number"]'); let name = s.value === 'Custom' ? t.value : s.value; let val = parseInt(n.value) || 0; let desc = ""; const existing = (type === 'Merit' ? window.state.merits : window.state.flaws).find(i => i.name === name); if (existing) desc = existing.desc || ""; if (name && name !== 'Custom') newState.push({ name, val, desc }); });
-            if (type === 'Merit') window.state.merits = newState; else window.state.flaws = newState;
-            updatePools(); renderPrintSheet();
+            const allRows = container.querySelectorAll('.trait-row'); 
+            const newState = [];
+            allRows.forEach(r => { 
+                const s = r.querySelector('select'); 
+                const t = r.querySelector('input[type="text"]'); 
+                const n = r.querySelector('input[type="number"]'); 
+                let name = s.value === 'Custom' ? t.value : s.value; 
+                let val = parseInt(n.value) || 0; 
+                let desc = ""; 
+                const existing = (type === 'Merit' ? window.state.merits : window.state.flaws).find(i => i.name === name); 
+                if (existing) desc = existing.desc || ""; 
+                if (name && name !== 'Custom') newState.push({ name, val, desc }); 
+            });
+            if (type === 'Merit') window.state.merits = newState; 
+            else window.state.flaws = newState;
+            updatePools(); 
+            renderPrintSheet();
         };
-        selectEl.addEventListener('change', () => { if (selectEl.value === 'Custom') { selectEl.classList.add('hidden'); textEl.classList.remove('hidden'); textEl.focus(); numEl.value = 1; numEl.disabled = false; numEl.classList.remove('opacity-50'); } else if (selectEl.value) { const opt = selectEl.options[selectEl.selectedIndex]; numEl.value = opt.dataset.val; if (opt.dataset.var !== "true") { numEl.disabled = true; numEl.classList.add('opacity-50'); } else { numEl.disabled = false; numEl.classList.remove('opacity-50'); } if (row === container.lastElementChild) { removeBtn.style.visibility = 'visible'; appendRow(); } } syncState(); });
-        textEl.addEventListener('blur', () => { if (textEl.value === "") { textEl.classList.add('hidden'); selectEl.classList.remove('hidden'); selectEl.value = ""; } else { if (row === container.lastElementChild) { removeBtn.style.visibility = 'visible'; appendRow(); } } syncState(); });
-        numEl.addEventListener('change', syncState); removeBtn.addEventListener('click', () => { row.remove(); syncState(); });
+        
+        selectEl.addEventListener('change', () => { 
+            if (selectEl.value === 'Custom') { 
+                selectEl.classList.add('hidden'); 
+                textEl.classList.remove('hidden'); 
+                textEl.focus(); 
+                numEl.value = 1; 
+                numEl.disabled = false; 
+                numEl.classList.remove('opacity-50'); 
+            } else if (selectEl.value) { 
+                const opt = selectEl.options[selectEl.selectedIndex]; 
+                numEl.value = opt.dataset.val; 
+                if (opt.dataset.var !== "true") { 
+                    numEl.disabled = true; 
+                    numEl.classList.add('opacity-50'); 
+                } else { 
+                    numEl.disabled = false; 
+                    numEl.classList.remove('opacity-50'); 
+                } 
+                if (row === container.lastElementChild) { 
+                    removeBtn.style.visibility = 'visible'; 
+                    appendRow(); 
+                } 
+            } 
+            syncState(); 
+        });
+        
+        textEl.addEventListener('blur', () => { 
+            if (textEl.value === "") { 
+                textEl.classList.add('hidden'); 
+                selectEl.classList.remove('hidden'); 
+                selectEl.value = ""; 
+            } else { 
+                if (row === container.lastElementChild) { 
+                    removeBtn.style.visibility = 'visible'; 
+                    appendRow(); 
+                } 
+            } 
+            syncState(); 
+        });
+        
+        numEl.addEventListener('change', syncState); 
+        removeBtn.addEventListener('click', () => { row.remove(); syncState(); });
     };
-    if (stateArray.length > 0) stateArray.forEach(d => appendRow(d)); appendRow();
+    
+    if (stateArray.length > 0) stateArray.forEach(d => appendRow(d)); 
+    appendRow();
 }
 window.renderDynamicTraitRow = renderDynamicTraitRow;
 
 export function renderBloodBondRow() {
-    const cont = document.getElementById('blood-bond-list'); if (!cont) return; cont.innerHTML = ''; 
+    const cont = document.getElementById('blood-bond-list'); 
+    if (!cont) return; 
+    cont.innerHTML = ''; 
     const clan = window.state.textFields['c-clan'] || document.getElementById('c-clan')?.value || "None";
-    if (clan === "Tremere") { const wDiv = document.createElement('div'); wDiv.className = "text-[#a855f7] text-[9px] font-bold mb-2 uppercase border border-[#a855f7]/50 p-1 rounded bg-[#a855f7]/10 text-center"; wDiv.innerHTML = "<i class='fas fa-flask mr-1'></i> Weakness: 1st Drink = Step 2 Bond"; cont.appendChild(wDiv); }
+    
+    if (clan === "Tremere") { 
+        const wDiv = document.createElement('div'); 
+        wDiv.className = "text-[#a855f7] text-[9px] font-bold mb-2 uppercase border border-[#a855f7]/50 p-1 rounded bg-[#a855f7]/10 text-center"; 
+        wDiv.innerHTML = "<i class='fas fa-flask mr-1'></i> Weakness: 1st Drink = Step 2 Bond"; 
+        cont.appendChild(wDiv); 
+    }
+    
     const buildRow = (data = null) => {
-        const row = document.createElement('div'); row.className = 'flex gap-2 items-center border-b border-[#222] pb-2 advantage-row';
-        const typeVal = data ? data.type : "Bond"; const nameVal = data ? data.name : ""; const ratVal = data ? data.rating : "";
-        row.innerHTML = `<select class="w-24 text-[10px] uppercase font-bold mr-2 border-b border-[#333] bg-transparent"><option value="Bond" ${typeVal === 'Bond' ? 'selected' : ''}>Bond</option><option value="Vinculum" ${typeVal === 'Vinculum' ? 'selected' : ''}>Vinculum</option></select><input type="text" placeholder="Bound to..." class="flex-1 text-xs" value="${nameVal}"><input type="number" placeholder="Lvl" class="w-10 text-center text-xs" min="1" max="3" value="${ratVal}"><div class="remove-btn">&times;</div>`;
-        const typeSel = row.querySelector('select'); const nI = row.querySelector('input[type="text"]'); const rI = row.querySelector('input[type="number"]'); const del = row.querySelector('.remove-btn');
+        const row = document.createElement('div'); 
+        row.className = 'flex gap-2 items-center border-b border-[#222] pb-2 advantage-row';
+        const typeVal = data ? data.type : "Bond"; 
+        const nameVal = data ? data.name : ""; 
+        const ratVal = data ? data.rating : "";
+        
+        row.innerHTML = `
+            <select class="w-24 text-[10px] uppercase font-bold mr-2 border-b border-[#333] bg-transparent">
+                <option value="Bond" ${typeVal === 'Bond' ? 'selected' : ''}>Bond</option>
+                <option value="Vinculum" ${typeVal === 'Vinculum' ? 'selected' : ''}>Vinculum</option>
+            </select>
+            <input type="text" placeholder="Bound to..." class="flex-1 text-xs" value="${nameVal}">
+            <input type="number" placeholder="Lvl" class="w-10 text-center text-xs" min="1" max="3" value="${ratVal}">
+            <div class="remove-btn">&times;</div>
+        `;
+        
+        const typeSel = row.querySelector('select'); 
+        const nI = row.querySelector('input[type="text"]'); 
+        const rI = row.querySelector('input[type="number"]'); 
+        const del = row.querySelector('.remove-btn');
+        
         if (!data) del.style.visibility = 'hidden';
-        const onUpd = () => { if (typeSel.value === 'Bond') { rI.max = 3; if(parseInt(rI.value) > 3) rI.value = 3; } if (typeSel.value === 'Vinculum') { rI.max = 10; if(parseInt(rI.value) > 10) rI.value = 10; } window.state.bloodBonds = Array.from(cont.querySelectorAll('.advantage-row')).map(r => ({ type: r.querySelector('select').value, name: r.querySelector('input[type="text"]').value, rating: r.querySelector('input[type="number"]').value })).filter(b => b.name); if (cont.lastElementChild === row && nI.value !== "") { del.style.visibility = 'visible'; buildRow(); } updatePools(); renderPrintSheet(); };
-        typeSel.onchange = onUpd; nI.onblur = onUpd; rI.onblur = onUpd; del.onclick = () => { row.remove(); if(cont.children.length === 0) buildRow(); onUpd(); }; cont.appendChild(row);
+        
+        const onUpd = () => { 
+            if (typeSel.value === 'Bond') { 
+                rI.max = 3; 
+                if(parseInt(rI.value) > 3) rI.value = 3; 
+            } 
+            if (typeSel.value === 'Vinculum') { 
+                rI.max = 10; 
+                if(parseInt(rI.value) > 10) rI.value = 10; 
+            } 
+            window.state.bloodBonds = Array.from(cont.querySelectorAll('.advantage-row')).map(r => ({ 
+                type: r.querySelector('select').value, 
+                name: r.querySelector('input[type="text"]').value, 
+                rating: r.querySelector('input[type="number"]').value 
+            })).filter(b => b.name); 
+            
+            if (cont.lastElementChild === row && nI.value !== "") { 
+                del.style.visibility = 'visible'; 
+                buildRow(); 
+            } 
+            updatePools(); 
+            renderPrintSheet(); 
+        };
+        
+        typeSel.onchange = onUpd; 
+        nI.onblur = onUpd; 
+        rI.onblur = onUpd; 
+        del.onclick = () => { row.remove(); if(cont.children.length === 0) buildRow(); onUpd(); }; 
+        cont.appendChild(row);
     };
-    if(window.state.bloodBonds && Array.isArray(window.state.bloodBonds)) { window.state.bloodBonds.forEach(b => buildRow(b)); } buildRow();
+    
+    if(window.state.bloodBonds && Array.isArray(window.state.bloodBonds)) { 
+        window.state.bloodBonds.forEach(b => buildRow(b)); 
+    } 
+    buildRow();
 }
 window.renderBloodBondRow = renderBloodBondRow;
 
 export function renderDerangementsList() {
-    const cont = document.getElementById('derangements-list'); if (!cont) return; cont.innerHTML = '';
-    const clan = window.state.textFields['c-clan'] || document.getElementById('c-clan')?.value || "None"; const isMalk = clan === "Malkavian";
+    const cont = document.getElementById('derangements-list'); 
+    if (!cont) return; 
+    cont.innerHTML = '';
+    
+    const clan = window.state.textFields['c-clan'] || document.getElementById('c-clan')?.value || "None"; 
+    const isMalk = clan === "Malkavian";
+    
     window.state.derangements.forEach((d, idx) => {
-        const row = document.createElement('div'); row.className = "flex justify-between items-center text-xs text-white border-b border-[#333] py-1";
-        let labelHTML = `<span>${d}</span>`; let deleteBtnHTML = `<span class="remove-btn text-red-500" onclick="window.state.derangements.splice(${idx}, 1); renderDerangementsList(); window.updatePools(); if(window.renderPrintSheet) window.renderPrintSheet();">&times;</span>`;
-        if (isMalk && idx === 0) { labelHTML = `<span class="text-[#a855f7] font-bold" title="Incurable Weakness">${d}</span>`; deleteBtnHTML = `<span class="text-[#a855f7] text-[10px]"><i class="fas fa-lock"></i></span>`; }
-        row.innerHTML = `${labelHTML}${deleteBtnHTML}`; cont.appendChild(row);
+        const row = document.createElement('div'); 
+        row.className = "flex justify-between items-center text-xs text-white border-b border-[#333] py-1";
+        let labelHTML = `<span>${d}</span>`; 
+        let deleteBtnHTML = `<span class="remove-btn text-red-500" onclick="window.state.derangements.splice(${idx}, 1); renderDerangementsList(); window.updatePools(); if(window.renderPrintSheet) window.renderPrintSheet();">&times;</span>`;
+        
+        if (isMalk && idx === 0) { 
+            labelHTML = `<span class="text-[#a855f7] font-bold" title="Incurable Weakness">${d}</span>`; 
+            deleteBtnHTML = `<span class="text-[#a855f7] text-[10px]"><i class="fas fa-lock"></i></span>`; 
+        }
+        
+        row.innerHTML = `${labelHTML}${deleteBtnHTML}`; 
+        cont.appendChild(row);
     });
-    const addRow = document.createElement('div'); addRow.className = "flex gap-2 mt-2"; let options = `<option value="">+ Add Derangement</option>` + DERANGEMENTS.map(d => `<option value="${d}">${d}</option>`).join('');
-    addRow.innerHTML = `<select id="derangement-select" class="flex-1 text-[10px] uppercase font-bold bg-black/40 border border-[#444] text-white p-1">${options}<option value="Custom">Custom...</option></select><input type="text" id="derangement-custom" class="hidden flex-1 text-[10px] bg-black/40 border border-[#444] text-white p-1" placeholder="Type name..."><button id="add-derangement-btn" class="bg-[#8b0000] text-white px-2 py-1 text-[10px] font-bold hover:bg-red-700">ADD</button>`;
-    cont.appendChild(addRow); const sel = document.getElementById('derangement-select'); const inp = document.getElementById('derangement-custom'); const btn = document.getElementById('add-derangement-btn');
-    sel.onchange = () => { if (sel.value === 'Custom') { sel.classList.add('hidden'); inp.classList.remove('hidden'); inp.focus(); } };
-    btn.onclick = () => { let val = sel.value === 'Custom' ? inp.value : sel.value; if (val && val !== 'Custom') { window.state.derangements.push(val); renderDerangementsList(); updatePools(); if(renderPrintSheet) renderPrintSheet(); } };
+    
+    const addRow = document.createElement('div'); 
+    addRow.className = "flex gap-2 mt-2"; 
+    let options = `<option value="">+ Add Derangement</option>` + DERANGEMENTS.map(d => `<option value="${d}">${d}</option>`).join('');
+    
+    addRow.innerHTML = `
+        <select id="derangement-select" class="flex-1 text-[10px] uppercase font-bold bg-black/40 border border-[#444] text-white p-1">
+            ${options}<option value="Custom">Custom...</option>
+        </select>
+        <input type="text" id="derangement-custom" class="hidden flex-1 text-[10px] bg-black/40 border border-[#444] text-white p-1" placeholder="Type name...">
+        <button id="add-derangement-btn" class="bg-[#8b0000] text-white px-2 py-1 text-[10px] font-bold hover:bg-red-700">ADD</button>
+    `;
+    
+    cont.appendChild(addRow); 
+    const sel = document.getElementById('derangement-select'); 
+    const inp = document.getElementById('derangement-custom'); 
+    const btn = document.getElementById('add-derangement-btn');
+    
+    sel.onchange = () => { 
+        if (sel.value === 'Custom') { 
+            sel.classList.add('hidden'); 
+            inp.classList.remove('hidden'); 
+            inp.focus(); 
+        } 
+    };
+    
+    btn.onclick = () => { 
+        let val = sel.value === 'Custom' ? inp.value : sel.value; 
+        if (val && val !== 'Custom') { 
+            window.state.derangements.push(val); 
+            renderDerangementsList(); 
+            updatePools(); 
+            if(renderPrintSheet) renderPrintSheet(); 
+        } 
+    };
 }
 window.renderDerangementsList = renderDerangementsList;
 
 export function renderDynamicHavenRow() {
-    const container = document.getElementById('multi-haven-list'); if (!container) return; container.innerHTML = ''; 
+    const container = document.getElementById('multi-haven-list'); 
+    if (!container) return; 
+    container.innerHTML = ''; 
+    
     const buildRow = (data = null) => {
-        const row = document.createElement('div'); row.className = 'border-b border-[#222] pb-4 advantage-row';
-        const nameVal = data ? data.name : ""; const locVal = data ? data.loc : ""; const descVal = data ? data.desc : "";
-        row.innerHTML = `<div class="flex justify-between items-center mb-2"><input type="text" placeholder="Haven Title..." class="flex-1 text-[10px] font-bold text-gold uppercase !border-b !border-[#333]" value="${nameVal}"><div class="remove-btn">&times;</div></div><input type="text" placeholder="Location..." class="text-xs mb-2 !border-b !border-[#333]" value="${locVal}"><textarea class="h-16 text-xs" placeholder="Details...">${descVal}</textarea>`;
-        const nameIn = row.querySelectorAll('input')[0]; const locIn = row.querySelectorAll('input')[1]; const descIn = row.querySelector('textarea'); const del = row.querySelector('.remove-btn');
+        const row = document.createElement('div'); 
+        row.className = 'border-b border-[#222] pb-4 advantage-row';
+        const nameVal = data ? data.name : ""; 
+        const locVal = data ? data.loc : ""; 
+        const descVal = data ? data.desc : "";
+        
+        row.innerHTML = `
+            <div class="flex justify-between items-center mb-2">
+                <input type="text" placeholder="Haven Title..." class="flex-1 text-[10px] font-bold text-gold uppercase !border-b !border-[#333]" value="${nameVal}">
+                <div class="remove-btn">&times;</div>
+            </div>
+            <input type="text" placeholder="Location..." class="text-xs mb-2 !border-b !border-[#333]" value="${locVal}">
+            <textarea class="h-16 text-xs" placeholder="Details...">${descVal}</textarea>
+        `;
+        
+        const nameIn = row.querySelectorAll('input')[0]; 
+        const locIn = row.querySelectorAll('input')[1]; 
+        const descIn = row.querySelector('textarea'); 
+        const del = row.querySelector('.remove-btn');
+        
         if (!data) del.style.visibility = 'hidden';
-        const onUpd = () => { window.state.havens = Array.from(container.querySelectorAll('.advantage-row')).map(r => ({ name: r.querySelectorAll('input')[0].value, loc: r.querySelectorAll('input')[1].value, desc: r.querySelector('textarea').value })).filter(h => h.name || h.loc); if (container.lastElementChild === row && nameIn.value !== "") { del.style.visibility = 'visible'; renderDynamicHavenRow(); } updatePools(); if(renderPrintSheet) renderPrintSheet(); };
-        [nameIn, locIn, descIn].forEach(el => el.onblur = onUpd); del.onclick = () => { row.remove(); if(container.children.length === 0) buildRow(); onUpd(); }; container.appendChild(row);
+        
+        const onUpd = () => { 
+            window.state.havens = Array.from(container.querySelectorAll('.advantage-row')).map(r => ({ 
+                name: r.querySelectorAll('input')[0].value, 
+                loc: r.querySelectorAll('input')[1].value, 
+                desc: r.querySelector('textarea').value 
+            })).filter(h => h.name || h.loc); 
+            
+            if (container.lastElementChild === row && nameIn.value !== "") { 
+                del.style.visibility = 'visible'; 
+                renderDynamicHavenRow(); 
+            } 
+            updatePools(); 
+            if(renderPrintSheet) renderPrintSheet(); 
+        };
+        
+        [nameIn, locIn, descIn].forEach(el => el.onblur = onUpd); 
+        del.onclick = () => { 
+            row.remove(); 
+            if(container.children.length === 0) buildRow(); 
+            onUpd(); 
+        }; 
+        container.appendChild(row);
     };
-    if (window.state.havens && Array.isArray(window.state.havens)) { window.state.havens.forEach(h => buildRow(h)); } buildRow();
+    
+    if (window.state.havens && Array.isArray(window.state.havens)) { 
+        window.state.havens.forEach(h => buildRow(h)); 
+    } 
+    buildRow();
 }
 window.renderDynamicHavenRow = renderDynamicHavenRow;
