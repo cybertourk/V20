@@ -58,11 +58,11 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
     };
 
     // --- ROW BUILDER (Generic) ---
-    // This handles standard disciplines, backgrounds, etc.
     const buildRow = (name = null, isChild = false, parentType = null) => {
         const row = document.createElement('div');
         row.className = 'flex justify-between items-center mb-1 advantage-row';
         if (isChild) {
+            // Standard indentation for non-magic children (if any)
             row.classList.add('ml-4', 'pl-3', 'border-l-2', 'border-[#333]', 'pr-1');
             row.style.width = "calc(100% - 1rem)";
         }
@@ -73,35 +73,19 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
         let inputField;
         let selectField = null;
 
-        // Dropdown Logic
         if (list && list.length > 0) {
             selectField = document.createElement('select');
             selectField.className = 'w-full bg-[#111] border-b border-[#333] text-xs font-bold text-white uppercase focus:border-gold outline-none';
-            if (isChild) selectField.classList.add('text-gray-400', 'italic', 'text-[11px]');
-
-            let html = `<option value="">-- Select --</option>`;
             
-            // If this is a child row for Magic, filter the list
-            let filteredList = list;
-            if (parentType === 'thaum') {
-                const keys = THAUMATURGY_DATA ? Object.keys(THAUMATURGY_DATA) : [];
-                filteredList = keys.filter(k => !window.state.dots.disc[k]); // Filter out known
-            } else if (parentType === 'necro') {
-                const keys = NECROMANCY_DATA ? Object.keys(NECROMANCY_DATA) : [];
-                filteredList = keys.filter(k => !window.state.dots.disc[k]);
-            }
-
-            filteredList.forEach(item => {
+            let html = `<option value="">-- Select --</option>`;
+            list.forEach(item => {
                 const val = typeof item === 'string' ? item : item.name;
-                const isSelected = name === val;
-                // Prevent duplicate Generics in standard list
+                // Don't show generic magic headers in standard dropdown if already selected
                 if ((val === 'Thaumaturgy' || val === 'Necromancy') && window.state.dots.disc[val]) return;
-                
+                const isSelected = name === val;
                 html += `<option value="${val}" ${isSelected ? 'selected' : ''}>${val}</option>`;
             });
-            
-            const isCustom = name && !filteredList.includes(name) && !isChild; // Child paths usually aren't "Custom" in the same way
-            html += `<option value="Custom" ${isCustom ? 'selected' : ''}>-- Custom / Write-in --</option>`;
+            html += '<option value="Custom">-- Custom / Write-in --</option>';
             selectField.innerHTML = html;
 
             inputField = document.createElement('input');
@@ -110,9 +94,7 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
             inputField.placeholder = "Name...";
             inputField.value = name || "";
 
-            // Toggle Input vs Select
-            const showInput = (name && !filteredList.includes(name) && parentType === null); // Only show input for custom standard disciplines
-            if (showInput) {
+            if (name && !list.map(i => typeof i==='string'?i:i.name).includes(name)) {
                 selectField.style.display = 'none';
                 inputField.style.display = 'block';
             } else {
@@ -122,7 +104,6 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
             specWrapper.appendChild(selectField);
             specWrapper.appendChild(inputField);
         } else {
-            // Text Input Only
             inputField = document.createElement('input');
             inputField.type = 'text';
             inputField.className = 'w-full bg-transparent border-b border-[#333] text-xs font-bold text-white uppercase focus:border-gold outline-none';
@@ -131,7 +112,7 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
             specWrapper.appendChild(inputField);
         }
 
-        // Specialties
+        // Specialties Logic
         if (isAbil && name) {
             const hasSpec = window.state.specialties && window.state.specialties[name];
             if (hasSpec || (window.state.dots.abil[name] >= 4) || SPECIALTY_EXAMPLES[name]) {
@@ -150,37 +131,27 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
             }
         }
 
-        // Dots
         const dotCont = document.createElement('div');
         dotCont.className = 'dot-row flex-shrink-0';
         const val = name ? (window.state.dots[type][name] || 0) : 0;
         dotCont.innerHTML = renderDots(val, 5);
         if (name) { dotCont.dataset.n = name; dotCont.dataset.t = type; }
 
-        // Remove Button
         const removeBtn = document.createElement('div');
         removeBtn.className = 'remove-btn flex-shrink-0 ml-1';
         removeBtn.innerHTML = '&times;';
-        if (!name && !parentType) removeBtn.style.visibility = 'hidden'; // Hide on empty standard adder
+        if (!name) removeBtn.style.visibility = 'hidden';
 
-        // Update Handler
+        // Event Handlers
         const onUpdate = (newVal) => {
             if (!newVal) return;
-            // XP Check omitted for brevity, assumed standard logic or handled in mechanics
-            
-            // State Update
             if (name && name !== newVal) {
-                // Renaming
                 const oldVal = window.state.dots[type][name];
                 delete window.state.dots[type][name];
                 if (window.state.customAbilityCategories?.[name]) delete window.state.customAbilityCategories[name];
                 window.state.dots[type][newVal] = oldVal;
             } else if (!name) {
-                // New Entry
                 window.state.dots[type][newVal] = window.state.xpMode ? 1 : 0;
-                
-                // If this was a generic "Thaumaturgy" add, we might need to initialize stuff,
-                // but renderDynamicAdvantageRow below handles the re-sort into the Magic Block.
             }
 
             if (isAbil) {
@@ -193,7 +164,6 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                      window.state.customAbilityCategories[newVal] = category;
                 }
             }
-
             renderDynamicAdvantageRow(containerId, type, list, isAbil);
             updatePools();
         };
@@ -209,7 +179,7 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                 }
             };
             inputField.onblur = (e) => {
-                if (!e.target.value) {
+                if (!e.target.value && selectField) {
                     inputField.style.display = 'none';
                     selectField.style.display = 'block';
                     selectField.value = "";
@@ -224,18 +194,6 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
         dotCont.onclick = (e) => {
             if (!name || !e.target.dataset.v) return;
             const clickVal = parseInt(e.target.dataset.v);
-            
-            // Secondary Path Validation
-            if (parentType) {
-                 const primaryKey = parentType === 'thaum' ? window.state.primaryThaumPath : window.state.primaryNecroPath;
-                 const primaryRating = window.state.dots.disc[primaryKey] || 0;
-                 // V20 Rules: Secondary Paths cannot exceed Primary Path rating.
-                 if (clickVal > primaryRating) {
-                     showNotification(`Secondary Path cannot exceed Primary Path rating (${primaryRating}).`);
-                     return;
-                 }
-            }
-
             setDots(name, type, clickVal, 0, 5);
             dotCont.innerHTML = renderDots(window.state.dots[type][name], 5);
         };
@@ -255,44 +213,43 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
         container.appendChild(row);
     };
 
-    // --- MAGIC CONTAINER BUILDER ---
-    // This builds the persistent "Thaumaturgy" or "Necromancy" block
-    const renderMagicContainer = (magicType, ownedPaths) => {
+    // --- MAGIC SECTION RENDERER (Strictly Indented, No Box) ---
+    const renderMagicSection = (magicType, ownedPaths) => {
         const isThaum = magicType === 'thaum';
         const label = isThaum ? "Thaumaturgy" : "Necromancy";
         const primaryKey = isThaum ? window.state.primaryThaumPath : window.state.primaryNecroPath;
+        const dataObj = isThaum ? THAUMATURGY_DATA : NECROMANCY_DATA;
         
-        // --- 1. Container ---
-        const magicDiv = document.createElement('div');
-        magicDiv.className = "mb-2 border border-[#333] bg-[#1a1a1a] rounded overflow-hidden";
+        // 1. The HEADER Row (Thaumaturgy/Necromancy)
+        const headerRow = document.createElement('div');
+        headerRow.className = "flex justify-between items-center mb-1 advantage-row";
         
-        // --- 2. Header (The Discipline Itself) ---
-        const header = document.createElement('div');
-        header.className = "flex justify-between items-center p-1 bg-[#222] border-b border-[#333]";
+        // Label
+        const headerLabel = document.createElement('div');
+        headerLabel.className = "flex-1 font-cinzel font-bold text-[#d4af37] text-sm";
+        headerLabel.innerHTML = `<i class="fas fa-book-open text-[10px] mr-2"></i>${label}`;
         
-        const title = document.createElement('div');
-        title.className = "font-cinzel font-bold text-[#d4af37] text-sm flex items-center gap-2 pl-1";
-        title.innerHTML = `<i class="fas fa-book-open text-[10px]"></i> ${label}`;
-        
+        // Dots (Controls Primary Path)
         const headerDots = document.createElement('div');
-        headerDots.className = "dot-row cursor-pointer";
-        // Header dots reflect Primary Path rating
+        headerDots.className = "dot-row cursor-pointer flex-shrink-0";
         const primaryVal = primaryKey ? (window.state.dots.disc[primaryKey] || 0) : 0;
         headerDots.innerHTML = renderDots(primaryVal, 5);
         
-        // Header Dot Click -> Updates Primary Path
         headerDots.onclick = (e) => {
-            if (!primaryKey || !e.target.dataset.v) return;
+            if (!primaryKey) {
+                showNotification("Select a Primary Path first.");
+                return;
+            }
+            if (!e.target.dataset.v) return;
             const clickVal = parseInt(e.target.dataset.v);
             setDots(primaryKey, type, clickVal, 0, 5);
-            // Re-render whole block to update header and maybe secondary limits
             renderDynamicAdvantageRow(containerId, type, list, isAbil);
         };
 
+        // Remove (Clears all)
         const headerRemove = document.createElement('div');
-        headerRemove.className = "remove-btn ml-2 text-red-500 hover:text-red-300 cursor-pointer";
+        headerRemove.className = "remove-btn flex-shrink-0 ml-1 text-red-500 hover:text-red-300";
         headerRemove.innerHTML = "&times;";
-        headerRemove.title = `Remove ${label} and all paths`;
         headerRemove.onclick = () => {
             if(confirm(`Delete ${label} and all associated paths?`)) {
                 ownedPaths.forEach(p => delete window.state.dots.disc[p]);
@@ -303,131 +260,135 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
             }
         };
 
-        header.appendChild(title);
-        header.appendChild(headerDots);
-        header.appendChild(headerRemove);
-        magicDiv.appendChild(header);
+        headerRow.appendChild(headerLabel);
+        headerRow.appendChild(headerDots);
+        headerRow.appendChild(headerRemove);
+        container.appendChild(headerRow);
 
-        // --- 3. Primary Path Logic ---
-        const contentDiv = document.createElement('div');
-        contentDiv.className = "p-2";
+        // 2. Primary Path Row (Indented)
+        const primaryRow = document.createElement('div');
+        // Indent Level 1
+        primaryRow.className = "flex justify-between items-center mb-1 advantage-row ml-5 border-l-2 border-[#333] pl-2";
         
-        // Check if we need to SELECT a primary path
         if (!primaryKey) {
-            const selectRow = document.createElement('div');
-            selectRow.className = "mb-2";
-            const select = document.createElement('select');
-            select.className = "w-full bg-[#111] text-gold border border-gold text-xs font-bold p-1 animate-pulse";
-            
-            let opts = `<option value="">-- SELECT PRIMARY PATH --</option>`;
-            const dataObj = isThaum ? THAUMATURGY_DATA : NECROMANCY_DATA;
+            // Select Primary
+            const pSelect = document.createElement('select');
+            pSelect.className = "w-full bg-[#111] text-gold border-b border-gold text-xs font-bold uppercase animate-pulse";
+            let pOpts = `<option value="">-- Select Primary Path --</option>`;
             const avail = dataObj ? Object.keys(dataObj) : [];
             avail.forEach(p => {
-                // Filter if somehow already taken as secondary (rare edge case)
-                if (!window.state.dots.disc[p]) opts += `<option value="${p}">${p}</option>`;
+                if (!window.state.dots.disc[p]) pOpts += `<option value="${p}">${p}</option>`;
             });
-            select.innerHTML = opts;
-            
-            select.onchange = (e) => {
+            pSelect.innerHTML = pOpts;
+            pSelect.onchange = (e) => {
                 const newPath = e.target.value;
-                if (newPath) {
+                if(newPath) {
                     if (isThaum) window.state.primaryThaumPath = newPath;
                     else window.state.primaryNecroPath = newPath;
-                    
-                    // Set initial value
                     window.state.dots.disc[newPath] = 1;
-                    
-                    // Cleanup generic key if it exists
-                    const genericKey = isThaum ? 'Thaumaturgy' : 'Necromancy';
-                    if (window.state.dots.disc[genericKey]) delete window.state.dots.disc[genericKey];
-
+                    // Clean generic key
+                    const generic = isThaum ? 'Thaumaturgy' : 'Necromancy';
+                    if(window.state.dots.disc[generic]) delete window.state.dots.disc[generic];
                     renderDynamicAdvantageRow(containerId, type, list, isAbil);
                     updatePools();
                 }
             };
-            selectRow.appendChild(select);
-            contentDiv.appendChild(selectRow);
+            primaryRow.appendChild(pSelect);
         } else {
-            // Primary Path Display Row
-            const pRow = document.createElement('div');
-            pRow.className = "flex justify-between items-center mb-2 pb-2 border-b border-[#333]";
-            pRow.innerHTML = `
-                <div class="text-[#d4af37] text-xs font-bold uppercase"><i class="fas fa-star text-[10px] mr-1"></i> ${primaryKey}</div>
-                <div class="text-gray-500 text-[10px] italic">Primary</div>
-            `;
-            contentDiv.appendChild(pRow);
-        }
+            // Display Primary
+            const pLabel = document.createElement('div');
+            pLabel.className = "flex-1 text-gold text-xs font-bold uppercase";
+            pLabel.innerHTML = `<i class="fas fa-star text-[9px] mr-1"></i> ${primaryKey} <span class="text-gray-500 text-[9px] lowercase italic">(primary)</span>`;
+            
+            const pDots = document.createElement('div');
+            pDots.className = "dot-row cursor-pointer flex-shrink-0";
+            pDots.innerHTML = renderDots(window.state.dots.disc[primaryKey] || 0, 5);
+            
+            pDots.onclick = (e) => {
+                if(!e.target.dataset.v) return;
+                setDots(primaryKey, type, parseInt(e.target.dataset.v), 0, 5);
+                renderDynamicAdvantageRow(containerId, type, list, isAbil);
+            };
+            
+            // Allow changing/resetting primary
+            const pReset = document.createElement('div');
+            pReset.className = "remove-btn flex-shrink-0 ml-1 text-gray-500 hover:text-white";
+            pReset.innerHTML = "<i class='fas fa-sync'></i>";
+            pReset.title = "Change Primary Path";
+            pReset.onclick = () => {
+                if(confirm("Change Primary Path? This will reset the current primary path selection.")) {
+                    if(isThaum) window.state.primaryThaumPath = null;
+                    else window.state.primaryNecroPath = null;
+                    // Note: We don't delete the dots of the old path, it just stops being primary. 
+                    // But usually in V20, changing primary path is a big deal. For UI simplicity, we just unassign it.
+                    renderDynamicAdvantageRow(containerId, type, list, isAbil);
+                }
+            };
 
-        // --- 4. Secondary Paths ---
+            primaryRow.appendChild(pLabel);
+            primaryRow.appendChild(pDots);
+            primaryRow.appendChild(pReset);
+        }
+        container.appendChild(primaryRow);
+
+        // 3. Secondary Paths (Further Indented)
         if (primaryKey) {
-            const secondaryPaths = ownedPaths.filter(p => p !== primaryKey && p !== label); // label is 'Thaumaturgy' generic
-            
-            secondaryPaths.forEach(path => {
-                // Use buildRow logic but manually append to this container? 
-                // Or just reimplement simple row here for control.
-                // Let's reuse buildRow logic but we need to inject it into THIS div, not the main container.
-                // We'll reimplement a mini-builder to ensure it goes into contentDiv.
-                buildRow(path, true, magicType); // Actually, buildRow appends to 'container' scope variable. 
-                // We need to temporarily hijack container? No, that's messy.
-                // Let's just move the node.
-            });
-            
-            // Move generated rows from main container to magic container? 
-            // The buildRow function appends to `container`.
-            // We should modify `buildRow` to accept a target container, or just inline the secondary row logic.
-            // Let's inline simple secondary rendering.
+            const secondaryPaths = ownedPaths.filter(p => p !== primaryKey && p !== label);
             
             secondaryPaths.forEach(secPath => {
-                const sRow = document.createElement('div');
-                sRow.className = "flex justify-between items-center mb-1 ml-2 pl-2 border-l border-[#444]";
+                const secRow = document.createElement('div');
+                // Indent Level 2
+                secRow.className = "flex justify-between items-center mb-1 advantage-row ml-10 border-l border-[#444] pl-2";
                 
-                const sName = document.createElement('div');
-                sName.className = "text-gray-300 text-xs font-bold";
-                sName.innerText = secPath;
-                
+                const sLabel = document.createElement('div');
+                sLabel.className = "flex-1 text-gray-300 text-xs font-bold uppercase";
+                sLabel.innerText = secPath;
+
                 const sDots = document.createElement('div');
-                sDots.className = "dot-row";
-                sDots.innerHTML = renderDots(window.state.dots.disc[secPath], 5);
-                
+                sDots.className = "dot-row cursor-pointer flex-shrink-0";
+                sDots.innerHTML = renderDots(window.state.dots.disc[secPath] || 0, 5);
+
                 sDots.onclick = (e) => {
-                    if (!e.target.dataset.v) return;
+                    if(!e.target.dataset.v) return;
                     const val = parseInt(e.target.dataset.v);
-                    const primVal = window.state.dots.disc[primaryKey] || 0;
-                    if (val > primVal) {
-                        showNotification(`Cannot exceed Primary Path (${primVal})`);
+                    const limit = window.state.dots.disc[primaryKey] || 0;
+                    if (val > limit) {
+                        showNotification(`Secondary Path cannot exceed Primary Path rating (${limit}).`);
                         return;
                     }
                     setDots(secPath, type, val, 0, 5);
-                    renderDynamicAdvantageRow(containerId, type, list, isAbil); // refresh
+                    renderDynamicAdvantageRow(containerId, type, list, isAbil);
                 };
 
                 const sDel = document.createElement('div');
-                sDel.className = "remove-btn ml-2 text-xs";
+                sDel.className = "remove-btn flex-shrink-0 ml-1";
                 sDel.innerHTML = "&times;";
                 sDel.onclick = () => {
                     delete window.state.dots.disc[secPath];
                     renderDynamicAdvantageRow(containerId, type, list, isAbil);
+                    updatePools();
                 };
 
-                sRow.appendChild(sName);
-                sRow.appendChild(sDots);
-                sRow.appendChild(sDel);
-                contentDiv.appendChild(sRow);
+                secRow.appendChild(sLabel);
+                secRow.appendChild(sDots);
+                secRow.appendChild(sDel);
+                container.appendChild(secRow);
             });
 
-            // "Add Secondary" Selector
+            // 4. "Add Secondary" Dropdown (Indented Level 2)
             const addRow = document.createElement('div');
-            addRow.className = "mt-2 ml-2";
-            const addSel = document.createElement('select');
-            addSel.className = "w-full bg-[#111] text-gray-400 border-b border-[#333] text-[10px] uppercase";
+            addRow.className = "flex justify-between items-center mb-1 advantage-row ml-10 border-l border-[#444] pl-2 opacity-75 hover:opacity-100";
             
-            let addOpts = `<option value="">+ Add Secondary Path</option>`;
-            const dataObj = isThaum ? THAUMATURGY_DATA : NECROMANCY_DATA;
+            const addSel = document.createElement('select');
+            addSel.className = "w-full bg-transparent text-gray-400 border-b border-[#333] text-[10px] uppercase font-bold focus:border-gold outline-none";
+            
+            let addOpts = `<option value="">+ Select Additional Path</option>`;
             const avail = dataObj ? Object.keys(dataObj) : [];
             avail.forEach(p => {
                 if (!window.state.dots.disc[p]) addOpts += `<option value="${p}">${p}</option>`;
             });
             addSel.innerHTML = addOpts;
+            
             addSel.onchange = (e) => {
                 const p = e.target.value;
                 if(p) {
@@ -436,12 +397,10 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                     updatePools();
                 }
             };
+            
             addRow.appendChild(addSel);
-            contentDiv.appendChild(addRow);
+            container.appendChild(addRow);
         }
-
-        magicDiv.appendChild(contentDiv);
-        container.appendChild(magicDiv);
     };
 
 
@@ -460,17 +419,16 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
             else standardDiscs.push(item);
         });
 
-        // 2. Render Standard
-        standardDiscs.forEach(d => buildRow(d));
-
-        // 3. Render Magic Containers
-        // Check if we need to render Thaumaturgy container
+        // 2. Render Magic Sections
         if (thaumPaths.length > 0 || window.state.primaryThaumPath) {
-            renderMagicContainer('thaum', thaumPaths);
+            renderMagicSection('thaum', thaumPaths);
         }
         if (necroPaths.length > 0 || window.state.primaryNecroPath) {
-            renderMagicContainer('necro', necroPaths);
+            renderMagicSection('necro', necroPaths);
         }
+
+        // 3. Render Standard Disciplines
+        standardDiscs.forEach(d => buildRow(d));
 
         // 4. Render "Add New" Row (Standard)
         buildRow();
@@ -482,7 +440,7 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
 }
 window.renderDynamicAdvantageRow = renderDynamicAdvantageRow;
 
-// --- RITUALS SELECTOR LOGIC (Preserved) ---
+// --- RITUALS SELECTOR LOGIC (Unchanged from your preferred version) ---
 export function renderRitualsEdit() {
     const container = document.getElementById('rituals-list-create');
     if (!container) return;
