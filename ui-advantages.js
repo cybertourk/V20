@@ -24,6 +24,56 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
     if (!container) return;
     container.innerHTML = '';
     
+    // --- MIGRATION: Auto-convert generic "Thaumaturgy"/"Necromancy" to Primary Paths ---
+    if (type === 'disc' && window.state.dots.disc) {
+        // Thaumaturgy Migration
+        if (window.state.dots.disc['Thaumaturgy'] !== undefined) {
+            const val = window.state.dots.disc['Thaumaturgy'];
+            // Default to Path of Blood if no primary set
+            const targetPath = window.state.primaryThaumPath || "Path of Blood";
+            
+            // Transfer dots to the path
+            if (!window.state.dots.disc[targetPath]) {
+                window.state.dots.disc[targetPath] = val;
+            } else {
+                // If path already exists, ensure it has at least these dots
+                window.state.dots.disc[targetPath] = Math.max(window.state.dots.disc[targetPath], val);
+            }
+            
+            // Remove the generic key
+            delete window.state.dots.disc['Thaumaturgy'];
+            window.state.primaryThaumPath = targetPath;
+            
+            // Auto-Add Lv1 Ritual for fresh Thaumaturgy
+            if (!window.state.rituals) window.state.rituals = [];
+            if (!window.state.rituals.some(r => r.level === 1)) {
+                 window.state.rituals.push({ name: "Defense of the Sacred Haven", level: 1 });
+            }
+        }
+
+        // Necromancy Migration
+        if (window.state.dots.disc['Necromancy'] !== undefined) {
+            const val = window.state.dots.disc['Necromancy'];
+            // Default to Sepulchre Path
+            const targetPath = window.state.primaryNecroPath || "The Sepulchre Path";
+            
+            if (!window.state.dots.disc[targetPath]) {
+                window.state.dots.disc[targetPath] = val;
+            } else {
+                window.state.dots.disc[targetPath] = Math.max(window.state.dots.disc[targetPath], val);
+            }
+            
+            delete window.state.dots.disc['Necromancy'];
+            window.state.primaryNecroPath = targetPath;
+            
+            // Auto-Add Lv1 Ritual for fresh Necromancy (Call of the Hungry Dead is standard freebie)
+            if (!window.state.rituals) window.state.rituals = [];
+            if (!window.state.rituals.some(r => r.name === "Call of the Hungry Dead")) {
+                 window.state.rituals.push({ name: "Call of the Hungry Dead", level: 1 });
+            }
+        }
+    }
+    
     let existingItems = [];
     if (type === 'abil') {
         let category = '';
@@ -37,6 +87,11 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
     const isMagicPath = (name) => {
         if (!name) return false;
         const n = name.toLowerCase();
+        
+        // Catch literal discipline names just in case
+        if (n === 'thaumaturgy') return 'thaum';
+        if (n === 'necromancy') return 'necro';
+        
         if (THAUMATURGY_DATA && Object.keys(THAUMATURGY_DATA).some(k => k.toLowerCase() === n)) return 'thaum';
         if (NECROMANCY_DATA && Object.keys(NECROMANCY_DATA).some(k => k.toLowerCase() === n)) return 'necro';
         if (n.includes('path') || n.includes('lure of') || n.includes('gift of') || n.includes('weather control') || n.includes('movement of the mind')) return 'thaum'; 
@@ -265,6 +320,11 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                     }
                 } else if (magicType === 'necro' && !window.state.primaryNecroPath) {
                     window.state.primaryNecroPath = newVal;
+                    if (!window.state.rituals) window.state.rituals = [];
+                    if (!window.state.rituals.some(r => r.name === "Call of the Hungry Dead")) {
+                         window.state.rituals.push({ name: "Call of the Hungry Dead", level: 1 });
+                         showNotification("Primary Path Set. Learned Lv1 Ritual.");
+                    }
                 }
             }
 
@@ -447,20 +507,23 @@ export function renderRitualsEdit() {
 
     if (!window.state.rituals) window.state.rituals = [];
 
-    // --- DETERMINE MAX LEVEL ---
-    let maxLevel = 0;
+    // --- DETERMINE LEVELS SEPARATELY ---
+    let maxThaum = 0;
+    let maxNecro = 0;
     
     // Check Thaumaturgy Rating (Primary Path is stored in state but dots are in disc array)
     if (window.state.primaryThaumPath && window.state.dots.disc[window.state.primaryThaumPath]) {
-        maxLevel = Math.max(maxLevel, window.state.dots.disc[window.state.primaryThaumPath]);
+        maxThaum = window.state.dots.disc[window.state.primaryThaumPath];
     }
     // Check Necromancy Rating
     if (window.state.primaryNecroPath && window.state.dots.disc[window.state.primaryNecroPath]) {
-        maxLevel = Math.max(maxLevel, window.state.dots.disc[window.state.primaryNecroPath]);
+        maxNecro = window.state.dots.disc[window.state.primaryNecroPath];
     }
     
+    let loopMax = Math.max(maxThaum, maxNecro);
+
     // Display Max Level Info
-    if (maxLevel === 0) {
+    if (loopMax === 0) {
         const info = document.createElement('div');
         info.className = "text-gray-500 italic text-[10px] text-center mb-2";
         info.innerText = "Learn Thaumaturgy or Necromancy to access Rituals.";
@@ -468,7 +531,7 @@ export function renderRitualsEdit() {
     } else {
         const info = document.createElement('div');
         info.className = "text-[#d4af37] font-bold text-[10px] uppercase text-center mb-2 border-b border-[#333] pb-1";
-        info.innerText = `Max Ritual Level: ${maxLevel}`;
+        info.innerText = `Max Levels - Thaum: ${maxThaum}, Necro: ${maxNecro}`;
         listCont.appendChild(info);
     }
 
@@ -483,17 +546,26 @@ export function renderRitualsEdit() {
         let ritualOptions = `<option value="">-- Select Ritual --</option>`;
         if (window.RITUALS_DATA) {
             // Iterate Levels 1 to MaxLevel
-            for (let i = 1; i <= maxLevel; i++) {
-                if (window.RITUALS_DATA.Thaumaturgy && window.RITUALS_DATA.Thaumaturgy[i]) {
-                    // CHANGED: Update optgroup label to include "Rituals"
-                    ritualOptions += `<optgroup label="Level ${i} Rituals">`;
+            for (let i = 1; i <= loopMax; i++) {
+                // Thaumaturgy Check
+                if (i <= maxThaum && window.RITUALS_DATA.Thaumaturgy && window.RITUALS_DATA.Thaumaturgy[i]) {
+                    ritualOptions += `<optgroup label="Thaumaturgy Level ${i}">`;
                     Object.values(window.RITUALS_DATA.Thaumaturgy[i]).forEach(r => {
                         const sel = nameVal === r.name ? 'selected' : '';
                         ritualOptions += `<option value="${r.name}" data-lvl="${i}" ${sel}>${r.name}</option>`;
                     });
                     ritualOptions += `</optgroup>`;
                 }
-                // Add Necromancy here similarly if structure matches
+                
+                // Necromancy Check
+                if (i <= maxNecro && window.RITUALS_DATA.Necromancy && window.RITUALS_DATA.Necromancy[i]) {
+                    ritualOptions += `<optgroup label="Necromancy Level ${i}">`;
+                    Object.values(window.RITUALS_DATA.Necromancy[i]).forEach(r => {
+                        const sel = nameVal === r.name ? 'selected' : '';
+                        ritualOptions += `<option value="${r.name}" data-lvl="${i}" ${sel}>${r.name}</option>`;
+                    });
+                    ritualOptions += `</optgroup>`;
+                }
             }
         }
         ritualOptions += `<option value="Custom" ${nameVal && !isKnownRitual(nameVal) ? 'selected' : ''}>-- Custom / Write-in --</option>`;
@@ -597,16 +669,27 @@ export function renderRitualsEdit() {
     };
 
     window.state.rituals.forEach(r => buildRow(r));
-    if (maxLevel > 0) buildRow(); // Only show empty row if user has Magic
+    if (loopMax > 0) buildRow(); // Only show empty row if user has Magic
 }
 window.renderRitualsEdit = renderRitualsEdit;
 
 function isKnownRitual(name) {
-    if (!window.RITUALS_DATA || !window.RITUALS_DATA.Thaumaturgy) return false;
-    // Check all levels
-    for (const lvl in window.RITUALS_DATA.Thaumaturgy) {
-        if (window.RITUALS_DATA.Thaumaturgy[lvl][name]) return true;
+    if (!window.RITUALS_DATA) return false;
+    
+    // Check Thaumaturgy
+    if (window.RITUALS_DATA.Thaumaturgy) {
+        for (const lvl in window.RITUALS_DATA.Thaumaturgy) {
+            if (window.RITUALS_DATA.Thaumaturgy[lvl][name]) return true;
+        }
     }
+    
+    // Check Necromancy
+    if (window.RITUALS_DATA.Necromancy) {
+        for (const lvl in window.RITUALS_DATA.Necromancy) {
+            if (window.RITUALS_DATA.Necromancy[lvl][name]) return true;
+        }
+    }
+
     return false;
 }
 
