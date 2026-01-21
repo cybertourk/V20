@@ -351,27 +351,62 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
 
                 sDots.onclick = (e) => {
                     if(!e.target.dataset.v) return;
-                    const val = parseInt(e.target.dataset.v);
+                    const newVal = parseInt(e.target.dataset.v);
+                    const currentVal = window.state.dots.disc[secPath] || 0;
                     const primaryRating = window.state.dots.disc[primaryKey] || 0;
                     
+                    // --- Validation Checks ---
                     if (isThaum) {
-                        // Thaumaturgy Rule: Primary must be 1 higher than Secondary, UNLESS Primary is 5.
-                        // "primary path must always be at least one dot higher ... until she has mastered her primary path"
                         let limit = (primaryRating === 5) ? 5 : (primaryRating - 1);
-                        if (val > limit) {
+                        if (newVal > limit) {
                             if (primaryRating === 5) showNotification(`Secondary Path cannot exceed Primary Path (5).`);
                             else showNotification(`Secondary Path must be lower than Primary Path until mastered.`);
                             return;
                         }
                     } else {
-                        // Necromancy Rule: Secondary cannot exceed Primary.
-                        if (val > primaryRating) {
+                        if (newVal > primaryRating) {
                             showNotification(`Secondary Path cannot exceed Primary Path rating (${primaryRating}).`);
                             return;
                         }
                     }
 
-                    setDots(secPath, type, val, 0, 5);
+                    // --- XP Mode Logic Override for Secondary Paths ---
+                    // Rule: New Path = 7 XP. Raise Path = Current Rating * 4.
+                    if (window.state.xpMode && newVal > currentVal) {
+                        let totalCost = 0;
+                        for (let v = currentVal + 1; v <= newVal; v++) {
+                            // If target is level 1, it's a NEW path = 7 XP
+                            if (v === 1) totalCost += 7;
+                            // Else it's raising a path = (Target Level - 1) * 4
+                            // Example: Raise to 2. Cost = (2-1)*4 = 4.
+                            else totalCost += (v - 1) * 4;
+                        }
+
+                        if (window.state.xp.current < totalCost) {
+                            showNotification(`Not enough XP. Cost: ${totalCost}`);
+                            return;
+                        }
+                        
+                        if (!confirm(`Spend ${totalCost} XP to raise ${secPath} to ${newVal}?`)) return;
+
+                        window.state.xp.current -= totalCost;
+                        window.state.xp.spent += totalCost;
+                        if (!window.state.xpLog) window.state.xpLog = [];
+                        window.state.xpLog.push({
+                            date: new Date().toLocaleString(),
+                            entry: `Raised Secondary Path ${secPath} to ${newVal}`,
+                            cost: totalCost
+                        });
+
+                        // Manually update state and bypass generic setDots logic
+                        window.state.dots.disc[secPath] = newVal;
+                        updatePools();
+                        renderDynamicAdvantageRow(containerId, type, list, isAbil);
+                        return;
+                    }
+
+                    // Fallback to standard setDots for Freebie/Edit/Lowering logic
+                    setDots(secPath, type, newVal, 0, 5);
                     renderDynamicAdvantageRow(containerId, type, list, isAbil);
                 };
 
@@ -412,22 +447,17 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
 
                     // VALIDATION LOGIC SPLIT
                     if (isThaum) {
-                        // Thaumaturgy Rule: Must have 2+ dots in Primary to learn Secondary.
-                        // (V20 p. 213 "acquired two or more dots")
                         if (primaryRating < 2) {
                              showNotification(`Must have Primary Thaumaturgy Path rating of 2 or higher to learn a Secondary Path.`);
                              addSel.value = "";
                              return;
                         }
                     } else {
-                        // Necromancy Rules
-                        // 1. Must have 3+ dots in Primary to learn 1st Secondary.
                         if (secondaryCount === 0 && primaryRating < 3) {
                             showNotification(`Must have Primary Necromancy Path rating of 3 or higher to learn a Secondary Path.`);
                             addSel.value = "";
                             return;
                         }
-                        // 2. Must Master Primary (5 dots) to learn 3rd Path (2nd Secondary).
                         if (secondaryCount >= 1 && primaryRating < 5) {
                              showNotification(`Must master Primary Necromancy Path (5 dots) before learning a third Path.`);
                              addSel.value = "";
