@@ -11,7 +11,17 @@ import {
     createUserWithEmailAndPassword,
     signInWithEmailAndPassword
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-import { getFirestore, doc, setDoc, getDoc, collection, getDocs, query, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+import { 
+    getFirestore, 
+    doc, 
+    setDoc, 
+    getDoc, 
+    collection, 
+    getDocs, 
+    query, 
+    deleteDoc,
+    where // ADDED THIS EXPORT
+} from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 // FIREBASE CONFIGURATION
 // Extracted from your original script.js
@@ -47,11 +57,14 @@ export {
     googleProvider,
     createUserWithEmailAndPassword,
     signInWithEmailAndPassword,
+    
+    // FIRESTORE FUNCTIONS (Re-exported for Manager)
     doc, 
     setDoc, 
     getDoc, 
     collection, 
     getDocs, 
     query, 
-    deleteDoc 
+    deleteDoc,
+    where // EXPORTED HERE TO FIX ERROR
 };
