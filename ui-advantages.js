@@ -50,6 +50,17 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
         return false;
     };
 
+    // --- HELPER: FORCE VISUAL SYNC ---
+    const syncAllDots = (name, type) => {
+        if (!name || !type || !window.state.dots[type]) return;
+        const val = window.state.dots[type][name] || 0;
+        // Find all dot containers for this trait in the current container and update them
+        // Escape quotes in name just in case
+        const safeName = name.replace(/"/g, '\\"');
+        const matches = container.querySelectorAll(`.dot-row[data-n="${safeName}"][data-t="${type}"]`);
+        matches.forEach(el => el.innerHTML = renderDots(val, 5));
+    };
+
     // --- PARENT HEADER BUILDER (The "Thaumaturgy: ●●●" Row) ---
     const buildParentHeader = (label, primaryKey, allChildKeys) => {
         const row = document.createElement('div');
@@ -76,7 +87,9 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
         // Click Logic for Parent Dots (Edits Primary Path)
         dotCont.onclick = (e) => {
             if (!primaryKey || !e.target.dataset.v) return;
-            setDots(primaryKey, type, parseInt(e.target.dataset.v), 0, 5);
+            const newDots = parseInt(e.target.dataset.v);
+            setDots(primaryKey, type, newDots, 0, 5);
+            syncAllDots(primaryKey, type); // Force sync
         };
 
         // Remove Button (Deletes ALL paths of this type)
@@ -413,6 +426,7 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                 }
             }
             setDots(curName, type, newDots, 0, 5);
+            syncAllDots(curName, type); // Force sync
         };
 
         row.appendChild(specWrapper);
