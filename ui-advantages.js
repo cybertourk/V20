@@ -286,6 +286,7 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                 if(newPath) {
                     if (isThaum) window.state.primaryThaumPath = newPath;
                     else window.state.primaryNecroPath = newPath;
+                    // Primary Path usually comes with the discipline dot, so 1 is appropriate here.
                     window.state.dots.disc[newPath] = 1;
                     // Clean generic key
                     const generic = isThaum ? 'Thaumaturgy' : 'Necromancy';
@@ -434,7 +435,8 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                         }
                     }
 
-                    window.state.dots.disc[p] = 1;
+                    // Set to 0 so user clicks dot to trigger XP deduction
+                    window.state.dots.disc[p] = 0;
                     renderDynamicAdvantageRow(containerId, type, list, isAbil);
                     updatePools();
                 }
