@@ -1,91 +1,67 @@
 import { 
-    db, 
     auth, 
-    collection, 
+    db, 
     doc, 
     setDoc, 
-    getDocs, 
     getDoc, 
-    deleteDoc, 
+    getDocs, 
+    collection, 
     query, 
-    where,
-    signInAnonymously // Ensure this is imported if not already in config
+    deleteDoc,
+    signInAnonymously,
+    where
 } from "./firebase-config.js";
 
-// --- SAVE CHARACTER ---
-export async function performSave(silent = false) {
-    if (!window.state) return;
-    
-    // 1. Ensure User is Authenticated
-    let user = auth.currentUser;
-    if (!user) {
-        try {
-            // Attempt auto-login if guest
-            const cred = await signInAnonymously(auth);
-            user = cred.user;
-        } catch (e) {
-            console.error("Auth failed during save:", e);
-            window.showNotification("Save Failed: Not logged in.", "error");
-            return;
-        }
-    }
-
-    // 2. Validate Data
-    const nameField = document.getElementById('save-name-input');
-    const folderField = document.getElementById('save-folder-input');
-    
-    // If modal is not open, use existing meta or default
-    let filename = window.state.meta?.filename || window.state.textFields['c-name'] || "Unnamed";
-    let folder = window.state.meta?.folder || "";
-
-    if (nameField && document.getElementById('save-modal').classList.contains('active')) {
-        filename = nameField.value;
-        folder = folderField.value;
-    }
-    
-    if (!filename) {
-        window.showNotification("Enter a character name.", "error");
-        return;
-    }
-
-    // Update State Meta
-    window.state.meta = {
-        filename: filename,
-        folder: folder,
-        lastModified: new Date().toISOString(),
-        version: "v20-1.1"
-    };
-
-    // 3. Prepare Data Payload
-    const saveData = JSON.parse(JSON.stringify(window.state)); // Deep copy
-    
-    // Sanitize ID (remove illegal chars for Firestore Doc ID)
-    const docId = filename.replace(/[^a-zA-Z0-9_-]/g, "_");
-
-    try {
-        // --- CRITICAL UPDATE: USER-SCOPED PATH ---
-        // Path: /users/{uid}/characters/{docId}
-        const userCharRef = doc(db, "users", user.uid, "characters", docId);
-        
-        await setDoc(userCharRef, saveData);
-        
-        if (!silent) {
-            window.showNotification(`Saved "${filename}" successfully!`);
-            document.getElementById('save-modal').classList.remove('active');
-        }
-        console.log("Save complete:", docId);
-
-    } catch (e) {
-        console.error("Firestore Save Error:", e);
-        if (e.code === 'permission-denied') {
-             window.showNotification("Save Failed: Permission Denied. Check Rules.", "error");
-        } else {
-             window.showNotification("Save Failed: " + e.message, "error");
-        }
-    }
+// Helper for UI notifications
+function notify(msg, type='info') {
+    if (window.showNotification) window.showNotification(msg, type);
+    else console.log("Notify:", msg);
 }
 
-// --- LOAD CHARACTER LIST ---
+// Helper to sync text fields before saving
+function syncInputs() {
+    if (!window.state) return;
+    if (!window.state.textFields) window.state.textFields = {};
+    
+    document.querySelectorAll('input:not([type="checkbox"]), select, textarea').forEach(el => {
+        // Skip ephemeral UI inputs
+        if (el.id && !el.id.startsWith('inv-') && !el.id.startsWith('merit-') && !el.id.startsWith('flaw-') && !el.id.startsWith('save-') && !el.closest('.combat-row') && !el.classList.contains('specialty-input')) {
+            window.state.textFields[el.id] = el.value;
+        }
+    });
+}
+
+// --- MAIN ACTIONS ---
+
+export function handleNew() {
+    if(!confirm("Create new character? Unsaved changes will be lost.")) return;
+    window.location.reload(); 
+}
+
+export function handleSaveClick() {
+    // Safety: Initialize state if missing
+    if (!window.state) window.state = { meta: { filename: "", folder: "" }, textFields: {} };
+
+    syncInputs();
+    
+    // Safety: Initialize meta if missing
+    if (!window.state.meta) window.state.meta = { filename: "", folder: "" };
+    
+    // Pre-fill inputs if existing
+    const nameIn = document.getElementById('save-name-input');
+    const folderIn = document.getElementById('save-folder-input');
+    
+    if(nameIn) {
+        if(window.state.meta.filename) nameIn.value = window.state.meta.filename;
+        else nameIn.value = document.getElementById('c-name')?.value || "Unnamed Vampire";
+    }
+    
+    if(folderIn && window.state.meta.folder) folderIn.value = window.state.meta.folder;
+    
+    const modal = document.getElementById('save-modal');
+    if(modal) modal.classList.add('active');
+}
+
 export async function handleLoadClick() {
     const modal = document.getElementById('load-modal');
     const list = document.getElementById('file-browser');
@@ -106,141 +82,208 @@ export async function handleLoadClick() {
         }
     }
 
+    await renderFileBrowser(user);
+}
+
+// --- CORE OPERATIONS ---
+
+export async function performSave() {
+    // 1. Ensure Auth
+    let user = auth.currentUser;
+    if (!user) {
+        try {
+            const cred = await signInAnonymously(auth);
+            user = cred.user;
+        } catch (e) {
+            notify("Login Required to Save", "error");
+            return;
+        }
+    }
+
+    const nameIn = document.getElementById('save-name-input');
+    const folderIn = document.getElementById('save-folder-input');
+    
+    let rawName = nameIn ? nameIn.value.trim() : "Unnamed";
+    let folder = folderIn ? folderIn.value.trim() : "Unsorted";
+    
+    if(!rawName) return notify("Filename required", "error");
+    
+    // Sanitize ID
+    const safeId = rawName.replace(/[^a-zA-Z0-9 _-]/g, "");
+    
+    // Update State Meta
+    if (!window.state.meta) window.state.meta = {};
+    window.state.meta.filename = safeId;
+    window.state.meta.folder = folder;
+    window.state.meta.lastModified = new Date().toISOString();
+    window.state.meta.uid = user.uid; // Store owner ID
+    
     try {
-        // --- CRITICAL UPDATE: USER-SCOPED QUERY ---
-        // Path: /users/{uid}/characters
-        const charsRef = collection(db, "users", user.uid, "characters");
-        const snapshot = await getDocs(charsRef);
+        // Path: /users/{userId}/characters/{safeId}
+        const docRef = doc(db, 'users', user.uid, 'characters', safeId);
         
-        if (snapshot.empty) {
-            list.innerHTML = '<div class="text-center text-gray-500 italic mt-4">No characters found in your archive.</div>';
+        // Deep copy state to remove non-serializable items if any
+        const dataToSave = JSON.parse(JSON.stringify(window.state));
+        
+        await setDoc(docRef, dataToSave);
+        
+        notify("Character Inscribed.");
+        
+        const modal = document.getElementById('save-modal');
+        if(modal) modal.classList.remove('active');
+        
+        // Update Datalist for folders
+        const dl = document.getElementById('folder-datalist');
+        if(dl && folder && !Array.from(dl.options).some(o => o.value === folder)) {
+            const opt = document.createElement('option');
+            opt.value = folder;
+            dl.appendChild(opt);
+        }
+    } catch (e) { 
+        console.error("Save Error:", e); 
+        notify("Save Failed: " + e.message, "error");
+    }
+}
+
+export async function deleteCharacter(id, name, event) {
+    if(event) event.stopPropagation();
+    if(!confirm(`Permanently delete "${name}"? This cannot be undone.`)) return;
+    
+    const user = auth.currentUser;
+    if (!user) return;
+
+    try {
+        const docRef = doc(db, 'users', user.uid, 'characters', id);
+        await deleteDoc(docRef);
+        notify("Deleted.");
+        await renderFileBrowser(user); // Refresh list
+    } catch (e) {
+        console.error("Delete Error:", e);
+        notify("Delete Failed.", "error");
+    }
+}
+
+// --- BROWSER UI ---
+
+export async function renderFileBrowser(user) {
+    const browser = document.getElementById('file-browser');
+    
+    try {
+        // Path: /users/{userId}/characters
+        const q = query(collection(db, 'users', user.uid, 'characters'));
+        const snap = await getDocs(q);
+        
+        if (snap.empty) {
+            browser.innerHTML = '<div class="text-center text-gray-500 italic mt-10">No Archives Found.</div>';
             return;
         }
 
-        list.innerHTML = ''; // Clear loading
+        const structure = {};
         
-        // Group by Folder
-        const folders = {};
-        
-        snapshot.forEach(docSnap => {
-            const data = docSnap.data();
-            const meta = data.meta || {};
-            const folderName = meta.folder || "Unsorted";
-            
-            if (!folders[folderName]) folders[folderName] = [];
-            folders[folderName].push({ id: docSnap.id, ...data });
+        snap.forEach(d => {
+            const data = d.data();
+            const f = data.meta?.folder || "Unsorted";
+            if(!structure[f]) structure[f] = [];
+            structure[f].push({ id: d.id, ...data });
         });
-
-        // Render List
-        Object.keys(folders).sort().forEach(folder => {
-            const folderDiv = document.createElement('div');
-            folderDiv.className = "mb-2";
+        
+        browser.innerHTML = '';
+        
+        // Sort folders (Unsorted last)
+        const folders = Object.keys(structure).sort((a,b) => a === "Unsorted" ? 1 : b === "Unsorted" ? -1 : a.localeCompare(b));
+        
+        const dl = document.getElementById('folder-datalist');
+        if(dl) dl.innerHTML = ''; // Reset datalist
+        
+        folders.forEach(f => {
+            if(dl) { const opt = document.createElement('option'); opt.value = f; dl.appendChild(opt); }
             
-            const title = document.createElement('div');
-            title.className = "text-[#d4af37] font-bold text-xs uppercase border-b border-[#333] mb-1 sticky top-0 bg-[#050505] py-1";
-            title.innerHTML = `<i class="fas fa-folder mr-1"></i> ${folder}`;
-            folderDiv.appendChild(title);
+            const header = document.createElement('div');
+            header.className = "text-[#d4af37] font-bold text-xs uppercase border-b border-[#333] mb-1 sticky top-0 bg-[#050505] py-1 mt-2";
+            header.innerHTML = `<i class="fas fa-folder mr-2"></i> ${f}`;
+            browser.appendChild(header);
             
-            folders[folder].forEach(char => {
-                const item = document.createElement('div');
-                item.className = "flex justify-between items-center p-2 hover:bg-[#222] rounded cursor-pointer group transition-colors text-xs";
+            structure[f].forEach(char => {
+                const row = document.createElement('div');
+                row.className = "flex justify-between items-center p-2 hover:bg-[#222] rounded cursor-pointer group transition-colors text-xs border-b border-[#111]";
                 
-                const charName = char.meta?.filename || char.textFields?.['c-name'] || char.id;
-                const clan = char.textFields?.['c-clan'] || "Unknown";
                 const date = char.meta?.lastModified ? new Date(char.meta.lastModified).toLocaleDateString() : "";
+                const charName = char.meta?.filename || char.textFields?.['c-name'] || char.id;
+                const clanName = char.textFields?.['c-clan'] || 'Unknown Clan';
+                const natureName = char.textFields?.['c-nature'] || 'Unknown Nature';
 
-                item.innerHTML = `
-                    <div class="flex-1" onclick="window.loadCharacter('${char.id}')">
+                row.innerHTML = `
+                    <div class="flex-1">
                         <div class="font-bold text-white">${charName}</div>
-                        <div class="text-[10px] text-gray-500">${clan} | ${date}</div>
+                        <div class="text-[10px] text-gray-500">${clanName} • ${natureName}</div>
                     </div>
-                    <button class="text-red-900 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity px-2" onclick="window.deleteCharacter('${char.id}')" title="Delete">
-                        <i class="fas fa-trash"></i>
-                    </button>
+                    <div class="flex items-center gap-3">
+                        <div class="text-[10px] text-gray-600">${date}</div>
+                        <button class="file-delete-btn text-red-900 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity px-2" title="Delete">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
                 `;
-                folderDiv.appendChild(item);
+                
+                const deleteBtn = row.querySelector('.file-delete-btn');
+                deleteBtn.onclick = (e) => deleteCharacter(char.id, charName, e);
+                
+                row.onclick = async (e) => {
+                    if(e.target.closest('.file-delete-btn')) return;
+                    await loadSelectedChar(char);
+                };
+                
+                browser.appendChild(row);
             });
-            
-            list.appendChild(folderDiv);
         });
-
+        
     } catch (e) {
-        console.error("Load List Error:", e);
-        list.innerHTML = `<div class="text-red-500 text-center mt-4">Error loading list: ${e.message}</div>`;
+        console.error("Browser Error:", e);
+        browser.innerHTML = `<div class="text-red-500 text-center mt-10">Archive Error: ${e.message}</div>`;
     }
 }
 
-// --- LOAD SINGLE CHARACTER ---
-window.loadCharacter = async function(docId) {
-    const user = auth.currentUser;
-    if (!user) return;
+export async function loadSelectedChar(data) {
+    if (!data) return;
 
-    try {
-        const docRef = doc(db, "users", user.uid, "characters", docId);
-        const docSnap = await getDoc(docRef);
-
-        if (docSnap.exists()) {
-            const data = docSnap.data();
-            
-            if (confirm(`Load "${data.meta?.filename || docId}"? Unsaved changes will be lost.`)) {
-                window.state = data;
-                
-                // Legacy Patching
-                if (!window.state.rituals) window.state.rituals = [];
-                if (!window.state.retainers) window.state.retainers = [];
-
-                if (window.fullRefresh) window.fullRefresh();
-                
-                document.getElementById('load-modal').classList.remove('active');
-                window.showNotification("Character Loaded.");
+    if(!confirm(`Recall ${data.meta?.filename || "Character"}? Unsaved progress will be lost.`)) return;
+    
+    // Deep copy to break reference
+    window.state = JSON.parse(JSON.stringify(data));
+    
+    // Legacy Data Patches / Safety Checks
+    if(!window.state.meta) window.state.meta = { filename: data.id || "Loaded Character", folder: "" };
+    if(!window.state.specialties) window.state.specialties = {}; 
+    if(!window.state.rituals) window.state.rituals = [];
+    if(!window.state.retainers) window.state.retainers = [];
+    if (!window.state.furthestPhase) window.state.furthestPhase = 1;
+    
+    if (window.state.status) {
+        if (window.state.status.tempWillpower === undefined) {
+            window.state.status.tempWillpower = window.state.status.willpower || 5;
+        }
+        // Fix old health format if needed
+        if (window.state.status.health_states === undefined || !Array.isArray(window.state.status.health_states)) {
+            const oldDamage = window.state.status.health || 0;
+            window.state.status.health_states = [0,0,0,0,0,0,0];
+            for(let i=0; i<oldDamage && i<7; i++) {
+                window.state.status.health_states[i] = 2; 
             }
-        } else {
-            window.showNotification("Character not found!", "error");
         }
-    } catch (e) {
-        console.error("Load Char Error:", e);
-        window.showNotification("Load Failed: " + e.message, "error");
+    } else {
+        // Initialize status if totally missing
+        window.state.status = { humanity: 7, willpower: 5, tempWillpower: 5, health_states: [0,0,0,0,0,0,0], blood: 10 };
     }
-};
-
-// --- DELETE CHARACTER ---
-window.deleteCharacter = async function(docId) {
-    const user = auth.currentUser;
-    if (!user) return;
-
-    if (confirm("Are you sure you want to PERMANENTLY delete this character?")) {
-        try {
-            const docRef = doc(db, "users", user.uid, "characters", docId);
-            await deleteDoc(docRef);
-            
-            // Refresh List
-            handleLoadClick();
-            window.showNotification("Character Deleted.");
-        } catch (e) {
-            console.error("Delete Error:", e);
-            window.showNotification("Delete Failed: " + e.message, "error");
-        }
+    
+    // Call the MAIN UI Refresher (Defined in main.js)
+    if (window.fullRefresh) {
+        window.fullRefresh();
+    } else {
+        console.error("Refresh function missing.");
+        window.location.reload(); // Fallback
     }
-};
-
-// --- HANDLE NEW ---
-export function handleNew() {
-    if (confirm("Create New Character? Unsaved progress will be lost.")) {
-        window.location.reload();
-    }
-}
-
-// --- HANDLE SAVE BUTTON CLICK (TRIGGER MODAL) ---
-export function handleSaveClick() {
-    const modal = document.getElementById('save-modal');
-    if (modal) {
-        modal.classList.add('active');
-        
-        // Pre-fill
-        const nameInput = document.getElementById('save-name-input');
-        const folderInput = document.getElementById('save-folder-input');
-        
-        if (nameInput) nameInput.value = window.state.meta?.filename || window.state.textFields['c-name'] || "";
-        if (folderInput) folderInput.value = window.state.meta?.folder || "";
-    }
+    
+    const modal = document.getElementById('load-modal');
+    if(modal) modal.classList.remove('active');
+    notify("Character Recalled.");
 }
