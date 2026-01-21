@@ -230,6 +230,7 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
         headerLabel.innerHTML = `<i class="fas fa-book-open text-[10px] mr-2"></i>${label}`;
         
         // Dots (Controls Primary Path)
+        // V20 Rules: "The rating in the primary path is always the character's rating in the Discipline"
         const headerDots = document.createElement('div');
         headerDots.className = "dot-row cursor-pointer flex-shrink-0";
         const primaryVal = primaryKey ? (window.state.dots.disc[primaryKey] || 0) : 0;
@@ -320,7 +321,6 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                     if(isThaum) window.state.primaryThaumPath = null;
                     else window.state.primaryNecroPath = null;
                     // Note: We don't delete the dots of the old path, it just stops being primary. 
-                    // But usually in V20, changing primary path is a big deal. For UI simplicity, we just unassign it.
                     renderDynamicAdvantageRow(containerId, type, list, isAbil);
                 }
             };
@@ -351,11 +351,25 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                 sDots.onclick = (e) => {
                     if(!e.target.dataset.v) return;
                     const val = parseInt(e.target.dataset.v);
-                    const limit = window.state.dots.disc[primaryKey] || 0;
-                    if (val > limit) {
-                        showNotification(`Secondary Path cannot exceed Primary Path rating (${limit}).`);
-                        return;
+                    const primaryRating = window.state.dots.disc[primaryKey] || 0;
+                    
+                    if (isThaum) {
+                        // Thaumaturgy Rule: Primary must be 1 higher than Secondary, UNLESS Primary is 5.
+                        // "primary path must always be at least one dot higher ... until she has mastered her primary path"
+                        let limit = (primaryRating === 5) ? 5 : (primaryRating - 1);
+                        if (val > limit) {
+                            if (primaryRating === 5) showNotification(`Secondary Path cannot exceed Primary Path (5).`);
+                            else showNotification(`Secondary Path must be lower than Primary Path until mastered.`);
+                            return;
+                        }
+                    } else {
+                        // Necromancy Rule: Secondary cannot exceed Primary.
+                        if (val > primaryRating) {
+                            showNotification(`Secondary Path cannot exceed Primary Path rating (${primaryRating}).`);
+                            return;
+                        }
                     }
+
                     setDots(secPath, type, val, 0, 5);
                     renderDynamicAdvantageRow(containerId, type, list, isAbil);
                 };
@@ -392,6 +406,34 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
             addSel.onchange = (e) => {
                 const p = e.target.value;
                 if(p) {
+                    const primaryRating = window.state.dots.disc[primaryKey] || 0;
+                    const secondaryCount = secondaryPaths.length;
+
+                    // VALIDATION LOGIC SPLIT
+                    if (isThaum) {
+                        // Thaumaturgy Rule: Must have 2+ dots in Primary to learn Secondary.
+                        // (V20 p. 213 "acquired two or more dots")
+                        if (primaryRating < 2) {
+                             showNotification(`Must have Primary Thaumaturgy Path rating of 2 or higher to learn a Secondary Path.`);
+                             addSel.value = "";
+                             return;
+                        }
+                    } else {
+                        // Necromancy Rules
+                        // 1. Must have 3+ dots in Primary to learn 1st Secondary.
+                        if (secondaryCount === 0 && primaryRating < 3) {
+                            showNotification(`Must have Primary Necromancy Path rating of 3 or higher to learn a Secondary Path.`);
+                            addSel.value = "";
+                            return;
+                        }
+                        // 2. Must Master Primary (5 dots) to learn 3rd Path (2nd Secondary).
+                        if (secondaryCount >= 1 && primaryRating < 5) {
+                             showNotification(`Must master Primary Necromancy Path (5 dots) before learning a third Path.`);
+                             addSel.value = "";
+                             return;
+                        }
+                    }
+
                     window.state.dots.disc[p] = 1;
                     renderDynamicAdvantageRow(containerId, type, list, isAbil);
                     updatePools();
