@@ -80,7 +80,6 @@ export async function handleLoadClick() {
 }
 
 // --- MIGRATION TOOL ---
-// Scans ROOT collection (old insecure) and moves to ARTIFACTS collection (new secure)
 window.migrateOldData = async function(oldCollectionName = "characters") {
     const user = auth.currentUser;
     if (!user) return alert("Please log in/wait for auth first.");
@@ -206,29 +205,30 @@ export async function deleteCharacter(id, name, event) {
 
 export async function renderFileBrowser(user) {
     const browser = document.getElementById('file-browser');
+    
+    // 1. Render Structure first to ensure Button exists even on error
+    browser.innerHTML = '';
+    
+    const migrateHeader = document.createElement('div');
+    migrateHeader.className = "p-2 bg-red-900/20 border-b border-red-900/50 mb-2 text-center";
+    migrateHeader.innerHTML = `
+        <div class="text-[10px] text-red-300 mb-1">Missing old files?</div>
+        <button class="bg-red-900 hover:bg-red-800 text-white text-xs font-bold px-3 py-1 rounded" onclick="window.migrateOldData('characters')">
+            <i class="fas fa-sync mr-1"></i> Check Legacy Storage
+        </button>
+    `;
+    browser.appendChild(migrateHeader);
+
+    const listContainer = document.createElement('div');
+    browser.appendChild(listContainer);
+
     try {
-        // CORRECT PATH: query artifacts/{appId}/users/{uid}/characters
+        // Path: query artifacts/{appId}/users/{uid}/characters
         const q = query(collection(db, 'artifacts', appId, 'users', user.uid, 'characters'));
         const snap = await getDocs(q);
         
-        browser.innerHTML = '';
-
-        // Migration Header
-        const migrateHeader = document.createElement('div');
-        migrateHeader.className = "p-2 bg-red-900/20 border-b border-red-900/50 mb-2 text-center";
-        migrateHeader.innerHTML = `
-            <div class="text-[10px] text-red-300 mb-1">Missing old files?</div>
-            <button class="bg-red-900 hover:bg-red-800 text-white text-xs font-bold px-3 py-1 rounded" onclick="window.migrateOldData('characters')">
-                <i class="fas fa-sync mr-1"></i> Check Legacy Storage
-            </button>
-        `;
-        browser.appendChild(migrateHeader);
-
         if (snap.empty) {
-            const emptyMsg = document.createElement('div');
-            emptyMsg.className = "text-center text-gray-500 italic mt-4 text-xs";
-            emptyMsg.innerText = "No secure archives found.";
-            browser.appendChild(emptyMsg);
+            listContainer.innerHTML = '<div class="text-center text-gray-500 italic mt-4 text-xs">No secure archives found.</div>';
             return;
         }
 
@@ -249,7 +249,7 @@ export async function renderFileBrowser(user) {
             const header = document.createElement('div');
             header.className = "text-[#d4af37] font-bold text-xs uppercase border-b border-[#333] mb-1 sticky top-0 bg-[#050505] py-1 mt-2";
             header.innerHTML = `<i class="fas fa-folder mr-2"></i> ${f}`;
-            browser.appendChild(header);
+            listContainer.appendChild(header);
             
             structure[f].forEach(char => {
                 const row = document.createElement('div');
@@ -275,13 +275,13 @@ export async function renderFileBrowser(user) {
                     if(e.target.closest('.file-delete-btn')) return;
                     await loadSelectedChar(char);
                 };
-                browser.appendChild(row);
+                listContainer.appendChild(row);
             });
         });
         
     } catch (e) {
         console.error("Browser Error:", e);
-        browser.innerHTML = `<div class="text-red-500 text-center mt-10">Archive Error: ${e.message}</div>`;
+        listContainer.innerHTML = `<div class="text-red-500 text-center mt-10">Archive Error: ${e.message}<br><span class="text-gray-500 text-[10px]">Check Firestore Rules.</span></div>`;
     }
 }
 
