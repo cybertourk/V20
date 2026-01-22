@@ -184,7 +184,7 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
         dotCont.onclick = (e) => {
             if (!name || !e.target.dataset.v) return;
             const clickVal = parseInt(e.target.dataset.v);
-            const currentVal = window.state.dots[type][name] || 0;
+            const currentVal = parseInt(window.state.dots[type][name] || 0);
 
             if (window.state.xpMode && clickVal > currentVal) {
                 // Determine Available XP Robustly
@@ -209,13 +209,11 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
 
                 let currentXP = totalXP - spentXP;
                 if (window.state.xp && window.state.xp.current !== undefined) {
-                     // If current is explicitly set and seems reasonable, use it
                      if (Math.abs((window.state.xp.current + spentXP) - totalXP) < 2) {
                          currentXP = window.state.xp.current;
                      }
                 }
                 
-                // Sync state just in case
                 if (!window.state.xp) window.state.xp = { total: totalXP, spent: spentXP, current: currentXP, log: [] };
                 else {
                     window.state.xp.total = totalXP;
@@ -231,7 +229,6 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                 const isCaitiff = clan === "Caitiff";
                 let isClan = false; 
 
-                // FIX: Check Clan Disciplines if type is disc
                 if (type === 'disc' && CLAN_DISCIPLINES) {
                     const clanDiscs = CLAN_DISCIPLINES[clan] || [];
                     if (clanDiscs.includes(name)) {
@@ -242,6 +239,7 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                 for (let v = currentVal + 1; v <= clickVal; v++) {
                     let calcType = type;
                     if (type === 'back') calcType = 'back'; 
+                    // Calculate cost based on rating BEFORE purchase (v-1)
                     const stepCost = getXpCost(v - 1, calcType, isClan, isCaitiff);
                     totalCost += stepCost;
                 }
@@ -259,7 +257,6 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                     window.state.xp.spent += totalCost;
                     
                     if (!window.state.xpLog) window.state.xpLog = [];
-                    // FIX: Log must be a structured object for ui-nav.js to parse correctly
                     window.state.xpLog.push({
                         date: new Date().toISOString(),
                         trait: name,
@@ -267,7 +264,7 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                         old: currentVal,
                         new: clickVal,
                         cost: totalCost,
-                        entry: `Raised ${costDesc} ${name} to ${clickVal}` // Fallback text
+                        entry: `Raised ${costDesc} ${name} to ${clickVal}` 
                     });
                 } else if (type === 'back') {
                     showNotification("Backgrounds typically do not cost XP.");
@@ -312,7 +309,7 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
             }
             if (!e.target.dataset.v) return;
             const newVal = parseInt(e.target.dataset.v);
-            const currentVal = window.state.dots.disc[primaryKey] || 0;
+            const currentVal = parseInt(window.state.dots.disc[primaryKey] || 0);
             
             if (window.state.xpMode && newVal > currentVal) {
                 // XP Calculation Fallback Logic
@@ -328,11 +325,13 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
 
                 const clan = window.state.textFields['c-clan'] || "None";
                 const isCaitiff = clan === "Caitiff";
+                // CRITICAL FIX: Ensure Tremere/Giovanni get Clan Discipline Cost (x5), others get x7
                 const isClan = (isThaum && clan === "Tremere") || (!isThaum && clan === "Giovanni");
 
                 let totalCost = 0;
                 for (let v = currentVal + 1; v <= newVal; v++) {
-                    // Primary Path counts as the Main Discipline for cost purposes
+                    // Primary Path = Discipline. Pass 'disc' type to use Discipline multiplier.
+                    // Pass isClan calculated above.
                     totalCost += getXpCost(v - 1, 'disc', isClan, isCaitiff);
                 }
 
@@ -347,7 +346,6 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                 window.state.xp.spent += totalCost;
                 
                 if (!window.state.xpLog) window.state.xpLog = [];
-                // FIX: Structured Log Entry
                 window.state.xpLog.push({
                     date: new Date().toISOString(),
                     trait: primaryKey,
@@ -470,7 +468,7 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                 sDots.onclick = (e) => {
                     if(!e.target.dataset.v) return;
                     const newVal = parseInt(e.target.dataset.v);
-                    const currentVal = window.state.dots.disc[secPath] || 0;
+                    const currentVal = parseInt(window.state.dots.disc[secPath] || 0);
                     const primaryRating = window.state.dots.disc[primaryKey] || 0;
                     
                     if (isThaum) {
@@ -488,7 +486,6 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                     }
 
                     if (window.state.xpMode && newVal > currentVal) {
-                        // REPEAT ROBUST XP CHECK
                         let totalXP = parseInt(window.state.xp?.total || 0);
                         if (totalXP === 0) totalXP = parseInt(document.getElementById('c-xp-total')?.value || 0);
                         
@@ -501,7 +498,9 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
 
                         let totalCost = 0;
                         for (let v = currentVal + 1; v <= newVal; v++) {
-                            totalCost += getXpCost(v - 1, 'path', false, false, true); 
+                            // Fixed: Pass only relevant arguments. type 'path' handles Secondary Path cost.
+                            // Cost is 7 for new path (v-1=0), or rating*4 for increase.
+                            totalCost += getXpCost(v - 1, 'path'); 
                         }
 
                         if (currentXP < totalCost) {
@@ -515,11 +514,10 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                         window.state.xp.spent += totalCost;
                         
                         if (!window.state.xpLog) window.state.xpLog = [];
-                        // FIX: Structured Log Entry
                         window.state.xpLog.push({
                             date: new Date().toISOString(),
                             trait: secPath,
-                            type: 'path', // Specifically 'path' for ledger buckets
+                            type: 'path', 
                             old: currentVal,
                             new: newVal,
                             cost: totalCost,
@@ -589,6 +587,7 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                         }
                     }
 
+                    // INITIALIZE AS 0 to ensure the New Path logic (current=0 -> cost=7) works
                     window.state.dots.disc[p] = 0; 
                     renderDynamicAdvantageRow(containerId, type, list, isAbil);
                     updatePools();
