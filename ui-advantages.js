@@ -140,7 +140,9 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                 if (window.state.customAbilityCategories?.[name]) delete window.state.customAbilityCategories[name];
                 window.state.dots[type][newVal] = oldVal;
             } else if (!name) {
-                window.state.dots[type][newVal] = window.state.xpMode ? 1 : 0;
+                // FIXED: Always initialize new traits to 0. 
+                // This ensures the user must click the 1st dot, triggering the "New Discipline" (10 XP) calculation.
+                window.state.dots[type][newVal] = 0;
             }
 
             if (isAbil) {
@@ -414,7 +416,8 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                 if(newPath) {
                     if (isThaum) window.state.primaryThaumPath = newPath;
                     else window.state.primaryNecroPath = newPath;
-                    window.state.dots.disc[newPath] = 1;
+                    // FIXED: Initialize Primary Path to 0 so "New Discipline" cost (10 XP) triggers on 1st dot
+                    window.state.dots.disc[newPath] = 0;
                     const generic = isThaum ? 'Thaumaturgy' : 'Necromancy';
                     if(window.state.dots.disc[generic]) delete window.state.dots.disc[generic];
                     renderDynamicAdvantageRow(containerId, type, list, isAbil);
