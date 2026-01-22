@@ -187,6 +187,7 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
             const currentVal = window.state.dots[type][name] || 0;
 
             if (window.state.xpMode && clickVal > currentVal) {
+                // Ensure state.xp exists but DO NOT overwrite it if it has data
                 if (!window.state.xp) window.state.xp = { current: 0, spent: 0, total: 0, log: [] };
                 
                 let totalCost = 0;
@@ -219,7 +220,7 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                 costDesc = type === 'disc' ? "Discipline" : type === 'abil' ? "Ability" : type === 'attr' ? "Attribute" : "Trait";
 
                 if (totalCost > 0) {
-                    const currentXP = parseInt(window.state.xp.current || 0);
+                    const currentXP = parseInt(window.state.xp.current || 0); // Correctly parse value
                     if (currentXP < totalCost) {
                         showNotification(`Not enough XP. Cost: ${totalCost} (Current: ${currentXP})`);
                         return;
@@ -269,7 +270,7 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
         const isThaum = magicType === 'thaum';
         const label = isThaum ? "Thaumaturgy" : "Necromancy";
         const primaryKey = isThaum ? window.state.primaryThaumPath : window.state.primaryNecroPath;
-        const dataObj = isThaum ? THAUMATURGY_DATA : NECROMANCY_DATA;
+        const dataObj = isThaum ? THAUMATURGY_DATA : NECROMANCY_DATA; // DEFINED AT TOP SCOPE
         
         const handlePrimaryClick = (e) => {
              if (!primaryKey) {
@@ -292,7 +293,7 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                     totalCost += getXpCost(v - 1, 'disc', isClan, isCaitiff);
                 }
 
-                const currentXP = parseInt(window.state.xp.current || 0);
+                const currentXP = parseInt(window.state.xp.current || 0); // Correctly parse value
                 if (currentXP < totalCost) {
                     showNotification(`Not enough XP. Cost: ${totalCost} (Current: ${currentXP})`);
                     return;
@@ -449,7 +450,7 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                             totalCost += getXpCost(v - 1, 'path', false, false, true); // true = isSecondary
                         }
 
-                        const currentXP = parseInt(window.state.xp.current || 0);
+                        const currentXP = parseInt(window.state.xp.current || 0); // Correctly parse
                         if (currentXP < totalCost) {
                             showNotification(`Not enough XP. Cost: ${totalCost} (Current: ${currentXP})`);
                             return;
