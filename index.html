@@ -19,7 +19,6 @@
         }
 
         /* --- LAYOUT FIXES FOR PLAY MODE --- */
-        /* Hide redundant titles injected by JS if they exist inside specific named containers */
         #beast-play-container .section-title { 
             display: none !important; 
         }
@@ -148,7 +147,6 @@
                 <span id="sb-total" class="text-green-400">15</span>
             </div>
         </div>
-        <!-- NEW FREEBIE LOG CONTAINER -->
         <div class="mt-4">
             <h4 class="text-[9px] uppercase text-gray-500 font-bold mb-1 tracking-wider">Spending Log</h4>
             <div id="freebie-log-recent" class="text-[9px] text-gray-400 h-24 overflow-y-auto border border-[#333] p-1 font-mono bg-white/5"></div>
@@ -287,21 +285,59 @@
                 </div>
             </div>
 
+            <!-- PHASE 5: SUPERNATURAL & MERITS -->
             <div id="phase-5" class="step-container space-y-10">
-                <div class="flex flex-col gap-8">
+                <div class="flex flex-col gap-10">
                     <div class="sheet-section !mt-0">
-                        <div class="section-title">Background Descriptions</div>
-                        <div id="social-profile-list" class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6"></div>
+                        <div class="section-title">Merits & Flaws</div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
+                            <div>
+                                <h3 class="column-title">Merits</h3>
+                                <div class="text-xs text-center text-gray-500 mb-2 italic" id="merit-locked-msg">Enable Freebie Mode to edit Merits</div>
+                                <div id="merits-list-create" class="space-y-3 mt-4"></div>
+                            </div>
+                            <div>
+                                <h3 class="column-title">Flaws</h3>
+                                <div class="text-xs text-center text-gray-500 mb-2 italic" id="flaw-locked-msg">Enable Freebie Mode to edit Flaws</div>
+                                <div id="flaws-list-create" class="space-y-3 mt-4"></div>
+                            </div>
+                        </div>
                     </div>
                     
                     <div class="sheet-section">
-                        <div class="section-title">Blood Bonds / Vinculi</div>
-                        <div id="blood-bond-list" class="space-y-3 mt-4"></div>
+                        <div class="section-title">Other Traits & Rituals</div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
+                            <div>
+                                <h3 class="column-title">Traits</h3>
+                                <div id="other-traits-rows-create" class="space-y-1 mt-4"></div>
+                            </div>
+                            <div>
+                                <h3 class="column-title">Rituals</h3>
+                                <div id="rituals-list-create" class="space-y-4"><textarea id="rituals-list-create-ta" class="w-full h-40" placeholder="List Rituals here..."></textarea></div>
+                            </div>
+                        </div>
                     </div>
 
-                    <div class="sheet-section">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
+                        <div class="sheet-section !mt-0">
+                            <div class="section-title">Blood Bonds / Vinculi</div>
+                            <div id="blood-bond-list" class="space-y-3 mt-4"></div>
+                        </div>
+                        <div class="sheet-section !mt-0">
+                            <div class="section-title">Derangements</div>
+                            <div id="derangements-list" class="space-y-2 mt-4"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PHASE 6: GEAR, ASSETS & COMBAT -->
+            <div id="phase-6" class="step-container space-y-10">
+                <div class="flex flex-col gap-10">
+                    <div class="sheet-section !mt-0">
                         <div class="section-title">Possessions & Gear</div>
                         <div id="inventory-manager" class="p-2 space-y-4 border-b border-[#333] pb-4 mb-4">
+                            <!-- Inventory Form -->
                             <div class="flex flex-col gap-2 mb-2">
                                 <label class="label-text">1. Select Item Type</label>
                                 <select id="inv-type" class="w-full text-[11px] bg-[#111] border border-[#444] text-white p-2">
@@ -322,6 +358,7 @@
                                 </div>
                             </div>
                             
+                            <!-- Stat Inputs -->
                             <div id="inv-stats-row" class="hidden grid grid-cols-5 gap-2">
                                 <input type="text" id="inv-diff" placeholder="Diff" class="text-center text-[9px] bg-transparent border-b border-[#444] text-white">
                                 <input type="text" id="inv-dmg" placeholder="Dmg" class="text-center text-[9px] bg-transparent border-b border-[#444] text-white">
@@ -372,42 +409,8 @@
                             </div>
                         </div>
                     </div>
-                    
-                    <div class="sheet-section"><div class="section-title">Havens</div><div id="multi-haven-list" class="space-y-6"></div></div>
-                </div>
-            </div>
 
-            <div id="phase-6" class="step-container space-y-10">
-                <div class="flex flex-col gap-10">
-                    <div class="sheet-section !mt-0">
-                        <div class="section-title">Merits & Flaws</div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
-                            <div>
-                                <h3 class="column-title">Merits</h3>
-                                <div class="text-xs text-center text-gray-500 mb-2 italic" id="merit-locked-msg">Enable Freebie Mode to edit Merits</div>
-                                <div id="merits-list-create" class="space-y-3 mt-4"></div>
-                            </div>
-                            <div>
-                                <h3 class="column-title">Flaws</h3>
-                                <div class="text-xs text-center text-gray-500 mb-2 italic" id="flaw-locked-msg">Enable Freebie Mode to edit Flaws</div>
-                                <div id="flaws-list-create" class="space-y-3 mt-4"></div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="sheet-section">
-                        <div class="section-title">Other Traits & Rituals</div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
-                            <div>
-                                <h3 class="column-title">Traits</h3>
-                                <div id="other-traits-rows-create" class="space-y-1 mt-4"></div>
-                            </div>
-                            <div>
-                                <h3 class="column-title">Rituals</h3>
-                                <div id="rituals-list-create" class="space-y-4"><textarea id="rituals-list-create-ta" class="w-full h-40" placeholder="List Rituals here..."></textarea></div>
-                            </div>
-                        </div>
-                    </div>
+                    <div class="sheet-section"><div class="section-title">Havens</div><div id="multi-haven-list" class="space-y-6"></div></div>
 
                     <div class="sheet-section">
                         <div class="section-title">Combat Maneuvers & Weapons</div>
@@ -419,30 +422,12 @@
                                 <div>Range</div>
                                 <div>Clip</div>
                             </div>
+                            <!-- Standard Maneuvers (Static) -->
                             <div class="grid grid-cols-6 gap-2 text-[10px] border-b border-[#222] py-1 text-center text-gray-500">
                                 <div class="col-span-2 text-left pl-2 font-bold text-white">Bite</div>
                                 <div>5</div><div>Str+1(A)</div><div>-</div><div>-</div>
                             </div>
-                            <div class="grid grid-cols-6 gap-2 text-[10px] border-b border-[#222] py-1 text-center text-gray-500">
-                                <div class="col-span-2 text-left pl-2 font-bold text-white">Clinch</div>
-                                <div>6</div><div>Str(B)</div><div>-</div><div>-</div>
-                            </div>
-                             <div class="grid grid-cols-6 gap-2 text-[10px] border-b border-[#222] py-1 text-center text-gray-500">
-                                <div class="col-span-2 text-left pl-2 font-bold text-white">Grapple</div>
-                                <div>6</div><div>Str(B)</div><div>-</div><div>-</div>
-                            </div>
-                            <div class="grid grid-cols-6 gap-2 text-[10px] border-b border-[#222] py-1 text-center text-gray-500">
-                                <div class="col-span-2 text-left pl-2 font-bold text-white">Kick</div>
-                                <div>7</div><div>Str+1(B)</div><div>-</div><div>-</div>
-                            </div>
-                            <div class="grid grid-cols-6 gap-2 text-[10px] border-b border-[#222] py-1 text-center text-gray-500">
-                                <div class="col-span-2 text-left pl-2 font-bold text-white">Punch</div>
-                                <div>6</div><div>Str(B)</div><div>-</div><div>-</div>
-                            </div>
-                             <div class="grid grid-cols-6 gap-2 text-[10px] border-b border-[#222] py-1 text-center text-gray-500">
-                                <div class="col-span-2 text-left pl-2 font-bold text-white">Tackle</div>
-                                <div>7</div><div>Str+1(B)</div><div>-</div><div>-</div>
-                            </div>
+                            <!-- ... Other Static Maneuvers could go here ... -->
                             
                             <div id="combat-list-create" class="space-y-1 mt-2"></div>
                         </div>
@@ -455,10 +440,31 @@
                 </div>
             </div>
 
+            <!-- PHASE 7: BIOGRAPHY -->
             <div id="phase-7" class="step-container space-y-10">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
-                    <div class="sheet-section !mt-0"><div class="section-title">Physical Appearance</div><div id="vitals-create-inputs" class="grid grid-cols-2 gap-4"></div><div class="mt-6"><label class="label-text">Description / Sketch Notes</label><textarea id="bio-desc" class="h-32"></textarea></div></div>
-                    <div class="space-y-6"><div class="sheet-section !mt-0"><div class="section-title">Mental Traits & Goals</div><div class="space-y-4"><div><label class="label-text text-gold">Derangements</label><div id="derangements-list" class="space-y-2 mt-2"></div></div><div><label class="label-text text-gold">Languages</label><textarea id="bio-languages" class="h-20"></textarea></div><div><label class="label-text text-gold">Short-Term Goals</label><textarea id="bio-goals-st" class="h-20"></textarea></div><div><label class="label-text text-gold">Long-Term Goals</label><textarea id="bio-goals-lt" class="h-20"></textarea></div></div></div></div>
+                <div class="flex flex-col gap-10">
+                    <div class="sheet-section !mt-0">
+                        <div class="section-title">Background Descriptions</div>
+                        <div id="social-profile-list" class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6"></div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
+                        <div class="sheet-section !mt-0">
+                            <div class="section-title">Physical Appearance</div>
+                            <div id="vitals-create-inputs" class="grid grid-cols-2 gap-4"></div>
+                            <div class="mt-6"><label class="label-text">Description / Sketch Notes</label><textarea id="bio-desc" class="h-32"></textarea></div>
+                        </div>
+                        <div class="space-y-6">
+                            <div class="sheet-section !mt-0">
+                                <div class="section-title">Goals & Languages</div>
+                                <div class="space-y-4">
+                                    <div><label class="label-text text-gold">Languages</label><textarea id="bio-languages" class="h-20"></textarea></div>
+                                    <div><label class="label-text text-gold">Short-Term Goals</label><textarea id="bio-goals-st" class="h-20"></textarea></div>
+                                    <div><label class="label-text text-gold">Long-Term Goals</label><textarea id="bio-goals-lt" class="h-20"></textarea></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
