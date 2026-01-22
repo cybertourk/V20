@@ -42,18 +42,12 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
     const isMagicPath = (name) => {
         if (!name) return false;
         const n = name.toLowerCase();
-        // Explicit Generics
         if (n === 'thaumaturgy') return 'thaum';
         if (n === 'necromancy') return 'necro';
-        
-        // Check Data Files
         if (THAUMATURGY_DATA && Object.keys(THAUMATURGY_DATA).some(k => k.toLowerCase() === n)) return 'thaum';
         if (NECROMANCY_DATA && Object.keys(NECROMANCY_DATA).some(k => k.toLowerCase() === n)) return 'necro';
-        
-        // Fallback Heuristics
         if (n.includes('path') || n.includes('lure of') || n.includes('gift of') || n.includes('weather control') || n.includes('movement of the mind')) return 'thaum'; 
         if (n.includes('sepulchre') || n.includes('bone') || n.includes('ash') || n.includes('cenotaph') || n.includes('vitreous')) return 'necro';
-        
         return false;
     };
 
@@ -62,7 +56,6 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
         const row = document.createElement('div');
         row.className = 'flex justify-between items-center mb-1 advantage-row';
         if (isChild) {
-            // Standard indentation for non-magic children (if any)
             row.classList.add('ml-4', 'pl-3', 'border-l-2', 'border-[#333]', 'pr-1');
             row.style.width = "calc(100% - 1rem)";
         }
@@ -76,11 +69,9 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
         if (list && list.length > 0) {
             selectField = document.createElement('select');
             selectField.className = 'w-full bg-[#111] border-b border-[#333] text-xs font-bold text-white uppercase focus:border-gold outline-none';
-            
             let html = `<option value="">-- Select --</option>`;
             list.forEach(item => {
                 const val = typeof item === 'string' ? item : item.name;
-                // Don't show generic magic headers in standard dropdown if already selected
                 if ((val === 'Thaumaturgy' || val === 'Necromancy') && window.state.dots.disc[val]) return;
                 const isSelected = name === val;
                 html += `<option value="${val}" ${isSelected ? 'selected' : ''}>${val}</option>`;
@@ -191,9 +182,70 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
             inputField.onblur = (e) => onUpdate(e.target.value);
         }
 
+        // --- Custom Click Handler for Standard XP ---
         dotCont.onclick = (e) => {
             if (!name || !e.target.dataset.v) return;
             const clickVal = parseInt(e.target.dataset.v);
+            const currentVal = window.state.dots[type][name] || 0;
+
+            // XP Mode Logic for Standard Traits
+            if (window.state.xpMode && clickVal > currentVal) {
+                if (!window.state.xp) window.state.xp = { current: 0, spent: 0, total: 0, log: [] };
+                
+                let totalCost = 0;
+                let costDesc = "";
+
+                // Calculate Cost based on Type
+                for (let v = currentVal + 1; v <= clickVal; v++) {
+                    if (type === 'abil' || isAbil) {
+                        // New Ability: 3 XP. Raise: Current Rating x 2
+                        if (v === 1) totalCost += 3;
+                        else totalCost += (v - 1) * 2;
+                        costDesc = "Ability";
+                    } else if (type === 'attr') {
+                        // Attribute: Current Rating x 4
+                        totalCost += (v - 1) * 4;
+                        costDesc = "Attribute";
+                    } else if (type === 'back') {
+                        // Backgrounds: Usually cannot be bought with XP (V20 p.120)
+                        // If house rule applies, cost would be here. For now, 0.
+                        totalCost += 0; 
+                        costDesc = "Background";
+                    } else {
+                        // Default Fallback
+                        totalCost += 0;
+                    }
+                }
+
+                if (totalCost > 0) {
+                    const currentXP = parseInt(window.state.xp.current || 0);
+                    if (currentXP < totalCost) {
+                        showNotification(`Not enough XP. Cost: ${totalCost}`);
+                        return;
+                    }
+                    if (!confirm(`Spend ${totalCost} XP to raise ${name} to ${clickVal}?`)) return;
+
+                    window.state.xp.current = currentXP - totalCost;
+                    window.state.xp.spent = (parseInt(window.state.xp.spent || 0)) + totalCost;
+                    
+                    if (!window.state.xpLog) window.state.xpLog = [];
+                    window.state.xpLog.push({
+                        date: new Date().toLocaleString(),
+                        entry: `Raised ${costDesc} ${name} to ${clickVal}`,
+                        cost: totalCost
+                    });
+                } else if (type === 'back') {
+                    // Inform user about Backgrounds logic
+                    showNotification("Backgrounds typically do not cost XP (V20 p.120).");
+                }
+
+                // Update State manually
+                window.state.dots[type][name] = clickVal;
+                dotCont.innerHTML = renderDots(window.state.dots[type][name], 5);
+                updatePools();
+                return;
+            }
+
             setDots(name, type, clickVal, 0, 5);
             dotCont.innerHTML = renderDots(window.state.dots[type][name], 5);
         };
@@ -213,14 +265,13 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
         container.appendChild(row);
     };
 
-    // --- MAGIC SECTION RENDERER (Strictly Indented, No Box) ---
+    // --- MAGIC SECTION RENDERER ---
     const renderMagicSection = (magicType, ownedPaths) => {
         const isThaum = magicType === 'thaum';
         const label = isThaum ? "Thaumaturgy" : "Necromancy";
         const primaryKey = isThaum ? window.state.primaryThaumPath : window.state.primaryNecroPath;
         const dataObj = isThaum ? THAUMATURGY_DATA : NECROMANCY_DATA;
         
-        // --- Custom XP Logic for Primary Path (Discipline Rating) ---
         const handlePrimaryClick = (e) => {
              if (!primaryKey) {
                 showNotification("Select a Primary Path first.");
@@ -230,44 +281,35 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
             const newVal = parseInt(e.target.dataset.v);
             const currentVal = window.state.dots.disc[primaryKey] || 0;
             
-            // If in XP mode and raising logic
             if (window.state.xpMode && newVal > currentVal) {
                 if (!window.state.xp) window.state.xp = { current: 0, spent: 0, total: 0, log: [] };
 
-                // Determine Multiplier
-                // V20: In-Clan x5, Out-of-Clan x7, Caitiff x6
                 const clan = window.state.textFields['c-clan'] || "None";
-                let multiplier = 7; // Default Out-of-Clan
-                
-                if (clan === "Caitiff") {
-                    multiplier = 6;
-                } else if ((isThaum && clan === "Tremere") || (!isThaum && clan === "Giovanni")) {
-                    // Basic check. Ideally we'd check window.state.clanDisciplines if available.
-                    multiplier = 5;
-                }
-                // Note: If user has 'Additional Discipline' merit for this, it's not caught here 
-                // without access to Merits list, but this covers 95% of cases.
+                let multiplier = 7;
+                if (clan === "Caitiff") multiplier = 6;
+                else if ((isThaum && clan === "Tremere") || (!isThaum && clan === "Giovanni")) multiplier = 5;
 
                 let totalCost = 0;
                 for (let v = currentVal + 1; v <= newVal; v++) {
-                    // Level 1 of a Discipline (Primary Path IS the Discipline) is 10 XP
                     if (v === 1) totalCost += 10;
                     else totalCost += (v - 1) * multiplier;
                 }
 
-                if (window.state.xp.current < totalCost) {
+                // Robust XP Check
+                const currentXP = parseInt(window.state.xp.current || 0);
+                if (currentXP < totalCost) {
                     showNotification(`Not enough XP. Cost: ${totalCost}`);
                     return;
                 }
 
                 if (!confirm(`Spend ${totalCost} XP to raise ${label} (Primary: ${primaryKey}) to ${newVal}?`)) return;
 
-                window.state.xp.current -= totalCost;
-                window.state.xp.spent += totalCost;
+                window.state.xp.current = currentXP - totalCost;
+                window.state.xp.spent = (parseInt(window.state.xp.spent || 0)) + totalCost;
+                
                 if (!window.state.xpLog) window.state.xpLog = [];
                 window.state.xpLog.push({
                     date: new Date().toLocaleString(),
-                    // Use "Discipline" keyword so tracker categorizes it correctly
                     entry: `Raised Discipline ${label} (${primaryKey}) to ${newVal}`,
                     cost: totalCost
                 });
@@ -278,30 +320,24 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                 return;
             }
 
-            // Fallback for non-XP mode or lowering
             setDots(primaryKey, type, newVal, 0, 5);
             renderDynamicAdvantageRow(containerId, type, list, isAbil);
         };
 
-        // 1. The HEADER Row (Thaumaturgy/Necromancy)
+        // Header and Primary Path rendering
         const headerRow = document.createElement('div');
         headerRow.className = "flex justify-between items-center mb-1 advantage-row";
         
-        // Label
         const headerLabel = document.createElement('div');
         headerLabel.className = "flex-1 font-cinzel font-bold text-[#d4af37] text-sm";
         headerLabel.innerHTML = `<i class="fas fa-book-open text-[10px] mr-2"></i>${label}`;
         
-        // Dots (Controls Primary Path)
-        // V20 Rules: "The rating in the primary path is always the character's rating in the Discipline"
         const headerDots = document.createElement('div');
         headerDots.className = "dot-row cursor-pointer flex-shrink-0";
         const primaryVal = primaryKey ? (window.state.dots.disc[primaryKey] || 0) : 0;
         headerDots.innerHTML = renderDots(primaryVal, 5);
-        
         headerDots.onclick = handlePrimaryClick;
 
-        // Remove (Clears all)
         const headerRemove = document.createElement('div');
         headerRemove.className = "remove-btn flex-shrink-0 ml-1 text-red-500 hover:text-red-300";
         headerRemove.innerHTML = "&times;";
@@ -320,13 +356,10 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
         headerRow.appendChild(headerRemove);
         container.appendChild(headerRow);
 
-        // 2. Primary Path Row (Indented)
         const primaryRow = document.createElement('div');
-        // Indent Level 1
         primaryRow.className = "flex justify-between items-center mb-1 advantage-row ml-5 border-l-2 border-[#333] pl-2";
         
         if (!primaryKey) {
-            // Select Primary
             const pSelect = document.createElement('select');
             pSelect.className = "w-full bg-[#111] text-gold border-b border-gold text-xs font-bold uppercase animate-pulse";
             let pOpts = `<option value="">-- Select Primary Path --</option>`;
@@ -340,9 +373,7 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                 if(newPath) {
                     if (isThaum) window.state.primaryThaumPath = newPath;
                     else window.state.primaryNecroPath = newPath;
-                    // Primary Path usually comes with the discipline dot, so 1 is appropriate here.
                     window.state.dots.disc[newPath] = 1;
-                    // Clean generic key
                     const generic = isThaum ? 'Thaumaturgy' : 'Necromancy';
                     if(window.state.dots.disc[generic]) delete window.state.dots.disc[generic];
                     renderDynamicAdvantageRow(containerId, type, list, isAbil);
@@ -351,7 +382,6 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
             };
             primaryRow.appendChild(pSelect);
         } else {
-            // Display Primary
             const pLabel = document.createElement('div');
             pLabel.className = "flex-1 text-gold text-xs font-bold uppercase";
             pLabel.innerHTML = `<i class="fas fa-star text-[9px] mr-1"></i> ${primaryKey} <span class="text-gray-500 text-[9px] lowercase italic">(primary)</span>`;
@@ -359,10 +389,8 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
             const pDots = document.createElement('div');
             pDots.className = "dot-row cursor-pointer flex-shrink-0";
             pDots.innerHTML = renderDots(window.state.dots.disc[primaryKey] || 0, 5);
-            
             pDots.onclick = handlePrimaryClick;
             
-            // Allow changing/resetting primary
             const pReset = document.createElement('div');
             pReset.className = "remove-btn flex-shrink-0 ml-1 text-gray-500 hover:text-white";
             pReset.innerHTML = "<i class='fas fa-sync'></i>";
@@ -371,7 +399,6 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                 if(confirm("Change Primary Path? This will reset the current primary path selection.")) {
                     if(isThaum) window.state.primaryThaumPath = null;
                     else window.state.primaryNecroPath = null;
-                    // Note: We don't delete the dots of the old path, it just stops being primary. 
                     renderDynamicAdvantageRow(containerId, type, list, isAbil);
                 }
             };
@@ -382,13 +409,12 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
         }
         container.appendChild(primaryRow);
 
-        // 3. Secondary Paths (Further Indented)
+        // Secondary Paths
         if (primaryKey) {
             const secondaryPaths = ownedPaths.filter(p => p !== primaryKey && p !== label);
             
             secondaryPaths.forEach(secPath => {
                 const secRow = document.createElement('div');
-                // Indent Level 2
                 secRow.className = "flex justify-between items-center mb-1 advantage-row ml-10 border-l border-[#444] pl-2";
                 
                 const sLabel = document.createElement('div');
@@ -405,7 +431,6 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                     const currentVal = window.state.dots.disc[secPath] || 0;
                     const primaryRating = window.state.dots.disc[primaryKey] || 0;
                     
-                    // --- Validation Checks ---
                     if (isThaum) {
                         let limit = (primaryRating === 5) ? 5 : (primaryRating - 1);
                         if (newVal > limit) {
@@ -420,30 +445,27 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                         }
                     }
 
-                    // --- XP Mode Logic Override for Secondary Paths ---
-                    // Rule: New Path = 7 XP. Raise Path = Current Rating * 4.
+                    // XP Mode Check for Secondary Path
                     if (window.state.xpMode && newVal > currentVal) {
-                        // FIX: Ensure state.xp exists before accessing it
                         if (!window.state.xp) window.state.xp = { current: 0, spent: 0, total: 0, log: [] };
 
                         let totalCost = 0;
                         for (let v = currentVal + 1; v <= newVal; v++) {
-                            // If target is level 1, it's a NEW path = 7 XP
                             if (v === 1) totalCost += 7;
-                            // Else it's raising a path = (Target Level - 1) * 4
-                            // Example: Raise to 2. Cost = (2-1)*4 = 4.
                             else totalCost += (v - 1) * 4;
                         }
 
-                        if (window.state.xp.current < totalCost) {
+                        const currentXP = parseInt(window.state.xp.current || 0);
+                        if (currentXP < totalCost) {
                             showNotification(`Not enough XP. Cost: ${totalCost}`);
                             return;
                         }
                         
                         if (!confirm(`Spend ${totalCost} XP to raise ${secPath} to ${newVal}?`)) return;
 
-                        window.state.xp.current -= totalCost;
-                        window.state.xp.spent += totalCost;
+                        window.state.xp.current = currentXP - totalCost;
+                        window.state.xp.spent = (parseInt(window.state.xp.spent || 0)) + totalCost;
+                        
                         if (!window.state.xpLog) window.state.xpLog = [];
                         window.state.xpLog.push({
                             date: new Date().toLocaleString(),
@@ -451,14 +473,12 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                             cost: totalCost
                         });
 
-                        // Manually update state and bypass generic setDots logic
                         window.state.dots.disc[secPath] = newVal;
                         updatePools();
                         renderDynamicAdvantageRow(containerId, type, list, isAbil);
                         return;
                     }
 
-                    // Fallback to standard setDots for Freebie/Edit/Lowering logic
                     setDots(secPath, type, newVal, 0, 5);
                     renderDynamicAdvantageRow(containerId, type, list, isAbil);
                 };
@@ -478,7 +498,6 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                 container.appendChild(secRow);
             });
 
-            // 4. "Add Secondary" Dropdown (Indented Level 2)
             const addRow = document.createElement('div');
             addRow.className = "flex justify-between items-center mb-1 advantage-row ml-10 border-l border-[#444] pl-2 opacity-75 hover:opacity-100";
             
@@ -498,7 +517,6 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                     const primaryRating = window.state.dots.disc[primaryKey] || 0;
                     const secondaryCount = secondaryPaths.length;
 
-                    // VALIDATION LOGIC SPLIT
                     if (isThaum) {
                         if (primaryRating < 2) {
                              showNotification(`Must have Primary Thaumaturgy Path rating of 2 or higher to learn a Secondary Path.`);
@@ -518,7 +536,6 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                         }
                     }
 
-                    // Set to 0 so user clicks dot to trigger XP deduction
                     window.state.dots.disc[p] = 0;
                     renderDynamicAdvantageRow(containerId, type, list, isAbil);
                     updatePools();
@@ -538,7 +555,6 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
         const thaumPaths = [];
         const necroPaths = [];
 
-        // 1. Sort Items
         existingItems.forEach(item => {
             const check = isMagicPath(item);
             if (check === 'thaum') thaumPaths.push(item);
@@ -546,7 +562,6 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
             else standardDiscs.push(item);
         });
 
-        // 2. Render Magic Sections
         if (thaumPaths.length > 0 || window.state.primaryThaumPath) {
             renderMagicSection('thaum', thaumPaths);
         }
@@ -554,20 +569,16 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
             renderMagicSection('necro', necroPaths);
         }
 
-        // 3. Render Standard Disciplines
         standardDiscs.forEach(d => buildRow(d));
-
-        // 4. Render "Add New" Row (Standard)
         buildRow();
     } else {
-        // Non-discipline rendering
         existingItems.forEach(item => buildRow(item));
         buildRow();
     }
 }
 window.renderDynamicAdvantageRow = renderDynamicAdvantageRow;
 
-// --- RITUALS SELECTOR LOGIC (Unchanged from your preferred version) ---
+// --- RITUALS SELECTOR LOGIC (Unchanged) ---
 export function renderRitualsEdit() {
     const container = document.getElementById('rituals-list-create');
     if (!container) return;
