@@ -1,5 +1,5 @@
 import { 
-    DERANGEMENTS, SPECIALTY_EXAMPLES
+    DERANGEMENTS, SPECIALTY_EXAMPLES, CLAN_DISCIPLINES
 } from "./data.js";
 
 import { THAUMATURGY_DATA } from "./thaumaturgy-data.js";
@@ -210,7 +210,6 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                 let currentXP = totalXP - spentXP;
                 if (window.state.xp && window.state.xp.current !== undefined) {
                      // If current is explicitly set and seems reasonable, use it
-                     // logic: if current + spent ~= total
                      if (Math.abs((window.state.xp.current + spentXP) - totalXP) < 2) {
                          currentXP = window.state.xp.current;
                      }
@@ -232,10 +231,12 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                 const isCaitiff = clan === "Caitiff";
                 let isClan = false; 
 
-                // Check Clan Disciplines if type is disc
-                if (type === 'disc') {
-                    // Import unavailable here, relying on simple check or user action.
-                    // Future: import CLAN_DISCIPLINES from data.js
+                // FIX: Check Clan Disciplines if type is disc
+                if (type === 'disc' && CLAN_DISCIPLINES) {
+                    const clanDiscs = CLAN_DISCIPLINES[clan] || [];
+                    if (clanDiscs.includes(name)) {
+                        isClan = true;
+                    }
                 }
 
                 for (let v = currentVal + 1; v <= clickVal; v++) {
