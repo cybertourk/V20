@@ -216,53 +216,59 @@ export function getPool(state, attrName, abilName) {
  * @returns {number} The cost to buy the NEXT dot.
  */
 export function getXpCost(currentRating, type, isClan = false, isCaitiff = false) {
-    // V20 Core Rulebook p.124: "take the rating the character currently has and multiply"
-    // We strictly follow the "Current Rating" multiplier logic.
+    // V20 Core Rulebook p.124
+    // Ensure rating is an integer to prevent string coercion errors (e.g., "0" === 0 is false)
+    const rating = parseInt(currentRating);
 
     switch(type) {
         case 'attr': 
             // "Attribute... current rating x 4"
-            // Example: Str 2 to 3. Current 2. Cost 2 * 4 = 8.
-            return currentRating * 4; 
+            return rating * 4; 
             
         case 'abil': 
             // "New Ability... 3"
-            if (currentRating === 0) return 3;
+            if (rating === 0) return 3;
             // "Ability... current rating x 2"
-            // Example: Brawl 1 to 2. Current 1. Cost 1 * 2 = 2.
-            return currentRating * 2;
+            return rating * 2;
             
         case 'disc': 
             // "New Discipline... 10"
-            if (currentRating === 0) return 10;
+            // Note: This applies to NEW disciplines the character doesn't have.
+            // Primary Path (Thaumaturgy/Necromancy) counts as the Discipline itself.
+            if (rating === 0) return 10;
             
             // "Caitiff... current rating x 6"
-            if (isCaitiff) return currentRating * 6;
+            if (isCaitiff) return rating * 6;
 
             // "Clan Discipline... current rating x 5"
-            if (isClan) return currentRating * 5;
+            if (isClan) return rating * 5;
             
             // "Other Discipline... current rating x 7"
-            return currentRating * 7;
+            return rating * 7;
             
         case 'virt': 
             // "Virtue... current rating x 2"
-            return currentRating * 2;
+            return rating * 2;
             
         case 'humanity': 
             // "Humanity or Path... current rating x 2"
-            return currentRating * 2;
+            return rating * 2;
             
         case 'willpower': 
             // "Willpower... current rating"
-            // Example: Willpower 4 to 5. Current 4. Cost 4.
-            return currentRating;
+            return rating;
             
         case 'path':
             // "New Path... 7"
-            if (currentRating === 0) return 7;
+            // This applies to SECONDARY paths (Necromancy or Thaumaturgy)
+            if (rating === 0) return 7;
             // "Secondary Path... current rating x 4"
-            return currentRating * 4;
+            return rating * 4;
+
+        case 'back':
+            // Backgrounds technically cost XP in some games but V20 core chart doesn't list them.
+            // Some STs allow it. We'll default to x1 if used, but usually they are earned via roleplay.
+            return rating * 1; 
 
         default: return 0;
     }
