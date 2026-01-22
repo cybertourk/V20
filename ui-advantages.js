@@ -187,9 +187,44 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
             const currentVal = window.state.dots[type][name] || 0;
 
             if (window.state.xpMode && clickVal > currentVal) {
-                // Ensure state.xp exists but DO NOT overwrite it if it has data
-                if (!window.state.xp) window.state.xp = { current: 0, spent: 0, total: 0, log: [] };
+                // Determine Available XP Robustly
+                let totalXP = 0;
+                let spentXP = 0;
+
+                // Try state object first
+                if (window.state.xp) {
+                    totalXP = parseInt(window.state.xp.total || 0);
+                    spentXP = parseInt(window.state.xp.spent || 0);
+                }
+
+                // Fallback to DOM if state is 0 (common issue if state didn't sync yet)
+                if (totalXP === 0) {
+                    totalXP = parseInt(document.getElementById('c-xp-total')?.value || 0);
+                }
                 
+                // Fallback Spent calculation from log
+                if (spentXP === 0 && window.state.xpLog && Array.isArray(window.state.xpLog)) {
+                    spentXP = window.state.xpLog.reduce((a,b) => a + (b.cost || 0), 0);
+                }
+
+                let currentXP = totalXP - spentXP;
+                if (window.state.xp && window.state.xp.current !== undefined) {
+                     // If current is explicitly set and seems reasonable, use it
+                     // logic: if current + spent ~= total
+                     if (Math.abs((window.state.xp.current + spentXP) - totalXP) < 2) {
+                         currentXP = window.state.xp.current;
+                     }
+                }
+                
+                // Sync state just in case
+                if (!window.state.xp) window.state.xp = { total: totalXP, spent: spentXP, current: currentXP, log: [] };
+                else {
+                    window.state.xp.total = totalXP;
+                    window.state.xp.spent = spentXP;
+                    window.state.xp.current = currentXP;
+                }
+
+                // --- CALCULATION ---
                 let totalCost = 0;
                 let costDesc = "";
 
@@ -197,22 +232,15 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                 const isCaitiff = clan === "Caitiff";
                 let isClan = false; 
 
-                // Determine XP cost using centralized logic
-                // Loop through levels to calculate cumulative cost
+                // Check Clan Disciplines if type is disc
+                if (type === 'disc') {
+                    // Import unavailable here, relying on simple check or user action.
+                    // Future: import CLAN_DISCIPLINES from data.js
+                }
+
                 for (let v = currentVal + 1; v <= clickVal; v++) {
-                    // For abilities/attributes/disciplines, use correct type
-                    // For disciplines, check clan status (simplified logic here, can be enhanced)
-                    // Note: Ideally import CLAN_DISCIPLINES to check isClan properly
-                    if (type === 'disc') {
-                        // isClan check - simplistic for now as CLAN_DISCIPLINES not imported here
-                        // Default to false (Out of Clan) unless matched
-                        // If you want robust checking, we need to import CLAN_DISCIPLINES from data.js
-                        // Assuming user knows for now or we update to import it.
-                    }
-                    
                     let calcType = type;
-                    if (type === 'back') calcType = 'back'; // Should return 0
-                    
+                    if (type === 'back') calcType = 'back'; 
                     const stepCost = getXpCost(v - 1, calcType, isClan, isCaitiff);
                     totalCost += stepCost;
                 }
@@ -220,15 +248,14 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                 costDesc = type === 'disc' ? "Discipline" : type === 'abil' ? "Ability" : type === 'attr' ? "Attribute" : "Trait";
 
                 if (totalCost > 0) {
-                    const currentXP = parseInt(window.state.xp.current || 0); // Correctly parse value
                     if (currentXP < totalCost) {
                         showNotification(`Not enough XP. Cost: ${totalCost} (Current: ${currentXP})`);
                         return;
                     }
                     if (!confirm(`Spend ${totalCost} XP to raise ${costDesc} '${name}' to ${clickVal}?`)) return;
 
-                    window.state.xp.current = currentXP - totalCost;
-                    window.state.xp.spent = (parseInt(window.state.xp.spent || 0)) + totalCost;
+                    window.state.xp.current -= totalCost;
+                    window.state.xp.spent += totalCost;
                     
                     if (!window.state.xpLog) window.state.xpLog = [];
                     window.state.xpLog.push({
@@ -270,7 +297,7 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
         const isThaum = magicType === 'thaum';
         const label = isThaum ? "Thaumaturgy" : "Necromancy";
         const primaryKey = isThaum ? window.state.primaryThaumPath : window.state.primaryNecroPath;
-        const dataObj = isThaum ? THAUMATURGY_DATA : NECROMANCY_DATA; // DEFINED AT TOP SCOPE
+        const dataObj = isThaum ? THAUMATURGY_DATA : NECROMANCY_DATA; 
         
         const handlePrimaryClick = (e) => {
              if (!primaryKey) {
@@ -282,7 +309,16 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
             const currentVal = window.state.dots.disc[primaryKey] || 0;
             
             if (window.state.xpMode && newVal > currentVal) {
-                if (!window.state.xp) window.state.xp = { current: 0, spent: 0, total: 0, log: [] };
+                // XP Calculation Fallback Logic
+                let totalXP = parseInt(window.state.xp?.total || 0);
+                if (totalXP === 0) totalXP = parseInt(document.getElementById('c-xp-total')?.value || 0);
+                
+                let spentXP = parseInt(window.state.xp?.spent || 0);
+                if (spentXP === 0 && window.state.xpLog) spentXP = window.state.xpLog.reduce((a,b) => a + (b.cost || 0), 0);
+                
+                let currentXP = totalXP - spentXP;
+                if (!window.state.xp) window.state.xp = { current: currentXP, spent: spentXP, total: totalXP, log: [] };
+                else window.state.xp.current = currentXP;
 
                 const clan = window.state.textFields['c-clan'] || "None";
                 const isCaitiff = clan === "Caitiff";
@@ -293,7 +329,6 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                     totalCost += getXpCost(v - 1, 'disc', isClan, isCaitiff);
                 }
 
-                const currentXP = parseInt(window.state.xp.current || 0); // Correctly parse value
                 if (currentXP < totalCost) {
                     showNotification(`Not enough XP. Cost: ${totalCost} (Current: ${currentXP})`);
                     return;
@@ -301,8 +336,8 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
 
                 if (!confirm(`Spend ${totalCost} XP to raise ${label} (Primary: ${primaryKey}) to ${newVal}?`)) return;
 
-                window.state.xp.current = currentXP - totalCost;
-                window.state.xp.spent = (parseInt(window.state.xp.spent || 0)) + totalCost;
+                window.state.xp.current -= totalCost;
+                window.state.xp.spent += totalCost;
                 
                 if (!window.state.xpLog) window.state.xpLog = [];
                 window.state.xpLog.push({
@@ -426,7 +461,6 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                     const currentVal = window.state.dots.disc[secPath] || 0;
                     const primaryRating = window.state.dots.disc[primaryKey] || 0;
                     
-                    // --- Validation Checks ---
                     if (isThaum) {
                         let limit = (primaryRating === 5) ? 5 : (primaryRating - 1);
                         if (newVal > limit) {
@@ -441,16 +475,23 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                         }
                     }
 
-                    // --- XP Check ---
                     if (window.state.xpMode && newVal > currentVal) {
-                        if (!window.state.xp) window.state.xp = { current: 0, spent: 0, total: 0, log: [] };
+                        // REPEAT ROBUST XP CHECK
+                        let totalXP = parseInt(window.state.xp?.total || 0);
+                        if (totalXP === 0) totalXP = parseInt(document.getElementById('c-xp-total')?.value || 0);
+                        
+                        let spentXP = parseInt(window.state.xp?.spent || 0);
+                        if (spentXP === 0 && window.state.xpLog) spentXP = window.state.xpLog.reduce((a,b) => a + (b.cost || 0), 0);
+                        
+                        let currentXP = totalXP - spentXP;
+                        if (!window.state.xp) window.state.xp = { current: currentXP, spent: spentXP, total: totalXP, log: [] };
+                        else window.state.xp.current = currentXP;
 
                         let totalCost = 0;
                         for (let v = currentVal + 1; v <= newVal; v++) {
-                            totalCost += getXpCost(v - 1, 'path', false, false, true); // true = isSecondary
+                            totalCost += getXpCost(v - 1, 'path', false, false, true); 
                         }
 
-                        const currentXP = parseInt(window.state.xp.current || 0); // Correctly parse
                         if (currentXP < totalCost) {
                             showNotification(`Not enough XP. Cost: ${totalCost} (Current: ${currentXP})`);
                             return;
@@ -458,8 +499,8 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                         
                         if (!confirm(`Spend ${totalCost} XP to raise ${secPath} to ${newVal}?`)) return;
 
-                        window.state.xp.current = currentXP - totalCost;
-                        window.state.xp.spent = (parseInt(window.state.xp.spent || 0)) + totalCost;
+                        window.state.xp.current -= totalCost;
+                        window.state.xp.spent += totalCost;
                         
                         if (!window.state.xpLog) window.state.xpLog = [];
                         window.state.xpLog.push({
@@ -531,7 +572,6 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                         }
                     }
 
-                    // Set to 0 so user clicks dot to trigger XP deduction logic on next interaction
                     window.state.dots.disc[p] = 0; 
                     renderDynamicAdvantageRow(containerId, type, list, isAbil);
                     updatePools();
