@@ -141,7 +141,6 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                 window.state.dots[type][newVal] = oldVal;
             } else if (!name) {
                 // FIXED: Always initialize new traits to 0. 
-                // This ensures the user must click the 1st dot, triggering the "New Discipline" (10 XP) calculation.
                 window.state.dots[type][newVal] = 0;
             }
 
@@ -300,16 +299,50 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                 let msg = `Delete ${name}?`;
                 if (refundAmount > 0) msg += `\n\nThis will refund ${refundAmount} XP.`;
 
+                // --- SMART SWAP LOGIC: Reallocate Creation Slot ---
+                // If we are deleting a Creation Discipline (0 XP spent) but have another Discipline charged 10XP
+                let swapCandidateIndex = -1;
+                let swapCandidateName = "";
+                
+                if (type === 'disc' && refundAmount === 0 && window.state.xpLog) {
+                    // Look for a log entry for a DIFFERENT discipline that cost 10 XP (New Discipline)
+                    // and was a 0->1 purchase
+                    swapCandidateIndex = window.state.xpLog.findIndex(l => 
+                        l.type === 'disc' && 
+                        l.trait !== name && 
+                        l.old === 0 && 
+                        l.cost === 10
+                    );
+                    
+                    if (swapCandidateIndex > -1) {
+                        swapCandidateName = window.state.xpLog[swapCandidateIndex].trait;
+                        msg += `\n\n💡 Tip: You are deleting a Creation Discipline.\nWould you like to transfer the creation slot to '${swapCandidateName}' and refund its 10 XP cost?`;
+                    }
+                }
+
                 if (confirm(msg)) {
+                    // Standard Refund
                     if (refundAmount > 0) {
-                        // Filter out refunded entries
                         window.state.xpLog = window.state.xpLog.filter((_, idx) => !logIndicesToRemove.includes(idx));
-                        
-                        // Update State Totals
                         window.state.xp.spent -= refundAmount;
                         window.state.xp.current += refundAmount;
-                        
                         showNotification(`Refunded ${refundAmount} XP.`);
+                    }
+                    
+                    // Smart Swap Execution
+                    else if (swapCandidateIndex > -1 && swapCandidateName) {
+                        // User confirmed the prompt which included the swap offer
+                        // Refund the cost of the candidate's first dot
+                        const amount = window.state.xpLog[swapCandidateIndex].cost; // Should be 10
+                        
+                        // Remove that specific log entry
+                        window.state.xpLog.splice(swapCandidateIndex, 1);
+                        
+                        // Update totals
+                        window.state.xp.spent -= amount;
+                        window.state.xp.current += amount;
+                        
+                        showNotification(`Swapped slot to ${swapCandidateName}. Refunded ${amount} XP.`);
                     }
 
                     delete window.state.dots[type][name];
@@ -437,12 +470,36 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
             let msg = `Delete ${label} and all associated paths?`;
             if (refundAmount > 0) msg += `\n\nThis will refund ${refundAmount} XP.`;
 
+            // --- SMART SWAP LOGIC (Magic Variant) ---
+            // If deleting magic (Creation) and a new Discipline exists
+            let swapCandidateIndex = -1;
+            let swapCandidateName = "";
+            if (refundAmount === 0 && window.state.xpLog) {
+                 swapCandidateIndex = window.state.xpLog.findIndex(l => 
+                        l.type === 'disc' && 
+                        !traitsToRemove.includes(l.trait) && 
+                        l.old === 0 && 
+                        l.cost === 10
+                );
+                if (swapCandidateIndex > -1) {
+                    swapCandidateName = window.state.xpLog[swapCandidateIndex].trait;
+                    msg += `\n\n💡 Tip: You are deleting a Creation Discipline.\nTransfer slot to '${swapCandidateName}' and refund its 10 XP?`;
+                }
+            }
+
             if(confirm(msg)) {
                 if (refundAmount > 0) {
                     window.state.xpLog = window.state.xpLog.filter((_, idx) => !logIndicesToRemove.includes(idx));
                     window.state.xp.spent -= refundAmount;
                     window.state.xp.current += refundAmount;
                     showNotification(`Refunded ${refundAmount} XP.`);
+                }
+                else if (swapCandidateIndex > -1 && swapCandidateName) {
+                    const amount = window.state.xpLog[swapCandidateIndex].cost;
+                    window.state.xpLog.splice(swapCandidateIndex, 1);
+                    window.state.xp.spent -= amount;
+                    window.state.xp.current += amount;
+                    showNotification(`Swapped to ${swapCandidateName}. Refunded ${amount} XP.`);
                 }
 
                 ownedPaths.forEach(p => delete window.state.dots.disc[p]);
