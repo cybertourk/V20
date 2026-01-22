@@ -84,14 +84,15 @@ export const DERANGEMENTS = [
     "Fugue", "Obsessive-Compulsive"
 ];
 
+// REORGANIZED STEPS
 export const STEPS_CONFIG = [
     { id: 1, label: "Concept", icon: "fa-user", msg: "Define Name & Clan" },
     { id: 2, label: "Attributes", icon: "fa-child", msg: "Assign Attributes (7/5/3)" },
     { id: 3, label: "Abilities", icon: "fa-fist-raised", msg: "Assign Abilities (13/9/5)" },
     { id: 4, label: "Advantages", icon: "fa-star", msg: "Discs (3), Backs (5), Virt (7)" },
-    { id: 5, label: "Possessions", icon: "fa-gem", msg: "Inventory & Havens" },
-    { id: 6, label: "Merits", icon: "fa-balance-scale", msg: "Merits & Flaws" },
-    { id: 7, label: "Bio", icon: "fa-address-card", msg: "Appearance & Goals" },
+    { id: 5, label: "Supernatural", icon: "fa-magic", msg: "Merits, Flaws, Rituals, Bonds" },
+    { id: 6, label: "Gear & Assets", icon: "fa-shield-alt", msg: "Inventory, Combat, Havens" },
+    { id: 7, label: "Biography", icon: "fa-address-card", msg: "History, Appearance, Goals" },
     { id: 8, label: "Finalize", icon: "fa-check-circle", msg: "Review & Confirm" }
 ];
 
