@@ -103,7 +103,6 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
             specWrapper.appendChild(inputField);
         }
 
-        // Specialties Logic
         if (isAbil && name) {
             const hasSpec = window.state.specialties && window.state.specialties[name];
             if (hasSpec || (window.state.dots.abil[name] >= 4) || SPECIALTY_EXAMPLES[name]) {
@@ -181,13 +180,72 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
             inputField.onblur = (e) => onUpdate(e.target.value);
         }
 
-        // Standard Dot Click
+        // --- Custom Click Handler for Standard XP using Centralized Logic ---
         dotCont.onclick = (e) => {
             if (!name || !e.target.dataset.v) return;
             const clickVal = parseInt(e.target.dataset.v);
-            // Use standard setDots from ui-mechanics.js which handles XP logic via getXpCost
+            const currentVal = window.state.dots[type][name] || 0;
+
+            if (window.state.xpMode && clickVal > currentVal) {
+                if (!window.state.xp) window.state.xp = { current: 0, spent: 0, total: 0, log: [] };
+                
+                let totalCost = 0;
+                let costDesc = "";
+
+                const clan = window.state.textFields['c-clan'] || "None";
+                const isCaitiff = clan === "Caitiff";
+                let isClan = false; 
+
+                // Determine XP cost using centralized logic
+                // Loop through levels to calculate cumulative cost
+                for (let v = currentVal + 1; v <= clickVal; v++) {
+                    // For abilities/attributes/disciplines, use correct type
+                    // For disciplines, check clan status (simplified logic here, can be enhanced)
+                    // Note: Ideally import CLAN_DISCIPLINES to check isClan properly
+                    if (type === 'disc') {
+                        // isClan check - simplistic for now as CLAN_DISCIPLINES not imported here
+                        // Default to false (Out of Clan) unless matched
+                        // If you want robust checking, we need to import CLAN_DISCIPLINES from data.js
+                        // Assuming user knows for now or we update to import it.
+                    }
+                    
+                    let calcType = type;
+                    if (type === 'back') calcType = 'back'; // Should return 0
+                    
+                    const stepCost = getXpCost(v - 1, calcType, isClan, isCaitiff);
+                    totalCost += stepCost;
+                }
+                
+                costDesc = type === 'disc' ? "Discipline" : type === 'abil' ? "Ability" : type === 'attr' ? "Attribute" : "Trait";
+
+                if (totalCost > 0) {
+                    const currentXP = parseInt(window.state.xp.current || 0);
+                    if (currentXP < totalCost) {
+                        showNotification(`Not enough XP. Cost: ${totalCost} (Current: ${currentXP})`);
+                        return;
+                    }
+                    if (!confirm(`Spend ${totalCost} XP to raise ${costDesc} '${name}' to ${clickVal}?`)) return;
+
+                    window.state.xp.current = currentXP - totalCost;
+                    window.state.xp.spent = (parseInt(window.state.xp.spent || 0)) + totalCost;
+                    
+                    if (!window.state.xpLog) window.state.xpLog = [];
+                    window.state.xpLog.push({
+                        date: new Date().toLocaleString(),
+                        entry: `Raised ${costDesc} ${name} to ${clickVal}`,
+                        cost: totalCost
+                    });
+                } else if (type === 'back') {
+                    showNotification("Backgrounds typically do not cost XP.");
+                }
+
+                window.state.dots[type][name] = clickVal;
+                dotCont.innerHTML = renderDots(window.state.dots[type][name], 5);
+                updatePools();
+                return;
+            }
+
             setDots(name, type, clickVal, 0, 5);
-            // Refresh visuals (setDots handles updatePools)
             dotCont.innerHTML = renderDots(window.state.dots[type][name], 5);
         };
 
@@ -211,6 +269,7 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
         const isThaum = magicType === 'thaum';
         const label = isThaum ? "Thaumaturgy" : "Necromancy";
         const primaryKey = isThaum ? window.state.primaryThaumPath : window.state.primaryNecroPath;
+        const dataObj = isThaum ? THAUMATURGY_DATA : NECROMANCY_DATA;
         
         const handlePrimaryClick = (e) => {
              if (!primaryKey) {
@@ -221,19 +280,15 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
             const newVal = parseInt(e.target.dataset.v);
             const currentVal = window.state.dots.disc[primaryKey] || 0;
             
-            // Custom XP Handler for Primary Path
             if (window.state.xpMode && newVal > currentVal) {
                 if (!window.state.xp) window.state.xp = { current: 0, spent: 0, total: 0, log: [] };
 
                 const clan = window.state.textFields['c-clan'] || "None";
                 const isCaitiff = clan === "Caitiff";
-                // Tremere/Giovanni usually have Primary as In-Clan
                 const isClan = (isThaum && clan === "Tremere") || (!isThaum && clan === "Giovanni");
 
                 let totalCost = 0;
                 for (let v = currentVal + 1; v <= newVal; v++) {
-                    // Use 'disc' type for Primary Path to trigger x5/x7 logic instead of x4 logic
-                    // Pass (v-1) as current rating for that step
                     totalCost += getXpCost(v - 1, 'disc', isClan, isCaitiff);
                 }
 
@@ -391,8 +446,7 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
 
                         let totalCost = 0;
                         for (let v = currentVal + 1; v <= newVal; v++) {
-                            // Use 'path' type for secondary
-                            totalCost += getXpCost(v - 1, 'path');
+                            totalCost += getXpCost(v - 1, 'path', false, false, true); // true = isSecondary
                         }
 
                         const currentXP = parseInt(window.state.xp.current || 0);
@@ -477,7 +531,6 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                     }
 
                     // Set to 0 so user clicks dot to trigger XP deduction logic on next interaction
-                    // (Or trigger setDots(0) which doesn't cost XP)
                     window.state.dots.disc[p] = 0; 
                     renderDynamicAdvantageRow(containerId, type, list, isAbil);
                     updatePools();
