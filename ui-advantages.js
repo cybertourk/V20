@@ -284,11 +284,44 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
 
         removeBtn.onclick = () => {
             if (name) {
-                delete window.state.dots[type][name];
-                if (window.state.customAbilityCategories?.[name]) delete window.state.customAbilityCategories[name];
+                // --- XP REFUND LOGIC ---
+                let refundAmount = 0;
+                let logIndicesToRemove = [];
+                
+                if (window.state.xpLog && Array.isArray(window.state.xpLog)) {
+                    window.state.xpLog.forEach((entry, idx) => {
+                        if (entry.trait === name && entry.type === type) {
+                            refundAmount += entry.cost;
+                            logIndicesToRemove.push(idx);
+                        }
+                    });
+                }
+
+                let msg = `Delete ${name}?`;
+                if (refundAmount > 0) msg += `\n\nThis will refund ${refundAmount} XP.`;
+
+                if (confirm(msg)) {
+                    if (refundAmount > 0) {
+                        // Filter out refunded entries
+                        window.state.xpLog = window.state.xpLog.filter((_, idx) => !logIndicesToRemove.includes(idx));
+                        
+                        // Update State Totals
+                        window.state.xp.spent -= refundAmount;
+                        window.state.xp.current += refundAmount;
+                        
+                        showNotification(`Refunded ${refundAmount} XP.`);
+                    }
+
+                    delete window.state.dots[type][name];
+                    if (window.state.customAbilityCategories?.[name]) delete window.state.customAbilityCategories[name];
+                    
+                    renderDynamicAdvantageRow(containerId, type, list, isAbil);
+                    updatePools(); // Updates freebie calc automatically
+                }
+            } else {
+                renderDynamicAdvantageRow(containerId, type, list, isAbil);
+                updatePools();
             }
-            renderDynamicAdvantageRow(containerId, type, list, isAbil);
-            updatePools();
         };
 
         row.appendChild(specWrapper);
@@ -385,7 +418,33 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
         headerRemove.className = "remove-btn flex-shrink-0 ml-1 text-red-500 hover:text-red-300";
         headerRemove.innerHTML = "&times;";
         headerRemove.onclick = () => {
-            if(confirm(`Delete ${label} and all associated paths?`)) {
+            // --- MAIN DISCIPLINE XP REFUND LOGIC ---
+            const traitsToRemove = [label, ...ownedPaths]; // Check for parent and all child paths
+            
+            let refundAmount = 0;
+            let logIndicesToRemove = [];
+
+            if (window.state.xpLog && Array.isArray(window.state.xpLog)) {
+                window.state.xpLog.forEach((entry, idx) => {
+                    // Check if entry matches any trait being removed
+                    if (traitsToRemove.includes(entry.trait)) {
+                        refundAmount += entry.cost;
+                        logIndicesToRemove.push(idx);
+                    }
+                });
+            }
+
+            let msg = `Delete ${label} and all associated paths?`;
+            if (refundAmount > 0) msg += `\n\nThis will refund ${refundAmount} XP.`;
+
+            if(confirm(msg)) {
+                if (refundAmount > 0) {
+                    window.state.xpLog = window.state.xpLog.filter((_, idx) => !logIndicesToRemove.includes(idx));
+                    window.state.xp.spent -= refundAmount;
+                    window.state.xp.current += refundAmount;
+                    showNotification(`Refunded ${refundAmount} XP.`);
+                }
+
                 ownedPaths.forEach(p => delete window.state.dots.disc[p]);
                 if(isThaum) { delete window.state.primaryThaumPath; if(window.state.dots.disc['Thaumaturgy']) delete window.state.dots.disc['Thaumaturgy']; }
                 else { delete window.state.primaryNecroPath; if(window.state.dots.disc['Necromancy']) delete window.state.dots.disc['Necromancy']; }
@@ -541,9 +600,34 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                 sDel.className = "remove-btn flex-shrink-0 ml-1";
                 sDel.innerHTML = "&times;";
                 sDel.onclick = () => {
-                    delete window.state.dots.disc[secPath];
-                    renderDynamicAdvantageRow(containerId, type, list, isAbil);
-                    updatePools();
+                    // --- SECONDARY PATH REFUND LOGIC ---
+                    let refundAmount = 0;
+                    let logIndicesToRemove = [];
+
+                    if (window.state.xpLog && Array.isArray(window.state.xpLog)) {
+                        window.state.xpLog.forEach((entry, idx) => {
+                            if (entry.trait === secPath) {
+                                refundAmount += entry.cost;
+                                logIndicesToRemove.push(idx);
+                            }
+                        });
+                    }
+                    
+                    let msg = `Delete ${secPath}?`;
+                    if (refundAmount > 0) msg += `\n\nThis will refund ${refundAmount} XP.`;
+
+                    if (confirm(msg)) {
+                         if (refundAmount > 0) {
+                            window.state.xpLog = window.state.xpLog.filter((_, idx) => !logIndicesToRemove.includes(idx));
+                            window.state.xp.spent -= refundAmount;
+                            window.state.xp.current += refundAmount;
+                            showNotification(`Refunded ${refundAmount} XP.`);
+                        }
+                        
+                        delete window.state.dots.disc[secPath];
+                        renderDynamicAdvantageRow(containerId, type, list, isAbil);
+                        updatePools();
+                    }
                 };
 
                 secRow.appendChild(sLabel);
