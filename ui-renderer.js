@@ -1,13 +1,13 @@
 import { 
     BACKGROUNDS, ATTRIBUTES, ABILITIES, VIRTUES, 
-    V20_WEAPONS_LIST, V20_ARMOR_LIST, V20_VEHICLES_LIST, SPECIALTY_EXAMPLES
+    V20_WEAPONS_LIST, V20_ARMOR_LIST, V20_VEHICLES_LIST, SPECIALTY_EXAMPLES,
+    HEALTH_STATES // FIX: Added missing import
 } from "./data.js";
 
 import { 
     renderDots, renderBoxes, setSafeText, showNotification 
 } from "./ui-common.js";
 
-// FIX: Removed updatePools import to prevent naming collision with the local definition below
 import { 
     setDots 
 } from "./ui-mechanics.js";
@@ -25,14 +25,12 @@ export function hydrateInputs() {
         const el = document.getElementById(id);
         if (el) {
             el.value = val;
-            // Handle select elements specifically if needed
             if (el.tagName === 'SELECT' && !val) {
                 el.selectedIndex = 0;
             }
         }
     });
 
-    // Special Case: Generation (Sync dots with text input)
     const gen = window.state.textFields['c-gen'];
     if(gen) {
         const genDots = 13 - parseInt(gen);
@@ -49,7 +47,6 @@ export function renderSocialProfile() {
     
     container.innerHTML = '';
     
-    // Only show text areas for Backgrounds we actually have dots in
     BACKGROUNDS.forEach(bg => {
         const dots = window.state.dots.back[bg] || 0;
         if (dots > 0) {
@@ -68,7 +65,6 @@ export function renderSocialProfile() {
             
             container.appendChild(div);
             
-            // Bind listener
             const area = div.querySelector('textarea');
             area.addEventListener('blur', (e) => {
                 window.state.textFields[safeId] = e.target.value;
@@ -94,20 +90,17 @@ export function refreshTraitRow(label, type, targetEl) {
     
     if(!rowDiv) return;
 
-    // --- UPDATED MIN VALUE LOGIC ---
     const clan = window.state.textFields['c-clan'] || document.getElementById('c-clan')?.value || "None";
     let min = (type === 'attr') ? 1 : 0;
     
-    // Override min for Nosferatu Appearance
     if (clan === "Nosferatu" && label === "Appearance") min = 0;
 
     let val = window.state.dots[type][label];
     if (val === undefined) val = min;
     
-    // Ensure value respects min (unless overridden by clan curse)
     if (val < min) {
         val = min;
-        window.state.dots[type][label] = val; // Sync state
+        window.state.dots[type][label] = val; 
     }
 
     const max = 5;
@@ -115,14 +108,12 @@ export function refreshTraitRow(label, type, targetEl) {
     let showSpecialty = false;
     let warningMsg = "";
 
-    // Specialty Logic
     if (type !== 'virt') {
         if (type === 'attr') {
             if (val >= 4) showSpecialty = true;
         } else if (type === 'abil') {
             if (val >= 1) {
                 showSpecialty = true;
-                // Broad abilities check could go here if V20-Rules were imported
             }
         }
     }
@@ -130,7 +121,6 @@ export function refreshTraitRow(label, type, targetEl) {
     let specInputHTML = '';
     if (showSpecialty) {
         const specVal = window.state.specialties[label] || "";
-        // Hide empty inputs in play mode
         if (window.state.isPlayMode && !specVal) specInputHTML = '<div class="flex-1"></div>'; 
         else {
             const listId = `list-${label.replace(/[^a-zA-Z0-9]/g, '')}`;
@@ -146,10 +136,9 @@ export function refreshTraitRow(label, type, targetEl) {
     let pointerEvents = "auto";
     let titleMsg = "";
     
-    // --- NOSFERATU VISUAL STYLING ---
     if (clan === "Nosferatu" && label === "Appearance") {
         styleOverride = "text-decoration: line-through; color: #666; cursor: not-allowed; opacity: 0.5;";
-        pointerEvents = "none"; // Disable dots
+        pointerEvents = "none"; 
         titleMsg = "Nosferatu Weakness: Appearance 0";
     }
 
@@ -162,7 +151,6 @@ export function refreshTraitRow(label, type, targetEl) {
             ${renderDots(val, max)}
         </div>`;
 
-    // Click Handlers
     rowDiv.querySelector('.trait-label').onclick = () => { 
         if(window.state.isPlayMode && !(clan === "Nosferatu" && label === "Appearance")) {
             if(window.handleTraitClick) window.handleTraitClick(label, type);
@@ -173,7 +161,6 @@ export function refreshTraitRow(label, type, targetEl) {
         if (e.target.dataset.v) setDots(label, type, parseInt(e.target.dataset.v), min, max); 
     };
     
-    // Bind Specialty Input
     if(showSpecialty && (!window.state.isPlayMode || (window.state.isPlayMode && window.state.specialties[label]))) {
         const input = rowDiv.querySelector('input');
         if(input) {
@@ -191,7 +178,6 @@ export function renderRow(contId, label, type, min, max = 5) {
     const cont = typeof contId === 'string' ? document.getElementById(contId) : contId;
     if (!cont) return;
     
-    // Check if exists to prevent duplicates
     if(cont.querySelector(`div[id^="trait-row-${type}-${label.replace(/[^a-zA-Z0-9]/g, '')}"]`)) return;
 
     const div = document.createElement('div'); 
@@ -212,13 +198,10 @@ export function setupInventoryListeners() {
     if (typeSel) {
         typeSel.addEventListener('change', () => {
             const type = typeSel.value;
-            
-            // Show/Hide Specific Inputs
             document.getElementById('inv-stats-row').classList.toggle('hidden', type !== 'Weapon');
             document.getElementById('inv-armor-row').classList.toggle('hidden', type !== 'Armor');
             document.getElementById('inv-vehicle-row').classList.toggle('hidden', type !== 'Vehicle');
             
-            // Populate Base Select
             baseSel.innerHTML = '<option value="">-- Custom --</option>';
             let list = [];
             if (type === 'Weapon') list = V20_WEAPONS_LIST;
@@ -384,7 +367,6 @@ export function handleBoxClick(type, val, element) {
 
     if (type === 'wp') {
         let cur = window.state.status.tempWillpower || 0;
-        // If clicking current level, reduce by 1 (toggle off). Else set to click value.
         window.state.status.tempWillpower = (val === cur) ? val - 1 : val;
     } 
     else if (type === 'blood') {
@@ -392,20 +374,16 @@ export function handleBoxClick(type, val, element) {
         window.state.status.blood = (val === cur) ? val - 1 : val;
     } 
     else if (type === 'health') {
-        // Health boxes use index 0-6 (val 1-7)
         const idx = val - 1;
         const healthStates = window.state.status.health_states || [0,0,0,0,0,0,0];
         let s = healthStates[idx] || 0;
-        // Cycle: 0(Clear) -> 1(/) -> 2(X) -> 3(*) -> 0
         s = (s + 1) % 4; 
         healthStates[idx] = s;
         window.state.status.health_states = healthStates;
-        
-        // Visual feedback immediately
         if(element) element.dataset.state = s; 
     }
     if(window.updatePools) window.updatePools();
-    if(window.renderPrintSheet) window.renderPrintSheet(); // Update print health/boxes
+    if(window.renderPrintSheet) window.renderPrintSheet(); 
 }
 window.handleBoxClick = handleBoxClick;
 
@@ -418,12 +396,18 @@ export function updatePools() {
     if (window.state.status.health_states === undefined || !Array.isArray(window.state.status.health_states)) window.state.status.health_states = [0,0,0,0,0,0,0];
 
     // --- CALCULATE XP ADJUSTMENTS (To exclude from Freebie/Creation counts) ---
-    // If a trait was raised via XP, we remove that increase from the "effective" count used for Creation/Freebie calculations.
     const xpAdj = { attr: {}, abil: {}, disc: {}, back: {}, virt: {}, status: {} };
     
+    // DEBUG: Track XP Log processing
+    // console.log("Processing XP Log for Freebie Calc:", window.state.xpLog);
+
     if (window.state.xpLog && Array.isArray(window.state.xpLog)) {
         window.state.xpLog.forEach(l => {
-            const delta = (l.new || 0) - (l.old || 0);
+            // FIX: Force integers to avoid string math issues
+            const newVal = parseInt(l.new || 0);
+            const oldVal = parseInt(l.old || 0);
+            const delta = newVal - oldVal;
+            
             if (delta > 0) {
                 if (l.type === 'attr') xpAdj.attr[l.trait] = (xpAdj.attr[l.trait] || 0) + delta;
                 else if (l.type === 'abil') xpAdj.abil[l.trait] = (xpAdj.abil[l.trait] || 0) + delta;
@@ -436,6 +420,9 @@ export function updatePools() {
         });
     }
 
+    // DEBUG: See what the app thinks you bought with XP
+    // console.log("XP Adjustments (Points to subtract from Freebie Calc):", xpAdj);
+
     const getEffectiveVal = (type, name, actual) => {
         const adj = (type === 'status') 
             ? (xpAdj.status[name] || 0) 
@@ -446,7 +433,6 @@ export function updatePools() {
     const bH = (window.state.dots.virt?.Conscience || 1) + (window.state.dots.virt?.["Self-Control"] || 1);
     const bW = (window.state.dots.virt?.Courage || 1);
 
-    // Initial Defaults (only if not in special modes)
     if (!window.state.freebieMode && !window.state.xpMode && !window.state.isPlayMode) {
          if (window.state.status.humanity === 7 && bH === 2) window.state.status.humanity = 2;
          if (window.state.status.willpower === 5 && bW === 1) { window.state.status.willpower = 1; window.state.status.tempWillpower = 1; }
@@ -458,8 +444,6 @@ export function updatePools() {
     const gen = parseInt(document.getElementById('c-gen')?.value) || 13;
     const lim = (window.GEN_LIMITS && window.GEN_LIMITS[gen]) ? window.GEN_LIMITS[gen] : { m: 10, pt: 1 };
 
-    // --- PRIORITY COUNTS (Updated to use Effective Values) ---
-    // This ensures that spending XP on an attribute doesn't break the "Creation Step" validation view
     Object.keys(ATTRIBUTES).forEach(cat => {
         let cs = 0; 
         ATTRIBUTES[cat].forEach(a => cs += (getEffectiveVal('attr', a, window.state.dots.attr[a] || 1) - 1));
@@ -478,7 +462,6 @@ export function updatePools() {
         setSafeText('p-' + cat.toLowerCase().slice(0,3), `[${Math.max(0, (window.state.prios.abil[cat] || 0) - cs)}]`);
     });
     
-    // Creation Counts (Effective)
     const discSpent = Object.entries(window.state.dots.disc || {}).reduce((a, [k, v]) => a + getEffectiveVal('disc', k, v), 0);
     setSafeText('p-disc', `[${Math.max(0, 3 - discSpent)}]`);
     
@@ -488,7 +471,6 @@ export function updatePools() {
     const virtTotalDots = VIRTUES.reduce((a, v) => a + getEffectiveVal('virt', v, window.state.dots.virt[v] || 1), 0);
     setSafeText('p-virt', `[${Math.max(0, 7 - (virtTotalDots - 3))}]`);
 
-    // FREEBIE MODE SIDEBAR & LOGGING
     if (window.state.freebieMode) {
          const clan = window.state.textFields['c-clan'] || document.getElementById('c-clan')?.value || "None";
          if (clan === "Caitiff" && window.state.merits) {
@@ -504,7 +486,6 @@ export function updatePools() {
          let totalFreebieCost = 0;
          let totalFlawBonus = 0;
 
-         // 1. Attributes (5/dot)
          const attrCats = { Physical: 0, Social: 0, Mental: 0 };
          let attrCost = 0;
          Object.keys(ATTRIBUTES).forEach(cat => {
@@ -520,7 +501,6 @@ export function updatePools() {
          setSafeText('sb-attr', attrCost);
          totalFreebieCost += attrCost;
 
-         // 2. Abilities (2/dot)
          const abilCats = { Talents: 0, Skills: 0, Knowledges: 0 };
          let abilCost = 0;
          Object.keys(ABILITIES).forEach(cat => {
@@ -541,37 +521,27 @@ export function updatePools() {
          setSafeText('sb-abil', abilCost);
          totalFreebieCost += abilCost;
 
-         // 3. Disciplines (7/dot, Limit 3)
          const dDiff = Math.max(0, discSpent - 3);
          const dCost = dDiff * 7;
          setSafeText('sb-disc', dCost);
          totalFreebieCost += dCost;
          if(dCost > 0) logEntries.push(`Disciplines (+${dDiff}): ${dCost} pts`);
 
-         // 4. Backgrounds (1/dot, Limit 5)
          const bgDiff = Math.max(0, backSpent - 5);
          const bgCost = bgDiff * 1;
          setSafeText('sb-back', bgCost);
          totalFreebieCost += bgCost;
          if(bgCost > 0) logEntries.push(`Backgrounds (+${bgDiff}): ${bgCost} pts`);
 
-         // 5. Virtues (2/dot, Limit 7)
          const vDiff = Math.max(0, virtTotalDots - 10);
          const vCost = vDiff * 2;
          setSafeText('sb-virt', vCost);
          totalFreebieCost += vCost;
          if(vCost > 0) logEntries.push(`Virtues (+${vDiff}): ${vCost} pts`);
 
-         // 6. Humanity (1/dot)
-         // Calculate effective humanity vs base creation humanity (derived from virtues)
-         // Base H comes from (Virtue + Virtue), but virtues themselves might be boosted by Freebies
-         // This is complex: Freebie points spent on Virtues increase Base Humanity.
-         // Buying Humanity directly is separate.
-         // Base H = (Effective Conscience + Effective Self-Control)
          const effConscience = getEffectiveVal('virt', 'Conscience', window.state.dots.virt['Conscience'] || 1);
          const effSelfControl = getEffectiveVal('virt', 'Self-Control', window.state.dots.virt['Self-Control'] || 1);
          const effBaseH = effConscience + effSelfControl;
-         
          const effCurrentH = getEffectiveVal('status', 'Humanity', curH);
          
          const hDiff = Math.max(0, effCurrentH - effBaseH); 
@@ -580,7 +550,6 @@ export function updatePools() {
          totalFreebieCost += hCost;
          if(hCost > 0) logEntries.push(`Humanity (+${hDiff}): ${hCost} pts`);
 
-         // 7. Willpower (1/dot)
          const effCourage = getEffectiveVal('virt', 'Courage', window.state.dots.virt['Courage'] || 1);
          const effBaseW = effCourage;
          const effCurrentW = getEffectiveVal('status', 'Willpower', curW);
@@ -591,7 +560,6 @@ export function updatePools() {
          totalFreebieCost += wCost;
          if(wCost > 0) logEntries.push(`Willpower (+${wDiff}): ${wCost} pts`);
 
-         // 8. Merits / Flaws
          let mCost = 0;
          if (window.state.merits) window.state.merits.forEach(m => { 
              const v = parseInt(m.val) || 0; 
@@ -609,7 +577,6 @@ export function updatePools() {
          const cappedBonus = Math.min(totalFlawBonus, 7);
          setSafeText('sb-flaw', `+${cappedBonus}`);
 
-         // Final Totals
          const limit = parseInt(document.getElementById('c-freebie-total')?.value) || 15;
          const available = limit + cappedBonus;
          const remaining = available - totalFreebieCost;
@@ -621,7 +588,6 @@ export function updatePools() {
          if(remaining < 0) document.getElementById('f-total-top').classList.add('text-red-500'); 
          else document.getElementById('f-total-top').classList.remove('text-red-500');
 
-         // Populate Log
          const logContainer = document.getElementById('freebie-log-recent');
          if(logContainer) {
              if (logEntries.length === 0) logContainer.innerHTML = '<span class="text-gray-600 italic">No freebies spent...</span>';
@@ -633,7 +599,6 @@ export function updatePools() {
          document.getElementById('freebie-sidebar').classList.remove('active');
     }
 
-    // EXPERIENCE MODE SIDEBAR
     if (window.state.xpMode) {
         if(window.renderXpSidebar) window.renderXpSidebar();
         document.getElementById('xp-sidebar').classList.add('active');
@@ -652,7 +617,6 @@ export function updatePools() {
         }
     }
 
-    // ... [Rest of the function remains the same: dots update, health chart, etc.]
     document.querySelectorAll('.dot-row').forEach(el => {
         const name = el.dataset.n;
         const type = el.dataset.t;
@@ -723,7 +687,6 @@ export function updatePools() {
     renderSocialProfile();
     if(window.updateWalkthrough) window.updateWalkthrough();
 
-    // --- Ensure Dice Button Exists & Update State ---
     let diceBtn = document.getElementById('dice-toggle-btn');
     if (!diceBtn) {
         diceBtn = document.createElement('button');
@@ -738,22 +701,17 @@ export function updatePools() {
     if (window.state.isPlayMode) diceBtn.classList.remove('hidden');
     else diceBtn.classList.add('hidden');
 
-    // --- ATTACH CLICK LISTENERS FOR PLAY MODE BOXES ---
-    // Willpower, Blood, Health
     document.querySelectorAll('.box').forEach(b => {
         b.onclick = (e) => {
-            e.stopPropagation(); // Prevent bubbling issues
+            e.stopPropagation(); 
             const t = b.dataset.type;
             const v = parseInt(b.dataset.v);
             if(window.handleBoxClick) window.handleBoxClick(t, v, b);
         };
     });
 
-    // --- CLAN MECHANICS UPDATE ---
-    // Safely verify function exists (might be in mechanics.js)
     if(typeof updateClanMechanicsUI === 'function') updateClanMechanicsUI();
     
-    // --- FINAL RENDER SYNC ---
     if(renderPrintSheet) renderPrintSheet();
 }
 window.updatePools = updatePools;
