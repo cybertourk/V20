@@ -7,8 +7,9 @@ import {
     renderDots, renderBoxes, setSafeText, showNotification 
 } from "./ui-common.js";
 
+// FIX: Removed updatePools import to prevent naming collision with the local definition below
 import { 
-    updatePools, setDots 
+    setDots 
 } from "./ui-mechanics.js";
 
 import { renderPrintSheet } from "./ui-print.js";
