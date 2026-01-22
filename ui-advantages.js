@@ -283,7 +283,7 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
 
         removeBtn.onclick = () => {
             if (name) {
-                // --- XP REFUND LOGIC ---
+                // --- XP REFUND CALCULATION ---
                 let refundAmount = 0;
                 let logIndicesToRemove = [];
                 
@@ -296,60 +296,82 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                     });
                 }
 
-                let msg = `Delete ${name}?`;
-                if (refundAmount > 0) msg += `\n\nThis will refund ${refundAmount} XP.`;
-
                 // --- SMART SWAP LOGIC: Reallocate Creation Slot ---
-                // If we are deleting a Creation Discipline (0 XP spent) but have another Discipline charged 10XP
-                let swapCandidateIndex = -1;
-                let swapCandidateName = "";
-                
+                let swapCandidates = [];
+                // Look for ALL logs for DIFFERENT disciplines that cost 10 XP (0->1 purchase)
                 if (type === 'disc' && refundAmount === 0 && window.state.xpLog) {
-                    // Look for a log entry for a DIFFERENT discipline that cost 10 XP (New Discipline)
-                    // and was a 0->1 purchase
-                    swapCandidateIndex = window.state.xpLog.findIndex(l => 
-                        l.type === 'disc' && 
-                        l.trait !== name && 
-                        l.old === 0 && 
-                        l.cost === 10
-                    );
-                    
-                    if (swapCandidateIndex > -1) {
-                        swapCandidateName = window.state.xpLog[swapCandidateIndex].trait;
-                        msg += `\n\n💡 Tip: You are deleting a Creation Discipline.\nWould you like to transfer the creation slot to '${swapCandidateName}' and refund its 10 XP cost?`;
-                    }
+                    swapCandidates = window.state.xpLog
+                        .map((l, idx) => ({ ...l, logIdx: idx })) // Keep track of original index
+                        .filter(l => 
+                            l.type === 'disc' && 
+                            l.trait !== name && 
+                            l.old === 0 && 
+                            l.cost === 10
+                        );
                 }
 
-                if (confirm(msg)) {
-                    // Standard Refund
-                    if (refundAmount > 0) {
-                        window.state.xpLog = window.state.xpLog.filter((_, idx) => !logIndicesToRemove.includes(idx));
-                        window.state.xp.spent -= refundAmount;
-                        window.state.xp.current += refundAmount;
-                        showNotification(`Refunded ${refundAmount} XP.`);
-                    }
-                    
-                    // Smart Swap Execution
-                    else if (swapCandidateIndex > -1 && swapCandidateName) {
-                        // User confirmed the prompt which included the swap offer
-                        // Refund the cost of the candidate's first dot
-                        const amount = window.state.xpLog[swapCandidateIndex].cost; // Should be 10
-                        
-                        // Remove that specific log entry
-                        window.state.xpLog.splice(swapCandidateIndex, 1);
-                        
-                        // Update totals
-                        window.state.xp.spent -= amount;
-                        window.state.xp.current += amount;
-                        
-                        showNotification(`Swapped slot to ${swapCandidateName}. Refunded ${amount} XP.`);
-                    }
+                if (swapCandidates.length > 0) {
+                    // MULTIPLE OPTIONS PROMPT
+                    let msg = `Delete ${name} (Creation Slot)?\n\nTransfer this free slot to a purchased Discipline to refund 10 XP:\n`;
+                    swapCandidates.forEach((c, i) => {
+                        msg += `[${i+1}] ${c.trait}\n`;
+                    });
+                    msg += `\n[D] Delete Only (No Refund)\n[Cancel] Abort`;
 
-                    delete window.state.dots[type][name];
-                    if (window.state.customAbilityCategories?.[name]) delete window.state.customAbilityCategories[name];
+                    const input = prompt(msg);
+                    if (input === null) return; // Cancel
+
+                    const choice = input.trim().toUpperCase();
                     
-                    renderDynamicAdvantageRow(containerId, type, list, isAbil);
-                    updatePools(); // Updates freebie calc automatically
+                    if (choice === 'D') {
+                        // Just Delete
+                        delete window.state.dots[type][name];
+                        if (window.state.customAbilityCategories?.[name]) delete window.state.customAbilityCategories[name];
+                        renderDynamicAdvantageRow(containerId, type, list, isAbil);
+                        updatePools();
+                    } else {
+                        const num = parseInt(choice);
+                        if (!isNaN(num) && num > 0 && num <= swapCandidates.length) {
+                            // EXECUTE SWAP
+                            const selected = swapCandidates[num - 1];
+                            
+                            // 1. Remove the 10XP cost from log for the selected target
+                            // (We use the logIdx we stored to find the exact entry, handling potential shifts if array changed is unlikely here but safe)
+                            const targetLogIdx = window.state.xpLog.findIndex((l, i) => i === selected.logIdx);
+                            
+                            if (targetLogIdx > -1) {
+                                window.state.xpLog.splice(targetLogIdx, 1);
+                                window.state.xp.spent -= 10;
+                                window.state.xp.current += 10;
+                                showNotification(`Swapped to ${selected.trait}. Refunded 10 XP.`);
+                            }
+
+                            // 2. Delete the original creation trait
+                            delete window.state.dots[type][name];
+                            if (window.state.customAbilityCategories?.[name]) delete window.state.customAbilityCategories[name];
+                            renderDynamicAdvantageRow(containerId, type, list, isAbil);
+                            updatePools();
+                        } else {
+                            // Invalid Input = Do Nothing (Safety)
+                        }
+                    }
+                } else {
+                    // STANDARD CONFIRMATION (No Swap Available)
+                    let msg = `Delete ${name}?`;
+                    if (refundAmount > 0) msg += `\n\nThis will refund ${refundAmount} XP.`;
+
+                    if (confirm(msg)) {
+                        if (refundAmount > 0) {
+                            window.state.xpLog = window.state.xpLog.filter((_, idx) => !logIndicesToRemove.includes(idx));
+                            window.state.xp.spent -= refundAmount;
+                            window.state.xp.current += refundAmount;
+                            showNotification(`Refunded ${refundAmount} XP.`);
+                        }
+                        delete window.state.dots[type][name];
+                        if (window.state.customAbilityCategories?.[name]) delete window.state.customAbilityCategories[name];
+                        renderDynamicAdvantageRow(containerId, type, list, isAbil);
+                        updatePools();
+                    }
                 }
             } else {
                 renderDynamicAdvantageRow(containerId, type, list, isAbil);
@@ -467,46 +489,81 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                 });
             }
 
-            let msg = `Delete ${label} and all associated paths?`;
-            if (refundAmount > 0) msg += `\n\nThis will refund ${refundAmount} XP.`;
-
             // --- SMART SWAP LOGIC (Magic Variant) ---
+            let swapCandidates = [];
             // If deleting magic (Creation) and a new Discipline exists
-            let swapCandidateIndex = -1;
-            let swapCandidateName = "";
             if (refundAmount === 0 && window.state.xpLog) {
-                 swapCandidateIndex = window.state.xpLog.findIndex(l => 
+                 swapCandidates = window.state.xpLog
+                    .map((l, idx) => ({ ...l, logIdx: idx }))
+                    .filter(l => 
                         l.type === 'disc' && 
                         !traitsToRemove.includes(l.trait) && 
                         l.old === 0 && 
                         l.cost === 10
-                );
-                if (swapCandidateIndex > -1) {
-                    swapCandidateName = window.state.xpLog[swapCandidateIndex].trait;
-                    msg += `\n\n💡 Tip: You are deleting a Creation Discipline.\nTransfer slot to '${swapCandidateName}' and refund its 10 XP?`;
-                }
+                    );
             }
 
-            if(confirm(msg)) {
-                if (refundAmount > 0) {
-                    window.state.xpLog = window.state.xpLog.filter((_, idx) => !logIndicesToRemove.includes(idx));
-                    window.state.xp.spent -= refundAmount;
-                    window.state.xp.current += refundAmount;
-                    showNotification(`Refunded ${refundAmount} XP.`);
-                }
-                else if (swapCandidateIndex > -1 && swapCandidateName) {
-                    const amount = window.state.xpLog[swapCandidateIndex].cost;
-                    window.state.xpLog.splice(swapCandidateIndex, 1);
-                    window.state.xp.spent -= amount;
-                    window.state.xp.current += amount;
-                    showNotification(`Swapped to ${swapCandidateName}. Refunded ${amount} XP.`);
-                }
+            if (swapCandidates.length > 0) {
+                // MULTIPLE OPTIONS PROMPT
+                let msg = `Delete ${label} (Creation Slot)?\n\nTransfer this free slot to a purchased Discipline to refund 10 XP:\n`;
+                swapCandidates.forEach((c, i) => {
+                    msg += `[${i+1}] ${c.trait}\n`;
+                });
+                msg += `\n[D] Delete Only (No Refund)\n[Cancel] Abort`;
 
-                ownedPaths.forEach(p => delete window.state.dots.disc[p]);
-                if(isThaum) { delete window.state.primaryThaumPath; if(window.state.dots.disc['Thaumaturgy']) delete window.state.dots.disc['Thaumaturgy']; }
-                else { delete window.state.primaryNecroPath; if(window.state.dots.disc['Necromancy']) delete window.state.dots.disc['Necromancy']; }
-                renderDynamicAdvantageRow(containerId, type, list, isAbil);
-                updatePools();
+                const input = prompt(msg);
+                if (input === null) return;
+
+                const choice = input.trim().toUpperCase();
+                
+                if (choice === 'D') {
+                    // Just Delete
+                    ownedPaths.forEach(p => delete window.state.dots.disc[p]);
+                    if(isThaum) { delete window.state.primaryThaumPath; if(window.state.dots.disc['Thaumaturgy']) delete window.state.dots.disc['Thaumaturgy']; }
+                    else { delete window.state.primaryNecroPath; if(window.state.dots.disc['Necromancy']) delete window.state.dots.disc['Necromancy']; }
+                    renderDynamicAdvantageRow(containerId, type, list, isAbil);
+                    updatePools();
+                } else {
+                    const num = parseInt(choice);
+                    if (!isNaN(num) && num > 0 && num <= swapCandidates.length) {
+                        // EXECUTE SWAP
+                        const selected = swapCandidates[num - 1];
+                        const targetLogIdx = window.state.xpLog.findIndex((l, i) => i === selected.logIdx);
+                        
+                        if (targetLogIdx > -1) {
+                            window.state.xpLog.splice(targetLogIdx, 1);
+                            window.state.xp.spent -= 10;
+                            window.state.xp.current += 10;
+                            showNotification(`Swapped to ${selected.trait}. Refunded 10 XP.`);
+                        }
+
+                        // Delete
+                        ownedPaths.forEach(p => delete window.state.dots.disc[p]);
+                        if(isThaum) { delete window.state.primaryThaumPath; if(window.state.dots.disc['Thaumaturgy']) delete window.state.dots.disc['Thaumaturgy']; }
+                        else { delete window.state.primaryNecroPath; if(window.state.dots.disc['Necromancy']) delete window.state.dots.disc['Necromancy']; }
+                        renderDynamicAdvantageRow(containerId, type, list, isAbil);
+                        updatePools();
+                    }
+                }
+            } else {
+                // STANDARD CONFIRMATION
+                let msg = `Delete ${label} and all associated paths?`;
+                if (refundAmount > 0) msg += `\n\nThis will refund ${refundAmount} XP.`;
+
+                if(confirm(msg)) {
+                    if (refundAmount > 0) {
+                        window.state.xpLog = window.state.xpLog.filter((_, idx) => !logIndicesToRemove.includes(idx));
+                        window.state.xp.spent -= refundAmount;
+                        window.state.xp.current += refundAmount;
+                        showNotification(`Refunded ${refundAmount} XP.`);
+                    }
+
+                    ownedPaths.forEach(p => delete window.state.dots.disc[p]);
+                    if(isThaum) { delete window.state.primaryThaumPath; if(window.state.dots.disc['Thaumaturgy']) delete window.state.dots.disc['Thaumaturgy']; }
+                    else { delete window.state.primaryNecroPath; if(window.state.dots.disc['Necromancy']) delete window.state.dots.disc['Necromancy']; }
+                    renderDynamicAdvantageRow(containerId, type, list, isAbil);
+                    updatePools();
+                }
             }
         };
 
