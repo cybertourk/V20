@@ -15,7 +15,7 @@ import {
 import * as FBManager from "./firebase-manager.js";
 
 // --- UI IMPORTS (REFACTORED) ---
-// 1. Core Renderers (Still in ui-renderer.js)
+// 1. Core Renderers (ui-renderer now owns updatePools)
 import { 
     renderDots, 
     renderSocialProfile, 
@@ -24,8 +24,10 @@ import {
     refreshTraitRow,
     hydrateInputs, 
     renderInventoryList, 
-    setDots
+    updatePools // MOVED HERE
 } from "./ui-renderer.js"; 
+
+import { setDots } from "./ui-mechanics.js";
 
 // 2. New Modules (Split from ui-nav.js)
 import { 
