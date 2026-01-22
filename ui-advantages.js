@@ -259,10 +259,15 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                     window.state.xp.spent += totalCost;
                     
                     if (!window.state.xpLog) window.state.xpLog = [];
+                    // FIX: Log must be a structured object for ui-nav.js to parse correctly
                     window.state.xpLog.push({
-                        date: new Date().toLocaleString(),
-                        entry: `Raised ${costDesc} ${name} to ${clickVal}`,
-                        cost: totalCost
+                        date: new Date().toISOString(),
+                        trait: name,
+                        type: type,
+                        old: currentVal,
+                        new: clickVal,
+                        cost: totalCost,
+                        entry: `Raised ${costDesc} ${name} to ${clickVal}` // Fallback text
                     });
                 } else if (type === 'back') {
                     showNotification("Backgrounds typically do not cost XP.");
@@ -327,6 +332,7 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
 
                 let totalCost = 0;
                 for (let v = currentVal + 1; v <= newVal; v++) {
+                    // Primary Path counts as the Main Discipline for cost purposes
                     totalCost += getXpCost(v - 1, 'disc', isClan, isCaitiff);
                 }
 
@@ -341,10 +347,15 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                 window.state.xp.spent += totalCost;
                 
                 if (!window.state.xpLog) window.state.xpLog = [];
+                // FIX: Structured Log Entry
                 window.state.xpLog.push({
-                    date: new Date().toLocaleString(),
-                    entry: `Raised Discipline ${label} (${primaryKey}) to ${newVal}`,
-                    cost: totalCost
+                    date: new Date().toISOString(),
+                    trait: primaryKey,
+                    type: 'disc', // Primary path is the discipline for ledger purposes
+                    old: currentVal,
+                    new: newVal,
+                    cost: totalCost,
+                    entry: `Raised Discipline ${label} (${primaryKey}) to ${newVal}`
                 });
 
                 window.state.dots.disc[primaryKey] = newVal;
@@ -504,10 +515,15 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                         window.state.xp.spent += totalCost;
                         
                         if (!window.state.xpLog) window.state.xpLog = [];
+                        // FIX: Structured Log Entry
                         window.state.xpLog.push({
-                            date: new Date().toLocaleString(),
-                            entry: `Raised Secondary Path ${secPath} to ${newVal}`,
-                            cost: totalCost
+                            date: new Date().toISOString(),
+                            trait: secPath,
+                            type: 'path', // Specifically 'path' for ledger buckets
+                            old: currentVal,
+                            new: newVal,
+                            cost: totalCost,
+                            entry: `Raised Secondary Path ${secPath} to ${newVal}`
                         });
 
                         window.state.dots.disc[secPath] = newVal;
