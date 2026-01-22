@@ -4,15 +4,20 @@ import {
 
 import { THAUMATURGY_DATA } from "./thaumaturgy-data.js";
 import { NECROMANCY_DATA } from "./necromancy-data.js";
-import { getXpCost } from "./v20-rules.js"; // Import Centralized Logic
+import { getXpCost } from "./v20-rules.js"; 
 
 import { 
     renderDots, showNotification 
 } from "./ui-common.js";
 
+// FIX: Split imports. setDots remains in mechanics, updatePools moved to renderer.
 import { 
-    updatePools, setDots 
+    setDots 
 } from "./ui-mechanics.js";
+
+import { 
+    updatePools 
+} from "./ui-renderer.js";
 
 import { renderPrintSheet } from "./ui-print.js";
 import { updateRitualsPlayView } from "./ui-play.js";
@@ -336,7 +341,6 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                             const selected = swapCandidates[num - 1];
                             
                             // 1. Remove the 10XP cost from log for the selected target
-                            // (We use the logIdx we stored to find the exact entry, handling potential shifts if array changed is unlikely here but safe)
                             const targetLogIdx = window.state.xpLog.findIndex((l, i) => i === selected.logIdx);
                             
                             if (targetLogIdx > -1) {
@@ -488,6 +492,9 @@ export function renderDynamicAdvantageRow(containerId, type, list, isAbil = fals
                     }
                 });
             }
+
+            let msg = `Delete ${label} and all associated paths?`;
+            if (refundAmount > 0) msg += `\n\nThis will refund ${refundAmount} XP.`;
 
             // --- SMART SWAP LOGIC (Magic Variant) ---
             let swapCandidates = [];
