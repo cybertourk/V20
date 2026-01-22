@@ -8,13 +8,12 @@ import {
     showNotification 
 } from "./ui-common.js";
 
+// FIX: Import updatePools from ui-renderer.js (the new source of truth)
 import { 
     updatePools 
-} from "./ui-mechanics.js";
+} from "./ui-renderer.js";
 
 import { renderJournalTab } from "./ui-journal.js";
-
-// --- IMPORT NEW MODULES FOR NAVIGATION HOOKS ---
 import { renderPrintSheet } from "./ui-print.js";
 import { renderNpcTab } from "./ui-play.js"; 
 import { renderRitualsEdit } from "./ui-advantages.js";
@@ -53,7 +52,8 @@ export function updateWalkthrough() {
              }
          }
     }
-    renderPrintSheet();
+    if (renderPrintSheet) renderPrintSheet();
+    
     // Update Walkthrough Modal content if open
     if (document.getElementById('walkthrough-modal') && !document.getElementById('walkthrough-modal').classList.contains('hidden')) {
         renderWalkthroughModalContent();
@@ -131,7 +131,7 @@ export function changeStep(s) {
             });
         }
     }
-    updatePools();
+    if (updatePools) updatePools();
     updateWalkthrough();
 }
 window.changeStep = changeStep;
@@ -200,7 +200,7 @@ export function renderXpSidebar() {
             buckets.attr += cost;
         }
         else if (type === 'disc') {
-            // CRITICAL FIX: Ensure Primary Paths are treated as Disciplines, not "Paths"
+            // Ensure Primary Paths are treated as Disciplines, not "Paths"
             const isPrimary = (name === primThaum || name === primNecro);
             
             // It is only a "Secondary Path" here if name includes 'path' AND it is NOT primary
