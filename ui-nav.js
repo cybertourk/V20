@@ -184,6 +184,9 @@ export function renderXpSidebar() {
     const isCaitiff = clan === "Caitiff";
     const clanDiscs = CLAN_DISCIPLINES[clan] || [];
 
+    const primThaum = window.state.primaryThaumPath;
+    const primNecro = window.state.primaryNecroPath;
+
     log.forEach(entry => {
         const isNew = entry.old === 0;
         const name = entry.trait || "";
@@ -197,14 +200,24 @@ export function renderXpSidebar() {
             buckets.attr += cost;
         }
         else if (type === 'disc') {
-            const isPath = name.toLowerCase().includes('path');
-            if (isPath) {
+            // CRITICAL FIX: Ensure Primary Paths are treated as Disciplines, not "Paths"
+            const isPrimary = (name === primThaum || name === primNecro);
+            
+            // It is only a "Secondary Path" here if name includes 'path' AND it is NOT primary
+            const isPathName = name.toLowerCase().includes('path');
+            
+            if (isPathName && !isPrimary) {
                 if (isNew) buckets.newPath += cost; else buckets.secPath += cost; 
             } else {
                 if (isNew) buckets.newDisc += cost;
                 else {
+                    // Treat Primary Paths as their parent Discipline for Clan Check
+                    let checkName = name;
+                    if (name === primThaum) checkName = 'Thaumaturgy';
+                    if (name === primNecro) checkName = 'Necromancy';
+
                     if (isCaitiff) buckets.caitiffDisc += cost;
-                    else if (clanDiscs.includes(name)) buckets.clanDisc += cost;
+                    else if (clanDiscs.includes(checkName)) buckets.clanDisc += cost;
                     else buckets.otherDisc += cost;
                 }
             }
