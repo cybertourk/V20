@@ -32,15 +32,53 @@ export function renderJournalTab() {
         <!-- Autocomplete Container (Hidden by default) -->
         <div id="autocomplete-suggestions" class="autocomplete-box"></div>
         
-        <!-- Quick Definition Modal -->
-        <div id="codex-popup" class="fixed inset-0 bg-black/80 z-[10000] hidden flex items-center justify-center p-4 backdrop-blur-sm">
-            <div class="bg-[#1a1a1a] border border-[#d4af37] p-6 max-w-md w-full shadow-[0_0_30px_rgba(0,0,0,0.8)] relative">
+        <!-- Quick Definition / Edit Modal -->
+        <div id="codex-popup" class="fixed inset-0 bg-black/90 z-[10000] hidden flex items-center justify-center p-4 backdrop-blur-sm">
+            <div class="bg-[#1a1a1a] border border-[#d4af37] p-6 max-w-md w-full shadow-[0_0_30px_rgba(0,0,0,0.8)] relative flex flex-col gap-4">
                 <button onclick="document.getElementById('codex-popup').classList.add('hidden')" class="absolute top-2 right-3 text-gray-500 hover:text-white text-xl">&times;</button>
-                <h3 id="codex-popup-title" class="text-xl text-[#d4af37] font-cinzel font-bold mb-2 border-b border-[#333] pb-2"></h3>
-                <div class="flex gap-2 mb-3" id="codex-popup-tags"></div>
-                <div id="codex-popup-desc" class="text-sm text-gray-300 leading-relaxed font-serif"></div>
-                <div class="mt-4 pt-4 border-t border-[#333] text-right">
-                    <button id="codex-popup-edit-btn" class="text-xs text-gray-500 hover:text-white underline">Edit Entry</button>
+                
+                <!-- VIEW MODE -->
+                <div id="codex-popup-view" class="hidden">
+                    <h3 id="codex-popup-title" class="text-xl text-[#d4af37] font-cinzel font-bold mb-2 border-b border-[#333] pb-2"></h3>
+                    <div class="flex gap-2 mb-3" id="codex-popup-tags"></div>
+                    <div id="codex-popup-desc" class="text-sm text-gray-300 leading-relaxed font-serif whitespace-pre-wrap"></div>
+                    <div class="mt-4 pt-4 border-t border-[#333] text-right">
+                        <button id="codex-popup-edit-btn" class="text-xs text-gray-500 hover:text-white underline">Edit Entry</button>
+                    </div>
+                </div>
+
+                <!-- QUICK EDIT MODE -->
+                <div id="codex-popup-edit" class="hidden flex flex-col gap-3">
+                    <h3 class="text-lg text-[#d4af37] font-bold border-b border-[#333] pb-2">Define / Edit Entry</h3>
+                    <input type="hidden" id="quick-cx-id">
+                    <div>
+                        <label class="block text-[10px] uppercase text-gray-500 font-bold mb-1">Name</label>
+                        <input type="text" id="quick-cx-name" class="w-full bg-[#111] border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] outline-none">
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-[10px] uppercase text-gray-500 font-bold mb-1">Type</label>
+                            <select id="quick-cx-type" class="w-full bg-[#111] border-b border-[#444] text-white p-1 text-xs outline-none">
+                                <option value="NPC">NPC</option>
+                                <option value="Location">Location</option>
+                                <option value="Faction">Faction</option>
+                                <option value="Item">Item</option>
+                                <option value="Concept">Concept</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] uppercase text-gray-500 font-bold mb-1">Tags</label>
+                            <input type="text" id="quick-cx-tags" class="w-full bg-[#111] border-b border-[#444] text-gray-300 p-1 text-xs outline-none" placeholder="e.g. Brujah, Ally">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] uppercase text-gray-500 font-bold mb-1">Description</label>
+                        <textarea id="quick-cx-desc" class="w-full h-32 bg-[#111] border border-[#444] text-gray-300 p-2 text-sm focus:border-[#d4af37] outline-none resize-none"></textarea>
+                    </div>
+                    <div class="flex justify-end gap-2 mt-2">
+                        <button onclick="document.getElementById('codex-popup').classList.add('hidden')" class="border border-[#444] text-gray-400 px-3 py-1 text-xs uppercase font-bold hover:bg-[#222]">Cancel</button>
+                        <button onclick="window.saveQuickCodex()" class="bg-[#d4af37] text-black px-4 py-1 text-xs uppercase font-bold hover:bg-[#fcd34d]">Save</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -135,8 +173,8 @@ window.addLogScene = function() {
     const container = document.getElementById('container-scenes');
     if(!container) return;
     const idx = container.children.length;
-    // Re-use the generator from renderSessionLogForm but we need it here
-    // Simplest way is to append HTML string
+    
+    // New scenes start in EDIT MODE by default
     const html = `
         <div class="mb-4 scene-row bg-[#0a0a0a] border border-[#333] p-1">
             <div class="flex justify-between items-center bg-[#111] px-2 py-1 mb-1 border-b border-[#222]">
@@ -155,7 +193,6 @@ window.addLogScene = function() {
             <div class="scene-viewer hidden w-full text-gray-300 text-[11px] p-2 h-auto min-h-[6rem] leading-relaxed whitespace-pre-wrap font-serif"></div>
         </div>`;
     
-    // Insert safely
     container.insertAdjacentHTML('beforeend', html);
 };
 
@@ -183,42 +220,52 @@ window.addLogNPC = function() {
 };
 
 window.autofillNPC = function(input) {
-    // Basic stub - in future could link to Codex or Retainers
-    // For now it does nothing but prevents error if called
+    // Stub
 };
 
 function renderSessionLogForm(data) {
     const area = document.getElementById('journal-content-area');
     if(!area) return;
 
-    // ... [Boons/NPCs/Clues Row Generators - Same as before] ...
+    // ... [Boons/NPCs/Clues Row Generators] ...
     const boonRow = (b, type) => `<div class="flex gap-1 mb-1 text-[9px] items-center group boon-row"><input type="text" class="flex-1 bg-black/50 border border-[#333] text-white px-1" placeholder="Name" value="${b.name}" data-group="${type}" data-field="name"><select class="w-20 bg-black/50 border border-[#333] text-white px-1" data-group="${type}" data-field="type"><option value="Trivial" ${b.type==='Trivial'?'selected':''}>Trivial</option><option value="Minor" ${b.type==='Minor'?'selected':''}>Minor</option><option value="Major" ${b.type==='Major'?'selected':''}>Major</option><option value="Life" ${b.type==='Life'?'selected':''}>Life</option></select><input type="text" class="flex-1 bg-black/50 border border-[#333] text-white px-1" placeholder="Reason" value="${b.reason}" data-group="${type}" data-field="reason"><button class="text-gray-600 hover:text-red-500 font-bold px-1" onclick="this.closest('.boon-row').remove()">×</button></div>`;
     const npcRow = (n) => `<div class="bg-[#111] p-2 mb-2 border border-[#333] relative group npc-row"><button class="absolute top-1 right-1 text-gray-600 hover:text-red-500 font-bold text-[10px]" onclick="this.closest('.npc-row').remove()">×</button><div class="grid grid-cols-2 gap-2 mb-1"><input type="text" list="npc-list" class="bg-black/50 border border-[#333] text-white px-1 text-[10px]" placeholder="Name" value="${n.name}" data-group="npcs" data-field="name" onchange="window.autofillNPC(this)"><input type="text" class="bg-black/50 border border-[#333] text-white px-1 text-[10px]" placeholder="Clan/Role" value="${n.clan}" data-group="npcs" data-field="clan"></div><div class="flex gap-2 mb-1 text-[9px] text-gray-400"><label><input type="radio" name="att-${n.id}" value="Hostile" ${n.attitude==='Hostile'?'checked':''} data-group="npcs" data-field="attitude"> Hostile</label><label><input type="radio" name="att-${n.id}" value="Neutral" ${n.attitude==='Neutral'?'checked':''} data-group="npcs" data-field="attitude"> Neutral</label><label><input type="radio" name="att-${n.id}" value="Friendly" ${n.attitude==='Friendly'?'checked':''} data-group="npcs" data-field="attitude"> Friendly</label><label><input type="radio" name="att-${n.id}" value="Dominated" ${n.attitude==='Dominated'?'checked':''} data-group="npcs" data-field="attitude"> Dominated</label></div><input type="text" class="w-full bg-black/50 border border-[#333] text-white px-1 text-[10px]" placeholder="Key Notes" value="${n.notes}" data-group="npcs" data-field="notes"></div>`;
     const clueRow = (c, idx) => `<div class="mb-1 flex gap-1 items-center clue-row"><span class="text-[9px] text-gray-500 w-4">${idx + 1}.</span><input type="text" class="flex-1 bg-[#111] border border-[#333] text-white px-1 text-[10px]" placeholder="Clue / Objective / Secret..." value="${c.text}" data-group="investigation"><button class="text-gray-600 hover:text-red-500 font-bold px-1" onclick="this.closest('.clue-row').remove()">×</button></div>`;
 
-    // --- NEW SMART SCENE ROW ---
-    // Includes toolbar and toggle between Edit/View
-    const sceneRow = (s, idx) => `
+    // --- SMART SCENE ROW (UPDATED DEFAULT STATE) ---
+    // Now defaults to VIEW MODE unless text is empty
+    const sceneRow = (s, idx) => {
+        const hasText = s.text && s.text.trim().length > 0;
+        const viewModeClass = hasText ? '' : 'hidden';
+        const editModeClass = hasText ? 'hidden' : '';
+        const btnText = hasText ? 'Edit Mode' : 'Read Mode';
+        const btnClass = hasText ? 'text-gold' : '';
+        
+        // Pre-parse content if viewing
+        const viewContent = hasText ? parseSmartText(s.text) : '';
+
+        return `
         <div class="mb-4 scene-row bg-[#0a0a0a] border border-[#333] p-1">
             <div class="flex justify-between items-center bg-[#111] px-2 py-1 mb-1 border-b border-[#222]">
                 <span class="text-[9px] text-gray-500 font-bold uppercase">Scene ${idx + 1}</span>
                 <div class="flex gap-2">
-                    <button class="text-[9px] text-gray-400 hover:text-gold uppercase font-bold" onclick="window.toggleSceneView(this)">Read Mode</button>
+                    <button class="text-[9px] text-gray-400 hover:text-gold uppercase font-bold toggle-btn ${btnClass}" onclick="window.toggleSceneView(this)">${btnText}</button>
                     <button class="text-[9px] text-gray-400 hover:text-blue-400 uppercase font-bold" onclick="window.defineSelection(this)">Define Selection</button>
                     ${idx > 0 ? `<button class="text-[9px] text-red-900 hover:text-red-500" onclick="this.closest('.scene-row').remove()">Remove</button>` : ''}
                 </div>
             </div>
             
             <!-- EDIT MODE (Textarea) -->
-            <textarea class="scene-editor w-full bg-transparent text-white text-[11px] p-2 h-24 resize-y border-none focus:ring-0 leading-relaxed" 
+            <textarea class="scene-editor w-full bg-transparent text-white text-[11px] p-2 h-24 resize-y border-none focus:ring-0 leading-relaxed ${editModeClass}" 
                 placeholder="Describe the scene..." 
                 data-group="scenes"
                 oninput="window.handleSmartInput(this)"
                 spellcheck="false">${s.text}</textarea>
             
             <!-- VIEW MODE (Rich Text) -->
-            <div class="scene-viewer hidden w-full text-gray-300 text-[11px] p-2 h-auto min-h-[6rem] leading-relaxed whitespace-pre-wrap font-serif"></div>
+            <div class="scene-viewer w-full text-gray-300 text-[11px] p-2 h-auto min-h-[6rem] leading-relaxed whitespace-pre-wrap font-serif ${viewModeClass}">${viewContent}</div>
         </div>`;
+    };
 
     area.innerHTML = `
         <div class="bg-black border border-[#444] p-4 text-xs font-serif min-h-full relative" id="active-log-form">
@@ -253,7 +300,7 @@ function renderSessionLogForm(data) {
                 <textarea id="log-downtime" class="w-full bg-[#111] border border-[#333] text-white text-[10px] p-1 h-16 resize-none" oninput="window.handleSmartInput(this)">${data.downtime}</textarea>
             </div>
 
-            <!-- NPCs / Boons / Clues Toggles (Simplified for brevity) -->
+            <!-- NPCs / Boons / Clues Toggles -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                     <div class="text-[10px] font-bold text-gold uppercase mb-1">Boons & NPCs</div>
@@ -485,6 +532,7 @@ window.toggleSceneView = function(btn) {
         viewer.classList.add('hidden');
         btn.innerText = "Read Mode";
         btn.classList.remove('text-gold');
+        btn.classList.remove('toggle-btn'); // For styling
     } else {
         // Switch to Read Mode
         const rawText = editor.value;
@@ -495,6 +543,7 @@ window.toggleSceneView = function(btn) {
         viewer.classList.remove('hidden');
         btn.innerText = "Edit Mode";
         btn.classList.add('text-gold');
+        btn.classList.add('toggle-btn');
     }
 }
 
@@ -507,9 +556,6 @@ function parseSmartText(text) {
     const sortedCodex = [...window.state.codex].sort((a,b) => b.name.length - a.name.length);
     
     sortedCodex.forEach(entry => {
-        // Regex: match name, Case Insensitive, global. Use boundary \b if possible, but names might have spaces
-        // We match whole words or phrases.
-        // We replace with a marker first to prevent double-replacing inside tags
         const regex = new RegExp(`\\b${escapeRegExp(entry.name)}\\b`, 'gi');
         safeText = safeText.replace(regex, (match) => {
             return `<span class="codex-link" onclick="window.viewCodex('${entry.id}')">${match}</span>`;
@@ -529,6 +575,12 @@ window.viewCodex = function(id) {
     if (!entry) return;
     
     const modal = document.getElementById('codex-popup');
+    const viewDiv = document.getElementById('codex-popup-view');
+    const editDiv = document.getElementById('codex-popup-edit');
+    
+    viewDiv.classList.remove('hidden');
+    editDiv.classList.add('hidden');
+    
     document.getElementById('codex-popup-title').innerText = entry.name;
     document.getElementById('codex-popup-desc').innerText = entry.desc || "No description provided.";
     
@@ -538,11 +590,15 @@ window.viewCodex = function(id) {
         
     const editBtn = document.getElementById('codex-popup-edit-btn');
     editBtn.onclick = () => {
-        modal.classList.add('hidden');
-        // Switch tab to Codex
-        document.getElementById('tab-codex').click();
-        // Open editor
-        window.editCodexEntry(id);
+        // Quick switch to Quick Edit mode inside the modal
+        viewDiv.classList.add('hidden');
+        editDiv.classList.remove('hidden');
+        
+        document.getElementById('quick-cx-id').value = entry.id;
+        document.getElementById('quick-cx-name').value = entry.name;
+        document.getElementById('quick-cx-type').value = entry.type;
+        document.getElementById('quick-cx-tags').value = entry.tags.join(', ');
+        document.getElementById('quick-cx-desc').value = entry.desc;
     };
     
     modal.classList.remove('hidden');
@@ -553,13 +609,9 @@ window.handleSmartInput = function(textarea) {
     const text = textarea.value;
     const cursorPos = textarea.selectionStart;
     
-    // Find word/phrase being typed
-    // Logic: Look backwards from cursor until a newline or punctuation
     const lastChunk = text.substring(0, cursorPos).split(/[\n\.\,\!\?]/).pop();
-    const lastWord = lastChunk.trim().split(" ").pop(); // Very simple last word check
+    const lastWord = lastChunk.trim().split(" ").pop(); 
     
-    // Better logic: Match against cache
-    // We want to trigger if they typed at least 2 chars
     if (lastWord.length < 2) {
         hideAutocomplete();
         return;
@@ -578,22 +630,17 @@ function showAutocomplete(textarea, matches, partial) {
     const box = document.getElementById('autocomplete-suggestions');
     if (!box) return;
     
-    // Position box relative to cursor is hard in simple textarea.
-    // Simplification: Position below textarea
     const rect = textarea.getBoundingClientRect();
     box.style.left = `${rect.left}px`;
     box.style.top = `${rect.bottom}px`;
     box.style.width = `${rect.width}px`;
     
     box.innerHTML = matches.slice(0, 5).map(match => {
-        // Highlight the matched part
         const rest = match.substring(partial.length);
         return `<div class="autocomplete-item" onclick="window.applyAutocomplete('${match.replace(/'/g, "\\'")}')"><strong>${partial}</strong>${rest}</div>`;
     }).join('');
     
     box.style.display = 'block';
-    
-    // Store reference to active textarea
     window.activeSmartTextarea = textarea;
     window.lastPartial = partial;
 }
@@ -611,7 +658,6 @@ window.applyAutocomplete = function(fullName) {
     const text = ta.value;
     const pos = ta.selectionStart;
     
-    // Replace the partial word before cursor with full name
     const before = text.substring(0, pos - partial.length);
     const after = text.substring(pos);
     
@@ -621,12 +667,11 @@ window.applyAutocomplete = function(fullName) {
     ta.focus();
 }
 
-// 5. Define Selection
+// 5. Define Selection -> MODAL QUICK ENTRY
 window.defineSelection = function(btn) {
     const row = btn.closest('.scene-row');
     const textarea = row.querySelector('.scene-editor');
     
-    // Textarea must be active/visible
     if (textarea.classList.contains('hidden')) return;
     
     const start = textarea.selectionStart;
@@ -640,15 +685,65 @@ window.defineSelection = function(btn) {
     const selectedText = textarea.value.substring(start, end).trim();
     if (!selectedText) return;
     
-    // Open Codex Tab and New Entry
-    document.getElementById('tab-codex').click();
-    window.editCodexEntry();
+    // Open Modal in Edit Mode immediately
+    const modal = document.getElementById('codex-popup');
+    const viewDiv = document.getElementById('codex-popup-view');
+    const editDiv = document.getElementById('codex-popup-edit');
     
-    // Pre-fill
-    document.getElementById('cx-name').value = selectedText;
-    document.getElementById('cx-desc').focus();
+    viewDiv.classList.add('hidden');
+    editDiv.classList.remove('hidden');
+    
+    // Reset Fields
+    document.getElementById('quick-cx-id').value = "";
+    document.getElementById('quick-cx-name').value = selectedText;
+    document.getElementById('quick-cx-type').value = "NPC";
+    document.getElementById('quick-cx-tags').value = "";
+    document.getElementById('quick-cx-desc').value = "";
+    
+    modal.classList.remove('hidden');
+    document.getElementById('quick-cx-desc').focus();
     
     showNotification(`Defining: ${selectedText}`);
+}
+
+window.saveQuickCodex = function() {
+    const id = document.getElementById('quick-cx-id').value;
+    const name = document.getElementById('quick-cx-name').value.trim();
+    if (!name) { showNotification("Name required"); return; }
+    
+    const newEntry = {
+        id: id || Date.now().toString(36),
+        name: name,
+        type: document.getElementById('quick-cx-type').value,
+        tags: document.getElementById('quick-cx-tags').value.split(',').map(t=>t.trim()).filter(t=>t),
+        desc: document.getElementById('quick-cx-desc').value
+    };
+    
+    // Check for existing ID
+    if (id) {
+        const idx = window.state.codex.findIndex(c => c.id === id);
+        if(idx !== -1) window.state.codex[idx] = newEntry;
+    } else {
+        // Check for existing name to avoid duplicates
+        const existIdx = window.state.codex.findIndex(c => c.name.toLowerCase() === name.toLowerCase());
+        if(existIdx !== -1) {
+            if(confirm("Entry with this name exists. Overwrite?")) {
+                newEntry.id = window.state.codex[existIdx].id; // Keep old ID
+                window.state.codex[existIdx] = newEntry;
+            } else return;
+        } else {
+            window.state.codex.push(newEntry);
+        }
+    }
+    
+    // Update cache
+    codexCache = window.state.codex.map(c => c.name);
+    
+    // If main codex view is open, refresh it
+    if (document.getElementById('codex-list')) renderCodexList();
+    
+    showNotification("Codex Saved");
+    document.getElementById('codex-popup').classList.add('hidden');
 }
 
 // Global click to close autocomplete
