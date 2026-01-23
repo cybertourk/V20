@@ -8,7 +8,6 @@ import {
     showNotification 
 } from "./ui-common.js";
 
-// FIX: Import updatePools from ui-renderer.js (the new source of truth)
 import { 
     updatePools 
 } from "./ui-renderer.js";
@@ -117,7 +116,8 @@ export function changeStep(s) {
              steps.forEach((text, i) => {
                  const it = document.createElement('div'); it.className = `nav-item ${window.state.currentPhase === (i+1) ? 'active' : ''}`;
                  it.innerHTML = `<i class="fas fa-scroll"></i><span style="display:block; font-size:9px; margin-top:2px;">${text}</span>`;
-                 it.onclick = () => changeStep(i+1); nav.appendChild(it);
+                 it.onclick = () => { if(window.changeStep) changeStep(i+1); };
+                 nav.appendChild(it);
              });
         } else {
             const furthest = window.state.furthestPhase || 1;
@@ -200,10 +200,7 @@ export function renderXpSidebar() {
             buckets.attr += cost;
         }
         else if (type === 'disc') {
-            // Ensure Primary Paths are treated as Disciplines, not "Paths"
             const isPrimary = (name === primThaum || name === primNecro);
-            
-            // It is only a "Secondary Path" here if name includes 'path' AND it is NOT primary
             const isPathName = name.toLowerCase().includes('path');
             
             if (isPathName && !isPrimary) {
@@ -211,7 +208,6 @@ export function renderXpSidebar() {
             } else {
                 if (isNew) buckets.newDisc += cost;
                 else {
-                    // Treat Primary Paths as their parent Discipline for Clan Check
                     let checkName = name;
                     if (name === primThaum) checkName = 'Thaumaturgy';
                     if (name === primNecro) checkName = 'Necromancy';
@@ -381,17 +377,57 @@ const GUIDE_TEXT = {
             <p class="mt-2 text-sm italic">Note: No Ability may be purchased above 3 dots during this stage.</p>
         `
     },
-    4: { title: "Step Four: Select Advantages", body: STEP_FOUR_TEXT },
-    5: { title: "Step Four: Select Advantages", body: STEP_FOUR_TEXT },
-    6: { 
-        title: "Step Five: Last Touches",
+    4: { title: "Step Four: Advantages", body: STEP_FOUR_TEXT },
+    
+    5: { 
+        title: "Step Five: Supernatural & Traits", 
         body: `
-            <h4 class="text-gold mt-2 font-bold uppercase">Calculated Traits</h4>
-            <ul class="list-disc pl-4 mt-1"><li><strong>Humanity:</strong> Conscience + Self-Control.</li><li><strong>Willpower:</strong> Equals Courage rating.</li><li><strong>Blood Pool:</strong> Determined by generation.</li></ul>
+            <p>Flesh out the supernatural quirks and bonds of your character.</p>
+            <h4 class="text-gold mt-2 font-bold uppercase">Merits & Flaws</h4>
+            <p>Use the <strong>Freebie Mode</strong> toggle to purchase Merits or add Flaws (which give extra points).</p>
+            <h4 class="text-gold mt-2 font-bold uppercase">Rituals & Bonds</h4>
+            <p>If you have Thaumaturgy or Necromancy, add your rituals here. Record Blood Bonds or Vinculum ratings if applicable.</p>
+            <h4 class="text-gold mt-2 font-bold uppercase">Derangements</h4>
+            <p>Add specific mental afflictions here. Malkavians start with one incurable derangement.</p>
         `
     },
-    7: { title: "Step Five: Freebie Points", body: `<p>The player may spend <strong>15 freebie points</strong> to purchase additional dots.</p><p>You may also take up to 7 points of Flaws.</p>` },
-    8: { title: "Step Five: Freebie Points", body: `<p>The player may spend <strong>15 freebie points</strong> to purchase additional dots.</p>` }
+    
+    6: { 
+        title: "Step Six: Gear & Assets", 
+        body: `
+            <p>Manage your physical assets, combat capabilities, and safehouses.</p>
+            <h4 class="text-gold mt-2 font-bold uppercase">Inventory & Combat</h4>
+            <p>Add Weapons, Armor, and Vehicles. Toggling items to <strong>"Carried"</strong> will automatically add their attacks to your Play Sheet and apply Armor ratings to soak rolls.</p>
+            <h4 class="text-gold mt-2 font-bold uppercase">Havens</h4>
+            <p>Describe your safehouses, their locations, and security measures.</p>
+        `
+    },
+    
+    7: { 
+        title: "Step Seven: Biography", 
+        body: `
+            <p>Bring the character to life with details.</p>
+            <h4 class="text-gold mt-2 font-bold uppercase">Background Descriptions</h4>
+            <p>Provide specific details for your chosen Backgrounds (e.g., who is your Mentor? What is your Domain?).</p>
+            <h4 class="text-gold mt-2 font-bold uppercase">Vitals & Goals</h4>
+            <p>Record physical description, apparent age, and set your character's Short and Long Term goals.</p>
+        `
+    },
+    
+    8: { 
+        title: "Step Eight: Final Touches",
+        body: `
+            <h4 class="text-gold mt-2 font-bold uppercase">Calculated Traits</h4>
+            <p>Review your derived stats. These are calculated automatically but can be adjusted.</p>
+            <ul class="list-disc pl-4 mt-1">
+                <li><strong>Humanity:</strong> Sum of Conscience + Self-Control.</li>
+                <li><strong>Willpower:</strong> Equal to Courage rating.</li>
+                <li><strong>Blood Pool:</strong> Determined by Generation.</li>
+            </ul>
+            <h4 class="text-gold mt-2 font-bold uppercase">Freebie Points</h4>
+            <p>Use <strong>Freebie Mode</strong> (15 pts) at any time to finalize dots.</p>
+        `
+    }
 };
 
 function createWalkthroughButton() {
