@@ -129,6 +129,64 @@ window.initNewSessionLog = function() {
     renderSessionLogForm(newLog);
 };
 
+// --- DYNAMIC LOG BUILDER FUNCTIONS (GLOBAL) ---
+
+window.addLogScene = function() {
+    const container = document.getElementById('container-scenes');
+    if(!container) return;
+    const idx = container.children.length;
+    // Re-use the generator from renderSessionLogForm but we need it here
+    // Simplest way is to append HTML string
+    const html = `
+        <div class="mb-4 scene-row bg-[#0a0a0a] border border-[#333] p-1">
+            <div class="flex justify-between items-center bg-[#111] px-2 py-1 mb-1 border-b border-[#222]">
+                <span class="text-[9px] text-gray-500 font-bold uppercase">Scene ${idx + 1}</span>
+                <div class="flex gap-2">
+                    <button class="text-[9px] text-gray-400 hover:text-gold uppercase font-bold" onclick="window.toggleSceneView(this)">Read Mode</button>
+                    <button class="text-[9px] text-gray-400 hover:text-blue-400 uppercase font-bold" onclick="window.defineSelection(this)">Define Selection</button>
+                    <button class="text-[9px] text-red-900 hover:text-red-500" onclick="this.closest('.scene-row').remove()">Remove</button>
+                </div>
+            </div>
+            <textarea class="scene-editor w-full bg-transparent text-white text-[11px] p-2 h-24 resize-y border-none focus:ring-0 leading-relaxed" 
+                placeholder="Describe the scene..." 
+                data-group="scenes"
+                oninput="window.handleSmartInput(this)"
+                spellcheck="false"></textarea>
+            <div class="scene-viewer hidden w-full text-gray-300 text-[11px] p-2 h-auto min-h-[6rem] leading-relaxed whitespace-pre-wrap font-serif"></div>
+        </div>`;
+    
+    // Insert safely
+    container.insertAdjacentHTML('beforeend', html);
+};
+
+window.addLogClue = function() {
+    const container = document.getElementById('container-investigation');
+    if(!container) return;
+    const idx = container.children.length;
+    const html = `<div class="mb-1 flex gap-1 items-center clue-row"><span class="text-[9px] text-gray-500 w-4">${idx + 1}.</span><input type="text" class="flex-1 bg-[#111] border border-[#333] text-white px-1 text-[10px]" placeholder="Clue / Objective / Secret..." value="" data-group="investigation"><button class="text-gray-600 hover:text-red-500 font-bold px-1" onclick="this.closest('.clue-row').remove()">×</button></div>`;
+    container.insertAdjacentHTML('beforeend', html);
+};
+
+window.addLogBoon = function(type) { // type = 'boonsOwed' or 'boonsIOwe'
+    const container = document.getElementById('container-' + type);
+    if(!container) return;
+    const html = `<div class="flex gap-1 mb-1 text-[9px] items-center group boon-row"><input type="text" class="flex-1 bg-black/50 border border-[#333] text-white px-1" placeholder="Name" value="" data-group="${type}" data-field="name"><select class="w-20 bg-black/50 border border-[#333] text-white px-1" data-group="${type}" data-field="type"><option value="Trivial">Trivial</option><option value="Minor">Minor</option><option value="Major">Major</option><option value="Life">Life</option></select><input type="text" class="flex-1 bg-black/50 border border-[#333] text-white px-1" placeholder="Reason" value="" data-group="${type}" data-field="reason"><button class="text-gray-600 hover:text-red-500 font-bold px-1" onclick="this.closest('.boon-row').remove()">×</button></div>`;
+    container.insertAdjacentHTML('beforeend', html);
+};
+
+window.addLogNPC = function() {
+    const container = document.getElementById('container-npcs');
+    if(!container) return;
+    const id = Math.random().toString(36).substr(2, 5);
+    const html = `<div class="bg-[#111] p-2 mb-2 border border-[#333] relative group npc-row"><button class="absolute top-1 right-1 text-gray-600 hover:text-red-500 font-bold text-[10px]" onclick="this.closest('.npc-row').remove()">×</button><div class="grid grid-cols-2 gap-2 mb-1"><input type="text" list="npc-list" class="bg-black/50 border border-[#333] text-white px-1 text-[10px]" placeholder="Name" value="" data-group="npcs" data-field="name" onchange="window.autofillNPC(this)"><input type="text" class="bg-black/50 border border-[#333] text-white px-1 text-[10px]" placeholder="Clan/Role" value="" data-group="npcs" data-field="clan"></div><div class="flex gap-2 mb-1 text-[9px] text-gray-400"><label><input type="radio" name="att-${id}" value="Hostile" data-group="npcs" data-field="attitude"> Hostile</label><label><input type="radio" name="att-${id}" value="Neutral" checked data-group="npcs" data-field="attitude"> Neutral</label><label><input type="radio" name="att-${id}" value="Friendly" data-group="npcs" data-field="attitude"> Friendly</label><label><input type="radio" name="att-${id}" value="Dominated" data-group="npcs" data-field="attitude"> Dominated</label></div><input type="text" class="w-full bg-black/50 border border-[#333] text-white px-1 text-[10px]" placeholder="Key Notes" value="" data-group="npcs" data-field="notes"></div>`;
+    container.insertAdjacentHTML('beforeend', html);
+};
+
+window.autofillNPC = function(input) {
+    // Basic stub - in future could link to Codex or Retainers
+    // For now it does nothing but prevents error if called
+};
+
 function renderSessionLogForm(data) {
     const area = document.getElementById('journal-content-area');
     if(!area) return;
