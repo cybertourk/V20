@@ -43,7 +43,8 @@ import { renderPrintSheet } from "./ui-print.js";
 import { togglePlayMode } from "./ui-play.js";
 import { changeStep, updateWalkthrough } from "./ui-nav.js";
 
-import { openGhoulCreator } from "./ghoul-creator.js";
+// REMOVED: Legacy Ghoul Creator Import
+// import { openGhoulCreator } from "./ghoul-creator.js";
 
 // --- NEW DATA IMPORTS & MERGING ---
 import { DISCIPLINES_DATA } from './disciplines-data.js';
@@ -108,7 +109,8 @@ window.handleSaveClick = FBManager.handleSaveClick;
 window.handleLoadClick = FBManager.handleLoadClick;
 window.performSave = FBManager.performSave;
 window.deleteCharacter = FBManager.deleteCharacter;
-window.openGhoulCreator = openGhoulCreator;
+// REMOVED: Legacy binding
+// window.openGhoulCreator = openGhoulCreator;
 
 // --- LOCAL IMPORT / EXPORT HANDLERS ---
 
