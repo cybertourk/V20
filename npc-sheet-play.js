@@ -416,17 +416,23 @@ export function renderPlaySheetModal() {
                                 ${inventory.map(i => {
                                     let details = "";
                                     if (i.stats) {
-                                        if (i.type === 'Vehicle') {
-                                            // Specific Vehicle Stats
+                                        // Robust Case-Insensitive Check for Vehicles
+                                        if (i.type && i.type.toLowerCase() === 'vehicle') {
                                             const parts = [];
                                             if(i.stats.safe) parts.push(`Safe:${i.stats.safe}`);
                                             if(i.stats.max) parts.push(`Max:${i.stats.max}`);
                                             if(i.stats.man) parts.push(`Man:${i.stats.man}`);
-                                            if(parts.length) details = `<div class="text-[9px] text-[#d4af37] italic mt-0.5">${parts.join(' | ')}</div>`;
+                                            
+                                            if(parts.length > 0) {
+                                                details = `<div class="text-[9px] text-[#d4af37] italic mt-0.5 font-bold">${parts.join(' | ')}</div>`;
+                                            } else {
+                                                // Fallback if specific keys missing but stats obj exists
+                                                const raw = Object.entries(i.stats).map(([k,v]) => `${k}:${v}`).join(' ');
+                                                if(raw) details = `<div class="text-[9px] text-gray-500 italic mt-0.5">${raw}</div>`;
+                                            }
                                         } else if (i.type === 'Armor') {
                                             details = `<div class="text-[9px] text-gray-500 mt-0.5">(Rating:${i.stats.rating} Pen:${i.stats.penalty})</div>`;
                                         } else if (['Weapon', 'Melee', 'Ranged'].includes(i.type)) {
-                                            // Simple details for weapons (mostly covered in combat table, but useful for reference)
                                             details = `<div class="text-[9px] text-gray-500 mt-0.5">Diff:${i.stats.diff} Dmg:${i.stats.dmg || i.stats.damage}</div>`;
                                         }
                                     }
