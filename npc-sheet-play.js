@@ -413,10 +413,32 @@ export function renderPlaySheetModal() {
                         <div class="sheet-section">
                             <div class="section-title">Inventory</div>
                             <div class="space-y-1 text-xs">
-                                ${inventory.map(i => `<div class="text-gray-400 flex justify-between border-b border-[#222] pb-1">
-                                    <span>${i.name} ${i.status === 'carried' ? '<i class="fas fa-hand-holding text-green-700 ml-1" title="Carried"></i>' : ''}</span> 
-                                    <span class="text-[9px] uppercase">${i.type}</span>
-                                </div>`).join('')}
+                                ${inventory.map(i => {
+                                    let details = "";
+                                    if (i.stats) {
+                                        if (i.type === 'Vehicle') {
+                                            // Specific Vehicle Stats
+                                            const parts = [];
+                                            if(i.stats.safe) parts.push(`Safe:${i.stats.safe}`);
+                                            if(i.stats.max) parts.push(`Max:${i.stats.max}`);
+                                            if(i.stats.man) parts.push(`Man:${i.stats.man}`);
+                                            if(parts.length) details = `<div class="text-[9px] text-[#d4af37] italic mt-0.5">${parts.join(' | ')}</div>`;
+                                        } else if (i.type === 'Armor') {
+                                            details = `<div class="text-[9px] text-gray-500 mt-0.5">(Rating:${i.stats.rating} Pen:${i.stats.penalty})</div>`;
+                                        } else if (['Weapon', 'Melee', 'Ranged'].includes(i.type)) {
+                                            // Simple details for weapons (mostly covered in combat table, but useful for reference)
+                                            details = `<div class="text-[9px] text-gray-500 mt-0.5">Diff:${i.stats.diff} Dmg:${i.stats.dmg || i.stats.damage}</div>`;
+                                        }
+                                    }
+                                    
+                                    return `<div class="text-gray-400 border-b border-[#222] pb-1">
+                                        <div class="flex justify-between">
+                                            <span>${i.name} ${i.status === 'carried' ? '<i class="fas fa-hand-holding text-green-700 ml-1" title="Carried"></i>' : ''}</span> 
+                                            <span class="text-[9px] uppercase">${i.type}</span>
+                                        </div>
+                                        ${details}
+                                    </div>`;
+                                }).join('')}
                             </div>
                         </div>` : ''}
                     </div>
