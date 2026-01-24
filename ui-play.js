@@ -1,6 +1,7 @@
 import { 
     ATTRIBUTES, ABILITIES, VIRTUES, BACKGROUNDS, 
-    CLAN_WEAKNESSES, VIT, CLAN_DISCIPLINES
+    CLAN_WEAKNESSES, VIT, CLAN_DISCIPLINES,
+    ARCHETYPE_RULES // Added Import
 } from "./data.js";
 
 import { DISCIPLINES_DATA } from "./disciplines-data.js";
@@ -116,6 +117,9 @@ export function togglePlayMode() {
         
         // --- UPDATE RITUALS LIST ---
         updateRitualsPlayView();
+        
+        // --- INJECT WILLPOWER REGAIN INFO ---
+        injectWillpowerInfo();
 
         let carried = []; let owned = []; 
         if(window.state.inventory) { 
@@ -211,6 +215,53 @@ export function togglePlayMode() {
     }
 }
 window.togglePlayMode = togglePlayMode;
+
+// --- WILLPOWER REGAIN INFO INJECTION ---
+function injectWillpowerInfo() {
+    // Find section title for Willpower in play mode
+    const sections = document.querySelectorAll('#play-mode-sheet .section-title');
+    let wpTitleEl = null;
+    
+    sections.forEach(el => {
+        // Check if it's the Willpower header and doesn't already have the button
+        if (el.innerText.includes("Willpower") && !el.querySelector('#wp-info-btn')) {
+            wpTitleEl = el;
+        }
+    });
+
+    if (wpTitleEl) {
+        wpTitleEl.style.display = 'flex';
+        wpTitleEl.style.justifyContent = 'center';
+        wpTitleEl.style.alignItems = 'center';
+        wpTitleEl.style.gap = '8px';
+        
+        // Rebuild inner HTML to include icon
+        wpTitleEl.innerHTML = `WILLPOWER <i id="wp-info-btn" class="fas fa-info-circle text-[10px] text-gray-500 hover:text-white cursor-pointer transition-colors" title="Regaining Willpower"></i>`;
+        
+        const btn = wpTitleEl.querySelector('#wp-info-btn');
+        btn.onclick = (e) => {
+            e.stopPropagation();
+            showWillpowerInfo();
+        };
+    }
+}
+
+function showWillpowerInfo() {
+    const nature = window.state.textFields['c-nature'] || "None";
+    const rule = ARCHETYPE_RULES[nature] || "Standard rules apply. See V20 Core Rules p. 267.";
+    
+    const modal = document.getElementById('willpower-info-modal');
+    if (modal) {
+        const ruleContainer = document.getElementById('wp-nature-rule');
+        if (ruleContainer) {
+            ruleContainer.innerHTML = `
+                <div class="text-[10px] font-bold text-blue-300 uppercase mb-1">Nature: ${nature}</div>
+                <div class="text-xs text-white italic">"${rule}"</div>
+            `;
+        }
+        modal.classList.add('active');
+    }
+}
 
 // --- RENDER HELPERS ---
 
@@ -977,3 +1028,53 @@ export function updateRitualsPlayView() {
     playCont.className = "";
 }
 window.updateRitualsPlayView = updateRitualsPlayView;
+
+// --- WILLPOWER REGAIN INFO INJECTION ---
+function injectWillpowerInfo() {
+    const wpSection = document.querySelector('#play-mode-sheet .section-title');
+    // We need to find the specific Willpower section title, as there are many .section-title elements
+    // The play mode renderer creates this structure: <div class="section-title">Willpower</div>
+    // Let's find the one that contains "Willpower" text
+    
+    const sections = document.querySelectorAll('#play-mode-sheet .section-title');
+    let wpTitleEl = null;
+    
+    sections.forEach(el => {
+        if (el.innerText.includes("Willpower") && !el.querySelector('#wp-info-btn')) {
+            wpTitleEl = el;
+        }
+    });
+
+    if (wpTitleEl) {
+        wpTitleEl.style.display = 'flex';
+        wpTitleEl.style.justifyContent = 'center';
+        wpTitleEl.style.alignItems = 'center';
+        wpTitleEl.style.gap = '8px';
+        
+        // Clear and rebuild to prevent duplicates but keep text
+        wpTitleEl.innerHTML = `WILLPOWER <i id="wp-info-btn" class="fas fa-info-circle text-[10px] text-gray-500 hover:text-white cursor-pointer transition-colors" title="Regaining Willpower"></i>`;
+        
+        const btn = wpTitleEl.querySelector('#wp-info-btn');
+        btn.onclick = (e) => {
+            e.stopPropagation();
+            showWillpowerInfo();
+        };
+    }
+}
+
+function showWillpowerInfo() {
+    const nature = window.state.textFields['c-nature'] || "None";
+    const rule = ARCHETYPE_RULES[nature] || "Standard rules apply. See V20 Core Rules p. 267.";
+    
+    const modal = document.getElementById('willpower-info-modal');
+    if (modal) {
+        const ruleContainer = document.getElementById('wp-nature-rule');
+        if (ruleContainer) {
+            ruleContainer.innerHTML = `
+                <div class="text-[10px] font-bold text-blue-300 uppercase mb-1">Nature: ${nature}</div>
+                <div class="text-xs text-white italic">"${rule}"</div>
+            `;
+        }
+        modal.classList.add('active');
+    }
+}
