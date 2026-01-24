@@ -189,6 +189,7 @@ export function togglePlayMode() {
         
         // --- CHECK PLAY MODE TUTORIAL ---
         if (!localStorage.getItem('v20_play_tutorial_complete')) {
+            // Short delay to allow DOM to settle / transition
             setTimeout(() => {
                 if (window.startTutorial) window.startTutorial('play');
             }, 1000);
