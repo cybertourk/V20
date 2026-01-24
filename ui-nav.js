@@ -484,55 +484,51 @@ window.toggleWalkthrough = function() {
 };
 
 // ==========================================================================
-// TUTORIAL SYSTEM (Interactive Introduction)
+// TUTORIAL SYSTEM (Interactive Highlighting)
 // ==========================================================================
 
 const TUTORIAL_STEPS = [
     {
-        title: "Welcome to the Night",
-        content: `
-            <p>Welcome to the V20 Character Creator. This tool is designed to help you create and manage Vampire: The Masquerade (20th Anniversary) characters quickly and accurately.</p>
-            <p class="mt-2">This short tutorial will guide you through the interface.</p>
-        `
+        title: "Welcome to V20",
+        content: "This tool helps you create and manage Vampire: The Masquerade characters.<br><br>Let's take a quick tour of the interface.",
+        targetId: "main-menubar",
+        phase: 1
     },
     {
-        title: "Character Creation Phases",
-        content: `
-            <p>The sheet is divided into <strong>8 Phases</strong>, mirroring the creation steps in the core rulebook.</p>
-            <p class="mt-2">Use the navigation bar (bottom on mobile, right on desktop) to move between steps. You cannot proceed to the next step until the current one is validated (e.g., spending exactly 7/5/3 Attribute dots).</p>
-        `
+        title: "Navigation",
+        content: "Use the side (or bottom) navigation bar to switch between the 8 Phases of character creation.<br><br>Validation rules prevent moving forward until requirements are met.",
+        targetId: "sheet-nav",
+        phase: 1
     },
     {
-        title: "Top Controls",
-        content: `
-            <p>The top bar is your command center:</p>
-            <ul class="list-disc pl-4 mt-2 space-y-1">
-                <li><strong class="text-blue-400">Freebie Mode:</strong> Toggle this to spend Freebie Points (usually 15).</li>
-                <li><strong class="text-purple-400">XP Mode:</strong> Toggle this to spend Experience Points after creation.</li>
-                <li><strong class="text-[#d4af37]">Play Mode:</strong> Switches the view to a read-only, interactive character sheet for game sessions.</li>
-            </ul>
-        `
+        title: "Data Entry",
+        content: "Enter your character details here. All text inputs save automatically to your browser's local storage as you type.",
+        targetId: "phase-1", 
+        phase: 1
     },
     {
-        title: "Data & Saving",
-        content: `
-            <p>All input fields save automatically to your local browser state as you type.</p>
-            <p class="mt-2">To persist your character across devices or clear your browser cache safely, use the <strong class="text-white">SAVE</strong> button to store it in the cloud (requires login).</p>
-        `
+        title: "Attributes & Dots",
+        content: "Click dots to assign traits. In Creation Mode, the system validates against the 7/5/3 priority rules automatically.",
+        targetId: "list-attr-physical", 
+        phase: 2
     },
     {
-        title: "The Dice Tray",
-        content: `
-            <p>In <strong>Play Mode</strong>, clicking on Attributes, Abilities, or Disciplines will add them to the Dice Engine.</p>
-            <p class="mt-2">The Dice Tray will slide up from the bottom, allowing you to roll dice pools, apply Willpower, and check for successes automatically.</p>
-        `
+        title: "Freebie Mode",
+        content: "Toggle <strong>Freebie Mode</strong> to spend your 15 starting points on Merits, extra dots, or Flaws. This unlocks inputs normally restricted by creation rules.",
+        targetId: "toggle-freebie-btn",
+        phase: 1
     },
     {
-        title: "Journal & Codex",
-        content: `
-            <p>Use the <strong>Journal</strong> tab (in Play Mode) to track sessions, XP, and NPCs.</p>
-            <p class="mt-2">The <strong>Codex</strong> feature allows you to define keywords (like NPC names or locations) which will automatically become clickable links in your session logs.</p>
-        `
+        title: "Play Mode",
+        content: "Click <strong>Play</strong> to switch to the interactive character sheet used during game sessions. This locks editing and enables the Dice Roller.",
+        targetId: "play-mode-btn",
+        phase: 1
+    },
+    {
+        title: "Save & Export",
+        content: "<strong>Save</strong> creates a cloud record (if logged in).<br><strong>Export</strong> downloads a JSON file to your device for local backup.",
+        targetId: "file-actions-group",
+        phase: 1
     }
 ];
 
@@ -540,6 +536,7 @@ let currentTutorialStep = 0;
 
 export function startTutorial() {
     currentTutorialStep = 0;
+    document.body.classList.add('tutorial-active');
     renderTutorialStep();
     const modal = document.getElementById('tutorial-modal');
     if (modal) modal.classList.add('active');
@@ -550,6 +547,24 @@ export function renderTutorialStep() {
     const data = TUTORIAL_STEPS[currentTutorialStep];
     if (!data) return;
 
+    // 1. Cleanup Previous Highlights
+    document.querySelectorAll('.tutorial-highlight').forEach(el => el.classList.remove('tutorial-highlight'));
+
+    // 2. Switch Phase if needed
+    if (data.phase && window.state.currentPhase !== data.phase) {
+        changeStep(data.phase);
+    }
+
+    // 3. Highlight Target
+    if (data.targetId) {
+        const target = document.getElementById(data.targetId);
+        if (target) {
+            target.classList.add('tutorial-highlight');
+            target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    }
+
+    // 4. Update Modal Content
     const titleEl = document.getElementById('tut-title');
     const contentEl = document.getElementById('tut-content');
     const indicatorEl = document.getElementById('tut-step-indicator');
@@ -589,23 +604,21 @@ window.closeTutorial = function() {
     const modal = document.getElementById('tutorial-modal');
     if (modal) modal.classList.remove('active');
     
-    // Mark as complete in local storage so it doesn't auto-show again
+    document.body.classList.remove('tutorial-active');
+    document.querySelectorAll('.tutorial-highlight').forEach(el => el.classList.remove('tutorial-highlight'));
+    
     localStorage.setItem('v20_tutorial_complete', 'true');
 };
 
 // --- GUEST PROMPT LOGIC ---
-// Ensure this matches the logic called from main.js
 window.dismissGuestPrompt = function() {
     const modal = document.getElementById('guest-prompt-modal');
     if (modal) modal.classList.remove('active');
-    // Mark as dismissed for this session/browser
     sessionStorage.setItem('v20_guest_dismissed', 'true');
 };
 
-// Auto-init specific listeners
 document.addEventListener('DOMContentLoaded', () => {
     createWalkthroughButton();
-    // Ensure tutorial logic is accessible globally immediately on load
     window.startTutorial = startTutorial;
     window.dismissGuestPrompt = window.dismissGuestPrompt || function() {
         const modal = document.getElementById('guest-prompt-modal');
