@@ -223,32 +223,36 @@ function injectWillpowerInfo() {
     let wpTitleEl = null;
     
     sections.forEach(el => {
-        // Check if it's the Willpower header and doesn't already have the button
-        if (el.innerText.includes("Willpower") && !el.querySelector('#wp-info-btn')) {
+        // Check if it's the Willpower header
+        if (el.innerText.includes("Willpower")) {
             wpTitleEl = el;
         }
     });
 
     if (wpTitleEl) {
-        wpTitleEl.style.display = 'flex';
-        wpTitleEl.style.justifyContent = 'center';
-        wpTitleEl.style.alignItems = 'center';
-        wpTitleEl.style.gap = '8px';
-        
-        // Rebuild inner HTML to include icon
-        wpTitleEl.innerHTML = `WILLPOWER <i id="wp-info-btn" class="fas fa-info-circle text-[10px] text-gray-500 hover:text-white cursor-pointer transition-colors" title="Regaining Willpower"></i>`;
-        
-        const btn = wpTitleEl.querySelector('#wp-info-btn');
-        btn.onclick = (e) => {
-            e.stopPropagation();
-            showWillpowerInfo();
-        };
+        // Only inject if not already there
+        if (!wpTitleEl.querySelector('#wp-info-btn')) {
+            wpTitleEl.style.display = 'flex';
+            wpTitleEl.style.justifyContent = 'center';
+            wpTitleEl.style.alignItems = 'center';
+            wpTitleEl.style.gap = '8px';
+            
+            // Rebuild inner HTML to include icon with inline onclick
+            wpTitleEl.innerHTML = `WILLPOWER <i id="wp-info-btn" class="fas fa-info-circle text-[10px] text-gray-500 hover:text-white cursor-pointer transition-colors" title="Regaining Willpower" onclick="window.showWillpowerInfo(event)"></i>`;
+        }
     }
 }
 
-function showWillpowerInfo() {
-    const nature = window.state.textFields['c-nature'] || "None";
-    const rule = ARCHETYPE_RULES[nature] || "Standard rules apply. See V20 Core Rules p. 267.";
+export function showWillpowerInfo(e) {
+    if(e) e.stopPropagation();
+    
+    const nature = window.state.textFields['c-nature'] || document.getElementById('c-nature')?.value || "None";
+    
+    // Look up rule safely
+    let rule = "Standard rules apply. See V20 Core Rules p. 267.";
+    if (ARCHETYPE_RULES && ARCHETYPE_RULES[nature]) {
+        rule = ARCHETYPE_RULES[nature];
+    }
     
     const modal = document.getElementById('willpower-info-modal');
     if (modal) {
@@ -262,6 +266,7 @@ function showWillpowerInfo() {
         modal.classList.add('active');
     }
 }
+window.showWillpowerInfo = showWillpowerInfo; // Expose to window for inline onclick
 
 // --- RENDER HELPERS ---
 
