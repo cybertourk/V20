@@ -66,7 +66,8 @@ export function togglePlayMode() {
     const pBtnText = document.getElementById('play-btn-text');
     if(pBtnText) pBtnText.innerText = window.state.isPlayMode ? "Edit" : "Play";
     
-    // Toggle Walkthrough Button
+    // Toggle Walkthrough Button Visibility
+    // We keep the Tutorial Button visible in Play Mode now
     const guideBtn = document.getElementById('walkthrough-btn');
     if(guideBtn) {
         if(window.state.isPlayMode) guideBtn.classList.add('hidden');
@@ -185,6 +186,14 @@ export function togglePlayMode() {
         }
 
         if(window.changeStep) window.changeStep(1); 
+        
+        // --- CHECK PLAY MODE TUTORIAL ---
+        if (!localStorage.getItem('v20_play_tutorial_complete')) {
+            setTimeout(() => {
+                if (window.startTutorial) window.startTutorial('play');
+            }, 1000);
+        }
+        
     } else {
         // Exit Play Mode
         if (playSheet) {
