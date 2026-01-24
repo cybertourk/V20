@@ -114,6 +114,7 @@
                     <button type="button" id="export-btn" class="hover:text-white w-8 h-8 rounded hover:bg-[#222] transition" title="Export JSON"><i class="fas fa-file-export"></i></button>
                     <button type="button" id="import-trigger" class="hover:text-white w-8 h-8 rounded hover:bg-[#222] transition" title="Import JSON"><i class="fas fa-file-import"></i></button>
                     <button type="button" id="print-btn" class="hover:text-white w-8 h-8 rounded hover:bg-[#222] transition" title="Print Sheet"><i class="fas fa-print"></i></button>
+                    <button type="button" id="tutorial-trigger-btn" class="hover:text-[#d4af37] w-8 h-8 rounded hover:bg-[#222] transition" title="Start Tutorial" onclick="window.startTutorial()"><i class="fas fa-graduation-cap"></i></button>
                     <input type="file" id="import-input" class="hidden" accept=".json">
                 </div>
             </div>
@@ -684,6 +685,45 @@
                 </div>
             </form>
             
+        </div>
+    </div>
+
+    <!-- TUTORIAL MODAL -->
+    <div id="tutorial-modal" class="modal-overlay">
+        <div class="modal-box relative bg-[#0a0a0a] border-2 border-[#d4af37] w-full max-w-lg shadow-[0_0_40px_rgba(212,175,55,0.2)]">
+            <button onclick="window.closeTutorial()" class="absolute top-2 right-3 text-gray-500 hover:text-white text-xl">&times;</button>
+            <div class="p-4">
+                <h2 id="tut-title" class="text-2xl text-[#d4af37] font-cinzel font-bold mb-4 border-b border-[#333] pb-2 uppercase tracking-wider">Welcome Neonate</h2>
+                <div id="tut-content" class="text-sm text-gray-300 leading-relaxed font-serif min-h-[100px]"></div>
+                
+                <div class="flex justify-between items-center mt-6 pt-4 border-t border-[#333]">
+                    <div class="text-[10px] text-gray-500 italic" id="tut-step-indicator">Step 1 of X</div>
+                    <div class="flex gap-2">
+                        <button id="tut-prev-btn" class="border border-[#444] text-gray-400 px-3 py-1 text-xs uppercase font-bold hover:bg-[#222] hidden" onclick="window.prevTutorialStep()">Back</button>
+                        <button id="tut-next-btn" class="bg-[#8b0000] text-white px-4 py-1 text-xs uppercase font-bold hover:bg-red-700 shadow-md transition-colors" onclick="window.nextTutorialStep()">Next</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- GUEST LOGIN PROMPT -->
+    <div id="guest-prompt-modal" class="modal-overlay">
+        <div class="modal-box bg-[#0a0a0a] border border-red-900 w-full max-w-md shadow-[0_0_30px_rgba(139,0,0,0.5)]">
+            <h2 class="text-xl text-red-500 font-cinzel font-bold mb-4 border-b border-red-900 pb-2 uppercase tracking-wider text-center">Guest Access Detected</h2>
+            <div class="p-4 text-center space-y-4">
+                <p class="text-sm text-gray-300">You are currently using the V20 Creator as a <strong class="text-white">Guest</strong>.</p>
+                <p class="text-xs text-gray-400 italic">Your characters will only be saved to this specific browser's local storage. To sync across devices and ensure permanent storage, please create an account.</p>
+                
+                <div class="flex flex-col gap-3 mt-6">
+                    <button onclick="document.getElementById('guest-prompt-modal').classList.remove('active'); document.getElementById('auth-modal').classList.add('active');" class="bg-[#d4af37] text-black px-6 py-2 text-xs uppercase font-bold hover:bg-[#fcd34d] shadow-lg tracking-widest w-full">
+                        Login / Register
+                    </button>
+                    <button onclick="window.dismissGuestPrompt()" class="border border-[#444] text-gray-400 px-6 py-2 text-xs uppercase font-bold hover:bg-[#222] hover:text-white transition w-full">
+                        Continue as Guest
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
 
