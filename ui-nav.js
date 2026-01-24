@@ -29,7 +29,6 @@ export function updateWalkthrough() {
          
          if (checkStepComplete(current, window.state)) {
              if (current === furthest && current < 8) {
-                 // Auto-advance logic (only if valid)
                  window.state.furthestPhase = current + 1;
                  changeStep(current); // Refresh UI to show unlock
              }
@@ -54,7 +53,7 @@ export function updateWalkthrough() {
     }
     if (renderPrintSheet) renderPrintSheet();
     
-    // Update Walkthrough Modal content if open
+    // Update Info Modal content if open
     if (document.getElementById('walkthrough-modal') && !document.getElementById('walkthrough-modal').classList.contains('hidden')) {
         renderWalkthroughModalContent();
     }
@@ -70,7 +69,6 @@ export function nextStep() {
 }
 window.nextStep = nextStep;
 
-// MODIFIED: Added updateGlobalState flag to prevent Tutorial from unlocking steps
 export function changeStep(s, updateGlobalState = true) {
     if (updateGlobalState) {
         if (!window.state.furthestPhase || s > window.state.furthestPhase) { 
@@ -82,7 +80,6 @@ export function changeStep(s, updateGlobalState = true) {
     
     const prefix = window.state.isPlayMode ? 'play-mode-' : 'phase-';
     
-    // --- SPECIAL JOURNAL INJECTION FOR PLAY MODE ---
     if (window.state.isPlayMode && s === 5) {
         let pm5 = document.getElementById('play-mode-5');
         if (!pm5) {
@@ -94,7 +91,6 @@ export function changeStep(s, updateGlobalState = true) {
         renderJournalTab();
     }
 
-    // --- SPECIAL NPC INJECTION FOR PLAY MODE ---
     if (window.state.isPlayMode && s === 6) {
         let pm6 = document.getElementById('play-mode-6');
         if (!pm6) {
@@ -106,7 +102,6 @@ export function changeStep(s, updateGlobalState = true) {
         renderNpcTab();
     }
     
-    // --- SPECIAL: RITUALS INJECTION FOR PHASE 6 (EDIT MODE) ---
     if (!window.state.isPlayMode && s === 6) {
         renderRitualsEdit();
     }
@@ -117,7 +112,6 @@ export function changeStep(s, updateGlobalState = true) {
         window.state.currentPhase = s; 
     }
     
-    // Update Nav
     const nav = document.getElementById('sheet-nav');
     if (nav) {
         nav.innerHTML = '';
@@ -147,7 +141,6 @@ export function changeStep(s, updateGlobalState = true) {
 window.changeStep = changeStep;
 
 // --- XP MODE LOGIC ---
-
 export function toggleXpMode() {
     window.state.xpMode = !window.state.xpMode;
     document.body.classList.toggle('xp-mode', window.state.xpMode);
@@ -181,19 +174,11 @@ window.toggleXpMode = toggleXpMode;
 
 export function renderXpSidebar() {
     if (!window.state.xpMode) return;
-    
     const log = window.state.xpLog || [];
-    let buckets = {
-        newAbil: 0, newDisc: 0, newPath: 0,
-        attr: 0, abil: 0,
-        clanDisc: 0, otherDisc: 0, caitiffDisc: 0,
-        secPath: 0, virt: 0, humanity: 0, willpower: 0
-    };
-
+    let buckets = { newAbil: 0, newDisc: 0, newPath: 0, attr: 0, abil: 0, clanDisc: 0, otherDisc: 0, caitiffDisc: 0, secPath: 0, virt: 0, humanity: 0, willpower: 0 };
     const clan = window.state.textFields['c-clan'] || document.getElementById('c-clan')?.value || "None";
     const isCaitiff = clan === "Caitiff";
     const clanDiscs = CLAN_DISCIPLINES[clan] || [];
-
     const primThaum = window.state.primaryThaumPath;
     const primNecro = window.state.primaryNecroPath;
 
@@ -202,26 +187,18 @@ export function renderXpSidebar() {
         const name = entry.trait || "";
         const type = entry.type;
         const cost = entry.cost;
-
-        if (type === 'abil') {
-            if (isNew) buckets.newAbil += cost; else buckets.abil += cost;
-        } 
-        else if (type === 'attr') {
-            buckets.attr += cost;
-        }
+        if (type === 'abil') { if (isNew) buckets.newAbil += cost; else buckets.abil += cost; } 
+        else if (type === 'attr') buckets.attr += cost;
         else if (type === 'disc') {
             const isPrimary = (name === primThaum || name === primNecro);
             const isPathName = name.toLowerCase().includes('path');
-            
-            if (isPathName && !isPrimary) {
-                if (isNew) buckets.newPath += cost; else buckets.secPath += cost; 
-            } else {
+            if (isPathName && !isPrimary) { if (isNew) buckets.newPath += cost; else buckets.secPath += cost; } 
+            else {
                 if (isNew) buckets.newDisc += cost;
                 else {
                     let checkName = name;
                     if (name === primThaum) checkName = 'Thaumaturgy';
                     if (name === primNecro) checkName = 'Necromancy';
-
                     if (isCaitiff) buckets.caitiffDisc += cost;
                     else if (clanDiscs.includes(checkName)) buckets.clanDisc += cost;
                     else buckets.otherDisc += cost;
@@ -236,40 +213,20 @@ export function renderXpSidebar() {
 
     const sb = document.getElementById('xp-sidebar');
     if (!sb) return;
-
     const toggleBtn = document.getElementById('xp-sb-toggle-btn');
     sb.innerHTML = '';
     if (toggleBtn) sb.appendChild(toggleBtn);
-
-    const title = document.createElement('h3');
-    title.className = "heading text-purple-400 text-sm border-b border-purple-500 pb-2 mb-4 text-center";
-    title.innerText = "Experience Ledger";
-    sb.appendChild(title);
-
-    const listDiv = document.createElement('div');
-    listDiv.className = "space-y-2 text-xs";
-
-    const addRow = (label, val, highlight = false) => {
-        const row = document.createElement('div');
-        row.className = "cost-row";
-        const valClass = highlight ? "text-purple-300 font-bold" : "text-gray-400 font-bold";
-        row.innerHTML = `<span class="text-gray-400">${label}</span><span class="cost-val ${valClass} bg-black/95 z-10 shrink-0">${val}</span>`;
-        listDiv.appendChild(row);
-    };
-
+    const title = document.createElement('h3'); title.className = "heading text-purple-400 text-sm border-b border-purple-500 pb-2 mb-4 text-center"; title.innerText = "Experience Ledger"; sb.appendChild(title);
+    const listDiv = document.createElement('div'); listDiv.className = "space-y-2 text-xs";
+    const addRow = (label, val, highlight = false) => { const row = document.createElement('div'); row.className = "cost-row"; const valClass = highlight ? "text-purple-300 font-bold" : "text-gray-400 font-bold"; row.innerHTML = `<span class="text-gray-400">${label}</span><span class="cost-val ${valClass} bg-black/95 z-10 shrink-0">${val}</span>`; listDiv.appendChild(row); };
+    
     addRow("New Ability (3)", buckets.newAbil);
     addRow("New Discipline (10)", buckets.newDisc);
     addRow("New Path (7)", buckets.newPath);
     addRow("Attribute (Cur x4)", buckets.attr);
     addRow("Ability (Cur x2)", buckets.abil);
-    
-    if (isCaitiff) {
-        addRow("Discipline (Cur x6)*", buckets.caitiffDisc, true);
-    } else {
-        addRow("Clan Disc (Cur x5)*", buckets.clanDisc);
-        addRow("Other Disc (Cur x7)*", buckets.otherDisc);
-    }
-    
+    if (isCaitiff) addRow("Discipline (Cur x6)*", buckets.caitiffDisc, true);
+    else { addRow("Clan Disc (Cur x5)*", buckets.clanDisc); addRow("Other Disc (Cur x7)*", buckets.otherDisc); }
     addRow("Sec. Path (Cur x4)", buckets.secPath);
     addRow("Virtue (Cur x2)**", buckets.virt);
     addRow("Humanity/Path (Cur x2)", buckets.humanity);
@@ -277,57 +234,25 @@ export function renderXpSidebar() {
 
     const totalSpent = Object.values(buckets).reduce((a,b) => a+b, 0);
     const totalEarned = parseInt(document.getElementById('c-xp-total')?.value) || 0;
-    
-    const divTotal = document.createElement('div');
-    divTotal.className = "mt-4 pt-2 border-t border-[#444] flex justify-between font-bold text-sm";
-    divTotal.innerHTML = `<span>Total Spent:</span><span class="text-purple-400">${totalSpent}</span>`;
-    listDiv.appendChild(divTotal);
-
-    const divRemain = document.createElement('div');
-    divRemain.className = "flex justify-between font-bold text-sm";
-    divRemain.innerHTML = `<span>Remaining:</span><span class="text-white">${totalEarned - totalSpent}</span>`;
-    listDiv.appendChild(divRemain);
-
+    const divTotal = document.createElement('div'); divTotal.className = "mt-4 pt-2 border-t border-[#444] flex justify-between font-bold text-sm"; divTotal.innerHTML = `<span>Total Spent:</span><span class="text-purple-400">${totalSpent}</span>`; listDiv.appendChild(divTotal);
+    const divRemain = document.createElement('div'); divRemain.className = "flex justify-between font-bold text-sm"; divRemain.innerHTML = `<span>Remaining:</span><span class="text-white">${totalEarned - totalSpent}</span>`; listDiv.appendChild(divRemain);
     sb.appendChild(listDiv);
 
-    const logContainer = document.createElement('div');
-    logContainer.className = "mt-4";
-    logContainer.innerHTML = `<h4 class="text-[9px] uppercase text-gray-500 font-bold mb-1 tracking-wider">Session Log</h4>`;
-    const logInner = document.createElement('div');
-    logInner.id = "xp-log-recent";
-    logInner.className = "text-[9px] text-gray-400 h-24 overflow-y-auto border border-[#333] p-1 font-mono bg-white/5";
-    
-    if(log.length > 0) {
-        logInner.innerHTML = log.slice().reverse().map(l => {
-            const d = new Date(l.date).toLocaleDateString();
-            return `<div>[${d}] ${l.trait} -> ${l.new} (${l.cost}xp)</div>`;
-        }).join('');
-    }
-    logContainer.appendChild(logInner);
-    sb.appendChild(logContainer);
-
-    const footer = document.createElement('div');
-    footer.className = "mt-4 pt-2 border-t border-[#444] text-[8px] text-gray-500 italic leading-tight";
-    let footerText = `<div>** Virtues do not raise Traits.</div>`;
-    if (isCaitiff) footerText += `<div class="mt-1 text-purple-400">* Caitiff cost is x6 (Curse/Blessing).</div>`;
-    else footerText += `<div class="mt-1">* In-Clan/Out-of-Clan multiplier.</div>`;
-    footer.innerHTML = footerText;
-    sb.appendChild(footer);
+    const logContainer = document.createElement('div'); logContainer.className = "mt-4"; logContainer.innerHTML = `<h4 class="text-[9px] uppercase text-gray-500 font-bold mb-1 tracking-wider">Session Log</h4>`;
+    const logInner = document.createElement('div'); logInner.id = "xp-log-recent"; logInner.className = "text-[9px] text-gray-400 h-24 overflow-y-auto border border-[#333] p-1 font-mono bg-white/5";
+    if(log.length > 0) { logInner.innerHTML = log.slice().reverse().map(l => { const d = new Date(l.date).toLocaleDateString(); return `<div>[${d}] ${l.trait} -> ${l.new} (${l.cost}xp)</div>`; }).join(''); }
+    logContainer.appendChild(logInner); sb.appendChild(logContainer);
+    const footer = document.createElement('div'); footer.className = "mt-4 pt-2 border-t border-[#444] text-[8px] text-gray-500 italic leading-tight"; let footerText = `<div>** Virtues do not raise Traits.</div>`; if (isCaitiff) footerText += `<div class="mt-1 text-purple-400">* Caitiff cost is x6 (Curse/Blessing).</div>`; else footerText += `<div class="mt-1">* In-Clan/Out-of-Clan multiplier.</div>`; footer.innerHTML = footerText; sb.appendChild(footer);
 }
 window.renderXpSidebar = renderXpSidebar;
 
-export function toggleXpSidebarLedger() {
-    document.getElementById('xp-sidebar').classList.toggle('open');
-}
+export function toggleXpSidebarLedger() { document.getElementById('xp-sidebar').classList.toggle('open'); }
 window.toggleXpSidebarLedger = toggleXpSidebarLedger;
 
 // --- FREEBIE MODE LOGIC ---
-
 export function toggleFreebieMode() {
      window.state.freebieMode = !window.state.freebieMode;
-     
      if (window.state.freebieMode && window.state.xpMode) toggleXpMode();
-     
      document.body.classList.toggle('freebie-mode', window.state.freebieMode);
      const fbBtn = document.getElementById('toggle-freebie-btn');
      const fbBtnText = document.getElementById('freebie-btn-text');
@@ -336,118 +261,46 @@ export function toggleFreebieMode() {
      const mMsg = document.getElementById('merit-locked-msg'); const fMsg = document.getElementById('flaw-locked-msg');
      if(mMsg) mMsg.style.display = window.state.freebieMode ? 'none' : 'block';
      if(fMsg) fMsg.style.display = window.state.freebieMode ? 'none' : 'block';
-     
      if(window.fullRefresh) window.fullRefresh();
 }
 window.toggleFreebieMode = toggleFreebieMode;
-
 export function toggleSidebarLedger() { document.getElementById('freebie-sidebar').classList.toggle('open'); }
 window.toggleSidebarLedger = toggleSidebarLedger;
 
 
-// --- WALKTHROUGH / GUIDE SYSTEM ---
+// --- WALKTHROUGH / GUIDE SYSTEM (Phase Info) ---
 
 const STEP_FOUR_TEXT = `
     <p>Advantages make the vampire a contender in the hierarchy of the night.</p>
     <h4 class="text-gold mt-2 font-bold uppercase">Disciplines (3 Dots)</h4>
-    <p>Each character begins with <strong>3 dots</strong> of Disciplines. These must be from your Clan Disciplines (unless Caitiff). You may spend all three on one, or spread them out.</p>
+    <p>Each character begins with <strong>3 dots</strong> of Disciplines. These must be from your Clan Disciplines (unless Caitiff).</p>
     <h4 class="text-gold mt-2 font-bold uppercase">Backgrounds (5 Dots)</h4>
-    <p>A starting character has <strong>5 dots</strong> worth of Backgrounds to distribute at your discretion.</p>
-    <p class="mt-2 text-sm italic">Optional: At Storyteller discretion, Sabbat vampires may take 4 dots in Disciplines instead of Backgrounds.</p>
+    <p>A starting character has <strong>5 dots</strong> worth of Backgrounds.</p>
     <h4 class="text-gold mt-2 font-bold uppercase">Virtues (7 Dots)</h4>
-    <p>Virtues determine how well the character resists the Beast. Every character starts with 1 dot in Conscience and Self-Control (or Conviction/Instinct for Sabbat). You have <strong>7 additional dots</strong>.</p>
+    <p>Virtues determine how well the character resists the Beast. Every character starts with 1 dot in Conscience, Self-Control, and Courage. You have <strong>7 additional dots</strong>.</p>
 `;
 
 const GUIDE_TEXT = {
-    1: { 
-        title: "Step One: Character Concept",
-        body: `
-            <p>Concept is the birthing chamber for who a character will become. It only needs to be a general idea — brute; slick mobster; manic Malkavian kidnapper.</p>
-            <h4 class="text-gold mt-2 font-bold uppercase">Concept</h4>
-            <p>Refers to who the character was before becoming a vampire.</p>
-            <h4 class="text-gold mt-2 font-bold uppercase">Clan</h4>
-            <p>A character’s Clan is her vampire “family.” Vampires are always of the same Clan as their sires.</p>
-            <h4 class="text-gold mt-2 font-bold uppercase">Nature & Demeanor</h4>
-            <ul class="list-disc pl-4 mt-1"><li><strong>Demeanor:</strong> The mask worn for the world.</li><li><strong>Nature:</strong> The character's true self.</li></ul>
-        `
-    },
-    2: { 
-        title: "Step Two: Select Attributes",
-        body: `
-            <p>Attributes are the natural abilities. Prioritize your categories:</p>
-            <ul class="list-disc pl-4 mt-1"><li><strong>Primary:</strong> 7 dots</li><li><strong>Secondary:</strong> 5 dots</li><li><strong>Tertiary:</strong> 3 dots</li></ul>
-            <p class="mt-2 text-sm italic">Note: All characters start with one dot in each Attribute automatically.</p>
-        `
-    },
-    3: { 
-        title: "Step Three: Select Abilities",
-        body: `
-            <p>Prioritize your categories:</p>
-            <ul class="list-disc pl-4 mt-1"><li><strong>Primary:</strong> 13 dots</li><li><strong>Secondary:</strong> 9 dots</li><li><strong>Tertiary:</strong> 5 dots</li></ul>
-            <p class="mt-2 text-sm italic">Note: No Ability may be purchased above 3 dots during this stage.</p>
-        `
-    },
+    1: { title: "Step One: Character Concept", body: `<p>Concept is the birthing chamber... Select Name, Player, Chronicle, Clan, Nature, Demeanor, and Generation.</p>` },
+    2: { title: "Step Two: Select Attributes", body: `<p>Prioritize Categories (Physical, Social, Mental): 7 / 5 / 3 dots. All Attributes start at 1.</p>` },
+    3: { title: "Step Three: Select Abilities", body: `<p>Prioritize Categories (Talents, Skills, Knowledges): 13 / 9 / 5 dots. Max 3 dots in creation.</p>` },
     4: { title: "Step Four: Advantages", body: STEP_FOUR_TEXT },
-    
-    5: { 
-        title: "Step Five: Supernatural & Traits", 
-        body: `
-            <p>Flesh out the supernatural quirks and bonds of your character.</p>
-            <h4 class="text-gold mt-2 font-bold uppercase">Merits & Flaws</h4>
-            <p>Use the <strong>Freebie Mode</strong> toggle to purchase Merits or add Flaws (which give extra points).</p>
-            <h4 class="text-gold mt-2 font-bold uppercase">Rituals & Bonds</h4>
-            <p>If you have Thaumaturgy or Necromancy, add your rituals here. Record Blood Bonds or Vinculum ratings if applicable.</p>
-            <h4 class="text-gold mt-2 font-bold uppercase">Derangements</h4>
-            <p>Add specific mental afflictions here. Malkavians start with one incurable derangement.</p>
-        `
-    },
-    
-    6: { 
-        title: "Step Six: Gear & Assets", 
-        body: `
-            <p>Manage your physical assets, combat capabilities, and safehouses.</p>
-            <h4 class="text-gold mt-2 font-bold uppercase">Inventory & Combat</h4>
-            <p>Add Weapons, Armor, and Vehicles. Toggling items to <strong>"Carried"</strong> will automatically add their attacks to your Play Sheet and apply Armor ratings to soak rolls.</p>
-            <h4 class="text-gold mt-2 font-bold uppercase">Havens</h4>
-            <p>Describe your safehouses, their locations, and security measures.</p>
-        `
-    },
-    
-    7: { 
-        title: "Step Seven: Biography", 
-        body: `
-            <p>Bring the character to life with details.</p>
-            <h4 class="text-gold mt-2 font-bold uppercase">Background Descriptions</h4>
-            <p>Provide specific details for your chosen Backgrounds (e.g., who is your Mentor? What is your Domain?).</p>
-            <h4 class="text-gold mt-2 font-bold uppercase">Vitals & Goals</h4>
-            <p>Record physical description, apparent age, and set your character's Short and Long Term goals.</p>
-        `
-    },
-    
-    8: { 
-        title: "Step Eight: Final Touches",
-        body: `
-            <h4 class="text-gold mt-2 font-bold uppercase">Calculated Traits</h4>
-            <p>Review your derived stats. These are calculated automatically but can be adjusted.</p>
-            <ul class="list-disc pl-4 mt-1">
-                <li><strong>Humanity:</strong> Sum of Conscience + Self-Control.</li>
-                <li><strong>Willpower:</strong> Equal to Courage rating.</li>
-                <li><strong>Blood Pool:</strong> Determined by Generation.</li>
-            </ul>
-            <h4 class="text-gold mt-2 font-bold uppercase">Freebie Points</h4>
-            <p>Use <strong>Freebie Mode</strong> (15 pts) at any time to finalize dots.</p>
-        `
-    }
+    5: { title: "Step Five: Supernatural", body: `<p>Add Merits/Flaws (Freebie Mode), Rituals, and Blood Bonds.</p>` },
+    6: { title: "Step Six: Gear & Assets", body: `<p>Manage Inventory, Weapons, Armor, and Havens.</p>` },
+    7: { title: "Step Seven: Biography", body: `<p>Describe Backgrounds, Appearance, Languages, and Goals.</p>` },
+    8: { title: "Step Eight: Final Touches", body: `<p>Review Calculated Traits (Humanity, Willpower, Blood) and spend Freebies.</p>` }
 };
 
-function createWalkthroughButton() {
-    if (document.getElementById('walkthrough-btn')) return;
+// --- THIS BUTTON SHOWS PHASE INFO (Bottom Left) ---
+// RENAMED from createWalkthroughButton to createPhaseInfoButton to avoid conflict
+function createPhaseInfoButton() {
+    if (document.getElementById('phase-info-btn')) return;
     const btn = document.createElement('button');
-    btn.id = 'walkthrough-btn';
+    btn.id = 'phase-info-btn';
     btn.className = "fixed bottom-5 left-5 z-[100] w-10 h-10 rounded-full bg-[#333] border border-[#d4af37] text-[#d4af37] hover:bg-[#d4af37] hover:text-black transition-all flex items-center justify-center shadow-[0_0_10px_rgba(0,0,0,0.8)]";
     btn.innerHTML = '<i class="fas fa-question text-lg"></i>';
-    btn.title = "Character Creation Walkthrough";
-    btn.onclick = () => window.startTutorial(window.state.isPlayMode ? 'play' : 'creation');
+    btn.title = "Current Step Info";
+    btn.onclick = window.showCurrentPhaseInfo; // Calls the modal logic
     document.body.appendChild(btn);
 }
 
@@ -459,13 +312,13 @@ function createWalkthroughModal() {
     modal.innerHTML = `
         <div class="bg-[#1a1a1a] border-2 border-[#d4af37] rounded-lg max-w-lg w-full max-h-[80vh] flex flex-col shadow-[0_0_20px_rgba(212,175,55,0.2)]">
             <div class="p-3 border-b border-[#333] flex justify-between items-center bg-[#111]">
-                <h3 id="wt-title" class="text-gold font-serif font-bold text-lg uppercase tracking-wider">Walkthrough</h3>
-                <button onclick="window.toggleWalkthrough()" class="text-gray-400 hover:text-white text-xl">&times;</button>
+                <h3 id="wt-title" class="text-gold font-serif font-bold text-lg uppercase tracking-wider">Step Info</h3>
+                <button onclick="window.showCurrentPhaseInfo()" class="text-gray-400 hover:text-white text-xl">&times;</button>
             </div>
             <div id="wt-body" class="p-5 overflow-y-auto text-gray-300 text-sm leading-relaxed flex-1 font-serif"></div>
             <div class="p-3 border-t border-[#333] bg-[#111] flex justify-between items-center">
                 <span class="text-[10px] text-gray-500 italic">V20 Core Rules</span>
-                <button onclick="window.toggleWalkthrough()" class="px-4 py-1 bg-[#8b0000] hover:bg-red-700 text-white text-xs font-bold rounded uppercase">Close</button>
+                <button onclick="window.showCurrentPhaseInfo()" class="px-4 py-1 bg-[#8b0000] hover:bg-red-700 text-white text-xs font-bold rounded uppercase">Close</button>
             </div>
         </div>
     `;
@@ -482,7 +335,8 @@ function renderWalkthroughModalContent() {
     bodyEl.innerHTML = data.body;
 }
 
-window.toggleWalkthrough = function() {
+// Renamed for clarity: This toggles the text-based modal for the current phase
+window.showCurrentPhaseInfo = function() {
     createWalkthroughModal(); 
     const modal = document.getElementById('walkthrough-modal');
     if (modal.classList.contains('hidden')) {
@@ -498,87 +352,27 @@ window.toggleWalkthrough = function() {
 // ==========================================================================
 
 const CREATION_TUTORIAL_STEPS = [
-    {
-        title: "Welcome to V20",
-        content: "This tool helps you create and manage Vampire: The Masquerade characters.<br><br>Let's take a quick tour of the interface.",
-        targetId: "main-menubar",
-        phase: 1
-    },
-    {
-        title: "Navigation",
-        content: "Use the side (or bottom) navigation bar to switch between the 8 Phases of character creation.<br><br>Validation rules prevent moving forward until requirements are met.",
-        targetId: "sheet-nav",
-        phase: 1
-    },
-    {
-        title: "Data Entry",
-        content: "Enter your character details here. All text inputs save automatically to your browser's local storage as you type.",
-        targetId: "phase-1", 
-        phase: 1
-    },
-    {
-        title: "Attributes & Dots",
-        content: "Click dots to assign traits. In Creation Mode, the system validates against the 7/5/3 priority rules automatically.",
-        targetId: "list-attr-physical", 
-        phase: 2
-    },
-    {
-        title: "Freebie Mode",
-        content: "Toggle <strong>Freebie Mode</strong> to spend your 15 starting points on Merits, extra dots, or Flaws. This unlocks inputs normally restricted by creation rules.",
-        targetId: "toggle-freebie-btn",
-        phase: 1
-    },
-    {
-        title: "Play Mode",
-        content: "Click <strong>Play</strong> to switch to the interactive character sheet used during game sessions. This locks editing and enables the Dice Roller.",
-        targetId: "play-mode-btn",
-        phase: 1
-    },
-    {
-        title: "Save & Export",
-        content: "<strong>Save</strong> creates a cloud record (if logged in).<br><strong>Export</strong> downloads a JSON file to your device for local backup.",
-        targetId: ["file-actions-group", "utils-group"],
-        phase: 1
-    }
+    { title: "Welcome to V20", content: "This tool helps you create and manage Vampire: The Masquerade characters.<br><br>Let's take a quick tour.", targetId: "main-menubar", phase: 1 },
+    { title: "Navigation", content: "Use the navigation bar to switch between the 8 Phases of character creation.", targetId: "sheet-nav", phase: 1 },
+    { title: "Data Entry", content: "Enter your character details here. All text inputs save automatically to your browser's local storage.", targetId: "phase-1", phase: 1 },
+    { title: "Attributes & Dots", content: "Click dots to assign traits. In Creation Mode, the system validates against priority rules.", targetId: "list-attr-physical", phase: 2 },
+    { title: "Freebie Mode", content: "Toggle <strong>Freebie Mode</strong> to spend starting points on Merits or extra dots.", targetId: "toggle-freebie-btn", phase: 1 },
+    { title: "Play Mode", content: "Click <strong>Play</strong> to switch to the interactive character sheet for game sessions.", targetId: "play-mode-btn", phase: 1 },
+    { title: "Save & Export", content: "<strong>Save</strong> to cloud (login required).<br><strong>Export</strong> JSON for local backup.", targetId: ["file-actions-group", "utils-group"], phase: 1 }
 ];
 
 const PLAY_TUTORIAL_STEPS = [
-    {
-        title: "Play Mode Overview",
-        content: "This is your active character sheet. Editing is disabled here to prevent accidental changes during play.",
-        targetId: "play-mode-sheet",
-        phase: 1
-    },
-    {
-        title: "Interactive Traits",
-        content: "Click any Attribute, Ability, or Discipline name to add it to the Dice Pool.",
-        targetId: "play-row-attr", 
-        phase: 1
-    },
-    {
-        title: "Interactive Pools",
-        content: "Click boxes to track Health, Willpower, and Blood usage. These update in real-time.",
-        targetId: "willpower-boxes-play", 
-        phase: 1
-    },
-    {
-        title: "Dice Engine",
-        content: "The Dice Tray slides up when you select traits. You can roll, add modifiers, or clear the pool.",
-        targetId: "dice-toggle-btn", 
-        phase: 1
-    },
-    {
-        title: "Journal & NPCs",
-        content: "Use these tabs to track session logs, experience, and manage Ghouls or Retainers.",
-        targetId: "sheet-nav", 
-        phase: 1
-    }
+    { title: "Play Mode Overview", content: "This is your active character sheet. Editing is disabled here.", targetId: "play-mode-sheet", phase: 1 },
+    { title: "Interactive Traits", content: "Click any Attribute, Ability, or Discipline name to add it to the Dice Pool.", targetId: "play-row-attr", phase: 1 },
+    { title: "Interactive Pools", content: "Click boxes to track Health, Willpower, and Blood usage.", targetId: "willpower-boxes-play", phase: 1 },
+    { title: "Dice Engine", content: "The Dice Tray slides up when you select traits.", targetId: "dice-toggle-btn", phase: 1 },
+    { title: "Journal & NPCs", content: "Use these tabs to track session logs and manage Retainers.", targetId: "sheet-nav", phase: 1 }
 ];
 
 let currentTutorialStep = 0;
-let preTutorialPhase = 1; // State to restore
+let preTutorialPhase = 1; 
 let activeTutorialSteps = [];
-let activeTutorialKey = 'creation'; // 'creation' or 'play'
+let activeTutorialKey = 'creation'; 
 
 export function startTutorial(mode = 'creation') {
     currentTutorialStep = 0;
@@ -599,32 +393,20 @@ window.startTutorial = startTutorial;
 export function renderTutorialStep() {
     const data = activeTutorialSteps[currentTutorialStep];
     if (!data) return;
-
-    // 1. Cleanup Previous Highlights
     document.querySelectorAll('.tutorial-highlight').forEach(el => el.classList.remove('tutorial-highlight'));
-
-    // 2. Switch Phase if needed (but DON'T unlock via updateGlobalState=false)
     if (data.phase && window.state.currentPhase !== data.phase) {
-        changeStep(data.phase, false);
+        changeStep(data.phase, false); // Don't unlock
     }
-
-    // 3. Highlight Target (Single or Multiple)
     if (data.targetId) {
         const targets = Array.isArray(data.targetId) ? data.targetId : [data.targetId];
-        
         targets.forEach(id => {
             const target = document.getElementById(id);
             if (target) {
                 target.classList.add('tutorial-highlight');
-                // Scroll the *first* target into view
-                if (id === targets[0]) {
-                    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                }
+                if (id === targets[0]) target.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }
         });
     }
-
-    // 4. Update Modal Content
     const titleEl = document.getElementById('tut-title');
     const contentEl = document.getElementById('tut-content');
     const indicatorEl = document.getElementById('tut-step-indicator');
@@ -634,46 +416,24 @@ export function renderTutorialStep() {
     if (titleEl) titleEl.innerText = data.title;
     if (contentEl) contentEl.innerHTML = data.content;
     if (indicatorEl) indicatorEl.innerText = `Step ${currentTutorialStep + 1} of ${activeTutorialSteps.length}`;
-
-    if (prevBtn) {
-        prevBtn.classList.toggle('hidden', currentTutorialStep === 0);
-    }
-    
-    if (nextBtn) {
-        nextBtn.innerText = (currentTutorialStep === activeTutorialSteps.length - 1) ? "Finish" : "Next";
-    }
+    if (prevBtn) prevBtn.classList.toggle('hidden', currentTutorialStep === 0);
+    if (nextBtn) nextBtn.innerText = (currentTutorialStep === activeTutorialSteps.length - 1) ? "Finish" : "Next";
 }
 
 window.nextTutorialStep = function() {
-    if (currentTutorialStep < activeTutorialSteps.length - 1) {
-        currentTutorialStep++;
-        renderTutorialStep();
-    } else {
-        window.closeTutorial();
-    }
+    if (currentTutorialStep < activeTutorialSteps.length - 1) { currentTutorialStep++; renderTutorialStep(); } 
+    else { window.closeTutorial(); }
 };
-
 window.prevTutorialStep = function() {
-    if (currentTutorialStep > 0) {
-        currentTutorialStep--;
-        renderTutorialStep();
-    }
+    if (currentTutorialStep > 0) { currentTutorialStep--; renderTutorialStep(); }
 };
 
 window.closeTutorial = function() {
     const overlay = document.getElementById('tutorial-overlay');
-    if (overlay) {
-        overlay.classList.remove('active');
-        overlay.classList.add('hidden');
-    }
-    
+    if (overlay) { overlay.classList.remove('active'); overlay.classList.add('hidden'); }
     document.body.classList.remove('tutorial-active');
     document.querySelectorAll('.tutorial-highlight').forEach(el => el.classList.remove('tutorial-highlight'));
-    
-    // RESTORE PHASE (Go back to where they started)
     changeStep(preTutorialPhase, false);
-    
-    // Save completion state based on active tutorial
     const key = activeTutorialKey === 'play' ? 'v20_play_tutorial_complete' : 'v20_tutorial_complete';
     localStorage.setItem(key, 'true');
 };
@@ -686,7 +446,7 @@ window.dismissGuestPrompt = function() {
 };
 
 document.addEventListener('DOMContentLoaded', () => {
-    createWalkthroughButton();
+    createPhaseInfoButton(); // Creates the ? button that calls showCurrentPhaseInfo
     window.startTutorial = startTutorial;
     window.dismissGuestPrompt = window.dismissGuestPrompt || function() {
         const modal = document.getElementById('guest-prompt-modal');
