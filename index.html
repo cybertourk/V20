@@ -22,6 +22,33 @@
         #beast-play-container .section-title { 
             display: none !important; 
         }
+
+        /* --- TUTORIAL HIGHLIGHTER --- */
+        .tutorial-highlight {
+            position: relative;
+            z-index: 10002 !important; /* Above modal overlay if needed, or just high visibility */
+            box-shadow: 0 0 0 4px #d4af37, 0 0 0 5000px rgba(0, 0, 0, 0.85); /* Spotlight effect */
+            border-radius: 4px;
+            pointer-events: none; /* Let clicks pass through if needed, though usually we block interaction during tut */
+            transition: all 0.3s ease;
+        }
+        
+        /* Adjust overlay to be transparent when spotlight is active */
+        body.tutorial-active .modal-overlay#tutorial-modal {
+            background: transparent; /* Let the spotlight do the darkening */
+            pointer-events: none; /* Let users click "Next" in the floating box */
+        }
+        
+        body.tutorial-active .modal-box {
+            pointer-events: auto; /* Re-enable clicking on the tutorial box itself */
+            position: fixed; /* Keep it fixed */
+            bottom: 20px; /* Move to bottom or side */
+            right: 20px;
+            width: 300px; /* Smaller box */
+            top: auto;
+            left: auto;
+            transform: none !important;
+        }
     </style>
 </head>
 <body class="p-2 md:p-8 bg-black text-white font-serif">
@@ -62,7 +89,7 @@
                 <div class="h-8 w-px bg-[#333]"></div>
 
                 <!-- File Actions (Always Visible, Scrollable) -->
-                <div class="flex items-center gap-2 bg-black/40 px-4 py-1.5 rounded-full border border-[#222]">
+                <div id="file-actions-group" class="flex items-center gap-2 bg-black/40 px-4 py-1.5 rounded-full border border-[#222]">
                     <button type="button" id="cmd-new" class="text-xs text-gray-400 font-bold uppercase hover:text-white hover:bg-[#222] px-3 py-1 rounded transition border border-transparent hover:border-[#444]">
                         <i class="fas fa-file-circle-plus mr-1"></i> New
                     </button>
@@ -713,11 +740,15 @@
             <h2 class="text-xl text-red-500 font-cinzel font-bold mb-4 border-b border-red-900 pb-2 uppercase tracking-wider text-center">Guest Access Detected</h2>
             <div class="p-4 text-center space-y-4">
                 <p class="text-sm text-gray-300">You are currently using the V20 Creator as a <strong class="text-white">Guest</strong>.</p>
-                <p class="text-xs text-gray-400 italic">Your characters will only be saved to this specific browser's local storage. To sync across devices and ensure permanent storage, please create an account.</p>
+                <p class="text-xs text-gray-400 italic">Your characters will only be saved to this specific browser's local storage.</p>
                 
+                <div class="bg-blue-900/20 border border-blue-900/50 p-2 rounded text-[10px] text-blue-200">
+                    <i class="fas fa-file-export mr-1"></i> <strong>Pro Tip:</strong> You can use the <strong>Export JSON</strong> feature in the top toolbar to save your character file to your device and <strong>Import</strong> it later!
+                </div>
+
                 <div class="flex flex-col gap-3 mt-6">
                     <button onclick="document.getElementById('guest-prompt-modal').classList.remove('active'); document.getElementById('auth-modal').classList.add('active');" class="bg-[#d4af37] text-black px-6 py-2 text-xs uppercase font-bold hover:bg-[#fcd34d] shadow-lg tracking-widest w-full">
-                        Login / Register
+                        Login / Register (Sync Cloud)
                     </button>
                     <button onclick="window.dismissGuestPrompt()" class="border border-[#444] text-gray-400 px-6 py-2 text-xs uppercase font-bold hover:bg-[#222] hover:text-white transition w-full">
                         Continue as Guest
