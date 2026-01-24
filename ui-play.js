@@ -67,9 +67,9 @@ export function togglePlayMode() {
     const pBtnText = document.getElementById('play-btn-text');
     if(pBtnText) pBtnText.innerText = window.state.isPlayMode ? "Edit" : "Play";
     
-    // Toggle Walkthrough Button Visibility
-    // We keep the Tutorial Button visible in Play Mode now
-    const guideBtn = document.getElementById('walkthrough-btn');
+    // Toggle Walkthrough/Phase Info Button Visibility
+    // The "Question Mark" (Phase Info) should hide in Play Mode
+    const guideBtn = document.getElementById('phase-info-btn');
     if(guideBtn) {
         if(window.state.isPlayMode) guideBtn.classList.add('hidden');
         else guideBtn.classList.remove('hidden');
@@ -248,7 +248,6 @@ export function showWillpowerInfo(e) {
     
     const nature = window.state.textFields['c-nature'] || document.getElementById('c-nature')?.value || "None";
     
-    // Look up rule safely
     let rule = "Standard rules apply. See V20 Core Rules p. 267.";
     if (ARCHETYPE_RULES && ARCHETYPE_RULES[nature]) {
         rule = ARCHETYPE_RULES[nature];
@@ -266,7 +265,7 @@ export function showWillpowerInfo(e) {
         modal.classList.add('active');
     }
 }
-window.showWillpowerInfo = showWillpowerInfo; // Expose to window for inline onclick
+window.showWillpowerInfo = showWillpowerInfo; 
 
 // --- RENDER HELPERS ---
 
@@ -1033,3 +1032,50 @@ export function updateRitualsPlayView() {
     playCont.className = "";
 }
 window.updateRitualsPlayView = updateRitualsPlayView;
+
+// --- WILLPOWER REGAIN INFO INJECTION ---
+function injectWillpowerInfo() {
+    const sections = document.querySelectorAll('#play-mode-sheet .section-title');
+    let wpTitleEl = null;
+    
+    sections.forEach(el => {
+        // Check if it's the Willpower header and doesn't already have the button
+        if (el.innerText.includes("Willpower") && !el.querySelector('#wp-info-btn')) {
+            wpTitleEl = el;
+        }
+    });
+
+    if (wpTitleEl) {
+        wpTitleEl.style.display = 'flex';
+        wpTitleEl.style.justifyContent = 'center';
+        wpTitleEl.style.alignItems = 'center';
+        wpTitleEl.style.gap = '8px';
+        
+        // Rebuild inner HTML to include icon with inline onclick
+        wpTitleEl.innerHTML = `WILLPOWER <i id="wp-info-btn" class="fas fa-info-circle text-[10px] text-gray-500 hover:text-white cursor-pointer transition-colors" title="Regaining Willpower" onclick="window.showWillpowerInfo(event)"></i>`;
+    }
+}
+
+export function showWillpowerInfo(e) {
+    if(e) e.stopPropagation();
+    
+    const nature = window.state.textFields['c-nature'] || document.getElementById('c-nature')?.value || "None";
+    
+    let rule = "Standard rules apply. See V20 Core Rules p. 267.";
+    if (ARCHETYPE_RULES && ARCHETYPE_RULES[nature]) {
+        rule = ARCHETYPE_RULES[nature];
+    }
+    
+    const modal = document.getElementById('willpower-info-modal');
+    if (modal) {
+        const ruleContainer = document.getElementById('wp-nature-rule');
+        if (ruleContainer) {
+            ruleContainer.innerHTML = `
+                <div class="text-[10px] font-bold text-blue-300 uppercase mb-1">Nature: ${nature}</div>
+                <div class="text-xs text-white italic">"${rule}"</div>
+            `;
+        }
+        modal.classList.add('active');
+    }
+}
+window.showWillpowerInfo = showWillpowerInfo;
