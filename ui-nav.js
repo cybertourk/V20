@@ -538,8 +538,11 @@ export function startTutorial() {
     currentTutorialStep = 0;
     document.body.classList.add('tutorial-active');
     renderTutorialStep();
-    const modal = document.getElementById('tutorial-modal');
-    if (modal) modal.classList.add('active');
+    const overlay = document.getElementById('tutorial-overlay');
+    if (overlay) {
+        overlay.classList.remove('hidden');
+        overlay.classList.add('active');
+    }
 }
 window.startTutorial = startTutorial;
 
@@ -601,8 +604,11 @@ window.prevTutorialStep = function() {
 };
 
 window.closeTutorial = function() {
-    const modal = document.getElementById('tutorial-modal');
-    if (modal) modal.classList.remove('active');
+    const overlay = document.getElementById('tutorial-overlay');
+    if (overlay) {
+        overlay.classList.remove('active');
+        overlay.classList.add('hidden');
+    }
     
     document.body.classList.remove('tutorial-active');
     document.querySelectorAll('.tutorial-highlight').forEach(el => el.classList.remove('tutorial-highlight'));
