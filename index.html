@@ -26,35 +26,43 @@
         /* --- TUTORIAL HIGHLIGHTER --- */
         .tutorial-highlight {
             position: relative;
-            z-index: 100002 !important; /* Must be extremely high */
-            box-shadow: 0 0 0 4px #d4af37, 0 0 0 5000px rgba(0, 0, 0, 0.85); /* Spotlight effect */
+            z-index: 100005 !important; /* Must be highest */
+            box-shadow: 0 0 0 4px #d4af37, 0 0 0 9999px rgba(0, 0, 0, 0.85); /* Spotlight effect */
             border-radius: 4px;
-            pointer-events: none; /* Prevent interaction with the highlighted element during tutorial */
+            pointer-events: none; /* Block interaction with the highlighted element */
             transition: all 0.3s ease;
         }
-        
-        /* Adjust overlay to be transparent and non-blurring when tutorial is active */
-        /* This fixes the "blurred out" issue by removing the backdrop filter */
-        body.tutorial-active .modal-overlay#tutorial-modal {
-            background: transparent !important;
-            backdrop-filter: none !important;
-            pointer-events: none; /* Pass clicks through the empty overlay */
-            z-index: 100001 !important; /* Just below highlight */
+
+        /* --- DEDICATED TUTORIAL OVERLAY (No Blur) --- */
+        #tutorial-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 100006; /* Above the highlight */
+            display: none;
+            pointer-events: none; /* Pass clicks through (except for the box) */
+            /* NO background color or blur here, rely on the spotlight shadow */
         }
-        
-        /* Ensure the tutorial text box remains interactive and visible */
-        body.tutorial-active .modal-box {
-            pointer-events: auto;
-            position: fixed; 
-            bottom: 20px; 
+
+        #tutorial-overlay.active {
+            display: block;
+        }
+
+        #tutorial-overlay .tutorial-box {
+            pointer-events: auto; /* Re-enable clicks for the buttons */
+            position: fixed;
+            bottom: 20px;
             right: 20px;
             width: 300px;
-            top: auto;
-            left: auto;
-            transform: none !important;
-            z-index: 100003 !important; /* Above highlight */
             background-color: #0a0a0a;
             border: 2px solid #d4af37;
+            padding: 1.5rem;
+            box-shadow: 0 0 20px rgba(0,0,0,1);
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
         }
     </style>
 </head>
@@ -722,11 +730,11 @@
         </div>
     </div>
 
-    <!-- TUTORIAL MODAL -->
-    <div id="tutorial-modal" class="modal-overlay">
-        <div class="modal-box relative bg-[#0a0a0a] border-2 border-[#d4af37] w-full max-w-lg shadow-[0_0_40px_rgba(212,175,55,0.2)]">
+    <!-- TUTORIAL MODAL (DEDICATED OVERLAY) -->
+    <div id="tutorial-overlay" class="tutorial-overlay hidden">
+        <div class="tutorial-box relative">
             <button onclick="window.closeTutorial()" class="absolute top-2 right-3 text-gray-500 hover:text-white text-xl">&times;</button>
-            <div class="p-4">
+            <div class="p-0">
                 <h2 id="tut-title" class="text-2xl text-[#d4af37] font-cinzel font-bold mb-4 border-b border-[#333] pb-2 uppercase tracking-wider">Welcome Neonate</h2>
                 <div id="tut-content" class="text-sm text-gray-300 leading-relaxed font-serif min-h-[100px]"></div>
                 
