@@ -527,7 +527,7 @@ const TUTORIAL_STEPS = [
     {
         title: "Save & Export",
         content: "<strong>Save</strong> creates a cloud record (if logged in).<br><strong>Export</strong> downloads a JSON file to your device for local backup.",
-        targetId: "file-actions-group",
+        targetId: ["file-actions-group", "utils-group"],
         phase: 1
     }
 ];
@@ -558,13 +558,20 @@ export function renderTutorialStep() {
         changeStep(data.phase);
     }
 
-    // 3. Highlight Target
+    // 3. Highlight Target (Single or Multiple)
     if (data.targetId) {
-        const target = document.getElementById(data.targetId);
-        if (target) {
-            target.classList.add('tutorial-highlight');
-            target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
+        const targets = Array.isArray(data.targetId) ? data.targetId : [data.targetId];
+        
+        targets.forEach(id => {
+            const target = document.getElementById(id);
+            if (target) {
+                target.classList.add('tutorial-highlight');
+                // Scroll the *first* target into view
+                if (id === targets[0]) {
+                    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            }
+        });
     }
 
     // 4. Update Modal Content
