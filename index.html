@@ -577,7 +577,10 @@
 
                             <!-- Willpower -->
                             <div class="sheet-section">
-                                <div class="section-title">Willpower</div>
+                                <div class="section-title">
+                                    Willpower
+                                    <!-- Info Button Injected Here -->
+                                </div>
                                 <div id="willpower-dots-play" class="flex justify-center mb-4"></div>
                                 <div id="willpower-boxes-play" class="flex justify-center gap-1"></div>
                             </div>
@@ -727,6 +730,35 @@
                 </div>
             </form>
             
+        </div>
+    </div>
+
+    <!-- WILLPOWER INFO MODAL -->
+    <div id="willpower-info-modal" class="modal-overlay">
+        <div class="modal-box bg-[#0a0a0a] border border-[#d4af37] w-full max-w-lg shadow-[0_0_40px_rgba(212,175,55,0.2)]">
+            <div class="flex justify-between items-center mb-4 border-b border-[#333] pb-2">
+                <h2 class="text-xl text-[#d4af37] font-cinzel font-bold uppercase tracking-wider">Regaining Willpower</h2>
+                <button onclick="document.getElementById('willpower-info-modal').classList.remove('active')" class="text-gray-500 hover:text-white text-xl">&times;</button>
+            </div>
+            
+            <div class="text-sm text-gray-300 leading-relaxed font-serif space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+                <div id="wp-nature-rule" class="bg-blue-900/20 border border-blue-900/50 p-3 rounded">
+                    <!-- Nature-specific rule injected here -->
+                </div>
+
+                <div>
+                    <h3 class="text-xs font-bold text-gray-400 uppercase mb-1">Standard Methods</h3>
+                    <ul class="list-disc pl-4 space-y-2 text-xs">
+                        <li><strong>End of Story:</strong> Willpower pools typically replenish fully at the end of a story (arc), not necessarily every session.</li>
+                        <li><strong>Extraordinary Success:</strong> Achieving a major objective or motivation may restore a point at Storyteller discretion.</li>
+                        <li><strong>Restful Sleep (Optional):</strong> Some Storytellers allow regaining 1 point each night upon rising.</li>
+                    </ul>
+                </div>
+                
+                <div class="text-[10px] text-gray-500 italic pt-2 border-t border-[#333]">
+                    V20 Core Rules, p. 267
+                </div>
+            </div>
         </div>
     </div>
 
