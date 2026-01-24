@@ -1,7 +1,7 @@
 import { 
     ATTRIBUTES, ABILITIES, VIRTUES, BACKGROUNDS, 
     CLAN_WEAKNESSES, VIT, CLAN_DISCIPLINES,
-    ARCHETYPE_RULES // Added Import
+    ARCHETYPE_RULES
 } from "./data.js";
 
 import { DISCIPLINES_DATA } from "./disciplines-data.js";
@@ -16,7 +16,7 @@ import {
 
 import { openNpcCreator, openNpcSheet } from "./npc-creator.js";
 
-// --- CRITICAL FIX: Attach NPC functions to Window ---
+// --- WINDOW BINDINGS ---
 window.openNpcCreator = openNpcCreator;
 window.openNpcSheet = openNpcSheet;
 
@@ -57,7 +57,7 @@ export function togglePlayMode() {
     window.state.isPlayMode = !window.state.isPlayMode;
     document.body.classList.toggle('play-mode', window.state.isPlayMode);
     
-    // Handle Cross-Module Toggles via Global Window Objects (Prevents Circular Deps)
+    // Handle Cross-Module Toggles
     if (window.state.isPlayMode) {
         if (window.state.freebieMode && window.toggleFreebieMode) window.toggleFreebieMode();
         if (window.state.xpMode && window.toggleXpMode) window.toggleXpMode();
@@ -67,9 +67,8 @@ export function togglePlayMode() {
     const pBtnText = document.getElementById('play-btn-text');
     if(pBtnText) pBtnText.innerText = window.state.isPlayMode ? "Edit" : "Play";
     
-    // Toggle Walkthrough Button Visibility
-    // We keep the Tutorial Button visible in Play Mode now
-    const guideBtn = document.getElementById('walkthrough-btn');
+    // Toggle Walkthrough/Phase Info Button Visibility
+    const guideBtn = document.getElementById('phase-info-btn');
     if(guideBtn) {
         if(window.state.isPlayMode) guideBtn.classList.add('hidden');
         else guideBtn.classList.remove('hidden');
@@ -109,16 +108,11 @@ export function togglePlayMode() {
         renderPlayModeOtherTraits();
         renderPlayModeCombat();
         
-        // --- MOVEMENT SPEED SECTION ---
         renderMovementSection();
-        
-        // --- INJECT DETAILED DISCIPLINES ---
         renderDetailedDisciplines();
-        
-        // --- UPDATE RITUALS LIST ---
         updateRitualsPlayView();
         
-        // --- INJECT WILLPOWER REGAIN INFO ---
+        // Inject Willpower Info
         injectWillpowerInfo();
 
         let carried = []; let owned = []; 
@@ -193,7 +187,6 @@ export function togglePlayMode() {
         
         // --- CHECK PLAY MODE TUTORIAL ---
         if (!localStorage.getItem('v20_play_tutorial_complete')) {
-            // Short delay to allow DOM to settle / transition
             setTimeout(() => {
                 if (window.startTutorial) window.startTutorial('play');
             }, 1000);
@@ -218,28 +211,22 @@ window.togglePlayMode = togglePlayMode;
 
 // --- WILLPOWER REGAIN INFO INJECTION ---
 function injectWillpowerInfo() {
-    // Find section title for Willpower in play mode
     const sections = document.querySelectorAll('#play-mode-sheet .section-title');
     let wpTitleEl = null;
     
     sections.forEach(el => {
-        // Check if it's the Willpower header
-        if (el.innerText.includes("Willpower")) {
+        if (el.innerText.includes("Willpower") && !el.querySelector('#wp-info-btn')) {
             wpTitleEl = el;
         }
     });
 
     if (wpTitleEl) {
-        // Only inject if not already there
-        if (!wpTitleEl.querySelector('#wp-info-btn')) {
-            wpTitleEl.style.display = 'flex';
-            wpTitleEl.style.justifyContent = 'center';
-            wpTitleEl.style.alignItems = 'center';
-            wpTitleEl.style.gap = '8px';
-            
-            // Rebuild inner HTML to include icon with inline onclick
-            wpTitleEl.innerHTML = `WILLPOWER <i id="wp-info-btn" class="fas fa-info-circle text-[10px] text-gray-500 hover:text-white cursor-pointer transition-colors" title="Regaining Willpower" onclick="window.showWillpowerInfo(event)"></i>`;
-        }
+        wpTitleEl.style.display = 'flex';
+        wpTitleEl.style.justifyContent = 'center';
+        wpTitleEl.style.alignItems = 'center';
+        wpTitleEl.style.gap = '8px';
+        
+        wpTitleEl.innerHTML = `WILLPOWER <i id="wp-info-btn" class="fas fa-info-circle text-[10px] text-gray-500 hover:text-white cursor-pointer transition-colors" title="Regaining Willpower" onclick="window.showWillpowerInfo(event)"></i>`;
     }
 }
 
@@ -248,7 +235,6 @@ export function showWillpowerInfo(e) {
     
     const nature = window.state.textFields['c-nature'] || document.getElementById('c-nature')?.value || "None";
     
-    // Look up rule safely
     let rule = "Standard rules apply. See V20 Core Rules p. 267.";
     if (ARCHETYPE_RULES && ARCHETYPE_RULES[nature]) {
         rule = ARCHETYPE_RULES[nature];
@@ -266,7 +252,7 @@ export function showWillpowerInfo(e) {
         modal.classList.add('active');
     }
 }
-window.showWillpowerInfo = showWillpowerInfo; // Expose to window for inline onclick
+window.showWillpowerInfo = showWillpowerInfo; 
 
 // --- RENDER HELPERS ---
 
