@@ -447,7 +447,7 @@ function createWalkthroughButton() {
     btn.className = "fixed bottom-5 left-5 z-[100] w-10 h-10 rounded-full bg-[#333] border border-[#d4af37] text-[#d4af37] hover:bg-[#d4af37] hover:text-black transition-all flex items-center justify-center shadow-[0_0_10px_rgba(0,0,0,0.8)]";
     btn.innerHTML = '<i class="fas fa-question text-lg"></i>';
     btn.title = "Character Creation Walkthrough";
-    btn.onclick = window.toggleWalkthrough;
+    btn.onclick = () => window.startTutorial(window.state.isPlayMode ? 'play' : 'creation');
     document.body.appendChild(btn);
 }
 
@@ -497,7 +497,7 @@ window.toggleWalkthrough = function() {
 // TUTORIAL SYSTEM (Interactive Highlighting)
 // ==========================================================================
 
-const TUTORIAL_STEPS = [
+const CREATION_TUTORIAL_STEPS = [
     {
         title: "Welcome to V20",
         content: "This tool helps you create and manage Vampire: The Masquerade characters.<br><br>Let's take a quick tour of the interface.",
@@ -542,12 +542,50 @@ const TUTORIAL_STEPS = [
     }
 ];
 
+const PLAY_TUTORIAL_STEPS = [
+    {
+        title: "Play Mode Overview",
+        content: "This is your active character sheet. Editing is disabled here to prevent accidental changes during play.",
+        targetId: "play-mode-sheet",
+        phase: 1
+    },
+    {
+        title: "Interactive Traits",
+        content: "Click any Attribute, Ability, or Discipline name to add it to the Dice Pool.",
+        targetId: "play-row-attr", 
+        phase: 1
+    },
+    {
+        title: "Interactive Pools",
+        content: "Click boxes to track Health, Willpower, and Blood usage. These update in real-time.",
+        targetId: "willpower-boxes-play", 
+        phase: 1
+    },
+    {
+        title: "Dice Engine",
+        content: "The Dice Tray slides up when you select traits. You can roll, add modifiers, or clear the pool.",
+        targetId: "dice-toggle-btn", 
+        phase: 1
+    },
+    {
+        title: "Journal & NPCs",
+        content: "Use these tabs to track session logs, experience, and manage Ghouls or Retainers.",
+        targetId: "sheet-nav", 
+        phase: 1
+    }
+];
+
 let currentTutorialStep = 0;
 let preTutorialPhase = 1; // State to restore
+let activeTutorialSteps = [];
+let activeTutorialKey = 'creation'; // 'creation' or 'play'
 
-export function startTutorial() {
+export function startTutorial(mode = 'creation') {
     currentTutorialStep = 0;
-    preTutorialPhase = window.state.currentPhase || 1; // Snapshot phase
+    preTutorialPhase = window.state.currentPhase || 1; 
+    activeTutorialKey = mode;
+    activeTutorialSteps = mode === 'play' ? PLAY_TUTORIAL_STEPS : CREATION_TUTORIAL_STEPS;
+    
     document.body.classList.add('tutorial-active');
     renderTutorialStep();
     const overlay = document.getElementById('tutorial-overlay');
@@ -559,7 +597,7 @@ export function startTutorial() {
 window.startTutorial = startTutorial;
 
 export function renderTutorialStep() {
-    const data = TUTORIAL_STEPS[currentTutorialStep];
+    const data = activeTutorialSteps[currentTutorialStep];
     if (!data) return;
 
     // 1. Cleanup Previous Highlights
@@ -595,19 +633,19 @@ export function renderTutorialStep() {
 
     if (titleEl) titleEl.innerText = data.title;
     if (contentEl) contentEl.innerHTML = data.content;
-    if (indicatorEl) indicatorEl.innerText = `Step ${currentTutorialStep + 1} of ${TUTORIAL_STEPS.length}`;
+    if (indicatorEl) indicatorEl.innerText = `Step ${currentTutorialStep + 1} of ${activeTutorialSteps.length}`;
 
     if (prevBtn) {
         prevBtn.classList.toggle('hidden', currentTutorialStep === 0);
     }
     
     if (nextBtn) {
-        nextBtn.innerText = (currentTutorialStep === TUTORIAL_STEPS.length - 1) ? "Finish" : "Next";
+        nextBtn.innerText = (currentTutorialStep === activeTutorialSteps.length - 1) ? "Finish" : "Next";
     }
 }
 
 window.nextTutorialStep = function() {
-    if (currentTutorialStep < TUTORIAL_STEPS.length - 1) {
+    if (currentTutorialStep < activeTutorialSteps.length - 1) {
         currentTutorialStep++;
         renderTutorialStep();
     } else {
@@ -633,9 +671,11 @@ window.closeTutorial = function() {
     document.querySelectorAll('.tutorial-highlight').forEach(el => el.classList.remove('tutorial-highlight'));
     
     // RESTORE PHASE (Go back to where they started)
-    changeStep(preTutorialPhase);
+    changeStep(preTutorialPhase, false);
     
-    localStorage.setItem('v20_tutorial_complete', 'true');
+    // Save completion state based on active tutorial
+    const key = activeTutorialKey === 'play' ? 'v20_play_tutorial_complete' : 'v20_tutorial_complete';
+    localStorage.setItem(key, 'true');
 };
 
 // --- GUEST PROMPT LOGIC ---
