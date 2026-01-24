@@ -29,8 +29,9 @@ export function updateWalkthrough() {
          
          if (checkStepComplete(current, window.state)) {
              if (current === furthest && current < 8) {
+                 // Auto-advance logic (only if valid)
                  window.state.furthestPhase = current + 1;
-                 changeStep(current);
+                 changeStep(current); // Refresh UI to show unlock
              }
          }
          
@@ -69,8 +70,14 @@ export function nextStep() {
 }
 window.nextStep = nextStep;
 
-export function changeStep(s) {
-    if (!window.state.furthestPhase || s > window.state.furthestPhase) { if (s > (window.state.furthestPhase || 0)) window.state.furthestPhase = s; }
+// MODIFIED: Added updateGlobalState flag to prevent Tutorial from unlocking steps
+export function changeStep(s, updateGlobalState = true) {
+    if (updateGlobalState) {
+        if (!window.state.furthestPhase || s > window.state.furthestPhase) { 
+            if (s > (window.state.furthestPhase || 0)) window.state.furthestPhase = s; 
+        }
+    }
+    
     document.querySelectorAll('.step-container').forEach(c => c.classList.remove('active'));
     
     const prefix = window.state.isPlayMode ? 'play-mode-' : 'phase-';
@@ -105,7 +112,10 @@ export function changeStep(s) {
     }
 
     const target = document.getElementById(prefix + s);
-    if (target) { target.classList.add('active'); window.state.currentPhase = s; }
+    if (target) { 
+        target.classList.add('active'); 
+        window.state.currentPhase = s; 
+    }
     
     // Update Nav
     const nav = document.getElementById('sheet-nav');
@@ -533,9 +543,11 @@ const TUTORIAL_STEPS = [
 ];
 
 let currentTutorialStep = 0;
+let preTutorialPhase = 1; // State to restore
 
 export function startTutorial() {
     currentTutorialStep = 0;
+    preTutorialPhase = window.state.currentPhase || 1; // Snapshot phase
     document.body.classList.add('tutorial-active');
     renderTutorialStep();
     const overlay = document.getElementById('tutorial-overlay');
@@ -553,9 +565,9 @@ export function renderTutorialStep() {
     // 1. Cleanup Previous Highlights
     document.querySelectorAll('.tutorial-highlight').forEach(el => el.classList.remove('tutorial-highlight'));
 
-    // 2. Switch Phase if needed
+    // 2. Switch Phase if needed (but DON'T unlock via updateGlobalState=false)
     if (data.phase && window.state.currentPhase !== data.phase) {
-        changeStep(data.phase);
+        changeStep(data.phase, false);
     }
 
     // 3. Highlight Target (Single or Multiple)
@@ -619,6 +631,9 @@ window.closeTutorial = function() {
     
     document.body.classList.remove('tutorial-active');
     document.querySelectorAll('.tutorial-highlight').forEach(el => el.classList.remove('tutorial-highlight'));
+    
+    // RESTORE PHASE (Go back to where they started)
+    changeStep(preTutorialPhase);
     
     localStorage.setItem('v20_tutorial_complete', 'true');
 };
