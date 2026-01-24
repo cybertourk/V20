@@ -483,6 +483,133 @@ window.toggleWalkthrough = function() {
     }
 };
 
+// ==========================================================================
+// TUTORIAL SYSTEM (Interactive Introduction)
+// ==========================================================================
+
+const TUTORIAL_STEPS = [
+    {
+        title: "Welcome to the Night",
+        content: `
+            <p>Welcome to the V20 Character Creator. This tool is designed to help you create and manage Vampire: The Masquerade (20th Anniversary) characters quickly and accurately.</p>
+            <p class="mt-2">This short tutorial will guide you through the interface.</p>
+        `
+    },
+    {
+        title: "Character Creation Phases",
+        content: `
+            <p>The sheet is divided into <strong>8 Phases</strong>, mirroring the creation steps in the core rulebook.</p>
+            <p class="mt-2">Use the navigation bar (bottom on mobile, right on desktop) to move between steps. You cannot proceed to the next step until the current one is validated (e.g., spending exactly 7/5/3 Attribute dots).</p>
+        `
+    },
+    {
+        title: "Top Controls",
+        content: `
+            <p>The top bar is your command center:</p>
+            <ul class="list-disc pl-4 mt-2 space-y-1">
+                <li><strong class="text-blue-400">Freebie Mode:</strong> Toggle this to spend Freebie Points (usually 15).</li>
+                <li><strong class="text-purple-400">XP Mode:</strong> Toggle this to spend Experience Points after creation.</li>
+                <li><strong class="text-[#d4af37]">Play Mode:</strong> Switches the view to a read-only, interactive character sheet for game sessions.</li>
+            </ul>
+        `
+    },
+    {
+        title: "Data & Saving",
+        content: `
+            <p>All input fields save automatically to your local browser state as you type.</p>
+            <p class="mt-2">To persist your character across devices or clear your browser cache safely, use the <strong class="text-white">SAVE</strong> button to store it in the cloud (requires login).</p>
+        `
+    },
+    {
+        title: "The Dice Tray",
+        content: `
+            <p>In <strong>Play Mode</strong>, clicking on Attributes, Abilities, or Disciplines will add them to the Dice Engine.</p>
+            <p class="mt-2">The Dice Tray will slide up from the bottom, allowing you to roll dice pools, apply Willpower, and check for successes automatically.</p>
+        `
+    },
+    {
+        title: "Journal & Codex",
+        content: `
+            <p>Use the <strong>Journal</strong> tab (in Play Mode) to track sessions, XP, and NPCs.</p>
+            <p class="mt-2">The <strong>Codex</strong> feature allows you to define keywords (like NPC names or locations) which will automatically become clickable links in your session logs.</p>
+        `
+    }
+];
+
+let currentTutorialStep = 0;
+
+export function startTutorial() {
+    currentTutorialStep = 0;
+    renderTutorialStep();
+    const modal = document.getElementById('tutorial-modal');
+    if (modal) modal.classList.add('active');
+}
+window.startTutorial = startTutorial;
+
+export function renderTutorialStep() {
+    const data = TUTORIAL_STEPS[currentTutorialStep];
+    if (!data) return;
+
+    const titleEl = document.getElementById('tut-title');
+    const contentEl = document.getElementById('tut-content');
+    const indicatorEl = document.getElementById('tut-step-indicator');
+    const prevBtn = document.getElementById('tut-prev-btn');
+    const nextBtn = document.getElementById('tut-next-btn');
+
+    if (titleEl) titleEl.innerText = data.title;
+    if (contentEl) contentEl.innerHTML = data.content;
+    if (indicatorEl) indicatorEl.innerText = `Step ${currentTutorialStep + 1} of ${TUTORIAL_STEPS.length}`;
+
+    if (prevBtn) {
+        prevBtn.classList.toggle('hidden', currentTutorialStep === 0);
+    }
+    
+    if (nextBtn) {
+        nextBtn.innerText = (currentTutorialStep === TUTORIAL_STEPS.length - 1) ? "Finish" : "Next";
+    }
+}
+
+window.nextTutorialStep = function() {
+    if (currentTutorialStep < TUTORIAL_STEPS.length - 1) {
+        currentTutorialStep++;
+        renderTutorialStep();
+    } else {
+        window.closeTutorial();
+    }
+};
+
+window.prevTutorialStep = function() {
+    if (currentTutorialStep > 0) {
+        currentTutorialStep--;
+        renderTutorialStep();
+    }
+};
+
+window.closeTutorial = function() {
+    const modal = document.getElementById('tutorial-modal');
+    if (modal) modal.classList.remove('active');
+    
+    // Mark as complete in local storage so it doesn't auto-show again
+    localStorage.setItem('v20_tutorial_complete', 'true');
+};
+
+// --- GUEST PROMPT LOGIC ---
+// Ensure this matches the logic called from main.js
+window.dismissGuestPrompt = function() {
+    const modal = document.getElementById('guest-prompt-modal');
+    if (modal) modal.classList.remove('active');
+    // Mark as dismissed for this session/browser
+    sessionStorage.setItem('v20_guest_dismissed', 'true');
+};
+
+// Auto-init specific listeners
 document.addEventListener('DOMContentLoaded', () => {
     createWalkthroughButton();
+    // Ensure tutorial logic is accessible globally immediately on load
+    window.startTutorial = startTutorial;
+    window.dismissGuestPrompt = window.dismissGuestPrompt || function() {
+        const modal = document.getElementById('guest-prompt-modal');
+        if (modal) modal.classList.remove('active');
+        sessionStorage.setItem('v20_guest_dismissed', 'true');
+    };
 });
