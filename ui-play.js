@@ -215,7 +215,8 @@ function injectWillpowerInfo() {
     let wpTitleEl = null;
     
     sections.forEach(el => {
-        if (el.innerText.includes("Willpower") && !el.querySelector('#wp-info-btn')) {
+        // Robust check: Is this the parent of the willpower dots container?
+        if (el.parentNode.querySelector('#willpower-dots-play')) {
             wpTitleEl = el;
         }
     });
@@ -226,7 +227,13 @@ function injectWillpowerInfo() {
         wpTitleEl.style.alignItems = 'center';
         wpTitleEl.style.gap = '8px';
         
-        wpTitleEl.innerHTML = `WILLPOWER <i id="wp-info-btn" class="fas fa-info-circle text-[10px] text-gray-500 hover:text-white cursor-pointer transition-colors" title="Regaining Willpower" onclick="window.showWillpowerInfo(event)"></i>`;
+        // ADDED ROLL BUTTON
+        wpTitleEl.innerHTML = `
+            <button onclick="window.toggleStat('Willpower', window.state.status.willpower, 'willpower')" class="hover:text-white text-[#d4af37] transition-colors uppercase font-bold flex items-center gap-2" title="Roll Willpower">
+                Willpower <i class="fas fa-dice-d20 text-[10px]"></i>
+            </button> 
+            <i id="wp-info-btn" class="fas fa-info-circle text-[10px] text-gray-500 hover:text-white cursor-pointer transition-colors" title="Regaining Willpower" onclick="window.showWillpowerInfo(event)"></i>
+        `;
     }
 }
 
