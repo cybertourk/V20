@@ -41,10 +41,7 @@ import {
 
 import { renderPrintSheet } from "./ui-print.js";
 import { togglePlayMode } from "./ui-play.js";
-import { changeStep, updateWalkthrough } from "./ui-nav.js";
-
-// REMOVED: Legacy Ghoul Creator Import
-// import { openGhoulCreator } from "./ghoul-creator.js";
+import { changeStep, updateWalkthrough, startTutorial } from "./ui-nav.js"; // Added startTutorial
 
 // --- NEW DATA IMPORTS & MERGING ---
 import { DISCIPLINES_DATA } from './disciplines-data.js';
@@ -98,7 +95,9 @@ window.state = {
     rituals: [],
     primaryThaumPath: null,
     primaryNecroPath: null,
-    meta: { filename: "", folder: "" } 
+    meta: { filename: "", folder: "" },
+    sessionLogs: [], // Ensure session logs array exists
+    codex: [] // Ensure codex array exists
 };
 
 let user = null;
@@ -109,8 +108,6 @@ window.handleSaveClick = FBManager.handleSaveClick;
 window.handleLoadClick = FBManager.handleLoadClick;
 window.performSave = FBManager.performSave;
 window.deleteCharacter = FBManager.deleteCharacter;
-// REMOVED: Legacy binding
-// window.openGhoulCreator = openGhoulCreator;
 
 // --- LOCAL IMPORT / EXPORT HANDLERS ---
 
@@ -162,6 +159,9 @@ function handleImport(event) {
             if(!window.state.specialties) window.state.specialties = {}; 
             if(!window.state.retainers) window.state.retainers = [];
             if(!window.state.rituals) window.state.rituals = []; // Ensure rituals array exists
+            if(!window.state.sessionLogs) window.state.sessionLogs = []; // Ensure session logs on import
+            if(!window.state.codex) window.state.codex = []; // Ensure codex on import
+            
             if (!window.state.furthestPhase) window.state.furthestPhase = 1;
             if (window.state.status && window.state.status.tempWillpower === undefined) {
                 window.state.status.tempWillpower = window.state.status.willpower || 5;
@@ -459,7 +459,6 @@ function initUI() {
         if(cmdSave) cmdSave.onclick = window.handleSaveClick;
         const cmdLoad = document.getElementById('cmd-load');
         if(cmdLoad) cmdLoad.onclick = window.handleLoadClick;
-        // REMOVED cmd-ghoul handler
         const confirmSave = document.getElementById('confirm-save-btn');
         if(confirmSave) confirmSave.onclick = window.performSave;
         
@@ -532,6 +531,8 @@ function initUI() {
                 try {
                     await signInWithEmailAndPassword(auth, email, pass);
                     document.getElementById('auth-modal').classList.remove('active');
+                    // Hide guest prompt if open
+                    document.getElementById('guest-prompt-modal').classList.remove('active');
                 } catch(e) {
                     console.error("Login Error:", e);
                     let msg = "Login Failed: " + e.message;
@@ -560,6 +561,8 @@ function initUI() {
                 try {
                     await createUserWithEmailAndPassword(auth, email, pass);
                     document.getElementById('auth-modal').classList.remove('active');
+                    // Hide guest prompt if open
+                    document.getElementById('guest-prompt-modal').classList.remove('active');
                     window.showNotification("Account Created!");
                 } catch(e) {
                     console.error("Registration Error:", e);
@@ -645,12 +648,34 @@ function updateAuthUI(u) {
             userInfo.style.display = 'flex';
         }
         if(userName) userName.innerText = u.displayName || u.email || "User";
+        
+        // Hide Guest Prompt if logged in
+        document.getElementById('guest-prompt-modal').classList.remove('active');
     } else {
         if(loginBtn) loginBtn.classList.remove('hidden');
         if(userInfo) {
             userInfo.classList.add('hidden');
             userInfo.style.display = 'none';
         }
+        
+        // Show Guest Prompt if anonymous AND not dismissed
+        if (u && u.isAnonymous) {
+            const dismissed = sessionStorage.getItem('v20_guest_dismissed');
+            if (!dismissed) {
+                setTimeout(() => {
+                    document.getElementById('guest-prompt-modal').classList.add('active');
+                }, 1000);
+            }
+        }
+    }
+}
+
+// --- TUTORIAL CHECKER ---
+function checkTutorialStatus() {
+    if (!localStorage.getItem('v20_tutorial_complete')) {
+        setTimeout(() => {
+            if(window.startTutorial) window.startTutorial();
+        }, 1500); // Slightly after load
     }
 }
 
@@ -756,6 +781,8 @@ onAuthStateChanged(auth, async (u) => {
 
             // Remove Loader
             if(loader) loader.style.display = 'none';
+            
+            checkTutorialStatus();
 
         } catch (dbErr) {
             console.error("DB Init Error:", dbErr);
@@ -778,6 +805,8 @@ onAuthStateChanged(auth, async (u) => {
             // If success (or already signed in), proceed to populate
             populateGuestUI();
             
+            checkTutorialStatus();
+            
         } catch (e) {
             console.error("Authentication Error:", e);
             
@@ -786,6 +815,7 @@ onAuthStateChanged(auth, async (u) => {
                 console.warn("Anonymous Auth disabled. Proceeding as Guest (No Cloud Save).");
                 populateGuestUI();
                 window.showNotification("Guest Mode: Log in to save.");
+                if(loader) loader.style.display = 'none';
             } else {
                 // Actual fatal error
                 if(loader) {
@@ -840,6 +870,15 @@ function populateGuestUI() {
         if(ps1) { ps1.innerHTML = ''; PATHS.forEach(p => ps1.add(new Option(p,p))); }
         if(ps2) { ps2.innerHTML = ''; PATHS.forEach(p => ps2.add(new Option(p,p))); }
     }
+    
+    if(ps1) ps1.addEventListener('change', (e) => { 
+        if(ps2) ps2.value = e.target.value; 
+        if(window.state.textFields) window.state.textFields['c-path-name'] = e.target.value; 
+    });
+    if(ps2) ps2.addEventListener('change', (e) => { 
+        if(ps1) ps1.value = e.target.value; 
+        if(window.state.textFields) window.state.textFields['c-path-name'] = e.target.value; 
+    });
     
     const loader = document.getElementById('loading-overlay');
     if(loader) loader.style.display = 'none';
