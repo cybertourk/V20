@@ -392,9 +392,48 @@ function handleSaveNpc() {
 
     if (window.renderNpcTab) window.renderNpcTab();
     
+    // --- AUTO-GENERATE CODEX ENTRY ---
+    generateNpcCodexEntry(cleanNpc);
+    
     showNotification(`${currentTemplate.label} Saved.`);
     document.getElementById('npc-modal').style.display = 'none';
     toggleDiceUI(true);
+}
+
+// --- CODEX AUTO-GENERATION HELPER ---
+function generateNpcCodexEntry(npc) {
+    if (!window.state.codex) window.state.codex = [];
+    
+    const name = npc.name ? npc.name.trim() : "";
+    if (!name || name === "Unnamed" || name === "Unnamed NPC") return;
+
+    // Avoid duplicates based on exact name match (case-insensitive)
+    const exists = window.state.codex.find(c => c.name.toLowerCase() === name.toLowerCase());
+    if (exists) return;
+
+    // Generate Tags
+    const tags = ["NPC"];
+    if (npc.template) tags.push(npc.template.charAt(0).toUpperCase() + npc.template.slice(1));
+    if (npc.domitorClan) tags.push(npc.domitorClan);
+    if (npc.species) tags.push(npc.species);
+    
+    // Generate Description from Concept, Domitor, and Bio
+    let descLines = [];
+    if (npc.concept) descLines.push(`Concept: ${npc.concept}`);
+    if (npc.domitor) descLines.push(`Domitor: ${npc.domitor}`);
+    if (npc.bio && npc.bio.Description) descLines.push(npc.bio.Description);
+    
+    const entry = {
+        id: "cx_" + Date.now().toString(36) + Math.random().toString(36).substr(2,5),
+        name: name,
+        type: "NPC",
+        tags: tags.filter(t => t),
+        desc: descLines.join('\n\n')
+    };
+    
+    window.state.codex.push(entry);
+    console.log("Auto-generated Codex Entry for:", name);
+    // Optional: showNotification("Added to Codex"); // Kept silent to avoid notification spam on save
 }
 
 function exportNpcData() {
