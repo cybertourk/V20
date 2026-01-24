@@ -26,28 +26,35 @@
         /* --- TUTORIAL HIGHLIGHTER --- */
         .tutorial-highlight {
             position: relative;
-            z-index: 10002 !important; /* Above modal overlay if needed, or just high visibility */
+            z-index: 100002 !important; /* Must be extremely high */
             box-shadow: 0 0 0 4px #d4af37, 0 0 0 5000px rgba(0, 0, 0, 0.85); /* Spotlight effect */
             border-radius: 4px;
-            pointer-events: none; /* Let clicks pass through if needed, though usually we block interaction during tut */
+            pointer-events: none; /* Prevent interaction with the highlighted element during tutorial */
             transition: all 0.3s ease;
         }
         
-        /* Adjust overlay to be transparent when spotlight is active */
+        /* Adjust overlay to be transparent and non-blurring when tutorial is active */
+        /* This fixes the "blurred out" issue by removing the backdrop filter */
         body.tutorial-active .modal-overlay#tutorial-modal {
-            background: transparent; /* Let the spotlight do the darkening */
-            pointer-events: none; /* Let users click "Next" in the floating box */
+            background: transparent !important;
+            backdrop-filter: none !important;
+            pointer-events: none; /* Pass clicks through the empty overlay */
+            z-index: 100001 !important; /* Just below highlight */
         }
         
+        /* Ensure the tutorial text box remains interactive and visible */
         body.tutorial-active .modal-box {
-            pointer-events: auto; /* Re-enable clicking on the tutorial box itself */
-            position: fixed; /* Keep it fixed */
-            bottom: 20px; /* Move to bottom or side */
+            pointer-events: auto;
+            position: fixed; 
+            bottom: 20px; 
             right: 20px;
-            width: 300px; /* Smaller box */
+            width: 300px;
             top: auto;
             left: auto;
             transform: none !important;
+            z-index: 100003 !important; /* Above highlight */
+            background-color: #0a0a0a;
+            border: 2px solid #d4af37;
         }
     </style>
 </head>
