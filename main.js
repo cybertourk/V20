@@ -116,6 +116,7 @@ window.state = {
     activePool: [], 
     currentPhase: 1, 
     furthestPhase: 1,
+    characterImage: null, // New Field for Image Data
     dots: { attr: {}, abil: {}, disc: {}, back: {}, virt: {}, other: {} },
     prios: { attr: {}, abil: {} },
     status: { humanity: 7, willpower: 5, tempWillpower: 5, health_states: [0,0,0,0,0,0,0], blood: 0 },
@@ -230,12 +231,96 @@ function applySmartLock(input) {
     }
 }
 
+// --- IMAGE UPLOAD LOGIC ---
+function injectImageUI() {
+    const header = document.getElementById('sheet-header');
+    if(!header) return;
+    if(document.getElementById('char-image-wrapper')) return;
+
+    // Create Wrapper
+    const wrapper = document.createElement('div');
+    wrapper.id = 'char-image-wrapper';
+    wrapper.className = 'flex flex-col items-center justify-center p-2 mr-4';
+    wrapper.style.minWidth = '120px';
+
+    // HTML Structure
+    wrapper.innerHTML = `
+        <div id="char-img-display" title="Click to upload image" 
+             class="w-24 h-24 border-2 border-[#444] rounded bg-black relative cursor-pointer hover:border-[#af0000] transition-colors overflow-hidden bg-cover bg-center bg-no-repeat flex items-center justify-center">
+            <i class="fa-solid fa-camera text-[#333] text-2xl" id="char-img-icon"></i>
+        </div>
+        <input type="file" id="char-img-input" accept="image/*" class="hidden">
+        <button id="btn-remove-image" class="text-[10px] text-red-500 hover:text-red-300 mt-1 hidden">Remove</button>
+    `;
+
+    // Insert at the beginning of the header
+    header.insertBefore(wrapper, header.firstChild);
+
+    // Add Listeners
+    const display = document.getElementById('char-img-display');
+    const input = document.getElementById('char-img-input');
+    const removeBtn = document.getElementById('btn-remove-image');
+
+    display.onclick = () => input.click();
+    input.onchange = (e) => handleImageUpload(e);
+    removeBtn.onclick = () => {
+        window.state.characterImage = null;
+        window.fullRefresh();
+        triggerAutoSave();
+    };
+}
+
+function handleImageUpload(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(event) {
+        const img = new Image();
+        img.onload = function() {
+            // Resize logic to prevent massive save files
+            const canvas = document.createElement('canvas');
+            const MAX_WIDTH = 200;
+            const MAX_HEIGHT = 200;
+            let width = img.width;
+            let height = img.height;
+
+            if (width > height) {
+                if (width > MAX_WIDTH) {
+                    height *= MAX_WIDTH / width;
+                    width = MAX_WIDTH;
+                }
+            } else {
+                if (height > MAX_HEIGHT) {
+                    width *= MAX_HEIGHT / height;
+                    height = MAX_HEIGHT;
+                }
+            }
+
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+            
+            // Save as compressed Base64
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+            window.state.characterImage = dataUrl;
+            
+            window.fullRefresh();
+            triggerAutoSave();
+            window.showNotification("Image Saved!");
+        };
+        img.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+}
+
 // --- FULL UI REFRESH ---
 window.fullRefresh = function() {
     try {
         console.log("Starting Full UI Refresh...");
         
-        // --- 1. SYNC VISUAL MODE WITH STATE (CRITICAL FIX) ---
+        // --- 1. SYNC VISUAL MODE WITH STATE ---
         const playBtn = document.getElementById('play-mode-btn');
         if (window.state.isPlayMode) {
             document.body.classList.add('play-mode');
@@ -251,7 +336,24 @@ window.fullRefresh = function() {
             }
         }
 
-        // --- 2. RENDER COMPONENTS ---
+        // --- 2. RENDER IMAGE ---
+        const imgDisplay = document.getElementById('char-img-display');
+        const imgIcon = document.getElementById('char-img-icon');
+        const removeBtn = document.getElementById('btn-remove-image');
+
+        if(imgDisplay) {
+            if (window.state.characterImage) {
+                imgDisplay.style.backgroundImage = `url('${window.state.characterImage}')`;
+                if(imgIcon) imgIcon.style.display = 'none';
+                if(removeBtn) removeBtn.classList.remove('hidden');
+            } else {
+                imgDisplay.style.backgroundImage = 'none';
+                if(imgIcon) imgIcon.style.display = 'block';
+                if(removeBtn) removeBtn.classList.add('hidden');
+            }
+        }
+
+        // --- 3. RENDER COMPONENTS ---
         hydrateInputs();
         
         renderDynamicAdvantageRow('list-disc', 'disc', DISCIPLINES);
@@ -320,8 +422,6 @@ window.fullRefresh = function() {
         console.error("Refresh Error:", e);
         window.showNotification("Error Refreshing UI");
     } finally {
-        // --- 3. FORCE NAVIGATION (GUARANTEE VISIBILITY) ---
-        // Ensure this runs even if rendering errors occurred above
         const targetStep = window.state.currentPhase || window.state.furthestPhase || 1;
         changeStep(targetStep);
     }
@@ -338,6 +438,9 @@ function initUI() {
     try {
         if (!document.getElementById('sheet-nav')) throw new Error("Navigation container 'sheet-nav' is missing.");
 
+        // INJECT IMAGE UI COMPONENT
+        injectImageUI();
+
         // 1. ATTEMPT LOAD FIRST
         const loaded = loadAutoSave(); 
         if(loaded) {
@@ -348,8 +451,6 @@ function initUI() {
 
         // --- PREVENT ACCIDENTAL EXIT ---
         window.addEventListener('beforeunload', (e) => {
-            // This triggers the browser's standard "Leave site?" dialog
-            // if the user tries to close the tab or refresh.
             e.preventDefault();
             e.returnValue = '';
         });
