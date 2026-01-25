@@ -112,8 +112,9 @@ export function togglePlayMode() {
         renderDetailedDisciplines();
         updateRitualsPlayView();
         
-        // Inject Willpower Info
+        // Inject Info Buttons
         injectWillpowerInfo();
+        injectHumanityInfo(); // Added Humanity Info Injection
 
         let carried = []; let owned = []; 
         if(window.state.inventory) { 
@@ -260,6 +261,39 @@ export function showWillpowerInfo(e) {
     }
 }
 window.showWillpowerInfo = showWillpowerInfo; 
+
+// --- HUMANITY INFO INJECTION (NEW) ---
+function injectHumanityInfo() {
+    const sections = document.querySelectorAll('#play-mode-sheet .section-title');
+    let humTitleEl = null;
+    
+    sections.forEach(el => {
+        // Robust check: Is this the parent of the humanity dots or path selector?
+        // Note: The structure in index.html for Humanity in Play Mode has #c-path-name or #humanity-dots-play
+        if (el.parentNode.querySelector('#humanity-dots-play') || el.parentNode.querySelector('#c-path-name')) {
+            humTitleEl = el;
+        }
+    });
+
+    if (humTitleEl) {
+        humTitleEl.style.display = 'flex';
+        humTitleEl.style.justifyContent = 'center';
+        humTitleEl.style.alignItems = 'center';
+        humTitleEl.style.gap = '8px';
+        
+        humTitleEl.innerHTML = `
+            Humanity / Path
+            <i class="fas fa-info-circle text-[10px] text-gray-500 hover:text-white cursor-pointer transition-colors" title="Hierarchy of Sins" onclick="window.showHumanityInfo(event)"></i>
+        `;
+    }
+}
+
+export function showHumanityInfo(e) {
+    if(e) e.stopPropagation();
+    document.getElementById('humanity-info-modal').classList.add('active');
+}
+window.showHumanityInfo = showHumanityInfo;
+
 
 // --- RENDER HELPERS ---
 
