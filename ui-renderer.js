@@ -1,18 +1,23 @@
 import { 
     BACKGROUNDS, ATTRIBUTES, ABILITIES, VIRTUES, 
     V20_WEAPONS_LIST, V20_ARMOR_LIST, V20_VEHICLES_LIST, SPECIALTY_EXAMPLES,
-    HEALTH_STATES // FIX: Added missing import
+    HEALTH_STATES, CLAN_DISCIPLINES, CLAN_WEAKNESSES 
 } from "./data.js";
 
 import { 
     renderDots, renderBoxes, setSafeText, showNotification 
 } from "./ui-common.js";
 
+// Import updateClanMechanicsUI from ui-mechanics (it's exported on window, but safer to try import or window check)
+// Since circular dependencies can be tricky, we'll rely on window.updateClanMechanicsUI being available
+// or safe check inside updatePools.
+
 import { 
     setDots 
 } from "./ui-mechanics.js";
 
 import { renderPrintSheet } from "./ui-print.js";
+import { getXpCost } from "./v20-rules.js"; // Import cost calculator
 
 // --- EXPORT HELPERS (Re-exporting for main.js access) ---
 export { renderDots, renderBoxes, setDots };
@@ -710,7 +715,7 @@ export function updatePools() {
         };
     });
 
-    if(typeof updateClanMechanicsUI === 'function') updateClanMechanicsUI();
+    if(typeof window.updateClanMechanicsUI === 'function') window.updateClanMechanicsUI();
     
     if(renderPrintSheet) renderPrintSheet();
 }
