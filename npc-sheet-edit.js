@@ -183,10 +183,22 @@ export function renderEditorModal() {
                         </div>
                     </div>` : ''}
 
-                    <!-- STEP 6: BIO -->
+                    <!-- STEP 6: BIO (WITH IMAGE UPLOAD) -->
                     <div id="stepBio" class="npc-step hidden">
                         <div class="sheet-section !mt-0">
                             <div class="section-title">Biography</div>
+                            
+                            <!-- PORTRAIT UPLOAD SECTION -->
+                            <div class="flex flex-col items-center mb-6 border-b border-[#333] pb-4">
+                                <div id="npc-img-display" title="Click to upload portrait" 
+                                     class="w-32 h-32 border-2 border-[#444] rounded bg-black relative cursor-pointer hover:border-[#d4af37] transition-colors overflow-hidden bg-cover bg-center bg-no-repeat flex items-center justify-center"
+                                     style="${ctx.activeNpc.image ? `background-image: url('${ctx.activeNpc.image}')` : ''}">
+                                    ${!ctx.activeNpc.image ? '<i class="fas fa-camera text-[#333] text-3xl"></i>' : ''}
+                                </div>
+                                <input type="file" id="npc-img-input" accept="image/*" class="hidden">
+                                <button id="npc-remove-img" class="text-xs text-red-500 hover:text-red-300 mt-1 ${!ctx.activeNpc.image ? 'hidden' : ''}">Remove Image</button>
+                            </div>
+
                             ${ctx.currentTemplate.renderBio ? ctx.currentTemplate.renderBio(ctx.activeNpc) : `
                                 <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
                                     <div class="space-y-4">
@@ -283,6 +295,57 @@ export function renderEditorModal() {
     if(ctx.activeNpc.demeanor) document.getElementById('npc-demeanor').value = ctx.activeNpc.demeanor;
 
     // --- SETUP LISTENERS ---
+    
+    // Image Upload Logic
+    const imgDisplay = document.getElementById('npc-img-display');
+    const imgInput = document.getElementById('npc-img-input');
+    const removeImgBtn = document.getElementById('npc-remove-img');
+
+    if(imgDisplay && imgInput) {
+        imgDisplay.onclick = () => imgInput.click();
+        
+        imgInput.onchange = (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const img = new Image();
+                img.onload = function() {
+                    const canvas = document.createElement('canvas');
+                    const MAX_WIDTH = 800; 
+                    const MAX_HEIGHT = 800;
+                    let width = img.width;
+                    let height = img.height;
+                    if (width > height) {
+                        if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; }
+                    } else {
+                        if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; }
+                    }
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctxCanvas = canvas.getContext('2d');
+                    ctxCanvas.drawImage(img, 0, 0, width, height);
+                    const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+                    
+                    ctx.activeNpc.image = dataUrl;
+                    imgDisplay.style.backgroundImage = `url('${dataUrl}')`;
+                    imgDisplay.innerHTML = ''; // Remove icon
+                    removeImgBtn.classList.remove('hidden');
+                    showNotification("NPC Image Saved.");
+                };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        };
+
+        removeImgBtn.onclick = () => {
+            ctx.activeNpc.image = null;
+            imgDisplay.style.backgroundImage = 'none';
+            imgDisplay.innerHTML = '<i class="fas fa-camera text-[#333] text-3xl"></i>';
+            removeImgBtn.classList.add('hidden');
+        };
+    }
+
     const ts = document.getElementById('npc-type-selector');
     if(ts) ts.onchange = (e) => callbacks.switchTemplate(e.target.value);
 
@@ -372,7 +435,7 @@ export function renderEditorModal() {
             
             const t = typeSelect.value;
             let item = null;
-            if (t === 'Weapon') item = [...(WEAPONS||[]), ...(RANGED_WEAPONS||[])].find(x => x.name === name);
+            if (t === 'Weapon') item = [...(WEAPONS||[]), ...(RANGED_WEAPONS||[])].find(x => x.name === w.name);
             else if (t === 'Armor') item = (ARMOR||[]).find(x => x.name === name);
             else if (t === 'Vehicle') item = (V20_VEHICLES_LIST||[]).find(x => x.name === name);
 
