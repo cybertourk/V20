@@ -101,6 +101,10 @@ function loadAutoSave() {
             if (parsed && parsed.dots) {
                 console.log("Restoring Auto-Save...");
                 window.state = parsed;
+                // FORCE REFRESH AFTER RESTORE
+                setTimeout(() => {
+                    if (window.fullRefresh) window.fullRefresh();
+                }, 100);
                 return true;
             }
         }
@@ -137,10 +141,6 @@ window.state = {
 };
 
 let user = null;
-
-// --- ATTEMPT TO LOAD AUTO-SAVE IMMEDIATELY ---
-// This ensures that when initUI runs, it uses the restored data
-loadAutoSave();
 
 // --- BINDING EXPORTS TO WINDOW ---
 window.handleNew = () => {
@@ -352,16 +352,9 @@ function initUI() {
         const vSpan = document.getElementById('app-version');
         if(vSpan) vSpan.innerText = APP_VERSION;
 
-        // Render basic structure if not already populated by fullRefresh
+        // Render basic structure
         const s1 = document.getElementById('list-attr-physical');
         if (s1 && (!s1.innerHTML || s1.innerHTML.trim() === "")) {
-            // Only render defaults if empty (prevent overwriting loaded data)
-             // Actually, fullRefresh calls this logic too, so we can rely on fullRefresh or just standard init
-        }
-        // ... (standard setup, same as before) ...
-        
-        const s1_check = document.getElementById('list-attr-physical');
-        if (s1_check) {
              Object.keys(ATTRIBUTES).forEach(c => ATTRIBUTES[c].forEach(a => { renderRow('list-attr-'+c.toLowerCase(), a, 'attr', 1); }));
              Object.keys(ABILITIES).forEach(c => ABILITIES[c].forEach(a => { renderRow('list-abil-'+c.toLowerCase(), a, 'abil', 0); }));
         }
@@ -629,9 +622,9 @@ function initUI() {
             window.updatePools(); // Triggers save
         });
 
-        // Initialize UI with current state (loaded from AutoSave if applicable)
-        if (window.state && window.state.dots) {
-            window.fullRefresh();
+        // ATTEMPT LOAD FROM LOCAL STORAGE (MOVED INTO THIS FLOW)
+        if (loadAutoSave()) {
+            // Already loaded via function above, wait for fullRefresh trigger
         } else {
             changeStep(1); 
         }
@@ -848,10 +841,12 @@ function populateGuestUI() {
     });
     
     // Ensure inputs are hydrated if data was loaded from localStorage
-    hydrateInputs();
+    // Force a full refresh to ensure all dynamic rows are built
+    setTimeout(() => window.fullRefresh(), 100);
     
     const loader = document.getElementById('loading-overlay');
     if(loader) loader.style.display = 'none';
 }
 
-initUI();
+// Make sure initUI runs when DOM is loaded, not just script load
+document.addEventListener('DOMContentLoaded', initUI);
