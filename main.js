@@ -99,10 +99,7 @@ function loadAutoSave() {
             if (parsed && parsed.dots) {
                 console.log("Restoring Auto-Save...");
                 window.state = parsed;
-                // FORCE REFRESH AFTER RESTORE
-                setTimeout(() => {
-                    if (window.fullRefresh) window.fullRefresh();
-                }, 200);
+                // Note: We used to setTimeout refresh here, but now we handle it in initUI for better timing
                 return true;
             }
         }
@@ -304,7 +301,9 @@ window.fullRefresh = function() {
 
         console.log("UI Refresh Complete.");
         
-        if(window.state.furthestPhase) changeStep(window.state.furthestPhase);
+        // Prioritize current phase, fall back to furthest
+        const targetStep = window.state.currentPhase || window.state.furthestPhase || 1;
+        changeStep(targetStep);
 
     } catch(e) {
         console.error("Refresh Error:", e);
@@ -322,6 +321,15 @@ window.updatePools = function() {
 function initUI() {
     try {
         if (!document.getElementById('sheet-nav')) throw new Error("Navigation container 'sheet-nav' is missing.");
+
+        // 1. ATTEMPT LOAD FIRST
+        // This ensures window.state has the user's data (or stays default) before we generate HTML.
+        const loaded = loadAutoSave(); 
+        if(loaded) {
+             console.log("Data loaded synchronously.");
+        } else {
+             console.log("No autosave. Using default state.");
+        }
 
         const sensitiveInputs = ['c-name', 'c-player', 'c-sire', 'c-concept', 'c-chronicle'];
         sensitiveInputs.forEach(id => {
@@ -345,14 +353,14 @@ function initUI() {
 
         const s1 = document.getElementById('list-attr-physical');
         if (s1) {
+            // FIX: Render rows using the ACTUAL value in state, not a hardcoded 1 or 0.
             Object.keys(ATTRIBUTES).forEach(c => ATTRIBUTES[c].forEach(a => { 
-                // Only set default if not already loaded (fixes reset bug)
                 if (window.state.dots.attr[a] === undefined) window.state.dots.attr[a] = 1; 
-                renderRow('list-attr-'+c.toLowerCase(), a, 'attr', 1); 
+                renderRow('list-attr-'+c.toLowerCase(), a, 'attr', window.state.dots.attr[a]); 
             }));
             Object.keys(ABILITIES).forEach(c => ABILITIES[c].forEach(a => { 
                 if (window.state.dots.abil[a] === undefined) window.state.dots.abil[a] = 0; 
-                renderRow('list-abil-'+c.toLowerCase(), a, 'abil', 0); 
+                renderRow('list-abil-'+c.toLowerCase(), a, 'abil', window.state.dots.abil[a]); 
             }));
         }
         
@@ -364,7 +372,7 @@ function initUI() {
         renderDerangementsList(); 
         VIRTUES.forEach(v => { 
             if (window.state.dots.virt[v] === undefined) window.state.dots.virt[v] = 1; 
-            renderRow('list-virt', v, 'virt', 1); 
+            renderRow('list-virt', v, 'virt', window.state.dots.virt[v]); 
         });
         
         const vitalCont = document.getElementById('vitals-create-inputs');
@@ -619,12 +627,9 @@ function initUI() {
             window.updatePools();
         });
 
-        changeStep(1); 
-        
-        // --- RESTORE AUTOSAVE AT STARTUP ---
-        if (loadAutoSave()) {
-            console.log("State restored from Autosave.");
-        }
+        // 2. FORCE SYNC AT END OF INIT
+        // This ensures locks, pools, and navigation are consistent after rows are built
+        window.fullRefresh();
         
     } catch(e) {
         console.error("UI Init Error:", e);
