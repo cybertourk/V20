@@ -296,6 +296,12 @@ function handleImageUpload(e) {
 window.fullRefresh = function() {
     try {
         console.log("Starting Full UI Refresh...");
+
+        // --- FIX: CRITICAL CLEANUP ---
+        // Remove file input values from state to prevent InvalidStateError on refresh
+        if (window.state.textFields && window.state.textFields['char-img-input']) {
+            delete window.state.textFields['char-img-input'];
+        }
         
         // --- 1. SYNC VISUAL MODE WITH STATE ---
         const playBtn = document.getElementById('play-mode-btn');
@@ -578,6 +584,9 @@ function initUI() {
         document.body.addEventListener('change', (e) => {
             if(e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') {
                 if(e.target.id && !e.target.id.startsWith('search')) { 
+                    // FIX: IGNORE FILE INPUTS TO PREVENT CRASH
+                    if (e.target.type === 'file') return;
+
                     window.state.textFields[e.target.id] = e.target.value; 
                     if (e.target.id === 'c-xp-total') window.updatePools();
                     renderPrintSheet();
