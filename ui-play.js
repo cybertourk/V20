@@ -303,7 +303,7 @@ export function togglePlayMode() {
                         const innerBox = document.createElement('div');
                         innerBox.className = "w-full flex justify-center mt-2 bg-[#111] p-4 border border-[#333]";
                         innerBox.innerHTML = `
-                            <div class="w-48 h-48 border-2 border-[#af0000] rounded-lg shadow-lg overflow-hidden bg-black bg-cover bg-center bg-no-repeat transition-transform hover:scale-105 duration-300"
+                            <div class="w-80 h-80 max-w-full border-2 border-[#af0000] rounded-lg shadow-lg overflow-hidden bg-black bg-cover bg-center bg-no-repeat transition-transform hover:scale-105 duration-300"
                                  style="background-image: url('${window.state.characterImage}'); box-shadow: 0 0 15px rgba(175, 0, 0, 0.3);">
                             </div>
                         `;
