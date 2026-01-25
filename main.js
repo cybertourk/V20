@@ -136,8 +136,23 @@ window.state = {
 
 let user = null;
 
+// --- NAVIGATION GUARD ---
+const beforeUnloadHandler = (e) => {
+    e.preventDefault();
+    e.returnValue = '';
+};
+
 // --- BINDING EXPORTS TO WINDOW ---
-window.handleNew = FBManager.handleNew;
+// Replaced FBManager.handleNew with local implementation to ensure AUTOSAVE_KEY is cleared
+window.handleNew = () => {
+    if(confirm("Create New Character? Unsaved changes will be overwritten.")) {
+        // Remove the navigation guard so double confirmation doesn't occur
+        window.removeEventListener('beforeunload', beforeUnloadHandler);
+        localStorage.removeItem(AUTOSAVE_KEY);
+        window.location.reload();
+    }
+};
+
 window.handleSaveClick = FBManager.handleSaveClick;
 window.handleLoadClick = FBManager.handleLoadClick;
 window.performSave = FBManager.performSave;
@@ -409,10 +424,7 @@ function initUI() {
         }
 
         // --- PREVENT ACCIDENTAL EXIT ---
-        window.addEventListener('beforeunload', (e) => {
-            e.preventDefault();
-            e.returnValue = '';
-        });
+        window.addEventListener('beforeunload', beforeUnloadHandler);
 
         const sensitiveInputs = ['c-name', 'c-player', 'c-sire', 'c-concept', 'c-chronicle'];
         sensitiveInputs.forEach(id => {
@@ -910,7 +922,7 @@ onAuthStateChanged(auth, async (u) => {
 function populateGuestUI() {
     const ns = document.getElementById('c-nature');
     const ds = document.getElementById('c-demeanor');
-    if(ns && ds && ns.options.length <= 1 && typeof ARCHETYPES !== 'undefined') {
+    if(ns && ds && typeof ARCHETYPES !== 'undefined') {
         ns.innerHTML = '<option value="" disabled selected>Choose Nature...</option>'; 
         ds.innerHTML = '<option value="" disabled selected>Choose Demeanor...</option>'; 
         ARCHETYPES.sort().forEach(a => { ns.add(new Option(a,a)); ds.add(new Option(a,a)); });
