@@ -315,9 +315,16 @@ function injectBloodInfo() {
             <button onclick="window.setupHunting()" class="bg-[#8b0000] hover:bg-red-700 text-white text-[9px] font-bold px-2 py-0.5 rounded border border-[#d4af37]/50 flex items-center gap-1 shadow-sm uppercase tracking-wider transition-all" title="Roll Hunting Pool">
                 <i class="fas fa-tint"></i> Hunt
             </button>
+            <i class="fas fa-info-circle text-[10px] text-gray-500 hover:text-white cursor-pointer transition-colors" title="Feeding Rules" onclick="window.showBloodInfo(event)"></i>
         `;
     }
 }
+
+export function showBloodInfo(e) {
+    if(e) e.stopPropagation();
+    document.getElementById('blood-info-modal').classList.add('active');
+}
+window.showBloodInfo = showBloodInfo;
 
 export function setupHunting() {
     window.clearPool();
