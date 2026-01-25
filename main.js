@@ -84,7 +84,6 @@ function triggerAutoSave() {
             // Serialize
             const data = JSON.stringify(window.state);
             localStorage.setItem(AUTOSAVE_KEY, data);
-            // console.log("Auto-saved to local storage");
         } catch (e) {
             console.warn("Auto-save failed:", e);
         }
@@ -99,7 +98,6 @@ function loadAutoSave() {
             if (parsed && parsed.dots) {
                 console.log("Restoring Auto-Save...");
                 window.state = parsed;
-                // Note: We used to setTimeout refresh here, but now we handle it in initUI for better timing
                 return true;
             }
         }
@@ -237,6 +235,23 @@ window.fullRefresh = function() {
     try {
         console.log("Starting Full UI Refresh...");
         
+        // --- 1. SYNC VISUAL MODE WITH STATE (CRITICAL FIX) ---
+        const playBtn = document.getElementById('play-mode-btn');
+        if (window.state.isPlayMode) {
+            document.body.classList.add('play-mode');
+            if(playBtn) {
+                playBtn.classList.add('active');
+                playBtn.innerHTML = `<i class="fa-solid fa-pen-to-square"></i> Edit`;
+            }
+        } else {
+            document.body.classList.remove('play-mode');
+            if(playBtn) {
+                playBtn.classList.remove('active');
+                playBtn.innerHTML = `<i class="fa-solid fa-gamepad"></i> Play`;
+            }
+        }
+
+        // --- 2. RENDER COMPONENTS ---
         hydrateInputs();
         
         renderDynamicAdvantageRow('list-disc', 'disc', DISCIPLINES);
@@ -300,14 +315,15 @@ window.fullRefresh = function() {
         if(freebieBtn) freebieBtn.removeAttribute('disabled');
 
         console.log("UI Refresh Complete.");
-        
-        // Prioritize current phase, fall back to furthest
-        const targetStep = window.state.currentPhase || window.state.furthestPhase || 1;
-        changeStep(targetStep);
 
     } catch(e) {
         console.error("Refresh Error:", e);
         window.showNotification("Error Refreshing UI");
+    } finally {
+        // --- 3. FORCE NAVIGATION (GUARANTEE VISIBILITY) ---
+        // Ensure this runs even if rendering errors occurred above
+        const targetStep = window.state.currentPhase || window.state.furthestPhase || 1;
+        changeStep(targetStep);
     }
 };
 
@@ -323,7 +339,6 @@ function initUI() {
         if (!document.getElementById('sheet-nav')) throw new Error("Navigation container 'sheet-nav' is missing.");
 
         // 1. ATTEMPT LOAD FIRST
-        // This ensures window.state has the user's data (or stays default) before we generate HTML.
         const loaded = loadAutoSave(); 
         if(loaded) {
              console.log("Data loaded synchronously.");
@@ -353,7 +368,7 @@ function initUI() {
 
         const s1 = document.getElementById('list-attr-physical');
         if (s1) {
-            // FIX: Render rows using the ACTUAL value in state, not a hardcoded 1 or 0.
+            // Render rows using ACTUAL state values
             Object.keys(ATTRIBUTES).forEach(c => ATTRIBUTES[c].forEach(a => { 
                 if (window.state.dots.attr[a] === undefined) window.state.dots.attr[a] = 1; 
                 renderRow('list-attr-'+c.toLowerCase(), a, 'attr', window.state.dots.attr[a]); 
@@ -628,7 +643,6 @@ function initUI() {
         });
 
         // 2. FORCE SYNC AT END OF INIT
-        // This ensures locks, pools, and navigation are consistent after rows are built
         window.fullRefresh();
         
     } catch(e) {
@@ -803,7 +817,7 @@ function populateGuestUI() {
     }
     
     const cs = document.getElementById('c-clan');
-    if(cs && cs.options.length <= 1 && typeof CLANS !== 'undefined') {
+    if(cs && typeof CLANS !== 'undefined') {
         cs.innerHTML = '<option value="" disabled selected>Choose Clan...</option>';
         CLANS.sort().forEach(c => cs.add(new Option(c,c)));
         cs.addEventListener('change', (e) => {
