@@ -323,7 +323,9 @@ window.fullRefresh = function() {
         console.log("UI Refresh Complete.");
         
         // 11. Navigate
-        if(window.state.furthestPhase) changeStep(window.state.furthestPhase);
+        // Prefer the phase the user was actually on (currentPhase), falling back to furthest unlocked if missing.
+        const targetStep = window.state.currentPhase || window.state.furthestPhase || 1;
+        changeStep(targetStep);
 
     } catch(e) {
         console.error("Refresh Error:", e);
