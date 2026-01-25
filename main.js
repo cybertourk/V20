@@ -346,6 +346,14 @@ function initUI() {
              console.log("No autosave. Using default state.");
         }
 
+        // --- PREVENT ACCIDENTAL EXIT ---
+        window.addEventListener('beforeunload', (e) => {
+            // This triggers the browser's standard "Leave site?" dialog
+            // if the user tries to close the tab or refresh.
+            e.preventDefault();
+            e.returnValue = '';
+        });
+
         const sensitiveInputs = ['c-name', 'c-player', 'c-sire', 'c-concept', 'c-chronicle'];
         sensitiveInputs.forEach(id => {
             const el = document.getElementById(id);
