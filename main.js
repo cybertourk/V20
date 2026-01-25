@@ -247,6 +247,21 @@ window.fullRefresh = function() {
     try {
         console.log("Starting Full UI Refresh...");
         
+        // 0. Safety: Ensure Base Rows Exist
+        // Check if Attributes are empty (using Physical as proxy)
+        const checkAttr = document.getElementById('list-attr-physical');
+        if (checkAttr && (!checkAttr.innerHTML || checkAttr.innerHTML.trim() === "")) {
+             console.log("Base rows missing during refresh. Re-rendering...");
+             Object.keys(ATTRIBUTES).forEach(c => ATTRIBUTES[c].forEach(a => { renderRow('list-attr-'+c.toLowerCase(), a, 'attr', 1); }));
+             Object.keys(ABILITIES).forEach(c => ABILITIES[c].forEach(a => { renderRow('list-abil-'+c.toLowerCase(), a, 'abil', 0); }));
+        }
+
+        // Check if Virtues are empty
+        const checkVirt = document.getElementById('list-virt');
+        if (checkVirt && (!checkVirt.innerHTML || checkVirt.innerHTML.trim() === "")) {
+             VIRTUES.forEach(v => { renderRow('list-virt', v, 'virt', 1); });
+        }
+
         // 1. Hydrate Text Fields
         hydrateInputs();
         
