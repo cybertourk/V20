@@ -477,6 +477,15 @@ export function renderPlaySheetModal() {
 
                         <div class="sheet-section">
                             <div class="section-title">Biography</div>
+                            
+                            <!-- PORTRAIT DISPLAY (Play Mode) -->
+                            ${npc.image ? `
+                            <div class="mb-4 flex justify-center">
+                                <div class="w-32 h-32 border-2 border-[#444] rounded bg-black relative overflow-hidden bg-cover bg-center bg-no-repeat shadow-lg"
+                                     style="background-image: url('${npc.image}'); border-color: #8b0000;">
+                                </div>
+                            </div>` : ''}
+
                             ${npc.bio.Description ? `<div class="text-xs text-gray-300 italic leading-relaxed mb-4 whitespace-pre-wrap">${npc.bio.Description}</div>` : '<div class="text-xs text-gray-600 italic">No description.</div>'}
                             
                             ${domitorDisplay ? `<div class="bg-[#111] p-2 border border-[#333] rounded mb-2">${domitorDisplay}</div>` : ''}
