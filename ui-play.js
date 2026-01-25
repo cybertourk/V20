@@ -122,8 +122,11 @@ function injectHumanityInfo() {
         humTitleEl.style.alignItems = 'center';
         humTitleEl.style.gap = '8px';
         
+        // Make Humanity Rollable
         humTitleEl.innerHTML = `
-            Humanity / Path
+            <button onclick="window.toggleStat('Humanity', window.state.status.humanity, 'humanity')" class="hover:text-white text-[#d4af37] transition-colors uppercase font-bold flex items-center gap-2" title="Roll Humanity">
+                Humanity / Path <i class="fas fa-dice-d20 text-[10px]"></i>
+            </button>
             <i class="fas fa-info-circle text-[10px] text-gray-500 hover:text-white cursor-pointer transition-colors" title="Hierarchy of Sins" onclick="window.showHumanityInfo(event)"></i>
         `;
     }
@@ -147,13 +150,13 @@ function injectBloodInfo() {
         bloodTitleEl.style.alignItems = 'center';
         bloodTitleEl.style.gap = '8px';
         
-        // Using Gold color for Icon to ensure visibility against dark background
+        // UPDATED: Icon color changed to gray-500 for consistency
         bloodTitleEl.innerHTML = `
             <span>Blood Pool</span>
             <button onclick="window.setupHunting()" class="bg-[#8b0000] hover:bg-red-700 text-white text-[9px] font-bold px-2 py-0.5 rounded border border-[#d4af37]/50 flex items-center gap-1 shadow-sm uppercase tracking-wider transition-all" title="Roll Hunting Pool">
                 <i class="fas fa-tint"></i> Hunt
             </button>
-            <i class="fas fa-info-circle text-[10px] text-[#d4af37] hover:text-white cursor-pointer transition-colors" title="Feeding Rules" onclick="window.showBloodInfo(event)"></i>
+            <i class="fas fa-info-circle text-[10px] text-gray-500 hover:text-white cursor-pointer transition-colors" title="Feeding Rules" onclick="window.showBloodInfo(event)"></i>
         `;
     } else {
         console.warn("Blood Pool Title Element not found for injection.");
