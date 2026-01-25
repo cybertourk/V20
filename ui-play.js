@@ -11,7 +11,7 @@ import {
 } from "./ui-common.js";
 
 import { 
-    renderRow, rollCombat, rollFrenzy, rollRotschreck, rollDiscipline, rollInitiative
+    renderRow, rollCombat, rollFrenzy, rollRotschreck, rollDiscipline, rollInitiative, toggleStat
 } from "./ui-mechanics.js";
 
 import { openNpcCreator, openNpcSheet } from "./npc-creator.js";
@@ -114,7 +114,8 @@ export function togglePlayMode() {
         
         // Inject Info Buttons
         injectWillpowerInfo();
-        injectHumanityInfo(); // Added Humanity Info Injection
+        injectHumanityInfo();
+        injectBloodInfo(); // Added Blood/Hunting Button
 
         let carried = []; let owned = []; 
         if(window.state.inventory) { 
@@ -262,14 +263,12 @@ export function showWillpowerInfo(e) {
 }
 window.showWillpowerInfo = showWillpowerInfo; 
 
-// --- HUMANITY INFO INJECTION (NEW) ---
+// --- HUMANITY INFO INJECTION ---
 function injectHumanityInfo() {
     const sections = document.querySelectorAll('#play-mode-sheet .section-title');
     let humTitleEl = null;
     
     sections.forEach(el => {
-        // Robust check: Is this the parent of the humanity dots or path selector?
-        // Note: The structure in index.html for Humanity in Play Mode has #c-path-name or #humanity-dots-play
         if (el.parentNode.querySelector('#humanity-dots-play') || el.parentNode.querySelector('#c-path-name')) {
             humTitleEl = el;
         }
@@ -293,6 +292,51 @@ export function showHumanityInfo(e) {
     document.getElementById('humanity-info-modal').classList.add('active');
 }
 window.showHumanityInfo = showHumanityInfo;
+
+// --- BLOOD/FEEDING INJECTION (NEW) ---
+function injectBloodInfo() {
+    const sections = document.querySelectorAll('#play-mode-sheet .section-title');
+    let bloodTitleEl = null;
+    
+    sections.forEach(el => {
+        if (el.parentNode.querySelector('#blood-boxes-play')) {
+            bloodTitleEl = el;
+        }
+    });
+
+    if (bloodTitleEl) {
+        bloodTitleEl.style.display = 'flex';
+        bloodTitleEl.style.justifyContent = 'center';
+        bloodTitleEl.style.alignItems = 'center';
+        bloodTitleEl.style.gap = '8px';
+        
+        bloodTitleEl.innerHTML = `
+            Blood Pool
+            <button onclick="window.setupHunting()" class="bg-[#8b0000] hover:bg-red-700 text-white text-[9px] font-bold px-2 py-0.5 rounded border border-[#d4af37]/50 flex items-center gap-1 shadow-sm uppercase tracking-wider transition-all" title="Roll Hunting Pool">
+                <i class="fas fa-tint"></i> Hunt
+            </button>
+        `;
+    }
+}
+
+export function setupHunting() {
+    window.clearPool();
+    
+    // Default Pool: Perception + Streetwise (Urban)
+    // Could alternatively be Perception + Survival (Wild)
+    const per = window.state.dots.attr['Perception'] || 1;
+    const str = window.state.dots.abil['Streetwise'] || 0;
+    
+    window.toggleStat('Perception', per, 'attribute');
+    if (str > 0) window.toggleStat('Streetwise', str, 'ability');
+    
+    // Set Difficulty (Variable, usually 4-8, default 6)
+    const diffInput = document.getElementById('roll-diff');
+    if(diffInput) diffInput.value = 6;
+    
+    showNotification("Hunting Pool Loaded (Per + Streetwise).");
+}
+window.setupHunting = setupHunting;
 
 
 // --- RENDER HELPERS ---
@@ -347,9 +391,25 @@ function renderPlayModeAdvantages() {
     const rc = document.getElementById('play-row-adv'); 
     if (rc) {
         rc.innerHTML = '';
-        const ds = document.createElement('div'); ds.className='sheet-section !mt-0'; ds.innerHTML='<div class="column-title">Disciplines</div>';
+        
+        // --- Disciplines (NON-ROLLABLE SUMMARY) ---
+        const ds = document.createElement('div'); 
+        ds.className='sheet-section !mt-0'; 
+        ds.innerHTML='<div class="column-title">Disciplines</div>';
         rc.appendChild(ds);
-        Object.entries(window.state.dots.disc).forEach(([n,v]) => { if(v>0) renderRow(ds,n,'disc',0); }); 
+        
+        Object.entries(window.state.dots.disc).forEach(([n,v]) => { 
+            if(v > 0) {
+                // Manually create row WITHOUT generic click handler
+                const row = document.createElement('div');
+                row.className = 'flex items-center justify-between w-full py-1';
+                row.innerHTML = `
+                    <span class="trait-label font-bold uppercase text-[11px] whitespace-nowrap text-gray-400 cursor-default">${n}</span>
+                    <div class="dot-row flex-shrink-0 pointer-events-none">${renderDots(v, 5)}</div>
+                `;
+                ds.appendChild(row);
+            } 
+        }); 
         
         const bs = document.createElement('div'); bs.className='sheet-section !mt-0'; bs.innerHTML='<div class="column-title">Backgrounds</div>';
         rc.appendChild(bs);
