@@ -41,7 +41,7 @@ import {
 
 import { renderPrintSheet } from "./ui-print.js";
 import { togglePlayMode } from "./ui-play.js";
-import { changeStep, updateWalkthrough, startTutorial } from "./ui-nav.js"; 
+import { changeStep, updateWalkthrough, startTutorial } from "./ui-nav.js"; // Added startTutorial
 
 // --- NEW DATA IMPORTS & MERGING ---
 import { DISCIPLINES_DATA } from './disciplines-data.js';
@@ -51,9 +51,11 @@ import { THAUMATURGY_RITUALS } from './thaumaturgy-rituals.js';
 import { NECROMANCY_RITUALS } from './necromancy-rituals.js';
 
 // Merge Thaumaturgy and Necromancy Paths into the main Disciplines object
+// This ensures the UI renders their details/rolls exactly like standard Disciplines
 Object.assign(DISCIPLINES_DATA, THAUMATURGY_DATA, NECROMANCY_DATA);
 
 // Create a global container for Rituals
+// This allows the UI to access rituals by school and level
 window.RITUALS_DATA = {
     "Thaumaturgy": THAUMATURGY_RITUALS,
     "Necromancy": NECROMANCY_RITUALS
@@ -70,54 +72,12 @@ window.onerror = function(msg, url, line) {
     console.error("Global Error:", msg, "Line:", line);
 };
 
-// --- AUTO-SAVE SYSTEM ---
-const AUTOSAVE_KEY = 'v20_character_autosave_v1';
-let autoSaveTimeout = null;
-
-function triggerAutoSave() {
-    if (autoSaveTimeout) clearTimeout(autoSaveTimeout);
-    autoSaveTimeout = setTimeout(() => {
-        try {
-            // Don't autosave if state is empty/broken
-            if (!window.state || !window.state.dots) return;
-            
-            // Serialize
-            const data = JSON.stringify(window.state);
-            localStorage.setItem(AUTOSAVE_KEY, data);
-            // console.log("Auto-saved to local storage");
-        } catch (e) {
-            console.warn("Auto-save failed:", e);
-        }
-    }, 1000); // 1 second debounce
-}
-
-function loadAutoSave() {
-    try {
-        const saved = localStorage.getItem(AUTOSAVE_KEY);
-        if (saved) {
-            const parsed = JSON.parse(saved);
-            if (parsed && parsed.dots) {
-                console.log("Restoring Auto-Save...");
-                window.state = parsed;
-                // FORCE REFRESH AFTER RESTORE
-                setTimeout(() => {
-                    if (window.fullRefresh) window.fullRefresh();
-                }, 200);
-                return true;
-            }
-        }
-    } catch (e) {
-        console.error("Failed to load auto-save:", e);
-    }
-    return false;
-}
-
 // --- STATE MANAGEMENT ---
 window.state = {
     isPlayMode: false, 
     freebieMode: false, 
-    xpMode: false, 
-    xpLog: [],     
+    xpMode: false, // New Experience Mode
+    xpLog: [],     // New Experience Log
     activePool: [], 
     currentPhase: 1, 
     furthestPhase: 1,
@@ -126,29 +86,24 @@ window.state = {
     status: { humanity: 7, willpower: 5, tempWillpower: 5, health_states: [0,0,0,0,0,0,0], blood: 0 },
     specialties: {}, 
     socialExtras: {}, 
+    // FIXED: Initialize c-gen to 13 so Step 1 validation passes by default without interaction
     textFields: { "c-gen": "13", "c-xp-total": "0" }, 
     havens: [], bloodBonds: [], vehicles: [], customAbilityCategories: {},
     derangements: [], merits: [], flaws: [], inventory: [],
-    retainers: [],
+    retainers: [], // New Retainers Array
+    // New Rituals & Primary Paths state initialization
     rituals: [],
     primaryThaumPath: null,
     primaryNecroPath: null,
     meta: { filename: "", folder: "" },
-    sessionLogs: [],
-    codex: []
+    sessionLogs: [], // Ensure session logs array exists
+    codex: [] // Ensure codex array exists
 };
 
 let user = null;
 
 // --- BINDING EXPORTS TO WINDOW ---
-window.handleNew = () => {
-    if(confirm("Create New Character? Unsaved changes will be overwritten.")) {
-        // Clear Local Storage
-        localStorage.removeItem(AUTOSAVE_KEY);
-        // Reload Page (Cleanest reset)
-        window.location.reload();
-    }
-};
+window.handleNew = FBManager.handleNew;
 window.handleSaveClick = FBManager.handleSaveClick;
 window.handleLoadClick = FBManager.handleLoadClick;
 window.performSave = FBManager.performSave;
@@ -159,6 +114,7 @@ window.deleteCharacter = FBManager.deleteCharacter;
 function handleExport() {
     if (!window.state) return;
 
+    // Ensure filename in meta is synced with text field name if available
     if(window.state.textFields && window.state.textFields['c-name']) {
         if(!window.state.meta) window.state.meta = {};
         window.state.meta.filename = window.state.textFields['c-name'];
@@ -168,6 +124,7 @@ function handleExport() {
     const downloadAnchorNode = document.createElement('a');
     downloadAnchorNode.setAttribute("href", dataStr);
     
+    // Sanitize filename
     let rawName = window.state.textFields?.['c-name'] || "v20-character";
     rawName = rawName.replace(/[^a-z0-9\s-_]/gi, '').trim() || "v20-character";
     
@@ -185,22 +142,25 @@ function handleImport(event) {
     reader.onload = function(e) {
         try {
             const json = JSON.parse(e.target.result);
+            
+            // Basic structure validation
             if (!json || typeof json !== 'object') throw new Error("Invalid JSON");
 
+            // Confirm overwrite
             if(!confirm(`Import character from "${file.name}"? Unsaved changes will be lost.`)) {
-                event.target.value = ''; 
+                event.target.value = ''; // Reset input
                 return;
             }
 
             window.state = json;
 
-            // Legacy Patching
+            // Legacy Data Patches / Safety Checks (Mirrors Firebase Load logic)
             if(!window.state.meta) window.state.meta = { filename: file.name.replace('.json',''), folder: "" };
             if(!window.state.specialties) window.state.specialties = {}; 
             if(!window.state.retainers) window.state.retainers = [];
-            if(!window.state.rituals) window.state.rituals = []; 
-            if(!window.state.sessionLogs) window.state.sessionLogs = []; 
-            if(!window.state.codex) window.state.codex = []; 
+            if(!window.state.rituals) window.state.rituals = []; // Ensure rituals array exists
+            if(!window.state.sessionLogs) window.state.sessionLogs = []; // Ensure session logs on import
+            if(!window.state.codex) window.state.codex = []; // Ensure codex on import
             
             if (!window.state.furthestPhase) window.state.furthestPhase = 1;
             if (window.state.status && window.state.status.tempWillpower === undefined) {
@@ -215,26 +175,33 @@ function handleImport(event) {
             }
 
             window.fullRefresh();
-            triggerAutoSave(); // Save the imported data immediately
             window.showNotification("Character Imported");
 
         } catch (err) {
             console.error(err);
             window.showNotification("Error: Invalid Character File");
         }
+        // Reset input so same file can be selected again
         event.target.value = '';
     };
     reader.readAsText(file);
 }
 
 // --- HELPER: SAFE INPUT LOCKING ---
+// Applies readonly to prevent autofill, but ensures it unlocks immediately on interaction
 function applySmartLock(input) {
+    // Only lock if empty and not already focused
     if (!input.value && document.activeElement !== input) {
         input.setAttribute('readonly', 'true');
+        // We use a specific attribute to know this is a smart-lock
         input.setAttribute('data-smartlock', 'true');
     }
+    
+    // Ensure the unlock listeners are attached (idempotent)
     if (!input.dataset.hasLockListeners) {
-        const unlock = () => { input.removeAttribute('readonly'); };
+        const unlock = () => {
+            input.removeAttribute('readonly');
+        };
         input.addEventListener('focus', unlock);
         input.addEventListener('click', unlock);
         input.addEventListener('input', unlock);
@@ -242,30 +209,15 @@ function applySmartLock(input) {
     }
 }
 
-// --- FULL UI REFRESH ---
+// --- CRITICAL FIX: FULL UI REFRESH FUNCTION ---
 window.fullRefresh = function() {
     try {
         console.log("Starting Full UI Refresh...");
         
-        // 0. Safety: Ensure Base Rows Exist
-        // Check if Attributes are empty (using Physical as proxy)
-        const checkAttr = document.getElementById('list-attr-physical');
-        if (checkAttr && (!checkAttr.innerHTML || checkAttr.innerHTML.trim() === "")) {
-             console.log("Base rows missing during refresh. Re-rendering...");
-             Object.keys(ATTRIBUTES).forEach(c => ATTRIBUTES[c].forEach(a => { renderRow('list-attr-'+c.toLowerCase(), a, 'attr', 1); }));
-             Object.keys(ABILITIES).forEach(c => ABILITIES[c].forEach(a => { renderRow('list-abil-'+c.toLowerCase(), a, 'abil', 0); }));
-        }
-
-        // Check if Virtues are empty
-        const checkVirt = document.getElementById('list-virt');
-        if (checkVirt && (!checkVirt.innerHTML || checkVirt.innerHTML.trim() === "")) {
-             VIRTUES.forEach(v => { renderRow('list-virt', v, 'virt', 1); });
-        }
-
-        // 1. Hydrate Text Fields
+        // 1. Text Fields
         hydrateInputs();
         
-        // 2. Render Dynamic Rows (Must happen before updatePools)
+        // 2. Dynamic Rows (Using imported functions from ui-advantages.js)
         renderDynamicAdvantageRow('list-disc', 'disc', DISCIPLINES);
         renderDynamicAdvantageRow('list-back', 'back', BACKGROUNDS);
         renderDynamicAdvantageRow('custom-talents', 'abil', [], true);
@@ -279,17 +231,20 @@ window.fullRefresh = function() {
         renderDynamicTraitRow('flaws-list-create', 'Flaw', V20_FLAWS_LIST);
         if(renderRitualsEdit) renderRitualsEdit();
         
-        // 3. Update Priorities
+        // 3. Priority Buttons
         if (window.state.prios) {
             document.querySelectorAll('.prio-btn').forEach(btn => {
                 const { cat, group, v } = btn.dataset;
                 const savedVal = window.state.prios[cat]?.[group];
-                if (savedVal == v) btn.classList.add('active');
-                else btn.classList.remove('active');
+                if (savedVal == v) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
             });
         }
         
-        // 4. Refresh Trait Rows (Colors, dots, etc)
+        // 4. Standard Rows
         Object.keys(ATTRIBUTES).forEach(c => ATTRIBUTES[c].forEach(a => { refreshTraitRow(a, 'attr'); }));
         Object.keys(ABILITIES).forEach(c => ABILITIES[c].forEach(a => { refreshTraitRow(a, 'abil'); }));
 
@@ -310,7 +265,7 @@ window.fullRefresh = function() {
             if(row) row.innerHTML = renderDots(window.state.dots.virt[v] || 1, 5);
         });
 
-        // 7. Clan Specifics
+        // 7. Update Weakness if Clan is Selected
         const currentClan = window.state.textFields['c-clan'];
         if (currentClan && CLAN_WEAKNESSES[currentClan]) {
             const weaknessArea = document.getElementById('c-clan-weakness');
@@ -320,27 +275,26 @@ window.fullRefresh = function() {
         renderSocialProfile();
         updateWalkthrough();
         
-        // 8. Update Pools (Logic & Visuals)
+        // 8. UPDATE POOLS (Freebie / XP Log)
         if (window.updatePools) window.updatePools();
-        
-        // 9. Print Sheet
         if (renderPrintSheet) renderPrintSheet();
 
-        // 10. Locks
+        // 9. SMART AUTOFILL PROTECTION
         setTimeout(() => {
             const inputs = document.querySelectorAll('#sheet-content input[type="text"], #sheet-content textarea, #sheet-content input[type="number"]');
-            inputs.forEach(input => { applySmartLock(input); });
+            inputs.forEach(input => {
+                applySmartLock(input);
+            });
         }, 200);
         
+        // 10. UNLOCK FREEBIE BUTTON
         const freebieBtn = document.getElementById('toggle-freebie-btn');
         if(freebieBtn) freebieBtn.removeAttribute('disabled');
 
         console.log("UI Refresh Complete.");
         
-        // 11. Navigate
-        // Prefer the phase the user was actually on (currentPhase), falling back to furthest unlocked if missing.
-        const targetStep = window.state.currentPhase || window.state.furthestPhase || 1;
-        changeStep(targetStep);
+        // Restore Phase
+        if(window.state.furthestPhase) changeStep(window.state.furthestPhase);
 
     } catch(e) {
         console.error("Refresh Error:", e);
@@ -348,57 +302,65 @@ window.fullRefresh = function() {
     }
 };
 
-// --- HOOK INTO updatePools FOR AUTOSAVE ---
-const _originalUpdatePools = window.updatePools;
-window.updatePools = function() {
-    if(typeof _originalUpdatePools === 'function') _originalUpdatePools();
-    triggerAutoSave();
-};
+// --- INITIALIZATION LOGIC ---
 
 function initUI() {
     try {
-        console.log("Initializing UI...");
-        if (!document.getElementById('sheet-nav')) throw new Error("Navigation container missing.");
+        if (!document.getElementById('sheet-nav')) throw new Error("Navigation container 'sheet-nav' is missing from HTML.");
 
-        // --- 1. SETUP BASE EVENT LISTENERS ---
-        
-        // Anti-Autofill
+        // --- AGGRESSIVE ANTI-AUTOFILL ---
         const sensitiveInputs = ['c-name', 'c-player', 'c-sire', 'c-concept', 'c-chronicle'];
         sensitiveInputs.forEach(id => {
             const el = document.getElementById(id);
             if (el) {
                 el.setAttribute('readonly', 'true');
                 el.setAttribute('autocomplete', 'off');
+                // Ensure visual consistency so it doesn't look disabled
                 el.style.backgroundColor = 'transparent'; 
-                const enableInput = () => { el.removeAttribute('readonly'); };
+                
+                const enableInput = () => {
+                    el.removeAttribute('readonly');
+                };
+                
+                // Remove readonly when user clicks or tabs into field
                 el.addEventListener('focus', enableInput);
                 el.addEventListener('click', enableInput);
-                el.addEventListener('mouseenter', () => { if(document.activeElement !== el) el.removeAttribute('readonly'); });
+                el.addEventListener('mouseenter', () => {
+                    if(document.activeElement !== el) el.removeAttribute('readonly');
+                });
             }
         });
 
+        // General fallback for other inputs
         const allInputs = document.querySelectorAll('input, textarea');
-        allInputs.forEach(input => { if(!input.id.startsWith('auth-')) input.setAttribute('autocomplete', 'off'); });
+        allInputs.forEach(input => {
+            if(!input.id.startsWith('auth-')) { 
+                input.setAttribute('autocomplete', 'off');
+            }
+        });
 
         const vSpan = document.getElementById('app-version');
         if(vSpan) vSpan.innerText = APP_VERSION;
 
-        // Render basic structure (Empty Rows)
         const s1 = document.getElementById('list-attr-physical');
-        // Always render base rows if they don't exist yet
-        if (s1 && (!s1.innerHTML || s1.innerHTML.trim() === "")) {
-             Object.keys(ATTRIBUTES).forEach(c => ATTRIBUTES[c].forEach(a => { renderRow('list-attr-'+c.toLowerCase(), a, 'attr', 1); }));
-             Object.keys(ABILITIES).forEach(c => ABILITIES[c].forEach(a => { renderRow('list-abil-'+c.toLowerCase(), a, 'abil', 0); }));
+        if (s1) {
+            Object.keys(ATTRIBUTES).forEach(c => ATTRIBUTES[c].forEach(a => { 
+                window.state.dots.attr[a] = 1; 
+                renderRow('list-attr-'+c.toLowerCase(), a, 'attr', 1); 
+            }));
+            Object.keys(ABILITIES).forEach(c => ABILITIES[c].forEach(a => { 
+                window.state.dots.abil[a] = 0; 
+                renderRow('list-abil-'+c.toLowerCase(), a, 'abil', 0); 
+            }));
         }
-
+        
         renderDynamicAdvantageRow('list-disc', 'disc', DISCIPLINES);
         renderDynamicAdvantageRow('list-back', 'back', BACKGROUNDS);
         renderDynamicAdvantageRow('custom-talents', 'abil', [], true);
         renderDynamicAdvantageRow('custom-skills', 'abil', [], true);
         renderDynamicAdvantageRow('custom-knowledges', 'abil', [], true);
-        renderDerangementsList();
-        
-        VIRTUES.forEach(v => { renderRow('list-virt', v, 'virt', 1); });
+        renderDerangementsList(); 
+        VIRTUES.forEach(v => { window.state.dots.virt[v] = 1; renderRow('list-virt', v, 'virt', 1); });
         
         const vitalCont = document.getElementById('vitals-create-inputs');
         if(vitalCont) {
@@ -432,7 +394,6 @@ function initUI() {
                     window.state.dots.other[n] = v; 
                     dr.innerHTML = renderDots(window.state.dots.other[n], 5);
                     renderPrintSheet();
-                    triggerAutoSave();
                 } 
             };
         }
@@ -458,16 +419,13 @@ function initUI() {
 
         renderBloodBondRow();
         renderDynamicHavenRow();
-
+        
+        // FIXED: c-gen is included here for critical validation updates
         const criticalFields = ['c-name', 'c-nature', 'c-demeanor', 'c-clan', 'c-gen', 'c-player', 'c-concept', 'c-sire'];
         criticalFields.forEach(id => {
             const el = document.getElementById(id);
             if(el) {
-                const updateState = (e) => { 
-                    window.state.textFields[id] = e.target.value; 
-                    updateWalkthrough(); 
-                    triggerAutoSave(); 
-                };
+                const updateState = (e) => { window.state.textFields[id] = e.target.value; updateWalkthrough(); };
                 el.addEventListener('keyup', updateState);
                 el.addEventListener('change', updateState);
             }
@@ -477,15 +435,26 @@ function initUI() {
             if(e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') {
                 if(e.target.id && !e.target.id.startsWith('search')) { 
                     window.state.textFields[e.target.id] = e.target.value; 
+                    // Special case for XP Total input to update sidebar
                     if (e.target.id === 'c-xp-total') window.updatePools();
                     renderPrintSheet();
-                    triggerAutoSave();
                 }
             }
         });
 
+        // Apply protection to initial inputs
+        setTimeout(() => {
+            const allInputs = document.querySelectorAll('input, textarea');
+            allInputs.forEach(input => {
+                if(!input.id.startsWith('auth-')) { 
+                    input.setAttribute('autocomplete', 'off');
+                    applySmartLock(input);
+                }
+            });
+        }, 100);
+
         const cmdNew = document.getElementById('cmd-new');
-        if(cmdNew) cmdNew.onclick = window.handleNew; 
+        if(cmdNew) cmdNew.onclick = window.handleNew;
         const cmdSave = document.getElementById('cmd-save');
         if(cmdSave) cmdSave.onclick = window.handleSaveClick;
         const cmdLoad = document.getElementById('cmd-load');
@@ -494,8 +463,9 @@ function initUI() {
         if(confirmSave) confirmSave.onclick = window.performSave;
         
         const topPlayBtn = document.getElementById('play-mode-btn');
-        if(topPlayBtn) topPlayBtn.onclick = togglePlayMode; 
+        if(topPlayBtn) topPlayBtn.onclick = togglePlayMode; // Updated to use imported function
         
+        // --- LOCAL FILE HANDLERS (Export/Import/Print) ---
         const exportBtn = document.getElementById('export-btn');
         if(exportBtn) exportBtn.onclick = handleExport;
 
@@ -509,12 +479,17 @@ function initUI() {
         const printBtn = document.getElementById('print-btn');
         if(printBtn) printBtn.onclick = () => window.print();
 
+        // --- DELEGATED TO UI-RENDERER ---
+        // We use the window.toggle* functions defined in ui-renderer.js
+        // DO NOT REDEFINE THEM HERE
+        
         const topFreebieBtn = document.getElementById('toggle-freebie-btn');
         if(topFreebieBtn) topFreebieBtn.onclick = () => { if(window.toggleFreebieMode) window.toggleFreebieMode(); };
         
         const topXpBtn = document.getElementById('toggle-xp-btn'); 
         if(topXpBtn) topXpBtn.onclick = () => { if(window.toggleXpMode) window.toggleXpMode(); };
 
+        // AUTH HANDLERS
         const loginBtn = document.getElementById('login-btn');
         if(loginBtn) {
             loginBtn.onclick = () => {
@@ -528,10 +503,10 @@ function initUI() {
         const logoutBtn = document.getElementById('logout-btn');
         if(logoutBtn) {
             logoutBtn.onclick = async () => {
-                if(confirm("Logout?")) {
+                if(confirm("Logout? Unsaved changes to current character will be lost.")) {
                     try {
                         await signOut(auth);
-                        window.location.reload(); 
+                        window.location.reload(); // Reset state
                     } catch(e) {
                         console.error(e);
                     }
@@ -539,6 +514,7 @@ function initUI() {
             };
         }
 
+        // NEW: Email/Password Modal Logic
         const authLoginBtn = document.getElementById('confirm-login-btn');
         const authRegisterBtn = document.getElementById('confirm-register-btn');
         const authError = document.getElementById('auth-error-msg');
@@ -555,6 +531,7 @@ function initUI() {
                 try {
                     await signInWithEmailAndPassword(auth, email, pass);
                     document.getElementById('auth-modal').classList.remove('active');
+                    // Hide guest prompt if open
                     document.getElementById('guest-prompt-modal').classList.remove('active');
                 } catch(e) {
                     console.error("Login Error:", e);
@@ -584,6 +561,7 @@ function initUI() {
                 try {
                     await createUserWithEmailAndPassword(auth, email, pass);
                     document.getElementById('auth-modal').classList.remove('active');
+                    // Hide guest prompt if open
                     document.getElementById('guest-prompt-modal').classList.remove('active');
                     window.showNotification("Account Created!");
                 } catch(e) {
@@ -597,7 +575,7 @@ function initUI() {
             };
         }
 
-        // GENERATION SYNC
+        // --- GLOBAL LISTENER FOR GENERATION SYNC ---
         document.body.addEventListener('click', function(e) {
             if (e.target.classList.contains('dot')) {
                 const row = e.target.closest('.dot-row');
@@ -608,12 +586,16 @@ function initUI() {
                     if (traitType === 'back' && traitName === 'Generation') {
                         setTimeout(() => {
                             const genDots = window.state.dots.back['Generation'] || 0;
+                            // V20: 0 dots = 13th Gen, 1 dot = 12th, ..., 5 dots = 8th
                             const newGen = 13 - genDots;
+                            
+                            // Update Text Field
                             window.state.textFields['c-gen'] = newGen.toString();
                             const genInput = document.getElementById('c-gen');
                             if (genInput) genInput.value = newGen;
+
+                            // Update Validation
                             updateWalkthrough();
-                            triggerAutoSave(); 
                         }, 50);
                     }
                 }
@@ -643,16 +625,7 @@ function initUI() {
             window.updatePools();
         });
 
-        // --- 2. ATTEMPT TO LOAD SAVED STATE ---
-        // We do this *after* setting up the UI scaffolding but *before* showing the page
-        if (loadAutoSave()) {
-            console.log("Auto-save loaded. UI refreshed via loadAutoSave.");
-            setTimeout(() => window.fullRefresh(), 500);
-        } else {
-            console.log("No auto-save found. Starting fresh.");
-            // Ensure pools and initial UI state are consistent even for new characters
-            setTimeout(() => window.fullRefresh(), 200); 
-        }
+        changeStep(1); 
 
     } catch(e) {
         console.error("UI Init Error:", e);
@@ -675,6 +648,8 @@ function updateAuthUI(u) {
             userInfo.style.display = 'flex';
         }
         if(userName) userName.innerText = u.displayName || u.email || "User";
+        
+        // Hide Guest Prompt if logged in
         document.getElementById('guest-prompt-modal').classList.remove('active');
     } else {
         if(loginBtn) loginBtn.classList.remove('hidden');
@@ -682,6 +657,8 @@ function updateAuthUI(u) {
             userInfo.classList.add('hidden');
             userInfo.style.display = 'none';
         }
+        
+        // Show Guest Prompt if anonymous AND not dismissed
         if (u && u.isAnonymous) {
             const dismissed = sessionStorage.getItem('v20_guest_dismissed');
             if (!dismissed) {
@@ -693,57 +670,82 @@ function updateAuthUI(u) {
     }
 }
 
+// --- TUTORIAL CHECKER ---
 function checkTutorialStatus() {
     if (!localStorage.getItem('v20_tutorial_complete')) {
         setTimeout(() => {
             if(window.startTutorial) window.startTutorial();
-        }, 1500); 
+        }, 1500); // Slightly after load
     }
 }
 
 onAuthStateChanged(auth, async (u) => {
     const loader = document.getElementById('loading-overlay');
+    
+    // Update Auth UI immediately based on state
     updateAuthUI(u);
     
+    // Check if user is logged in AND not anonymous
     if(u && !u.isAnonymous) {
         user = u;
         console.log("User signed in:", user.uid);
 
         try {
-            // Populate Dropdowns First
+            // 1. POPULATE DROPDOWNS FIRST
+            // This fixes the race condition where data is loaded before options exist.
+            
+            // Nature / Demeanor
             const ns = document.getElementById('c-nature');
             const ds = document.getElementById('c-demeanor');
             if(ns && ds && typeof ARCHETYPES !== 'undefined') {
                 ns.innerHTML = '<option value="" disabled selected>Choose Nature...</option>'; 
                 ds.innerHTML = '<option value="" disabled selected>Choose Demeanor...</option>'; 
+                
                 const sortedArch = [...ARCHETYPES].sort(); 
-                sortedArch.forEach(a => { ns.add(new Option(a,a)); ds.add(new Option(a,a)); });
+                sortedArch.forEach(a => { 
+                    ns.add(new Option(a,a)); 
+                    ds.add(new Option(a,a)); 
+                });
             }
 
+            // Clans
             const cs = document.getElementById('c-clan');
             if(cs && typeof CLANS !== 'undefined') {
                 cs.innerHTML = '<option value="" disabled selected>Choose Clan...</option>';
                 const sortedClans = [...CLANS].sort();
                 sortedClans.forEach(c => cs.add(new Option(c,c)));
                 
+                // Add listener to auto-populate weakness AND Disciplines
                 cs.addEventListener('change', (e) => {
                     const clan = e.target.value;
+                    
+                    // A. Weakness
                     const weaknessArea = document.getElementById('c-clan-weakness');
                     if (weaknessArea && CLAN_WEAKNESSES[clan]) {
                         weaknessArea.value = CLAN_WEAKNESSES[clan];
+                        // Also update state for persistence
                         if (!window.state.textFields) window.state.textFields = {};
                         window.state.textFields['c-clan-weakness'] = CLAN_WEAKNESSES[clan];
                     }
+
+                    // B. Disciplines (Auto-fill 3 in-clan)
                     if (CLAN_DISCIPLINES && CLAN_DISCIPLINES[clan]) {
+                        // Reset disc state
                         window.state.dots.disc = {};
-                        CLAN_DISCIPLINES[clan].forEach(d => { window.state.dots.disc[d] = 0; });
+                        // Add the 3 clan disciplines with 0 dots
+                        CLAN_DISCIPLINES[clan].forEach(d => {
+                            window.state.dots.disc[d] = 0;
+                        });
+                        // Update UI immediately
                         renderDynamicAdvantageRow('list-disc', 'disc', DISCIPLINES);
                     }
+                    
+                    // Force update validation when Clan changes
                     updateWalkthrough();
-                    triggerAutoSave();
                 });
             }
 
+            // Paths
             const ps1 = document.getElementById('c-path-name');
             const ps2 = document.getElementById('c-path-name-create');
             if (typeof PATHS !== 'undefined') {
@@ -754,19 +756,20 @@ onAuthStateChanged(auth, async (u) => {
             if(ps1) ps1.addEventListener('change', (e) => { 
                 if(ps2) ps2.value = e.target.value; 
                 if(window.state.textFields) window.state.textFields['c-path-name'] = e.target.value; 
-                triggerAutoSave();
             });
             if(ps2) ps2.addEventListener('change', (e) => { 
                 if(ps1) ps1.value = e.target.value; 
                 if(window.state.textFields) window.state.textFields['c-path-name'] = e.target.value; 
-                triggerAutoSave();
             });
 
-            // Hydrate logic
-            // hydrateInputs(); // Handled by fullRefresh now
-            // updateWalkthrough(); // Handled by fullRefresh now
+            // 2. HYDRATE INPUTS AFTER POPULATION
+            // This ensures that if we have state loaded, the dropdowns select the correct value
+            hydrateInputs();
             
-            // Re-apply Clan Weakness Text from State if present
+            // FIXED: Force validation check immediately after loading
+            updateWalkthrough();
+            
+            // Re-check Clan Weakness based on hydrated value
             const currentClan = document.getElementById('c-clan')?.value;
             if (currentClan && CLAN_WEAKNESSES[currentClan]) {
                 const weaknessArea = document.getElementById('c-clan-weakness');
@@ -776,18 +779,22 @@ onAuthStateChanged(auth, async (u) => {
             const freebieInp = document.getElementById('c-freebie-total');
             if(freebieInp) freebieInp.oninput = window.updatePools;
 
+            // Remove Loader
             if(loader) loader.style.display = 'none';
+            
             checkTutorialStatus();
-
-            // Force Full Refresh to ensure UI matches State after Auth
-            setTimeout(() => window.fullRefresh(), 500);
 
         } catch (dbErr) {
             console.error("DB Init Error:", dbErr);
             window.showNotification("DB Conn Error");
         }
     } else {
+        // --- SAFE AUTHENTICATION (ANONYMOUS OR NOT LOGGED IN) ---
+        // UI Update for Auth handled at top of function
+        
         try {
+            // Only try to sign in anonymously if we aren't already signed in as anon
+            // This handles the initial load and explicit sign-out scenarios
             if (!u) {
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                     await signInWithCustomToken(auth, __initial_auth_token);
@@ -795,16 +802,22 @@ onAuthStateChanged(auth, async (u) => {
                     await signInAnonymously(auth);
                 }
             }
+            // If success (or already signed in), proceed to populate
             populateGuestUI();
+            
             checkTutorialStatus();
+            
         } catch (e) {
             console.error("Authentication Error:", e);
+            
+            // --- GRACEFUL FAILURE FOR DISABLED ANONYMOUS AUTH ---
             if (e.code === 'auth/admin-restricted-operation') {
-                console.warn("Anonymous Auth disabled. Proceeding as Guest.");
+                console.warn("Anonymous Auth disabled. Proceeding as Guest (No Cloud Save).");
                 populateGuestUI();
                 window.showNotification("Guest Mode: Log in to save.");
                 if(loader) loader.style.display = 'none';
             } else {
+                // Actual fatal error
                 if(loader) {
                     loader.innerHTML = `
                         <div class="text-center">
@@ -820,6 +833,7 @@ onAuthStateChanged(auth, async (u) => {
 });
 
 function populateGuestUI() {
+    // Populate dropdowns even for anonymous/guest users so they can use the app
     const ns = document.getElementById('c-nature');
     const ds = document.getElementById('c-demeanor');
     if(ns && ds && ns.options.length <= 1 && typeof ARCHETYPES !== 'undefined') {
@@ -846,10 +860,10 @@ function populateGuestUI() {
                 renderDynamicAdvantageRow('list-disc', 'disc', DISCIPLINES);
             }
             updateWalkthrough();
-            triggerAutoSave();
         });
     }
 
+    // Load Paths for Guests too
     const ps1 = document.getElementById('c-path-name');
     const ps2 = document.getElementById('c-path-name-create');
     if (typeof PATHS !== 'undefined') {
@@ -860,21 +874,14 @@ function populateGuestUI() {
     if(ps1) ps1.addEventListener('change', (e) => { 
         if(ps2) ps2.value = e.target.value; 
         if(window.state.textFields) window.state.textFields['c-path-name'] = e.target.value; 
-        triggerAutoSave();
     });
     if(ps2) ps2.addEventListener('change', (e) => { 
         if(ps1) ps1.value = e.target.value; 
         if(window.state.textFields) window.state.textFields['c-path-name'] = e.target.value; 
-        triggerAutoSave();
     });
-    
-    // Ensure inputs are hydrated if data was loaded from localStorage
-    // Force a full refresh to ensure all dynamic rows are built
-    setTimeout(() => window.fullRefresh(), 100);
     
     const loader = document.getElementById('loading-overlay');
     if(loader) loader.style.display = 'none';
 }
 
-// Make sure initUI runs when DOM is loaded, not just script load
-document.addEventListener('DOMContentLoaded', initUI);
+initUI();
