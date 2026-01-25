@@ -231,45 +231,7 @@ function applySmartLock(input) {
     }
 }
 
-// --- IMAGE UPLOAD LOGIC ---
-function injectImageUI() {
-    const header = document.getElementById('sheet-header');
-    if(!header) return;
-    if(document.getElementById('char-image-wrapper')) return;
-
-    // Create Wrapper
-    const wrapper = document.createElement('div');
-    wrapper.id = 'char-image-wrapper';
-    wrapper.className = 'flex flex-col items-center justify-center p-2 mr-4';
-    wrapper.style.minWidth = '120px';
-
-    // HTML Structure
-    wrapper.innerHTML = `
-        <div id="char-img-display" title="Click to upload image" 
-             class="w-24 h-24 border-2 border-[#444] rounded bg-black relative cursor-pointer hover:border-[#af0000] transition-colors overflow-hidden bg-cover bg-center bg-no-repeat flex items-center justify-center">
-            <i class="fa-solid fa-camera text-[#333] text-2xl" id="char-img-icon"></i>
-        </div>
-        <input type="file" id="char-img-input" accept="image/*" class="hidden">
-        <button id="btn-remove-image" class="text-[10px] text-red-500 hover:text-red-300 mt-1 hidden">Remove</button>
-    `;
-
-    // Insert at the beginning of the header
-    header.insertBefore(wrapper, header.firstChild);
-
-    // Add Listeners
-    const display = document.getElementById('char-img-display');
-    const input = document.getElementById('char-img-input');
-    const removeBtn = document.getElementById('btn-remove-image');
-
-    display.onclick = () => input.click();
-    input.onchange = (e) => handleImageUpload(e);
-    removeBtn.onclick = () => {
-        window.state.characterImage = null;
-        window.fullRefresh();
-        triggerAutoSave();
-    };
-}
-
+// --- IMAGE UPLOAD HANDLER ---
 function handleImageUpload(e) {
     const file = e.target.files[0];
     if (!file) return;
@@ -280,8 +242,8 @@ function handleImageUpload(e) {
         img.onload = function() {
             // Resize logic to prevent massive save files
             const canvas = document.createElement('canvas');
-            const MAX_WIDTH = 200;
-            const MAX_HEIGHT = 200;
+            const MAX_WIDTH = 250; // Slightly larger for bio area
+            const MAX_HEIGHT = 250;
             let width = img.width;
             let height = img.height;
 
@@ -303,7 +265,7 @@ function handleImageUpload(e) {
             ctx.drawImage(img, 0, 0, width, height);
             
             // Save as compressed Base64
-            const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
             window.state.characterImage = dataUrl;
             
             window.fullRefresh();
@@ -438,9 +400,6 @@ function initUI() {
     try {
         if (!document.getElementById('sheet-nav')) throw new Error("Navigation container 'sheet-nav' is missing.");
 
-        // INJECT IMAGE UI COMPONENT
-        injectImageUI();
-
         // 1. ATTEMPT LOAD FIRST
         const loaded = loadAutoSave(); 
         if(loaded) {
@@ -502,6 +461,38 @@ function initUI() {
         const vitalCont = document.getElementById('vitals-create-inputs');
         if(vitalCont) {
             vitalCont.innerHTML = ''; 
+            
+            // --- INJECT IMAGE WRAPPER (MOVED TO BIO SECTION) ---
+            const imgWrap = document.createElement('div');
+            imgWrap.id = 'char-image-wrapper';
+            imgWrap.className = 'w-full flex justify-center mb-4';
+            imgWrap.innerHTML = `
+                <div class="flex flex-col items-center">
+                    <div id="char-img-display" title="Click to upload image" 
+                         class="w-32 h-32 border-2 border-[#444] rounded bg-black relative cursor-pointer hover:border-[#af0000] transition-colors overflow-hidden bg-cover bg-center bg-no-repeat flex items-center justify-center">
+                        <i class="fa-solid fa-camera text-[#333] text-3xl" id="char-img-icon"></i>
+                    </div>
+                    <input type="file" id="char-img-input" accept="image/*" class="hidden">
+                    <button id="btn-remove-image" class="text-xs text-red-500 hover:text-red-300 mt-1 hidden">Remove Image</button>
+                </div>
+            `;
+            vitalCont.appendChild(imgWrap);
+
+            // Add Listeners immediately
+            const display = imgWrap.querySelector('#char-img-display');
+            const input = imgWrap.querySelector('#char-img-input');
+            const removeBtn = imgWrap.querySelector('#btn-remove-image');
+            
+            display.onclick = () => input.click();
+            input.onchange = (e) => handleImageUpload(e);
+            removeBtn.onclick = () => {
+                window.state.characterImage = null;
+                window.fullRefresh();
+                triggerAutoSave();
+            };
+
+            // --- END INJECT ---
+
             VIT.forEach(v => { 
                 const d = document.createElement('div'); 
                 d.innerHTML = `<label class="label-text">${v}</label><input type="text" id="bio-${v}">`; 
