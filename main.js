@@ -516,10 +516,17 @@ function initUI() {
         if(vitalCont) {
             vitalCont.innerHTML = ''; 
             
-            // --- INJECT IMAGE WRAPPER (MOVED TO BIO SECTION) ---
+            // Generate text inputs first
+            VIT.forEach(v => { 
+                const d = document.createElement('div'); 
+                d.innerHTML = `<label class="label-text">${v}</label><input type="text" id="bio-${v}">`; 
+                vitalCont.appendChild(d); 
+            });
+
+            // --- INJECT IMAGE WRAPPER (MOVED TO BOTTOM OF BIO SECTION) ---
             const imgWrap = document.createElement('div');
             imgWrap.id = 'char-image-wrapper';
-            imgWrap.className = 'w-full flex justify-center mb-4';
+            imgWrap.className = 'w-full flex justify-center mt-4 mb-2'; // Adjusted margin: top spacing, little bottom
             imgWrap.innerHTML = `
                 <div class="flex flex-col items-center">
                     <div id="char-img-display" title="Click to upload image" 
@@ -545,12 +552,6 @@ function initUI() {
                 triggerAutoSave();
             };
             // --- END INJECT ---
-
-            VIT.forEach(v => { 
-                const d = document.createElement('div'); 
-                d.innerHTML = `<label class="label-text">${v}</label><input type="text" id="bio-${v}">`; 
-                vitalCont.appendChild(d); 
-            });
         }
         
         renderDynamicTraitRow('merits-list-create', 'Merit', V20_MERITS_LIST);
@@ -957,14 +958,14 @@ onAuthStateChanged(auth, async (u) => {
 function populateGuestUI() {
     const ns = document.getElementById('c-nature');
     const ds = document.getElementById('c-demeanor');
-    if(ns && ds && ns.options.length <= 1 && typeof ARCHETYPES !== 'undefined') {
+    if(ns && ds && typeof ARCHETYPES !== 'undefined') {
         ns.innerHTML = '<option value="" disabled selected>Choose Nature...</option>'; 
         ds.innerHTML = '<option value="" disabled selected>Choose Demeanor...</option>'; 
         ARCHETYPES.sort().forEach(a => { ns.add(new Option(a,a)); ds.add(new Option(a,a)); });
     }
     
     const cs = document.getElementById('c-clan');
-    if(cs && cs.options.length <= 1 && typeof CLANS !== 'undefined') {
+    if(cs && typeof CLANS !== 'undefined') {
         cs.innerHTML = '<option value="" disabled selected>Choose Clan...</option>';
         CLANS.sort().forEach(c => cs.add(new Option(c,c)));
         cs.addEventListener('change', (e) => {
