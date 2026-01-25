@@ -273,7 +273,41 @@ export function togglePlayMode() {
         setSafeText('play-gear-carried', carried.join(', ')); 
         setSafeText('play-gear-owned', owned.join(', '));
         
-        if(document.getElementById('play-bio-desc')) document.getElementById('play-bio-desc').innerText = document.getElementById('bio-desc')?.value || "";
+        // --- PORTRAIT AND BIO RENDERING ---
+        
+        const bioDescEl = document.getElementById('play-bio-desc');
+        if(bioDescEl) {
+            bioDescEl.innerText = document.getElementById('bio-desc')?.value || "";
+            
+            // Image Injection Logic for Play Mode
+            if (window.state.characterImage) {
+                // Check if wrapper already exists inside bio-desc parent to prevent dupes
+                let playImgWrapper = document.getElementById('play-mode-image-wrapper');
+                
+                // If not, create and inject it BEFORE the description
+                if (!playImgWrapper) {
+                    playImgWrapper = document.createElement('div');
+                    playImgWrapper.id = 'play-mode-image-wrapper';
+                    playImgWrapper.className = 'w-full flex justify-center mb-6 mt-2';
+                    
+                    // Insert before the bio text block
+                    if (bioDescEl.parentNode) {
+                        bioDescEl.parentNode.insertBefore(playImgWrapper, bioDescEl);
+                    }
+                }
+                
+                playImgWrapper.innerHTML = `
+                    <div class="w-48 h-48 border-2 border-[#af0000] rounded-lg shadow-lg overflow-hidden bg-black bg-cover bg-center bg-no-repeat"
+                         style="background-image: url('${window.state.characterImage}'); box-shadow: 0 0 15px rgba(175, 0, 0, 0.3);">
+                    </div>
+                `;
+                playImgWrapper.style.display = 'flex';
+            } else {
+                // If no image, hide/remove wrapper if it exists
+                const playImgWrapper = document.getElementById('play-mode-image-wrapper');
+                if (playImgWrapper) playImgWrapper.style.display = 'none';
+            }
+        }
         
         renderPlayModeDerangements();
         
