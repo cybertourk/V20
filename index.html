@@ -818,6 +818,77 @@
         </div>
     </div>
 
+    <!-- BLOOD INFO MODAL (NEW) -->
+    <div id="blood-info-modal" class="modal-overlay">
+        <div class="modal-box bg-[#0a0a0a] border border-[#af0000] w-full max-w-lg shadow-[0_0_40px_rgba(175,0,0,0.3)]">
+            <div class="flex justify-between items-center mb-4 border-b border-[#333] pb-2">
+                <h2 class="text-xl text-[#af0000] font-cinzel font-bold uppercase tracking-wider">The Blood (Vitae)</h2>
+                <button onclick="document.getElementById('blood-info-modal').classList.remove('active')" class="text-gray-500 hover:text-white text-xl">&times;</button>
+            </div>
+            
+            <div class="text-sm text-gray-300 leading-relaxed font-serif space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+                
+                <div>
+                    <h3 class="text-xs font-bold text-gray-400 uppercase mb-1">Earning Blood Pool</h3>
+                    <p class="text-xs mb-2">Vampires replenish blood pool by taking it from others. Drinking blood is risky; taking too much can kill the vessel.</p>
+                    <ul class="list-disc pl-4 space-y-1 text-xs text-gray-400">
+                        <li><strong>Safe Limit:</strong> 20% (2 BP) from a human is safe.</li>
+                        <li><strong>Hospitalization:</strong> 50% (5 BP) requires hospitalization.</li>
+                        <li><strong>Death:</strong> 100% (10 BP) kills the vessel.</li>
+                        <li><strong>Feeding Rate:</strong> Max 3 BP per turn (unless Nosferatu with distended mouths).</li>
+                    </ul>
+                </div>
+
+                <div>
+                    <h3 class="text-xs font-bold text-gray-400 uppercase mb-1">The Kiss</h3>
+                    <p class="text-xs">The bite causes ecstasy. Mortals stop resisting. Kindred may resist with a Self-Control/Instincts roll (Diff 8).</p>
+                </div>
+
+                <div>
+                    <h3 class="text-xs font-bold text-gray-400 uppercase mb-1">Vessel Blood Pools</h3>
+                    <div class="grid grid-cols-2 gap-2 text-[10px] bg-[#111] p-2 border border-[#333]">
+                        <div class="flex justify-between border-b border-[#222]"><span>Vampire</span><span class="text-red-400 font-bold">10+</span></div>
+                        <div class="flex justify-between border-b border-[#222]"><span>Werewolf</span><span class="text-red-400 font-bold">20*</span></div>
+                        <div class="flex justify-between border-b border-[#222]"><span>Average Human</span><span class="text-white font-bold">10</span></div>
+                        <div class="flex justify-between border-b border-[#222]"><span>Child</span><span class="text-white font-bold">5</span></div>
+                        <div class="flex justify-between border-b border-[#222]"><span>Cow</span><span class="text-gray-400">5</span></div>
+                        <div class="flex justify-between border-b border-[#222]"><span>Dog</span><span class="text-gray-400">2</span></div>
+                        <div class="flex justify-between border-b border-[#222]"><span>Cat</span><span class="text-gray-400">1</span></div>
+                        <div class="flex justify-between border-b border-[#222]"><span>Plasma Bag</span><span class="text-gray-400">1</span></div>
+                        <div class="flex justify-between border-b border-[#222]"><span>Bird/Rat</span><span class="text-gray-400">1/4</span></div>
+                    </div>
+                    <p class="text-[9px] text-gray-500 mt-1 italic">* Elder vampire & Werewolf blood is potent. Each point counts as 2+.</p>
+                </div>
+
+                <div>
+                    <h3 class="text-xs font-bold text-gray-400 uppercase mb-1">Generation Limits</h3>
+                    <table class="w-full text-[10px] text-left">
+                        <thead>
+                            <tr class="text-[#d4af37] border-b border-[#333]">
+                                <th class="py-1">Gen</th>
+                                <th class="text-center">Max Trait</th>
+                                <th class="text-center">Pool Max</th>
+                                <th class="text-center">BP/Turn</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-[#222]">
+                            <tr><td>13th+</td><td class="text-center">5</td><td class="text-center">10</td><td class="text-center">1</td></tr>
+                            <tr><td>12th</td><td class="text-center">5</td><td class="text-center">11</td><td class="text-center">1</td></tr>
+                            <tr><td>11th</td><td class="text-center">5</td><td class="text-center">12</td><td class="text-center">1</td></tr>
+                            <tr><td>10th</td><td class="text-center">5</td><td class="text-center">13</td><td class="text-center">1</td></tr>
+                            <tr><td>9th</td><td class="text-center">5</td><td class="text-center">14</td><td class="text-center">2</td></tr>
+                            <tr><td>8th</td><td class="text-center">5</td><td class="text-center">15</td><td class="text-center">3</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="text-[10px] text-gray-500 italic pt-2 border-t border-[#333]">
+                    V20 Core Rules, p. 270
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- TUTORIAL MODAL (DEDICATED OVERLAY) -->
     <div id="tutorial-overlay" class="tutorial-overlay hidden">
         <div class="tutorial-box relative">
