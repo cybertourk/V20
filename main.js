@@ -84,6 +84,7 @@ function triggerAutoSave() {
             // Serialize
             const data = JSON.stringify(window.state);
             localStorage.setItem(AUTOSAVE_KEY, data);
+            // console.log("Auto-saved to local storage");
         } catch (e) {
             console.warn("Auto-save failed:", e);
         }
@@ -98,6 +99,10 @@ function loadAutoSave() {
             if (parsed && parsed.dots) {
                 console.log("Restoring Auto-Save...");
                 window.state = parsed;
+                // FORCE REFRESH AFTER RESTORE
+                setTimeout(() => {
+                    if (window.fullRefresh) window.fullRefresh();
+                }, 200);
                 return true;
             }
         }
@@ -337,16 +342,28 @@ window.fullRefresh = function() {
         }
 
         // --- 3. RENDER IMAGE (PLAY MODE) ---
-        // Inject Read-Only Image into Play Mode Bio Section
-        const playBioContainer = document.querySelector('#play-bio-history');
+        // We'll try to find the Bio/History section first. If not found, append to main play container.
+        let playBioContainer = document.querySelector('#play-bio-history');
+        if(!playBioContainer) {
+             // Fallback: Try to find the Vitals container in Play Mode
+             playBioContainer = document.querySelector('#sheet-play .sheet-section:last-child');
+        }
+
         if (playBioContainer) {
             let playImgWrapper = document.getElementById('play-mode-image-wrapper');
+            
+            // If wrapper doesn't exist, create it
             if (!playImgWrapper) {
                 playImgWrapper = document.createElement('div');
                 playImgWrapper.id = 'play-mode-image-wrapper';
-                playImgWrapper.className = 'w-full flex justify-center mb-6 mt-4'; // Added margin for spacing
-                // Insert after the history box (assuming history box is first child or existing content)
-                playBioContainer.appendChild(playImgWrapper);
+                playImgWrapper.className = 'w-full flex justify-center mb-6 mt-4'; 
+                
+                // INSERT BEFORE CONTENT (Top of Bio Section)
+                if(playBioContainer.firstChild) {
+                    playBioContainer.insertBefore(playImgWrapper, playBioContainer.firstChild);
+                } else {
+                    playBioContainer.appendChild(playImgWrapper);
+                }
             }
 
             if (window.state.characterImage) {
