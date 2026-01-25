@@ -319,7 +319,7 @@ window.fullRefresh = function() {
             }
         }
 
-        // --- 2. RENDER IMAGE ---
+        // --- 2. RENDER IMAGE (EDIT MODE) ---
         const imgDisplay = document.getElementById('char-img-display');
         const imgIcon = document.getElementById('char-img-icon');
         const removeBtn = document.getElementById('btn-remove-image');
@@ -336,7 +336,34 @@ window.fullRefresh = function() {
             }
         }
 
-        // --- 3. RENDER COMPONENTS ---
+        // --- 3. RENDER IMAGE (PLAY MODE) ---
+        // Inject Read-Only Image into Play Mode Bio Section
+        const playBioContainer = document.querySelector('#play-bio-history');
+        if (playBioContainer) {
+            let playImgWrapper = document.getElementById('play-mode-image-wrapper');
+            if (!playImgWrapper) {
+                playImgWrapper = document.createElement('div');
+                playImgWrapper.id = 'play-mode-image-wrapper';
+                playImgWrapper.className = 'w-full flex justify-center mb-6 mt-4'; // Added margin for spacing
+                // Insert after the history box (assuming history box is first child or existing content)
+                playBioContainer.appendChild(playImgWrapper);
+            }
+
+            if (window.state.characterImage) {
+                // Larger display for Play Mode
+                playImgWrapper.innerHTML = `
+                    <div class="w-48 h-48 border-2 border-[#af0000] rounded-lg shadow-lg overflow-hidden bg-black bg-cover bg-center bg-no-repeat"
+                         style="background-image: url('${window.state.characterImage}'); box-shadow: 0 0 15px rgba(175, 0, 0, 0.3);">
+                    </div>
+                `;
+                playImgWrapper.style.display = 'flex';
+            } else {
+                playImgWrapper.innerHTML = '';
+                playImgWrapper.style.display = 'none';
+            }
+        }
+
+        // --- 4. RENDER COMPONENTS ---
         hydrateInputs();
         
         renderDynamicAdvantageRow('list-disc', 'disc', DISCIPLINES);
