@@ -633,7 +633,8 @@ function initUI() {
             setTimeout(() => window.fullRefresh(), 500);
         } else {
             console.log("No auto-save found. Starting fresh.");
-            changeStep(1); 
+            // Ensure pools and initial UI state are consistent even for new characters
+            setTimeout(() => window.fullRefresh(), 200); 
         }
 
     } catch(e) {
@@ -745,8 +746,8 @@ onAuthStateChanged(auth, async (u) => {
             });
 
             // Hydrate logic
-            hydrateInputs();
-            updateWalkthrough();
+            // hydrateInputs(); // Handled by fullRefresh now
+            // updateWalkthrough(); // Handled by fullRefresh now
             
             // Re-apply Clan Weakness Text from State if present
             const currentClan = document.getElementById('c-clan')?.value;
@@ -760,6 +761,9 @@ onAuthStateChanged(auth, async (u) => {
 
             if(loader) loader.style.display = 'none';
             checkTutorialStatus();
+
+            // Force Full Refresh to ensure UI matches State after Auth
+            setTimeout(() => window.fullRefresh(), 500);
 
         } catch (dbErr) {
             console.error("DB Init Error:", dbErr);
