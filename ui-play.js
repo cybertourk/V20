@@ -20,6 +20,147 @@ import { openNpcCreator, openNpcSheet } from "./npc-creator.js";
 window.openNpcCreator = openNpcCreator;
 window.openNpcSheet = openNpcSheet;
 
+// --- INFO MODAL HANDLERS (Defined early to ensure availability) ---
+
+export function showWillpowerInfo(e) {
+    if(e) e.stopPropagation();
+    
+    const nature = window.state.textFields['c-nature'] || document.getElementById('c-nature')?.value || "None";
+    
+    let rule = "Standard rules apply. See V20 Core Rules p. 267.";
+    if (ARCHETYPE_RULES && ARCHETYPE_RULES[nature]) {
+        rule = ARCHETYPE_RULES[nature];
+    }
+    
+    const modal = document.getElementById('willpower-info-modal');
+    if (modal) {
+        const ruleContainer = document.getElementById('wp-nature-rule');
+        if (ruleContainer) {
+            ruleContainer.innerHTML = `
+                <div class="text-[10px] font-bold text-blue-300 uppercase mb-1">Nature: ${nature}</div>
+                <div class="text-xs text-white italic">"${rule}"</div>
+            `;
+        }
+        modal.classList.add('active');
+    }
+}
+window.showWillpowerInfo = showWillpowerInfo; 
+
+export function showHumanityInfo(e) {
+    if(e) e.stopPropagation();
+    const modal = document.getElementById('humanity-info-modal');
+    if (modal) modal.classList.add('active');
+}
+window.showHumanityInfo = showHumanityInfo;
+
+export function showBloodInfo(e) {
+    if(e) e.stopPropagation();
+    const modal = document.getElementById('blood-info-modal');
+    if (modal) modal.classList.add('active');
+}
+window.showBloodInfo = showBloodInfo;
+
+export function setupHunting() {
+    window.clearPool();
+    
+    // Default Pool: Perception + Streetwise (Urban)
+    const per = window.state.dots.attr['Perception'] || 1;
+    const str = window.state.dots.abil['Streetwise'] || 0;
+    
+    window.toggleStat('Perception', per, 'attribute');
+    if (str > 0) window.toggleStat('Streetwise', str, 'ability');
+    
+    // Set Difficulty (Variable, usually 4-8, default 6)
+    const diffInput = document.getElementById('roll-diff');
+    if(diffInput) diffInput.value = 6;
+    
+    showNotification("Hunting Pool Loaded (Per + Streetwise).");
+}
+window.setupHunting = setupHunting;
+
+
+// --- INJECTION HELPERS ---
+
+function injectWillpowerInfo() {
+    const sections = document.querySelectorAll('#play-mode-sheet .section-title');
+    let wpTitleEl = null;
+    
+    sections.forEach(el => {
+        if (el.parentNode.querySelector('#willpower-dots-play')) {
+            wpTitleEl = el;
+        }
+    });
+
+    if (wpTitleEl) {
+        wpTitleEl.style.display = 'flex';
+        wpTitleEl.style.justifyContent = 'center';
+        wpTitleEl.style.alignItems = 'center';
+        wpTitleEl.style.gap = '8px';
+        
+        wpTitleEl.innerHTML = `
+            <button onclick="window.toggleStat('Willpower', window.state.status.willpower, 'willpower')" class="hover:text-white text-[#d4af37] transition-colors uppercase font-bold flex items-center gap-2" title="Roll Willpower">
+                Willpower <i class="fas fa-dice-d20 text-[10px]"></i>
+            </button> 
+            <i class="fas fa-info-circle text-[10px] text-gray-500 hover:text-white cursor-pointer transition-colors" title="Regaining Willpower" onclick="window.showWillpowerInfo(event)"></i>
+        `;
+    }
+}
+
+function injectHumanityInfo() {
+    const sections = document.querySelectorAll('#play-mode-sheet .section-title');
+    let humTitleEl = null;
+    
+    sections.forEach(el => {
+        if (el.parentNode.querySelector('#humanity-dots-play') || el.parentNode.querySelector('#c-path-name')) {
+            humTitleEl = el;
+        }
+    });
+
+    if (humTitleEl) {
+        humTitleEl.style.display = 'flex';
+        humTitleEl.style.justifyContent = 'center';
+        humTitleEl.style.alignItems = 'center';
+        humTitleEl.style.gap = '8px';
+        
+        humTitleEl.innerHTML = `
+            Humanity / Path
+            <i class="fas fa-info-circle text-[10px] text-gray-500 hover:text-white cursor-pointer transition-colors" title="Hierarchy of Sins" onclick="window.showHumanityInfo(event)"></i>
+        `;
+    }
+}
+
+function injectBloodInfo() {
+    const sections = document.querySelectorAll('#play-mode-sheet .section-title');
+    let bloodTitleEl = null;
+    
+    // Find the specific section title that belongs to the Blood Pool container
+    sections.forEach(el => {
+        // Robust check: Does the parent have the blood boxes container?
+        if (el.parentNode && el.parentNode.querySelector('#blood-boxes-play')) {
+            bloodTitleEl = el;
+        }
+    });
+
+    if (bloodTitleEl) {
+        bloodTitleEl.style.display = 'flex';
+        bloodTitleEl.style.justifyContent = 'center';
+        bloodTitleEl.style.alignItems = 'center';
+        bloodTitleEl.style.gap = '8px';
+        
+        // Using Gold color for Icon to ensure visibility against dark background
+        bloodTitleEl.innerHTML = `
+            <span>Blood Pool</span>
+            <button onclick="window.setupHunting()" class="bg-[#8b0000] hover:bg-red-700 text-white text-[9px] font-bold px-2 py-0.5 rounded border border-[#d4af37]/50 flex items-center gap-1 shadow-sm uppercase tracking-wider transition-all" title="Roll Hunting Pool">
+                <i class="fas fa-tint"></i> Hunt
+            </button>
+            <i class="fas fa-info-circle text-[10px] text-[#d4af37] hover:text-white cursor-pointer transition-colors" title="Feeding Rules" onclick="window.showBloodInfo(event)"></i>
+        `;
+    } else {
+        console.warn("Blood Pool Title Element not found for injection.");
+    }
+}
+
+
 // --- PLAY MODE MAIN TOGGLE ---
 
 export function togglePlayMode() {
@@ -112,10 +253,12 @@ export function togglePlayMode() {
         renderDetailedDisciplines();
         updateRitualsPlayView();
         
-        // Inject Info Buttons
-        injectWillpowerInfo();
-        injectHumanityInfo();
-        injectBloodInfo(); // Added Blood/Hunting Button
+        // Inject Info Buttons (Called after structure is visible)
+        setTimeout(() => {
+            injectWillpowerInfo();
+            injectHumanityInfo();
+            injectBloodInfo(); 
+        }, 50);
 
         let carried = []; let owned = []; 
         if(window.state.inventory) { 
@@ -210,140 +353,6 @@ export function togglePlayMode() {
     }
 }
 window.togglePlayMode = togglePlayMode;
-
-// --- WILLPOWER REGAIN INFO INJECTION ---
-function injectWillpowerInfo() {
-    const sections = document.querySelectorAll('#play-mode-sheet .section-title');
-    let wpTitleEl = null;
-    
-    sections.forEach(el => {
-        // Robust check: Is this the parent of the willpower dots container?
-        if (el.parentNode.querySelector('#willpower-dots-play')) {
-            wpTitleEl = el;
-        }
-    });
-
-    if (wpTitleEl) {
-        wpTitleEl.style.display = 'flex';
-        wpTitleEl.style.justifyContent = 'center';
-        wpTitleEl.style.alignItems = 'center';
-        wpTitleEl.style.gap = '8px';
-        
-        // ADDED ROLL BUTTON
-        wpTitleEl.innerHTML = `
-            <button onclick="window.toggleStat('Willpower', window.state.status.willpower, 'willpower')" class="hover:text-white text-[#d4af37] transition-colors uppercase font-bold flex items-center gap-2" title="Roll Willpower">
-                Willpower <i class="fas fa-dice-d20 text-[10px]"></i>
-            </button> 
-            <i id="wp-info-btn" class="fas fa-info-circle text-[10px] text-gray-500 hover:text-white cursor-pointer transition-colors" title="Regaining Willpower" onclick="window.showWillpowerInfo(event)"></i>
-        `;
-    }
-}
-
-export function showWillpowerInfo(e) {
-    if(e) e.stopPropagation();
-    
-    const nature = window.state.textFields['c-nature'] || document.getElementById('c-nature')?.value || "None";
-    
-    let rule = "Standard rules apply. See V20 Core Rules p. 267.";
-    if (ARCHETYPE_RULES && ARCHETYPE_RULES[nature]) {
-        rule = ARCHETYPE_RULES[nature];
-    }
-    
-    const modal = document.getElementById('willpower-info-modal');
-    if (modal) {
-        const ruleContainer = document.getElementById('wp-nature-rule');
-        if (ruleContainer) {
-            ruleContainer.innerHTML = `
-                <div class="text-[10px] font-bold text-blue-300 uppercase mb-1">Nature: ${nature}</div>
-                <div class="text-xs text-white italic">"${rule}"</div>
-            `;
-        }
-        modal.classList.add('active');
-    }
-}
-window.showWillpowerInfo = showWillpowerInfo; 
-
-// --- HUMANITY INFO INJECTION ---
-function injectHumanityInfo() {
-    const sections = document.querySelectorAll('#play-mode-sheet .section-title');
-    let humTitleEl = null;
-    
-    sections.forEach(el => {
-        if (el.parentNode.querySelector('#humanity-dots-play') || el.parentNode.querySelector('#c-path-name')) {
-            humTitleEl = el;
-        }
-    });
-
-    if (humTitleEl) {
-        humTitleEl.style.display = 'flex';
-        humTitleEl.style.justifyContent = 'center';
-        humTitleEl.style.alignItems = 'center';
-        humTitleEl.style.gap = '8px';
-        
-        humTitleEl.innerHTML = `
-            Humanity / Path
-            <i class="fas fa-info-circle text-[10px] text-gray-500 hover:text-white cursor-pointer transition-colors" title="Hierarchy of Sins" onclick="window.showHumanityInfo(event)"></i>
-        `;
-    }
-}
-
-export function showHumanityInfo(e) {
-    if(e) e.stopPropagation();
-    document.getElementById('humanity-info-modal').classList.add('active');
-}
-window.showHumanityInfo = showHumanityInfo;
-
-// --- BLOOD/FEEDING INJECTION (NEW) ---
-function injectBloodInfo() {
-    const sections = document.querySelectorAll('#play-mode-sheet .section-title');
-    let bloodTitleEl = null;
-    
-    sections.forEach(el => {
-        if (el.parentNode.querySelector('#blood-boxes-play')) {
-            bloodTitleEl = el;
-        }
-    });
-
-    if (bloodTitleEl) {
-        bloodTitleEl.style.display = 'flex';
-        bloodTitleEl.style.justifyContent = 'center';
-        bloodTitleEl.style.alignItems = 'center';
-        bloodTitleEl.style.gap = '8px';
-        
-        bloodTitleEl.innerHTML = `
-            Blood Pool
-            <button onclick="window.setupHunting()" class="bg-[#8b0000] hover:bg-red-700 text-white text-[9px] font-bold px-2 py-0.5 rounded border border-[#d4af37]/50 flex items-center gap-1 shadow-sm uppercase tracking-wider transition-all" title="Roll Hunting Pool">
-                <i class="fas fa-tint"></i> Hunt
-            </button>
-            <i class="fas fa-info-circle text-[10px] text-gray-500 hover:text-white cursor-pointer transition-colors" title="Feeding Rules" onclick="window.showBloodInfo(event)"></i>
-        `;
-    }
-}
-
-export function showBloodInfo(e) {
-    if(e) e.stopPropagation();
-    document.getElementById('blood-info-modal').classList.add('active');
-}
-window.showBloodInfo = showBloodInfo;
-
-export function setupHunting() {
-    window.clearPool();
-    
-    // Default Pool: Perception + Streetwise (Urban)
-    // Could alternatively be Perception + Survival (Wild)
-    const per = window.state.dots.attr['Perception'] || 1;
-    const str = window.state.dots.abil['Streetwise'] || 0;
-    
-    window.toggleStat('Perception', per, 'attribute');
-    if (str > 0) window.toggleStat('Streetwise', str, 'ability');
-    
-    // Set Difficulty (Variable, usually 4-8, default 6)
-    const diffInput = document.getElementById('roll-diff');
-    if(diffInput) diffInput.value = 6;
-    
-    showNotification("Hunting Pool Loaded (Per + Streetwise).");
-}
-window.setupHunting = setupHunting;
 
 
 // --- RENDER HELPERS ---
