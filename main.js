@@ -14,8 +14,7 @@ import {
 } from "./data.js";
 import * as FBManager from "./firebase-manager.js";
 
-// --- UI IMPORTS (REFACTORED) ---
-// 1. Core Renderers (ui-renderer now owns updatePools)
+// --- UI IMPORTS ---
 import { 
     renderDots, 
     renderSocialProfile, 
@@ -24,12 +23,11 @@ import {
     refreshTraitRow,
     hydrateInputs, 
     renderInventoryList, 
-    updatePools // MOVED HERE
+    updatePools // Ensure this is imported if it was moved to ui-renderer
 } from "./ui-renderer.js"; 
 
 import { setDots } from "./ui-mechanics.js";
 
-// 2. New Modules (Split from ui-nav.js)
 import { 
     renderDynamicAdvantageRow, 
     renderDynamicTraitRow, 
@@ -41,7 +39,7 @@ import {
 
 import { renderPrintSheet } from "./ui-print.js";
 import { togglePlayMode } from "./ui-play.js";
-import { changeStep, updateWalkthrough, startTutorial } from "./ui-nav.js";
+import { changeStep, updateWalkthrough, startTutorial } from "./ui-nav.js"; 
 
 // --- NEW DATA IMPORTS & MERGING ---
 import { DISCIPLINES_DATA } from './disciplines-data.js';
@@ -100,9 +98,7 @@ function loadAutoSave() {
                 console.log("Restoring Auto-Save...");
                 window.state = parsed;
                 // FORCE REFRESH AFTER RESTORE
-                setTimeout(() => {
-                    if (window.fullRefresh) window.fullRefresh();
-                }, 200);
+                // We handle this in initUI now to prevent race conditions
                 return true;
             }
         }
@@ -130,13 +126,13 @@ window.state = {
     textFields: { "c-gen": "13", "c-xp-total": "0" }, 
     havens: [], bloodBonds: [], vehicles: [], customAbilityCategories: {},
     derangements: [], merits: [], flaws: [], inventory: [],
-    retainers: [], 
+    retainers: [],
     rituals: [],
     primaryThaumPath: null,
     primaryNecroPath: null,
     meta: { filename: "", folder: "" },
-    sessionLogs: [], 
-    codex: [] 
+    sessionLogs: [],
+    codex: []
 };
 
 let user = null;
@@ -148,16 +144,15 @@ const beforeUnloadHandler = (e) => {
 };
 
 // --- BINDING EXPORTS TO WINDOW ---
-// Replaced FBManager.handleNew with local implementation to ensure AUTOSAVE_KEY is cleared
+// Modified handleNew to clear AUTOSAVE_KEY
 window.handleNew = () => {
     if(confirm("Create New Character? Unsaved changes will be overwritten.")) {
-        // Remove the navigation guard so double confirmation doesn't occur
         window.removeEventListener('beforeunload', beforeUnloadHandler);
         localStorage.removeItem(AUTOSAVE_KEY);
+        // Reload Page (Cleanest reset)
         window.location.reload();
     }
 };
-
 window.handleSaveClick = FBManager.handleSaveClick;
 window.handleLoadClick = FBManager.handleLoadClick;
 window.performSave = FBManager.performSave;
@@ -203,7 +198,7 @@ function handleImport(event) {
 
             window.state = json;
 
-            // Legacy Data Patches
+            // Legacy Patching
             if(!window.state.meta) window.state.meta = { filename: file.name.replace('.json',''), folder: "" };
             if(!window.state.specialties) window.state.specialties = {}; 
             if(!window.state.retainers) window.state.retainers = [];
@@ -224,7 +219,7 @@ function handleImport(event) {
             }
 
             window.fullRefresh();
-            triggerAutoSave();
+            triggerAutoSave(); // Save the imported data immediately
             window.showNotification("Character Imported");
 
         } catch (err) {
@@ -251,7 +246,7 @@ function applySmartLock(input) {
     }
 }
 
-// --- IMAGE UPLOAD HANDLER ---
+// --- IMAGE UPLOAD HANDLER (HIGH RES) ---
 function handleImageUpload(e) {
     const file = e.target.files[0];
     if (!file) return;
@@ -260,10 +255,10 @@ function handleImageUpload(e) {
     reader.onload = function(event) {
         const img = new Image();
         img.onload = function() {
-            // Resize logic to prevent massive save files
+            // Resize logic - INCREASED RES FOR SHARPNESS
             const canvas = document.createElement('canvas');
-            const MAX_WIDTH = 250; // Slightly larger for bio area
-            const MAX_HEIGHT = 250;
+            const MAX_WIDTH = 800; 
+            const MAX_HEIGHT = 800;
             let width = img.width;
             let height = img.height;
 
@@ -308,7 +303,7 @@ window.fullRefresh = function() {
             delete window.state.textFields['char-img-input'];
         }
         
-        // --- 1. SYNC VISUAL MODE WITH STATE ---
+        // 0. Sync Visual Mode
         const playBtn = document.getElementById('play-mode-btn');
         if (window.state.isPlayMode) {
             document.body.classList.add('play-mode');
@@ -324,7 +319,87 @@ window.fullRefresh = function() {
             }
         }
 
-        // --- 2. RENDER IMAGE (EDIT MODE) ---
+        // 1. Safety: Ensure Base Rows Exist (Fix for missing rows)
+        const checkAttr = document.getElementById('list-attr-physical');
+        if (checkAttr && (!checkAttr.innerHTML || checkAttr.innerHTML.trim() === "")) {
+             console.log("Base rows missing during refresh. Re-rendering...");
+             Object.keys(ATTRIBUTES).forEach(c => ATTRIBUTES[c].forEach(a => { 
+                 if (window.state.dots.attr[a] === undefined) window.state.dots.attr[a] = 1; 
+                 renderRow('list-attr-'+c.toLowerCase(), a, 'attr', window.state.dots.attr[a]); 
+             }));
+             Object.keys(ABILITIES).forEach(c => ABILITIES[c].forEach(a => { 
+                 if (window.state.dots.abil[a] === undefined) window.state.dots.abil[a] = 0;
+                 renderRow('list-abil-'+c.toLowerCase(), a, 'abil', window.state.dots.abil[a]); 
+             }));
+        }
+
+        const checkVirt = document.getElementById('list-virt');
+        if (checkVirt && (!checkVirt.innerHTML || checkVirt.innerHTML.trim() === "")) {
+             VIRTUES.forEach(v => { 
+                 if (window.state.dots.virt[v] === undefined) window.state.dots.virt[v] = 1; 
+                 renderRow('list-virt', v, 'virt', window.state.dots.virt[v]); 
+             });
+        }
+
+        // 2. Hydrate Text Fields
+        hydrateInputs();
+        
+        // 3. Render Dynamic Rows (Must happen before updatePools)
+        renderDynamicAdvantageRow('list-disc', 'disc', DISCIPLINES);
+        renderDynamicAdvantageRow('list-back', 'back', BACKGROUNDS);
+        renderDynamicAdvantageRow('custom-talents', 'abil', [], true);
+        renderDynamicAdvantageRow('custom-skills', 'abil', [], true);
+        renderDynamicAdvantageRow('custom-knowledges', 'abil', [], true);
+        renderDerangementsList();
+        renderBloodBondRow();
+        renderDynamicHavenRow();
+        renderInventoryList();
+        renderDynamicTraitRow('merits-list-create', 'Merit', V20_MERITS_LIST);
+        renderDynamicTraitRow('flaws-list-create', 'Flaw', V20_FLAWS_LIST);
+        if(renderRitualsEdit) renderRitualsEdit();
+        
+        // 4. Update Priorities
+        if (window.state.prios) {
+            document.querySelectorAll('.prio-btn').forEach(btn => {
+                const { cat, group, v } = btn.dataset;
+                const savedVal = window.state.prios[cat]?.[group];
+                if (savedVal == v) btn.classList.add('active');
+                else btn.classList.remove('active');
+            });
+        }
+        
+        // 5. Refresh Trait Rows (Colors, dots, etc)
+        Object.keys(ATTRIBUTES).forEach(c => ATTRIBUTES[c].forEach(a => { refreshTraitRow(a, 'attr'); }));
+        Object.keys(ABILITIES).forEach(c => ABILITIES[c].forEach(a => { refreshTraitRow(a, 'abil'); }));
+
+        // 6. Other Traits
+        for(let i=0; i<8; i++) {
+            const nameInput = document.getElementById(`ot-n-${i}`);
+            if(nameInput) {
+                const name = nameInput.value || `Other_${i}`;
+                const val = window.state.dots.other[name] || 0;
+                const dr = document.getElementById(`ot-dr-${i}`);
+                if(dr) dr.innerHTML = renderDots(val, 5);
+            }
+        }
+        
+        // 7. Virtues
+        VIRTUES.forEach(v => {
+            const row = document.querySelector(`#list-virt .dot-row[data-n="${v}"]`);
+            if(row) row.innerHTML = renderDots(window.state.dots.virt[v] || 1, 5);
+        });
+
+        // 8. Clan Specifics
+        const currentClan = window.state.textFields['c-clan'];
+        if (currentClan && CLAN_WEAKNESSES[currentClan]) {
+            const weaknessArea = document.getElementById('c-clan-weakness');
+            if (weaknessArea) weaknessArea.value = CLAN_WEAKNESSES[currentClan];
+        }
+
+        renderSocialProfile();
+        updateWalkthrough();
+        
+        // --- 9. RENDER IMAGE (EDIT MODE) ---
         const imgDisplay = document.getElementById('char-img-display');
         const imgIcon = document.getElementById('char-img-icon');
         const removeBtn = document.getElementById('btn-remove-image');
@@ -340,101 +415,14 @@ window.fullRefresh = function() {
                 if(removeBtn) removeBtn.classList.add('hidden');
             }
         }
-
-        // --- 3. RENDER IMAGE (PLAY MODE) ---
-        // We'll try to find the Bio/History section first. If not found, append to main play container.
-        let playBioContainer = document.querySelector('#play-bio-history');
-        if(!playBioContainer) {
-             // Fallback: Try to find the Vitals container in Play Mode
-             playBioContainer = document.querySelector('#sheet-play .sheet-section:last-child');
-        }
-
-        if (playBioContainer) {
-            let playImgWrapper = document.getElementById('play-mode-image-wrapper');
-            
-            // If wrapper doesn't exist, create it
-            if (!playImgWrapper) {
-                playImgWrapper = document.createElement('div');
-                playImgWrapper.id = 'play-mode-image-wrapper';
-                playImgWrapper.className = 'w-full flex justify-center mb-6 mt-4'; 
-                
-                // INSERT BEFORE CONTENT (Top of Bio Section)
-                if(playBioContainer.firstChild) {
-                    playBioContainer.insertBefore(playImgWrapper, playBioContainer.firstChild);
-                } else {
-                    playBioContainer.appendChild(playImgWrapper);
-                }
-            }
-
-            if (window.state.characterImage) {
-                // Larger display for Play Mode
-                playImgWrapper.innerHTML = `
-                    <div class="w-48 h-48 border-2 border-[#af0000] rounded-lg shadow-lg overflow-hidden bg-black bg-cover bg-center bg-no-repeat"
-                         style="background-image: url('${window.state.characterImage}'); box-shadow: 0 0 15px rgba(175, 0, 0, 0.3);">
-                    </div>
-                `;
-                playImgWrapper.style.display = 'flex';
-            } else {
-                playImgWrapper.innerHTML = '';
-                playImgWrapper.style.display = 'none';
-            }
-        }
-
-        // --- 4. RENDER COMPONENTS ---
-        hydrateInputs();
         
-        renderDynamicAdvantageRow('list-disc', 'disc', DISCIPLINES);
-        renderDynamicAdvantageRow('list-back', 'back', BACKGROUNDS);
-        renderDynamicAdvantageRow('custom-talents', 'abil', [], true);
-        renderDynamicAdvantageRow('custom-skills', 'abil', [], true);
-        renderDynamicAdvantageRow('custom-knowledges', 'abil', [], true);
-        renderDerangementsList();
-        renderBloodBondRow();
-        renderDynamicHavenRow();
-        renderInventoryList();
-        renderDynamicTraitRow('merits-list-create', 'Merit', V20_MERITS_LIST);
-        renderDynamicTraitRow('flaws-list-create', 'Flaw', V20_FLAWS_LIST);
-        if(renderRitualsEdit) renderRitualsEdit();
-        
-        if (window.state.prios) {
-            document.querySelectorAll('.prio-btn').forEach(btn => {
-                const { cat, group, v } = btn.dataset;
-                const savedVal = window.state.prios[cat]?.[group];
-                if (savedVal == v) btn.classList.add('active');
-                else btn.classList.remove('active');
-            });
-        }
-        
-        Object.keys(ATTRIBUTES).forEach(c => ATTRIBUTES[c].forEach(a => { refreshTraitRow(a, 'attr'); }));
-        Object.keys(ABILITIES).forEach(c => ABILITIES[c].forEach(a => { refreshTraitRow(a, 'abil'); }));
-
-        for(let i=0; i<8; i++) {
-            const nameInput = document.getElementById(`ot-n-${i}`);
-            if(nameInput) {
-                const name = nameInput.value || `Other_${i}`;
-                const val = window.state.dots.other[name] || 0;
-                const dr = document.getElementById(`ot-dr-${i}`);
-                if(dr) dr.innerHTML = renderDots(val, 5);
-            }
-        }
-        
-        VIRTUES.forEach(v => {
-            const row = document.querySelector(`#list-virt .dot-row[data-n="${v}"]`);
-            if(row) row.innerHTML = renderDots(window.state.dots.virt[v] || 1, 5);
-        });
-
-        const currentClan = window.state.textFields['c-clan'];
-        if (currentClan && CLAN_WEAKNESSES[currentClan]) {
-            const weaknessArea = document.getElementById('c-clan-weakness');
-            if (weaknessArea) weaknessArea.value = CLAN_WEAKNESSES[currentClan];
-        }
-
-        renderSocialProfile();
-        updateWalkthrough();
-        
+        // 10. Update Pools (Logic & Visuals)
         if (window.updatePools) window.updatePools();
+        
+        // 11. Print Sheet
         if (renderPrintSheet) renderPrintSheet();
 
+        // 12. Locks
         setTimeout(() => {
             const inputs = document.querySelectorAll('#sheet-content input[type="text"], #sheet-content textarea, #sheet-content input[type="number"]');
             inputs.forEach(input => { applySmartLock(input); });
@@ -444,11 +432,12 @@ window.fullRefresh = function() {
         if(freebieBtn) freebieBtn.removeAttribute('disabled');
 
         console.log("UI Refresh Complete.");
-
+        
     } catch(e) {
         console.error("Refresh Error:", e);
         window.showNotification("Error Refreshing UI");
     } finally {
+        // 13. Navigate (Moved to finally block for safety)
         const targetStep = window.state.currentPhase || window.state.furthestPhase || 1;
         changeStep(targetStep);
     }
@@ -463,19 +452,21 @@ window.updatePools = function() {
 
 function initUI() {
     try {
-        if (!document.getElementById('sheet-nav')) throw new Error("Navigation container 'sheet-nav' is missing.");
+        console.log("Initializing UI...");
+        if (!document.getElementById('sheet-nav')) throw new Error("Navigation container missing.");
 
-        // 1. ATTEMPT LOAD FIRST
-        const loaded = loadAutoSave(); 
+        // --- LOAD DATA FIRST ---
+        const loaded = loadAutoSave();
         if(loaded) {
              console.log("Data loaded synchronously.");
-        } else {
-             console.log("No autosave. Using default state.");
         }
 
         // --- PREVENT ACCIDENTAL EXIT ---
         window.addEventListener('beforeunload', beforeUnloadHandler);
 
+        // --- 1. SETUP BASE EVENT LISTENERS ---
+        
+        // Anti-Autofill
         const sensitiveInputs = ['c-name', 'c-player', 'c-sire', 'c-concept', 'c-chronicle'];
         sensitiveInputs.forEach(id => {
             const el = document.getElementById(id);
@@ -496,25 +487,26 @@ function initUI() {
         const vSpan = document.getElementById('app-version');
         if(vSpan) vSpan.innerText = APP_VERSION;
 
+        // Render basic structure (Empty Rows) - NOW USING STATE VALUES
         const s1 = document.getElementById('list-attr-physical');
         if (s1) {
-            // Render rows using ACTUAL state values
-            Object.keys(ATTRIBUTES).forEach(c => ATTRIBUTES[c].forEach(a => { 
-                if (window.state.dots.attr[a] === undefined) window.state.dots.attr[a] = 1; 
-                renderRow('list-attr-'+c.toLowerCase(), a, 'attr', window.state.dots.attr[a]); 
-            }));
-            Object.keys(ABILITIES).forEach(c => ABILITIES[c].forEach(a => { 
-                if (window.state.dots.abil[a] === undefined) window.state.dots.abil[a] = 0; 
-                renderRow('list-abil-'+c.toLowerCase(), a, 'abil', window.state.dots.abil[a]); 
-            }));
+             Object.keys(ATTRIBUTES).forEach(c => ATTRIBUTES[c].forEach(a => { 
+                 if (window.state.dots.attr[a] === undefined) window.state.dots.attr[a] = 1; 
+                 renderRow('list-attr-'+c.toLowerCase(), a, 'attr', window.state.dots.attr[a]); 
+             }));
+             Object.keys(ABILITIES).forEach(c => ABILITIES[c].forEach(a => { 
+                 if (window.state.dots.abil[a] === undefined) window.state.dots.abil[a] = 0; 
+                 renderRow('list-abil-'+c.toLowerCase(), a, 'abil', window.state.dots.abil[a]); 
+             }));
         }
-        
+
         renderDynamicAdvantageRow('list-disc', 'disc', DISCIPLINES);
         renderDynamicAdvantageRow('list-back', 'back', BACKGROUNDS);
         renderDynamicAdvantageRow('custom-talents', 'abil', [], true);
         renderDynamicAdvantageRow('custom-skills', 'abil', [], true);
         renderDynamicAdvantageRow('custom-knowledges', 'abil', [], true);
-        renderDerangementsList(); 
+        renderDerangementsList();
+        
         VIRTUES.forEach(v => { 
             if (window.state.dots.virt[v] === undefined) window.state.dots.virt[v] = 1; 
             renderRow('list-virt', v, 'virt', window.state.dots.virt[v]); 
@@ -552,7 +544,6 @@ function initUI() {
                 window.fullRefresh();
                 triggerAutoSave();
             };
-
             // --- END INJECT ---
 
             VIT.forEach(v => { 
@@ -610,7 +601,7 @@ function initUI() {
 
         renderBloodBondRow();
         renderDynamicHavenRow();
-        
+
         const criticalFields = ['c-name', 'c-nature', 'c-demeanor', 'c-clan', 'c-gen', 'c-player', 'c-concept', 'c-sire'];
         criticalFields.forEach(id => {
             const el = document.getElementById(id);
@@ -618,7 +609,7 @@ function initUI() {
                 const updateState = (e) => { 
                     window.state.textFields[id] = e.target.value; 
                     updateWalkthrough(); 
-                    triggerAutoSave();
+                    triggerAutoSave(); 
                 };
                 el.addEventListener('keyup', updateState);
                 el.addEventListener('change', updateState);
@@ -639,18 +630,8 @@ function initUI() {
             }
         });
 
-        setTimeout(() => {
-            const allInputs = document.querySelectorAll('input, textarea');
-            allInputs.forEach(input => {
-                if(!input.id.startsWith('auth-')) { 
-                    input.setAttribute('autocomplete', 'off');
-                    applySmartLock(input);
-                }
-            });
-        }, 100);
-
         const cmdNew = document.getElementById('cmd-new');
-        if(cmdNew) cmdNew.onclick = window.handleNew;
+        if(cmdNew) cmdNew.onclick = window.handleNew; 
         const cmdSave = document.getElementById('cmd-save');
         if(cmdSave) cmdSave.onclick = window.handleSaveClick;
         const cmdLoad = document.getElementById('cmd-load');
@@ -673,7 +654,7 @@ function initUI() {
 
         const printBtn = document.getElementById('print-btn');
         if(printBtn) printBtn.onclick = () => window.print();
-        
+
         const topFreebieBtn = document.getElementById('toggle-freebie-btn');
         if(topFreebieBtn) topFreebieBtn.onclick = () => { if(window.toggleFreebieMode) window.toggleFreebieMode(); };
         
@@ -762,6 +743,7 @@ function initUI() {
             };
         }
 
+        // GENERATION SYNC
         document.body.addEventListener('click', function(e) {
             if (e.target.classList.contains('dot')) {
                 const row = e.target.closest('.dot-row');
@@ -808,8 +790,9 @@ function initUI() {
         });
 
         // 2. FORCE SYNC AT END OF INIT
-        window.fullRefresh();
-        
+        // Ensure pools and initial UI state are consistent
+        setTimeout(() => window.fullRefresh(), 200);
+
     } catch(e) {
         console.error("UI Init Error:", e);
         const notif = document.getElementById('notification');
@@ -866,6 +849,7 @@ onAuthStateChanged(auth, async (u) => {
         console.log("User signed in:", user.uid);
 
         try {
+            // Populate Dropdowns First
             const ns = document.getElementById('c-nature');
             const ds = document.getElementById('c-demeanor');
             if(ns && ds && typeof ARCHETYPES !== 'undefined') {
@@ -917,9 +901,7 @@ onAuthStateChanged(auth, async (u) => {
                 triggerAutoSave();
             });
 
-            hydrateInputs();
-            updateWalkthrough();
-            
+            // Re-apply Clan Weakness Text from State if present
             const currentClan = document.getElementById('c-clan')?.value;
             if (currentClan && CLAN_WEAKNESSES[currentClan]) {
                 const weaknessArea = document.getElementById('c-clan-weakness');
@@ -931,8 +913,8 @@ onAuthStateChanged(auth, async (u) => {
 
             if(loader) loader.style.display = 'none';
             checkTutorialStatus();
-            
-            // --- FIX: FORCE REFRESH AFTER LOGIN ---
+
+            // Force Full Refresh to ensure UI matches State after Auth
             setTimeout(() => window.fullRefresh(), 500);
 
         } catch (dbErr) {
@@ -975,14 +957,14 @@ onAuthStateChanged(auth, async (u) => {
 function populateGuestUI() {
     const ns = document.getElementById('c-nature');
     const ds = document.getElementById('c-demeanor');
-    if(ns && ds && typeof ARCHETYPES !== 'undefined') {
+    if(ns && ds && ns.options.length <= 1 && typeof ARCHETYPES !== 'undefined') {
         ns.innerHTML = '<option value="" disabled selected>Choose Nature...</option>'; 
         ds.innerHTML = '<option value="" disabled selected>Choose Demeanor...</option>'; 
         ARCHETYPES.sort().forEach(a => { ns.add(new Option(a,a)); ds.add(new Option(a,a)); });
     }
     
     const cs = document.getElementById('c-clan');
-    if(cs && typeof CLANS !== 'undefined') {
+    if(cs && cs.options.length <= 1 && typeof CLANS !== 'undefined') {
         cs.innerHTML = '<option value="" disabled selected>Choose Clan...</option>';
         CLANS.sort().forEach(c => cs.add(new Option(c,c)));
         cs.addEventListener('change', (e) => {
@@ -1021,11 +1003,12 @@ function populateGuestUI() {
         triggerAutoSave();
     });
     
+    // Force a full refresh to ensure all dynamic rows are built
+    setTimeout(() => window.fullRefresh(), 500);
+    
     const loader = document.getElementById('loading-overlay');
     if(loader) loader.style.display = 'none';
-
-    // --- FIX: FORCE REFRESH FOR GUESTS ---
-    setTimeout(() => window.fullRefresh(), 500);
 }
 
+// Make sure initUI runs when DOM is loaded, not just script load
 document.addEventListener('DOMContentLoaded', initUI);
