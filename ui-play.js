@@ -222,7 +222,8 @@ export function togglePlayMode() {
     document.querySelectorAll('input, select, textarea').forEach(el => {
         if (['save-filename', 'char-select', 'roll-diff', 'use-specialty', 'c-path-name', 'c-path-name-create', 'c-bearing-name', 'c-bearing-value', 'custom-weakness-input', 'xp-points-input', 'blood-per-turn-input', 'custom-dice-input', 'spend-willpower', 'c-xp-total', 'frenzy-diff', 'rotschreck-diff', 'play-merit-notes', 'dmg-input-val', 'tray-use-armor',
         // Journal Inputs Exemption
-        'log-sess-num', 'log-date', 'log-game-date', 'log-title', 'log-effects', 'log-scene1', 'log-scene2', 'log-scene3', 'log-obj', 'log-clues', 'log-secrets', 'log-downtime'
+        'log-sess-num', 'log-date', 'log-game-date', 'log-title', 'log-effects', 'log-scene1', 'log-scene2', 'log-scene3', 'log-scene-outcome', 'log-xp-gain',
+        'log-obj', 'log-clues', 'log-secrets', 'log-downtime'
         ].includes(el.id) || el.classList.contains('merit-flaw-desc') || el.closest('#active-log-form')) {
             el.disabled = false;
             return;
@@ -278,34 +279,49 @@ export function togglePlayMode() {
         const bioDescEl = document.getElementById('play-bio-desc');
         if(bioDescEl) {
             bioDescEl.innerText = document.getElementById('bio-desc')?.value || "";
+        }
+        
+        const bioHistoryEl = document.getElementById('play-history');
+        if(bioHistoryEl) {
+            bioHistoryEl.innerText = document.getElementById('char-history')?.value || "";
             
-            // Image Injection Logic for Play Mode
+            // --- PORTRAIT INJECTION (UNDER HISTORY) ---
             if (window.state.characterImage) {
-                // Check if wrapper already exists inside bio-desc parent to prevent dupes
-                let playImgWrapper = document.getElementById('play-mode-image-wrapper');
+                // Find parent container of history to append after
+                const histContainer = bioHistoryEl.closest('.sheet-section'); // Get the container wrapping the history
                 
-                // If not, create and inject it BEFORE the description
-                if (!playImgWrapper) {
-                    playImgWrapper = document.createElement('div');
-                    playImgWrapper.id = 'play-mode-image-wrapper';
-                    playImgWrapper.className = 'w-full flex justify-center mb-6 mt-2';
+                if (histContainer && histContainer.parentNode) {
+                    let portraitContainer = document.getElementById('play-mode-portrait-container');
                     
-                    // Insert before the bio text block
-                    if (bioDescEl.parentNode) {
-                        bioDescEl.parentNode.insertBefore(playImgWrapper, bioDescEl);
+                    if (!portraitContainer) {
+                        portraitContainer = document.createElement('div');
+                        portraitContainer.id = 'play-mode-portrait-container';
+                        portraitContainer.className = 'sheet-section mt-4';
+                        portraitContainer.innerHTML = `<div class="section-title">Portrait</div>`;
+                        
+                        // Create Inner Box
+                        const innerBox = document.createElement('div');
+                        innerBox.className = "w-full flex justify-center mt-2 bg-[#111] p-4 border border-[#333]";
+                        innerBox.innerHTML = `
+                            <div class="w-48 h-48 border-2 border-[#af0000] rounded-lg shadow-lg overflow-hidden bg-black bg-cover bg-center bg-no-repeat transition-transform hover:scale-105 duration-300"
+                                 style="background-image: url('${window.state.characterImage}'); box-shadow: 0 0 15px rgba(175, 0, 0, 0.3);">
+                            </div>
+                        `;
+                        portraitContainer.appendChild(innerBox);
+                        
+                        // Insert AFTER the history container
+                        histContainer.parentNode.insertBefore(portraitContainer, histContainer.nextSibling);
+                    } else {
+                        // Update existing (if toggled back and forth)
+                        const imgDiv = portraitContainer.querySelector('.bg-cover');
+                        if(imgDiv) imgDiv.style.backgroundImage = `url('${window.state.characterImage}')`;
+                        portraitContainer.style.display = 'block';
                     }
                 }
-                
-                playImgWrapper.innerHTML = `
-                    <div class="w-48 h-48 border-2 border-[#af0000] rounded-lg shadow-lg overflow-hidden bg-black bg-cover bg-center bg-no-repeat"
-                         style="background-image: url('${window.state.characterImage}'); box-shadow: 0 0 15px rgba(175, 0, 0, 0.3);">
-                    </div>
-                `;
-                playImgWrapper.style.display = 'flex';
             } else {
-                // If no image, hide/remove wrapper if it exists
-                const playImgWrapper = document.getElementById('play-mode-image-wrapper');
-                if (playImgWrapper) playImgWrapper.style.display = 'none';
+                // Hide if no image
+                const portraitContainer = document.getElementById('play-mode-portrait-container');
+                if (portraitContainer) portraitContainer.style.display = 'none';
             }
         }
         
@@ -314,7 +330,6 @@ export function togglePlayMode() {
         if(document.getElementById('play-languages')) document.getElementById('play-languages').innerText = document.getElementById('bio-languages')?.value || "";
         if(document.getElementById('play-goals-st')) document.getElementById('play-goals-st').innerText = document.getElementById('bio-goals-st')?.value || "";
         if(document.getElementById('play-goals-lt')) document.getElementById('play-goals-lt').innerText = document.getElementById('bio-goals-lt')?.value || "";
-        if(document.getElementById('play-history')) document.getElementById('play-history').innerText = document.getElementById('char-history')?.value || "";
         
         const feedSrc = document.getElementById('inv-feeding-grounds'); 
         if (feedSrc) setSafeText('play-feeding-grounds', feedSrc.value);
