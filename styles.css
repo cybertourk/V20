@@ -17,7 +17,7 @@ body {
     min-height: 100vh;
     margin: 0;
     overflow-x: hidden;
-    /* Default Mobile (Landscape/General) - Adjusted down from 140px */
+    /* Default Mobile (Landscape/General) */
     padding-top: 120px; 
     padding-bottom: 80px;
 }
@@ -25,8 +25,8 @@ body {
 /* Mobile Portrait Specifics - FORCED OVERRIDE */
 @media only screen and (max-width: 768px) and (orientation: portrait) {
     body {
-        /* Adjusted down from 180px to find the sweet spot */
-        padding-top: 150px !important; 
+        /* Dialed back to 80px per request */
+        padding-top: 80px !important; 
     }
 }
 
