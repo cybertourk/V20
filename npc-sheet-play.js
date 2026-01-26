@@ -449,8 +449,18 @@ export function renderPlaySheetModal() {
                         </div>` : ''}
                     </div>
 
-                    <!-- RIGHT COLUMN (3/12): Health & Bio -->
+                    <!-- RIGHT COLUMN (3/12): Portrait, Health & Bio -->
                     <div class="col-span-12 md:col-span-3 flex flex-col gap-6">
+                        
+                        <!-- PORTRAIT SECTION (New) -->
+                        ${npc.image ? `
+                        <div class="sheet-section !mt-0 flex justify-center items-center bg-black/50">
+                            <div class="section-title">Portrait</div>
+                            <div class="w-64 h-64 border-2 border-[#8b0000] rounded bg-black relative overflow-hidden bg-cover bg-center bg-no-repeat shadow-lg mt-2"
+                                 style="background-image: url('${npc.image}'); box-shadow: 0 0 20px rgba(139,0,0,0.3);">
+                            </div>
+                        </div>` : ''}
+
                         <div class="sheet-section !mt-0 h-full relative flex flex-col">
                             <div class="section-title">Health</div>
                             <div class="flex-1 space-y-1 text-xs mt-2">
@@ -478,13 +488,7 @@ export function renderPlaySheetModal() {
                         <div class="sheet-section">
                             <div class="section-title">Biography</div>
                             
-                            <!-- PORTRAIT DISPLAY (Play Mode) -->
-                            ${npc.image ? `
-                            <div class="mb-4 flex justify-center">
-                                <div class="w-32 h-32 border-2 border-[#444] rounded bg-black relative overflow-hidden bg-cover bg-center bg-no-repeat shadow-lg"
-                                     style="background-image: url('${npc.image}'); border-color: #8b0000;">
-                                </div>
-                            </div>` : ''}
+                            <!-- PORTRAIT WAS REMOVED FROM HERE -->
 
                             ${npc.bio.Description ? `<div class="text-xs text-gray-300 italic leading-relaxed mb-4 whitespace-pre-wrap">${npc.bio.Description}</div>` : '<div class="text-xs text-gray-600 italic">No description.</div>'}
                             
