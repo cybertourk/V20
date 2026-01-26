@@ -395,7 +395,14 @@ function handleSaveNpc() {
     // --- AUTO-GENERATE CODEX ENTRY ---
     generateNpcCodexEntry(cleanNpc);
     
-    showNotification(`${currentTemplate.label} Saved.`);
+    // --- TRIGGER CLOUD SAVE IMMEDIATELY ---
+    if (window.performSave) {
+        window.performSave(true); // true = silent save
+        showNotification(`${currentTemplate.label} Saved & Synced.`);
+    } else {
+        showNotification(`${currentTemplate.label} Saved locally.`);
+    }
+
     document.getElementById('npc-modal').style.display = 'none';
     toggleDiceUI(true);
 }
