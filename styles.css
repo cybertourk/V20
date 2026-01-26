@@ -17,16 +17,16 @@ body {
     min-height: 100vh;
     margin: 0;
     overflow-x: hidden;
-    /* Default Mobile (Landscape/General) - increased slightly */
-    padding-top: 140px; 
+    /* Default Mobile (Landscape/General) - Adjusted down from 140px */
+    padding-top: 120px; 
     padding-bottom: 80px;
 }
 
 /* Mobile Portrait Specifics - FORCED OVERRIDE */
 @media only screen and (max-width: 768px) and (orientation: portrait) {
     body {
-        /* Force significant padding to clear header in portrait mode */
-        padding-top: 180px !important; 
+        /* Adjusted down from 180px to find the sweet spot */
+        padding-top: 150px !important; 
     }
 }
 
