@@ -17,23 +17,23 @@ body {
     min-height: 100vh;
     margin: 0;
     overflow-x: hidden;
-    /* Default Mobile (Landscape/General) */
-    padding-top: 130px; 
+    /* Default Mobile (Landscape/General) - increased slightly */
+    padding-top: 140px; 
     padding-bottom: 80px;
 }
 
-/* Mobile Portrait Specifics */
-@media (orientation: portrait) and (max-width: 767px) {
+/* Mobile Portrait Specifics - FORCED OVERRIDE */
+@media only screen and (max-width: 768px) and (orientation: portrait) {
     body {
-        /* Increase padding significantly for portrait mode where nav wraps */
-        padding-top: 160px; 
+        /* Force significant padding to clear header in portrait mode */
+        padding-top: 180px !important; 
     }
 }
 
-@media (min-width: 768px) {
+@media (min-width: 769px) {
     body { 
         /* Desktop: Tighter top padding, nav is on the side/top */
-        padding-top: 90px; 
+        padding-top: 90px !important; 
         padding-bottom: 0; 
         padding-right: 60px; 
     }
