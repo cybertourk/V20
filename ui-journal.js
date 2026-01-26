@@ -172,8 +172,11 @@ export function renderJournalTab() {
 
     if(urlBtn) {
         urlBtn.onclick = () => {
-            const url = prompt("Paste Image URL (e.g. Discord, Imgur):");
+            let url = prompt("Paste Image URL (e.g. Discord, Imgur, Google Drive):");
             if(url) {
+                // Use global converter if available
+                if (window.convertGoogleDriveLink) url = window.convertGoogleDriveLink(url);
+                
                 window.currentCodexImage = url;
                 if(preview) {
                     preview.innerHTML = `<img src="${url}" class="w-full h-full object-cover">`;
@@ -577,8 +580,11 @@ function renderCodexView(container) {
 
     if(mainUrlBtn) {
         mainUrlBtn.onclick = () => {
-            const url = prompt("Paste Image URL (e.g. Discord, Imgur):");
+            let url = prompt("Paste Image URL (e.g. Discord, Imgur, Google Drive):");
             if(url) {
+                // Apply Helper for Google Drive
+                if(window.convertGoogleDriveLink) url = window.convertGoogleDriveLink(url);
+                
                 window.currentCodexImage = url;
                 if(mainPreview) {
                     mainPreview.innerHTML = `<img src="${url}" class="w-full h-full object-cover">`;
