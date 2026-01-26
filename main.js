@@ -529,12 +529,15 @@ function initUI() {
             imgWrap.className = 'w-full flex justify-center mt-4 mb-2'; // Adjusted margin: top spacing, little bottom
             imgWrap.innerHTML = `
                 <div class="flex flex-col items-center">
-                    <div id="char-img-display" title="Click to upload image" 
-                         class="w-32 h-32 border-2 border-[#444] rounded bg-black relative cursor-pointer hover:border-[#af0000] transition-colors overflow-hidden bg-cover bg-center bg-no-repeat flex items-center justify-center">
-                        <i class="fa-solid fa-camera text-[#333] text-3xl" id="char-img-icon"></i>
+                    <div id="char-img-display" title="Click to upload or right-click to paste URL" 
+                         class="w-32 h-32 border-2 border-[#444] rounded bg-black relative cursor-pointer hover:border-[#af0000] transition-colors overflow-hidden bg-cover bg-center bg-no-repeat flex items-center justify-center group">
+                        <i class="fa-solid fa-camera text-[#333] text-3xl group-hover:text-[#af0000] transition-colors" id="char-img-icon"></i>
                     </div>
                     <input type="file" id="char-img-input" accept="image/*" class="hidden">
-                    <button id="btn-remove-image" class="text-xs text-red-500 hover:text-red-300 mt-1 hidden">Remove Image</button>
+                    <div class="flex gap-2 mt-2">
+                        <button id="btn-img-url" class="text-[10px] text-gray-400 border border-[#444] px-2 py-1 hover:text-white hover:border-gray-300 transition-colors uppercase font-bold">Link URL</button>
+                        <button id="btn-remove-image" class="text-[10px] text-red-500 border border-[#444] px-2 py-1 hover:text-red-300 hover:border-red-900 transition-colors uppercase font-bold hidden">Remove</button>
+                    </div>
                 </div>
             `;
             vitalCont.appendChild(imgWrap);
@@ -543,9 +546,22 @@ function initUI() {
             const display = imgWrap.querySelector('#char-img-display');
             const input = imgWrap.querySelector('#char-img-input');
             const removeBtn = imgWrap.querySelector('#btn-remove-image');
+            const urlBtn = imgWrap.querySelector('#btn-img-url');
             
             display.onclick = () => input.click();
             input.onchange = (e) => handleImageUpload(e);
+            
+            // URL Handler
+            urlBtn.onclick = () => {
+                const url = prompt("Paste Image URL (e.g. from Discord, Imgur):");
+                if(url) {
+                    window.state.characterImage = url;
+                    window.fullRefresh();
+                    triggerAutoSave();
+                    window.showNotification("Image Linked!");
+                }
+            };
+
             removeBtn.onclick = () => {
                 window.state.characterImage = null;
                 window.fullRefresh();
