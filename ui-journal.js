@@ -38,7 +38,7 @@ export function renderJournalTab() {
         
         <!-- Quick Definition / Edit Modal -->
         <div id="codex-popup" class="fixed inset-0 bg-black/90 z-[10000] hidden flex items-center justify-center p-4 backdrop-blur-sm">
-            <div class="bg-[#1a1a1a] border border-[#d4af37] p-6 max-w-md w-full shadow-[0_0_30px_rgba(0,0,0,0.8)] relative flex flex-col gap-4 max-h-[90vh] overflow-y-auto no-scrollbar">
+            <div class="bg-[#1a1a1a] border border-[#d4af37] p-6 max-w-lg w-full shadow-[0_0_30px_rgba(0,0,0,0.8)] relative flex flex-col gap-4 max-h-[90vh] overflow-y-auto no-scrollbar">
                 <button onclick="document.getElementById('codex-popup').classList.add('hidden')" class="absolute top-2 right-3 text-gray-500 hover:text-white text-xl">&times;</button>
                 
                 <!-- VIEW MODE -->
@@ -47,7 +47,7 @@ export function renderJournalTab() {
                     
                     <!-- Image Display (View Mode) -->
                     <div id="codex-popup-img-container" class="hidden mb-4 rounded border border-[#333] overflow-hidden bg-black flex justify-center">
-                        <img id="codex-popup-img" src="" class="max-h-48 object-contain">
+                        <img id="codex-popup-img" src="" class="max-h-64 object-contain w-full">
                     </div>
 
                     <div class="flex gap-2 mb-3" id="codex-popup-tags"></div>
@@ -68,15 +68,17 @@ export function renderJournalTab() {
                     
                     <!-- Image Upload (Edit Mode) -->
                     <div>
-                        <label class="block text-[10px] uppercase text-gray-500 font-bold mb-1">Image</label>
-                        <div class="flex items-center gap-2 flex-wrap">
-                            <div id="quick-cx-img-preview" class="w-12 h-12 bg-black border border-[#444] flex items-center justify-center overflow-hidden">
-                                <i class="fas fa-image text-gray-600"></i>
+                        <label class="block text-[10px] uppercase text-gray-500 font-bold mb-1">Image (Map/Handout)</label>
+                        <div class="flex flex-col gap-2">
+                            <div id="quick-cx-img-preview" class="w-full h-48 bg-black border border-[#444] flex items-center justify-center overflow-hidden rounded">
+                                <i class="fas fa-image text-gray-700 text-3xl"></i>
                             </div>
-                            <input type="file" id="quick-cx-file" accept="image/*" class="hidden">
-                            <button onclick="document.getElementById('quick-cx-file').click()" class="bg-[#222] border border-[#444] text-gray-300 px-2 py-1 text-[10px] hover:text-white">Upload</button>
-                            <button id="quick-cx-btn-url" class="bg-[#222] border border-[#444] text-gray-300 px-2 py-1 text-[10px] hover:text-white">Link URL</button>
-                            <button id="quick-cx-remove-img" class="text-red-500 hover:text-red-300 text-[10px] hidden">Remove</button>
+                            <div class="flex gap-2">
+                                <input type="file" id="quick-cx-file" accept="image/*" class="hidden">
+                                <button onclick="document.getElementById('quick-cx-file').click()" class="bg-[#222] border border-[#444] text-gray-300 px-3 py-1 text-[10px] hover:text-white uppercase font-bold flex-1">Upload</button>
+                                <button id="quick-cx-btn-url" class="bg-[#222] border border-[#444] text-gray-300 px-3 py-1 text-[10px] hover:text-white uppercase font-bold flex-1">Link URL</button>
+                                <button id="quick-cx-remove-img" class="text-red-500 hover:text-red-300 text-[10px] border border-red-900/30 px-3 py-1 uppercase font-bold hidden">Remove</button>
+                            </div>
                         </div>
                     </div>
 
@@ -143,8 +145,8 @@ export function renderJournalTab() {
                 const img = new Image();
                 img.onload = function() {
                     const canvas = document.createElement('canvas');
-                    const MAX_WIDTH = 600; 
-                    const MAX_HEIGHT = 600;
+                    const MAX_WIDTH = 800; // Increased for maps
+                    const MAX_HEIGHT = 800;
                     let width = img.width;
                     let height = img.height;
                     if (width > height) {
@@ -157,10 +159,10 @@ export function renderJournalTab() {
                     const ctxCanvas = canvas.getContext('2d');
                     ctxCanvas.drawImage(img, 0, 0, width, height);
                     
-                    window.currentCodexImage = canvas.toDataURL('image/jpeg', 0.7);
+                    window.currentCodexImage = canvas.toDataURL('image/jpeg', 0.8);
                     
                     if(preview) {
-                        preview.innerHTML = `<img src="${window.currentCodexImage}" class="w-full h-full object-cover">`;
+                        preview.innerHTML = `<img src="${window.currentCodexImage}" class="w-full h-full object-contain">`;
                         removeBtn.classList.remove('hidden');
                     }
                 };
@@ -179,7 +181,7 @@ export function renderJournalTab() {
                 
                 window.currentCodexImage = url;
                 if(preview) {
-                    preview.innerHTML = `<img src="${url}" class="w-full h-full object-cover">`;
+                    preview.innerHTML = `<img src="${url}" class="w-full h-full object-contain">`;
                     removeBtn.classList.remove('hidden');
                 }
                 showNotification("Image Linked.");
@@ -190,7 +192,7 @@ export function renderJournalTab() {
     if(removeBtn) {
         removeBtn.onclick = () => {
             window.currentCodexImage = null;
-            if(preview) preview.innerHTML = '<i class="fas fa-image text-gray-600"></i>';
+            if(preview) preview.innerHTML = '<i class="fas fa-image text-gray-700 text-3xl"></i>';
             removeBtn.classList.add('hidden');
         };
     }
@@ -493,15 +495,17 @@ function renderCodexView(container) {
                     
                     <!-- Main Codex Editor Image Upload -->
                     <div>
-                        <label class="block text-[10px] uppercase text-gray-500 font-bold mb-1">Image</label>
-                        <div class="flex items-center gap-2 h-[34px]">
-                            <div id="cx-img-preview" class="w-8 h-8 bg-black border border-[#444] flex items-center justify-center overflow-hidden flex-shrink-0">
-                                <i class="fas fa-image text-gray-600 text-[10px]"></i>
+                        <label class="block text-[10px] uppercase text-gray-500 font-bold mb-1">Image (Map/Handout)</label>
+                        <div class="flex flex-col gap-2">
+                            <div id="cx-img-preview" class="w-full h-64 bg-black border border-[#444] flex items-center justify-center overflow-hidden rounded relative">
+                                <i class="fas fa-image text-gray-700 text-4xl"></i>
                             </div>
-                            <input type="file" id="cx-file" accept="image/*" class="hidden">
-                            <button onclick="document.getElementById('cx-file').click()" class="bg-[#222] border border-[#444] text-gray-300 px-2 py-1 text-[10px] hover:text-white h-full">Upload</button>
-                            <button id="cx-btn-url" class="bg-[#222] border border-[#444] text-gray-300 px-2 py-1 text-[10px] hover:text-white h-full">Link URL</button>
-                            <button id="cx-remove-img" class="text-red-500 hover:text-red-300 text-[10px] hidden h-full">Remove</button>
+                            <div class="flex gap-2">
+                                <input type="file" id="cx-file" accept="image/*" class="hidden">
+                                <button onclick="document.getElementById('cx-file').click()" class="bg-[#222] border border-[#444] text-gray-300 px-3 py-1 text-[10px] hover:text-white uppercase font-bold flex-1">Upload</button>
+                                <button id="cx-btn-url" class="bg-[#222] border border-[#444] text-gray-300 px-3 py-1 text-[10px] hover:text-white uppercase font-bold flex-1">Link URL</button>
+                                <button id="cx-remove-img" class="text-red-500 hover:text-red-300 text-[10px] border border-red-900/30 px-3 py-1 uppercase font-bold hidden">Remove</button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -525,7 +529,7 @@ function renderCodexView(container) {
 
                 <div class="mb-6">
                     <label class="block text-[10px] uppercase text-gray-500 font-bold mb-1">Description</label>
-                    <textarea id="cx-desc" class="w-full h-40 bg-[#111] border border-[#444] text-gray-300 p-2 text-sm focus:border-[#d4af37] outline-none resize-none leading-relaxed"></textarea>
+                    <textarea id="cx-desc" class="w-full h-64 bg-[#111] border border-[#444] text-gray-300 p-2 text-sm focus:border-[#d4af37] outline-none resize-none leading-relaxed"></textarea>
                 </div>
 
                 <div class="flex justify-end gap-4 mt-auto">
@@ -560,8 +564,8 @@ function renderCodexView(container) {
                 const img = new Image();
                 img.onload = function() {
                     const canvas = document.createElement('canvas');
-                    const MAX_WIDTH = 600; 
-                    const MAX_HEIGHT = 600;
+                    const MAX_WIDTH = 1200; // Increased for maps
+                    const MAX_HEIGHT = 1200;
                     let width = img.width;
                     let height = img.height;
                     if (width > height) {
@@ -574,10 +578,10 @@ function renderCodexView(container) {
                     const ctxCanvas = canvas.getContext('2d');
                     ctxCanvas.drawImage(img, 0, 0, width, height);
                     
-                    window.currentCodexImage = canvas.toDataURL('image/jpeg', 0.7);
+                    window.currentCodexImage = canvas.toDataURL('image/jpeg', 0.8);
                     
                     if(mainPreview) {
-                        mainPreview.innerHTML = `<img src="${window.currentCodexImage}" class="w-full h-full object-cover">`;
+                        mainPreview.innerHTML = `<img src="${window.currentCodexImage}" class="w-full h-full object-contain">`;
                         mainRemoveBtn.classList.remove('hidden');
                     }
                 };
@@ -596,7 +600,7 @@ function renderCodexView(container) {
                 
                 window.currentCodexImage = url;
                 if(mainPreview) {
-                    mainPreview.innerHTML = `<img src="${url}" class="w-full h-full object-cover">`;
+                    mainPreview.innerHTML = `<img src="${url}" class="w-full h-full object-contain">`;
                     mainRemoveBtn.classList.remove('hidden');
                 }
                 showNotification("Image Linked.");
@@ -607,7 +611,7 @@ function renderCodexView(container) {
     if(mainRemoveBtn) {
         mainRemoveBtn.onclick = () => {
             window.currentCodexImage = null;
-            if(mainPreview) mainPreview.innerHTML = '<i class="fas fa-image text-gray-600 text-[10px]"></i>';
+            if(mainPreview) mainPreview.innerHTML = '<i class="fas fa-image text-gray-700 text-4xl"></i>';
             mainRemoveBtn.classList.add('hidden');
         };
     }
@@ -666,10 +670,10 @@ window.editCodexEntry = function(id = null) {
     const removeBtn = document.getElementById('cx-remove-img');
     
     if(window.currentCodexImage) {
-        preview.innerHTML = `<img src="${window.currentCodexImage}" class="w-full h-full object-cover">`;
+        preview.innerHTML = `<img src="${window.currentCodexImage}" class="w-full h-full object-contain">`;
         removeBtn.classList.remove('hidden');
     } else {
-        preview.innerHTML = '<i class="fas fa-image text-gray-600 text-[10px]"></i>';
+        preview.innerHTML = '<i class="fas fa-image text-gray-700 text-4xl"></i>';
         removeBtn.classList.add('hidden');
     }
 }
@@ -827,7 +831,7 @@ window.viewCodex = function(id) {
         window.currentCodexImage = entry.image || null;
         const preview = document.getElementById('quick-cx-img-preview');
         if(window.currentCodexImage) {
-            preview.innerHTML = `<img src="${window.currentCodexImage}" class="w-full h-full object-cover">`;
+            preview.innerHTML = `<img src="${window.currentCodexImage}" class="w-full h-full object-contain">`;
             document.getElementById('quick-cx-remove-img').classList.remove('hidden');
         } else {
             preview.innerHTML = '<i class="fas fa-image text-gray-600"></i>';
@@ -934,7 +938,7 @@ window.defineSelection = function(btn) {
     document.getElementById('quick-cx-tags').value = "";
     document.getElementById('quick-cx-desc').value = "";
     window.currentCodexImage = null;
-    document.getElementById('quick-cx-img-preview').innerHTML = '<i class="fas fa-image text-gray-600"></i>';
+    document.getElementById('quick-cx-img-preview').innerHTML = '<i class="fas fa-image text-gray-700 text-3xl"></i>';
     document.getElementById('quick-cx-remove-img').classList.add('hidden');
     
     modal.classList.remove('hidden');
