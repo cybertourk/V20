@@ -221,6 +221,12 @@ export function renderPlaySheetModal() {
         });
     });
 
+    // Ensure Drive link conversion happens if npc.image is a Google Drive link
+    let displayImage = npc.image;
+    if (displayImage && window.convertGoogleDriveLink) {
+        displayImage = window.convertGoogleDriveLink(displayImage);
+    }
+
     const html = `
         <div class="w-[95%] max-w-7xl h-[95%] bg-[#0a0a0a] border border-[#444] shadow-2xl flex flex-col relative font-serif text-white overflow-hidden pb-16">
             <!-- Header -->
@@ -453,11 +459,11 @@ export function renderPlaySheetModal() {
                     <div class="col-span-12 md:col-span-3 flex flex-col gap-6">
                         
                         <!-- PORTRAIT SECTION (New) -->
-                        ${npc.image ? `
+                        ${displayImage ? `
                         <div class="sheet-section !mt-0 flex justify-center items-center bg-black/50">
                             <div class="section-title">Portrait</div>
                             <div class="w-64 h-64 border-2 border-[#8b0000] rounded bg-black relative overflow-hidden bg-cover bg-center bg-no-repeat shadow-lg mt-2"
-                                 style="background-image: url('${npc.image}'); box-shadow: 0 0 20px rgba(139,0,0,0.3);">
+                                 style="background-image: url('${displayImage}'); box-shadow: 0 0 20px rgba(139,0,0,0.3);">
                             </div>
                         </div>` : ''}
 
