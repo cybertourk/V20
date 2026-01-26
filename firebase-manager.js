@@ -122,6 +122,7 @@ export async function performSave() {
         const docRef = doc(db, 'artifacts', appId, 'users', user.uid, 'characters', safeId);
         
         // Deep clone the state to create the save payload
+        // This ensures sessionLogs, codex, retainers are captured
         const dataToSave = JSON.parse(JSON.stringify(window.state));
         
         // --- SIZE CHECK ---
