@@ -246,7 +246,20 @@ function applySmartLock(input) {
     }
 }
 
-// --- IMAGE UPLOAD HANDLER (HIGH RES) ---
+// --- IMAGE UPLOAD HANDLER (HIGH RES + GDRIVE FIX) ---
+
+// Helper to convert Google Drive share links to direct view links
+function convertGoogleDriveLink(url) {
+    if (!url) return "";
+    // Regex for standard drive file view link
+    const match = url.match(/\/d\/(.+)\//);
+    if (match && match[1]) {
+        return `https://drive.google.com/uc?export=view&id=${match[1]}`;
+    }
+    return url;
+}
+window.convertGoogleDriveLink = convertGoogleDriveLink;
+
 function handleImageUpload(e) {
     const file = e.target.files[0];
     if (!file) return;
@@ -406,7 +419,10 @@ window.fullRefresh = function() {
 
         if(imgDisplay) {
             if (window.state.characterImage) {
-                imgDisplay.style.backgroundImage = `url('${window.state.characterImage}')`;
+                // Ensure image is processed via converter if it's a Drive link
+                const displayUrl = convertGoogleDriveLink(window.state.characterImage);
+                imgDisplay.style.backgroundImage = `url('${displayUrl}')`;
+                
                 if(imgIcon) imgIcon.style.display = 'none';
                 if(removeBtn) removeBtn.classList.remove('hidden');
             } else {
@@ -553,8 +569,9 @@ function initUI() {
             
             // URL Handler
             urlBtn.onclick = () => {
-                const url = prompt("Paste Image URL (e.g. from Discord, Imgur):");
+                let url = prompt("Paste Image URL (e.g. from Discord, Imgur, or Google Drive):");
                 if(url) {
+                    url = convertGoogleDriveLink(url);
                     window.state.characterImage = url;
                     window.fullRefresh();
                     triggerAutoSave();
