@@ -35,6 +35,7 @@ function syncInputs() {
 // --- LOCAL UI STATE FOR LOAD MENU ---
 let loadMenuState = {
     characters: [],
+    folders: [], // New: Store persistent folders
     sort: 'date', // 'date' or 'alpha'
     expandedFolders: {}
 };
@@ -64,7 +65,7 @@ export function handleSaveClick() {
     const modal = document.getElementById('save-modal');
     if(modal) modal.classList.add('active');
     
-    // Populate Folder Datalist
+    // Populate Folder Datalist (and fetch persistent folders)
     populateFolderList();
 }
 
@@ -75,9 +76,16 @@ async function populateFolderList() {
     list.innerHTML = '';
     
     try {
-        const querySnapshot = await getDocs(collection(db, 'artifacts', appId, 'users', auth.currentUser.uid, 'characters'));
+        const user = auth.currentUser;
         const folders = new Set();
-        querySnapshot.forEach(doc => {
+
+        // 1. Fetch persistent folders
+        const folderSnap = await getDocs(collection(db, 'artifacts', appId, 'users', user.uid, 'folders'));
+        folderSnap.forEach(doc => folders.add(doc.id));
+
+        // 2. Fetch existing character folders (for backward compatibility)
+        const charSnap = await getDocs(collection(db, 'artifacts', appId, 'users', user.uid, 'characters'));
+        charSnap.forEach(doc => {
             const data = doc.data();
             if (data.meta && data.meta.folder) folders.add(data.meta.folder);
         });
@@ -89,6 +97,33 @@ async function populateFolderList() {
         });
     } catch (e) {
         console.warn("Could not fetch folders", e);
+    }
+}
+
+// NEW: Function to explicitly create a persistent folder
+export async function createPersistentFolder(folderName) {
+    if (!folderName || !auth.currentUser) return;
+    try {
+        const folderRef = doc(db, 'artifacts', appId, 'users', auth.currentUser.uid, 'folders', folderName);
+        await setDoc(folderRef, { created: new Date().toISOString() });
+        console.log(`Folder '${folderName}' created/persisted.`);
+    } catch (e) {
+        console.error("Error creating folder:", e);
+    }
+}
+
+// NEW: Delete empty folder manually
+export async function deletePersistentFolder(folderName) {
+    if (!folderName || !auth.currentUser) return;
+    if(!confirm(`Delete folder '${folderName}'? (Only empty folders can be removed)`)) return;
+    try {
+        const folderRef = doc(db, 'artifacts', appId, 'users', auth.currentUser.uid, 'folders', folderName);
+        await deleteDoc(folderRef);
+        await renderFileBrowser(auth.currentUser); // Refresh view
+        notify("Folder deleted.");
+    } catch (e) {
+        console.error("Error deleting folder:", e);
+        notify("Failed to delete folder.", "error");
     }
 }
 
@@ -116,7 +151,7 @@ export async function handleLoadClick() {
 
 // --- CORE OPERATIONS ---
 
-export async function performSave() {
+export async function performSave(silent = false) {
     let user = auth.currentUser;
     if (!user) {
         try {
@@ -136,12 +171,9 @@ export async function performSave() {
     const isManualSave = modal && modal.classList.contains('active');
 
     if (isManualSave) {
-        // CASE A: User is interacting with the Save Modal. Trust the inputs.
         rawName = document.getElementById('save-name-input')?.value.trim();
         folder = document.getElementById('save-folder-input')?.value.trim();
     } else {
-        // CASE B: Silent/Auto Save. Trust the State.
-        // DO NOT read from the hidden modal inputs, as they may contain old data from a previous load.
         rawName = window.state.meta.filename || window.state.textFields['c-name'] || "Unnamed Vampire";
         folder = window.state.meta.folder || "";
     }
@@ -150,11 +182,11 @@ export async function performSave() {
         rawName = "Unnamed Vampire";
     }
     
-    // Create Safe ID (Alphanumeric only for Firestore doc ID)
+    // Create Safe ID
     const safeId = rawName.replace(/[^a-zA-Z0-9 _-]/g, "");
     
     if (!window.state.meta) window.state.meta = {};
-    window.state.meta.filename = rawName; // Save the human readable name
+    window.state.meta.filename = rawName; 
     window.state.meta.folder = folder;
     window.state.meta.lastModified = new Date().toISOString();
     window.state.meta.uid = user.uid;
@@ -162,15 +194,30 @@ export async function performSave() {
     try {
         const docRef = doc(db, 'artifacts', appId, 'users', user.uid, 'characters', safeId);
         
-        // Deep clone the state to create the save payload
-        // This ensures sessionLogs, codex, retainers are captured
+        // --- ROLLBACK / BACKUP LOGIC (NEW) ---
+        // Before overwriting, check if file exists. If so, copy to backups collection.
+        // Only do this on manual saves to avoid spamming backups on auto-save
+        if (isManualSave) {
+            const snap = await getDoc(docRef);
+            if (snap.exists()) {
+                const oldData = snap.data();
+                const backupId = `${safeId}_bak_${Date.now()}`;
+                const backupRef = doc(db, 'artifacts', appId, 'users', user.uid, 'backups', backupId);
+                // Fire and forget backup to not slow down main save too much
+                setDoc(backupRef, oldData).catch(e => console.warn("Backup failed", e));
+            }
+        }
+
+        // --- PERSIST FOLDER ---
+        if (folder) {
+            createPersistentFolder(folder);
+        }
+
         const dataToSave = JSON.parse(JSON.stringify(window.state));
         
-        // --- SIZE CHECK ---
-        // Firestore limit is ~1MB. Calculate rough size.
+        // Size Check
         const jsonStr = JSON.stringify(dataToSave);
-        const sizeInBytes = new Blob([jsonStr]).size;
-        const sizeInMB = sizeInBytes / (1024 * 1024);
+        const sizeInMB = new Blob([jsonStr]).size / (1024 * 1024);
         
         if (sizeInMB > 0.95) {
             console.warn(`Save file size: ${sizeInMB.toFixed(2)} MB`);
@@ -179,12 +226,11 @@ export async function performSave() {
 
         await setDoc(docRef, dataToSave);
         
-        // Only show notification if manual save or if we want verbose feedback
         if (isManualSave) {
             notify("Character Inscribed.");
             modal.classList.remove('active');
-        } else {
-            console.log("Auto-save complete.");
+        } else if (!silent) {
+            // Optional: notify("Auto-saved");
         }
         
         const dl = document.getElementById('folder-datalist');
@@ -194,7 +240,6 @@ export async function performSave() {
             dl.appendChild(opt);
         }
         
-        // Refresh browser if open
         if(document.getElementById('load-modal').classList.contains('active')) {
             await renderFileBrowser(user);
         }
@@ -225,20 +270,26 @@ export async function deleteCharacter(id, name, event) {
     }
 }
 
-// --- BROWSER UI ---
+// --- BROWSER UI (UPDATED FOR PERSISTENT FOLDERS) ---
 
 export async function renderFileBrowser(user) {
     const browser = document.getElementById('file-browser');
     
     try {
-        const q = query(collection(db, 'artifacts', appId, 'users', user.uid, 'characters'));
-        const snap = await getDocs(q);
-        
+        // 1. Fetch Characters
+        const qChar = query(collection(db, 'artifacts', appId, 'users', user.uid, 'characters'));
+        const snapChar = await getDocs(qChar);
         loadMenuState.characters = [];
-        snap.forEach(d => {
+        snapChar.forEach(d => {
             loadMenuState.characters.push({ id: d.id, ...d.data() });
         });
-        
+
+        // 2. Fetch Persistent Folders
+        const qFolder = query(collection(db, 'artifacts', appId, 'users', user.uid, 'folders'));
+        const snapFolder = await getDocs(qFolder);
+        loadMenuState.folders = [];
+        snapFolder.forEach(d => loadMenuState.folders.push(d.id));
+
         renderLoadMenuUI();
         
     } catch (e) {
@@ -269,17 +320,20 @@ function renderLoadMenuUI() {
     controls.innerHTML = sortHtml + refreshHtml;
     browser.appendChild(controls);
 
-    if (loadMenuState.characters.length === 0) {
-        browser.innerHTML += '<div class="text-center text-gray-500 italic mt-4 text-xs">No secure archives found.</div>';
-        return;
-    }
-
-    // 2. Group Characters by Folder
+    // 2. Merge Folders (Persistent + Implicit from characters)
     const structure = {};
+    const allFolderNames = new Set(loadMenuState.folders);
+    
     loadMenuState.characters.forEach(char => {
         const f = char.meta?.folder || "Unsorted";
+        if (f !== "Unsorted") allFolderNames.add(f);
         if(!structure[f]) structure[f] = [];
         structure[f].push(char);
+    });
+
+    // Ensure empty persistent folders exist in structure
+    allFolderNames.forEach(fName => {
+        if (!structure[fName]) structure[fName] = [];
     });
 
     // Sort Folders
@@ -294,6 +348,8 @@ function renderLoadMenuUI() {
         if (loadMenuState.sort === 'date') {
             const dateA = getFolderDate(structure[a]);
             const dateB = getFolderDate(structure[b]);
+            // If dates match (e.g. both empty/0), fall back to alpha
+            if (dateA === dateB) return a.localeCompare(b);
             return dateB - dateA; 
         } else {
             return a.localeCompare(b);
@@ -302,7 +358,6 @@ function renderLoadMenuUI() {
 
     // 3. Render Folders
     folders.forEach(f => {
-        // Sort Items within Folder
         const items = structure[f].sort((a,b) => {
             if (loadMenuState.sort === 'date') {
                 const da = a.meta?.lastModified ? new Date(a.meta.lastModified) : new Date(0);
@@ -319,14 +374,25 @@ function renderLoadMenuUI() {
         folderDiv.className = "mb-2";
         
         const isOpen = loadMenuState.expandedFolders[f];
+        const isEmpty = items.length === 0;
         
+        // Folder Header
         const header = document.createElement('div');
         header.className = `flex items-center gap-2 p-2 rounded cursor-pointer transition-colors select-none ${isOpen ? 'bg-[#222] border-gold border text-white' : 'bg-[#111] border border-[#333] text-gray-400 hover:border-gray-500'}`;
+        
+        let folderIcon = isOpen ? 'fa-folder-open' : 'fa-folder';
+        if (f === "Unsorted") folderIcon = 'fa-box-archive';
+        
+        // Delete button for empty folders
+        const delBtnHtml = (isEmpty && f !== "Unsorted") 
+            ? `<button class="text-gray-600 hover:text-red-500 ml-auto px-2" title="Delete Folder" onclick="event.stopPropagation(); window.deletePersistentFolder('${f}')"><i class="fas fa-trash-alt text-[10px]"></i></button>`
+            : `<i class="fas fa-chevron-${isOpen ? 'down' : 'right'} text-[10px] ml-auto"></i>`;
+
         header.innerHTML = `
-            <i class="fas fa-folder${isOpen ? '-open' : ''} ${isOpen ? 'text-gold' : ''}"></i>
-            <span class="text-xs font-bold flex-1 truncate">${f}</span>
+            <i class="fas ${folderIcon} ${isOpen ? 'text-gold' : ''}"></i>
+            <span class="text-xs font-bold truncate max-w-[200px]">${f}</span>
             <span class="text-[9px] bg-black/50 px-1.5 py-0.5 rounded text-gray-500">${items.length}</span>
-            <i class="fas fa-chevron-${isOpen ? 'down' : 'right'} text-[10px]"></i>
+            ${delBtnHtml}
         `;
         
         header.onclick = () => {
@@ -339,25 +405,29 @@ function renderLoadMenuUI() {
             const listDiv = document.createElement('div');
             listDiv.className = "ml-3 pl-2 border-l border-[#333] mt-1 space-y-1 bg-[#0a0a0a] py-1";
             
-            items.forEach(char => {
-                const row = document.createElement('div');
-                row.className = "flex justify-between items-center p-2 hover:bg-[#222] rounded cursor-pointer group transition-colors text-xs";
-                
-                const date = char.meta?.lastModified ? new Date(char.meta.lastModified).toLocaleDateString() : "";
-                const charName = char.meta?.filename || char.textFields?.['c-name'] || char.id;
-                const clan = char.textFields?.['c-clan'] || "Unknown";
+            if (isEmpty) {
+                listDiv.innerHTML = `<div class="text-[10px] text-gray-600 italic px-2">Empty Folder</div>`;
+            } else {
+                items.forEach(char => {
+                    const row = document.createElement('div');
+                    row.className = "flex justify-between items-center p-2 hover:bg-[#222] rounded cursor-pointer group transition-colors text-xs";
+                    
+                    const date = char.meta?.lastModified ? new Date(char.meta.lastModified).toLocaleDateString() : "";
+                    const charName = char.meta?.filename || char.textFields?.['c-name'] || char.id;
+                    const clan = char.textFields?.['c-clan'] || "Unknown";
 
-                row.innerHTML = `
-                    <div class="flex-1 overflow-hidden" onclick="window.loadSelectedCharFromId('${char.id}')">
-                        <div class="font-bold text-gray-200 group-hover:text-white truncate">${charName}</div>
-                        <div class="text-[10px] text-gray-600 group-hover:text-gray-500 truncate">${clan} • ${date}</div>
-                    </div>
-                    <button class="text-red-900 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity px-2" onclick="window.deleteCharacter('${char.id}', '${charName.replace(/'/g, "\\'")}', event)" title="Delete">
-                        <i class="fas fa-trash"></i>
-                    </button>
-                `;
-                listDiv.appendChild(row);
-            });
+                    row.innerHTML = `
+                        <div class="flex-1 overflow-hidden" onclick="window.loadSelectedCharFromId('${char.id}')">
+                            <div class="font-bold text-gray-200 group-hover:text-white truncate">${charName}</div>
+                            <div class="text-[10px] text-gray-600 group-hover:text-gray-500 truncate">${clan} • ${date}</div>
+                        </div>
+                        <button class="text-red-900 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity px-2" onclick="window.deleteCharacter('${char.id}', '${charName.replace(/'/g, "\\'")}', event)" title="Delete">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    `;
+                    listDiv.appendChild(row);
+                });
+            }
             folderDiv.appendChild(listDiv);
         }
         
@@ -375,6 +445,9 @@ window.loadSelectedCharFromId = (id) => {
     const char = loadMenuState.characters.find(c => c.id === id);
     if(char) loadSelectedChar(char);
 }
+
+// NEW: Global bind for deleting folders
+window.deletePersistentFolder = deletePersistentFolder;
 
 // --- MIGRATION TOOL ---
 window.migrateOldData = async function(oldCollectionName = "characters") {
