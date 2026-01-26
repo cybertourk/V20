@@ -17,7 +17,7 @@ body {
     min-height: 100vh;
     margin: 0;
     overflow-x: hidden;
-    padding-top: 70px;
+    padding-top: 100px; /* Increased to ensure content clears top nav on mobile */
     padding-bottom: 80px;
 }
 
