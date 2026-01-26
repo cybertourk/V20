@@ -297,7 +297,8 @@ function createPhaseInfoButton() {
     if (document.getElementById('phase-info-btn')) return;
     const btn = document.createElement('button');
     btn.id = 'phase-info-btn';
-    btn.className = "fixed bottom-5 left-5 z-[100] w-10 h-10 rounded-full bg-[#333] border border-[#d4af37] text-[#d4af37] hover:bg-[#d4af37] hover:text-black transition-all flex items-center justify-center shadow-[0_0_10px_rgba(0,0,0,0.8)]";
+    // UPDATED: Raised to bottom-32 on mobile to clear nav bar
+    btn.className = "fixed bottom-32 left-5 z-[100] md:bottom-5 w-10 h-10 rounded-full bg-[#333] border border-[#d4af37] text-[#d4af37] hover:bg-[#d4af37] hover:text-black transition-all flex items-center justify-center shadow-[0_0_10px_rgba(0,0,0,0.8)]";
     btn.innerHTML = '<i class="fas fa-question text-lg"></i>';
     btn.title = "Current Step Info";
     btn.onclick = window.showCurrentPhaseInfo; // Calls the modal logic
