@@ -25,8 +25,8 @@ body {
 /* Mobile Portrait Specifics - FORCED OVERRIDE */
 @media only screen and (max-width: 768px) and (orientation: portrait) {
     body {
-        /* Dialed back to 80px per request */
-        padding-top: 80px !important; 
+        /* Adjusted to 50px per request */
+        padding-top: 50px !important; 
     }
 }
 
