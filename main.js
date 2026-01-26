@@ -68,26 +68,45 @@ window.onerror = function(msg, url, line) {
     console.error("Global Error:", msg, "Line:", line);
 };
 
-// --- AUTO-SAVE SYSTEM ---
+// --- AUTO-SAVE SYSTEM (ENHANCED) ---
 const AUTOSAVE_KEY = 'v20_character_autosave_v1';
 let autoSaveTimeout = null;
 
+// 1. Synchronous Save (Immediate)
+function forceLocalSave() {
+    if (!window.state || !window.state.dots) return;
+    try {
+        const data = JSON.stringify(window.state);
+        localStorage.setItem(AUTOSAVE_KEY, data);
+        // Optional: Console log for debugging, but kept quiet for production
+        // console.log("Force saved to local storage");
+    } catch (e) {
+        console.warn("Force save failed:", e);
+    }
+}
+
+// 2. Debounced Save (Typing/Clicking)
 function triggerAutoSave() {
     if (autoSaveTimeout) clearTimeout(autoSaveTimeout);
     autoSaveTimeout = setTimeout(() => {
-        try {
-            // Don't autosave if state is empty/broken
-            if (!window.state || !window.state.dots) return;
-            
-            // Serialize
-            const data = JSON.stringify(window.state);
-            localStorage.setItem(AUTOSAVE_KEY, data);
-            // console.log("Auto-saved to local storage");
-        } catch (e) {
-            console.warn("Auto-save failed:", e);
-        }
+        forceLocalSave();
     }, 1000); // 1 second debounce
 }
+
+// 3. Browser Lifecycle Hooks (Save on Exit/Refresh/Hide)
+// Modern mobile/desktop support
+window.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+        forceLocalSave();
+    }
+});
+window.addEventListener('pagehide', forceLocalSave); // Reliable on mobile Safari/Chrome
+window.addEventListener('beforeunload', (e) => {
+    forceLocalSave();
+    // Standard "Unsaved Changes" prompt logic below
+    e.preventDefault();
+    e.returnValue = '';
+});
 
 function loadAutoSave() {
     try {
@@ -139,6 +158,7 @@ let user = null;
 
 // --- NAVIGATION GUARD ---
 const beforeUnloadHandler = (e) => {
+    forceLocalSave(); // Ensure save happens before prompt
     e.preventDefault();
     e.returnValue = '';
 };
@@ -153,7 +173,14 @@ window.handleNew = () => {
         window.location.reload();
     }
 };
-window.handleSaveClick = FBManager.handleSaveClick;
+
+// WRAPPER FOR MANUAL SAVE TO ENSURE LOCAL BACKUP
+const _cloudSave = FBManager.handleSaveClick;
+window.handleSaveClick = async () => {
+    forceLocalSave(); // Save locally first
+    if (_cloudSave) await _cloudSave(); // Then try cloud
+};
+
 window.handleLoadClick = FBManager.handleLoadClick;
 window.performSave = FBManager.performSave;
 window.deleteCharacter = FBManager.deleteCharacter;
@@ -222,7 +249,7 @@ function handleImport(event) {
             }
 
             window.fullRefresh();
-            triggerAutoSave(); // Save the imported data immediately
+            forceLocalSave(); // Save the imported data immediately
             window.showNotification("Character Imported");
 
         } catch (err) {
@@ -300,7 +327,7 @@ function handleImageUpload(e) {
             window.state.characterImage = dataUrl;
             
             window.fullRefresh();
-            triggerAutoSave();
+            forceLocalSave();
             window.showNotification("Image Saved!");
         };
         img.src = event.target.result;
@@ -480,7 +507,7 @@ function initUI() {
              console.log("Data loaded synchronously.");
         }
 
-        // --- PREVENT ACCIDENTAL EXIT ---
+        // --- PREVENT ACCIDENTAL EXIT & FORCE SAVE ---
         window.addEventListener('beforeunload', beforeUnloadHandler);
 
         // --- 1. SETUP BASE EVENT LISTENERS ---
@@ -997,13 +1024,16 @@ function populateGuestUI() {
     if(ns && ds && typeof ARCHETYPES !== 'undefined') {
         ns.innerHTML = '<option value="" disabled selected>Choose Nature...</option>'; 
         ds.innerHTML = '<option value="" disabled selected>Choose Demeanor...</option>'; 
-        ARCHETYPES.sort().forEach(a => { ns.add(new Option(a,a)); ds.add(new Option(a,a)); });
+        const sortedArch = [...ARCHETYPES].sort(); 
+        sortedArch.forEach(a => { ns.add(new Option(a,a)); ds.add(new Option(a,a)); });
     }
     
     const cs = document.getElementById('c-clan');
     if(cs && typeof CLANS !== 'undefined') {
         cs.innerHTML = '<option value="" disabled selected>Choose Clan...</option>';
-        CLANS.sort().forEach(c => cs.add(new Option(c,c)));
+        const sortedClans = [...CLANS].sort();
+        sortedClans.forEach(c => cs.add(new Option(c,c)));
+        
         cs.addEventListener('change', (e) => {
             const clan = e.target.value;
             const weaknessArea = document.getElementById('c-clan-weakness');
