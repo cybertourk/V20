@@ -20,7 +20,7 @@ import { openNpcCreator, openNpcSheet } from "./npc-creator.js";
 window.openNpcCreator = openNpcCreator;
 window.openNpcSheet = openNpcSheet;
 
-// --- INFO MODAL HANDLERS (Defined early to ensure availability) ---
+// --- INFO MODAL HANDLERS ---
 
 export function showWillpowerInfo(e) {
     if(e) e.stopPropagation();
@@ -63,14 +63,12 @@ window.showBloodInfo = showBloodInfo;
 export function setupHunting() {
     window.clearPool();
     
-    // Default Pool: Perception + Streetwise (Urban)
     const per = window.state.dots.attr['Perception'] || 1;
     const str = window.state.dots.abil['Streetwise'] || 0;
     
     window.toggleStat('Perception', per, 'attribute');
     if (str > 0) window.toggleStat('Streetwise', str, 'ability');
     
-    // Set Difficulty (Variable, usually 4-8, default 6)
     const diffInput = document.getElementById('roll-diff');
     if(diffInput) diffInput.value = 6;
     
@@ -122,7 +120,6 @@ function injectHumanityInfo() {
         humTitleEl.style.alignItems = 'center';
         humTitleEl.style.gap = '8px';
         
-        // Make Humanity Rollable
         humTitleEl.innerHTML = `
             <button onclick="window.toggleStat('Humanity', window.state.status.humanity, 'humanity')" class="hover:text-white text-[#d4af37] transition-colors uppercase font-bold flex items-center gap-2" title="Roll Humanity">
                 Humanity / Path <i class="fas fa-dice-d20 text-[10px]"></i>
@@ -136,10 +133,8 @@ function injectBloodInfo() {
     const sections = document.querySelectorAll('#play-mode-sheet .section-title');
     let bloodTitleEl = null;
     
-    // Find the specific section title that belongs to the Blood Pool container
     sections.forEach(el => {
-        // Robust check: Does the parent have the blood boxes container?
-        if (el.parentNode && el.parentNode.querySelector('#blood-boxes-play')) {
+        if (el.parentNode.querySelector('#blood-boxes-play')) {
             bloodTitleEl = el;
         }
     });
@@ -150,7 +145,6 @@ function injectBloodInfo() {
         bloodTitleEl.style.alignItems = 'center';
         bloodTitleEl.style.gap = '8px';
         
-        // UPDATED: Icon color changed to gray-500 for consistency
         bloodTitleEl.innerHTML = `
             <span>Blood Pool</span>
             <button onclick="window.setupHunting()" class="bg-[#8b0000] hover:bg-red-700 text-white text-[9px] font-bold px-2 py-0.5 rounded border border-[#d4af37]/50 flex items-center gap-1 shadow-sm uppercase tracking-wider transition-all" title="Roll Hunting Pool">
@@ -158,64 +152,33 @@ function injectBloodInfo() {
             </button>
             <i class="fas fa-info-circle text-[10px] text-gray-500 hover:text-white cursor-pointer transition-colors" title="Feeding Rules" onclick="window.showBloodInfo(event)"></i>
         `;
-    } else {
-        console.warn("Blood Pool Title Element not found for injection.");
     }
 }
 
 
-// --- PLAY MODE MAIN TOGGLE ---
+// --- PLAY MODE LOGIC (REFACTORED) ---
 
-export function togglePlayMode() {
-    console.log("Toggling Play Mode...");
-
-    // 1. Sync Text Fields to State before switching
-    const safeVal = (id) => {
-        const el = document.getElementById(id);
-        if (el) return el.value;
-        return window.state.textFields[id] || "";
-    };
-
-    const fieldsToSync = [
-        'c-name', 'c-nature', 'c-demeanor', 'c-clan', 'c-gen', 
-        'c-player', 'c-concept', 'c-sire', 'c-chronicle', 
-        'c-path-name', 'c-path-rating', 'c-xp-total', 'c-freebie-total'
-    ];
-
-    fieldsToSync.forEach(id => {
-        window.state.textFields[id] = safeVal(id);
-    });
-
-    const wEl = document.getElementById('c-clan-weakness');
-    if (wEl) window.state.textFields['c-clan-weakness'] = wEl.value;
-
-    // 2. Validate Generation
-    let gen = parseInt(window.state.textFields['c-gen']);
-    if (isNaN(gen) || gen < 3 || gen > 15) {
-        console.warn("Invalid Generation detected (" + gen + "), defaulting to 13");
-        gen = 13;
-        window.state.textFields['c-gen'] = "13";
-    }
-
-    // 3. Toggle Mode State
-    window.state.isPlayMode = !window.state.isPlayMode;
-    document.body.classList.toggle('play-mode', window.state.isPlayMode);
-    
-    // Handle Cross-Module Toggles
-    if (window.state.isPlayMode) {
-        if (window.state.freebieMode && window.toggleFreebieMode) window.toggleFreebieMode();
-        if (window.state.xpMode && window.toggleXpMode) window.toggleXpMode();
-    }
+// 1. Apply UI State based on window.state.isPlayMode (Idempotent)
+export function applyPlayModeUI() {
+    const isPlay = window.state.isPlayMode;
+    document.body.classList.toggle('play-mode', isPlay);
     
     // Update Button Text
     const pBtnText = document.getElementById('play-btn-text');
-    if(pBtnText) pBtnText.innerText = window.state.isPlayMode ? "Edit" : "Play";
+    if(pBtnText) pBtnText.innerText = isPlay ? "Edit" : "Play";
     
     // Toggle Walkthrough/Phase Info Button Visibility
     const guideBtn = document.getElementById('phase-info-btn');
     if(guideBtn) {
-        if(window.state.isPlayMode) guideBtn.classList.add('hidden');
+        if(isPlay) guideBtn.classList.add('hidden');
         else guideBtn.classList.remove('hidden');
+    }
+
+    // Toggle Dice Button Visibility
+    const diceBtn = document.getElementById('dice-toggle-btn');
+    if (diceBtn) {
+        if (isPlay) diceBtn.classList.remove('hidden');
+        else diceBtn.classList.add('hidden');
     }
     
     // Disable Inputs
@@ -228,21 +191,24 @@ export function togglePlayMode() {
             el.disabled = false;
             return;
         }
-        el.disabled = window.state.isPlayMode;
+        el.disabled = isPlay;
     });
 
     const playSheet = document.getElementById('play-mode-sheet');
     const phases = document.querySelectorAll('.step-container');
 
-    if (window.state.isPlayMode) {
+    if (isPlay) {
+        // HIDE Edit Containers
         phases.forEach(el => el.classList.add('hidden'));
         phases.forEach(el => el.classList.remove('active')); 
 
+        // SHOW Play Sheet
         if (playSheet) {
             playSheet.classList.remove('hidden');
             playSheet.style.display = 'block'; 
         }
 
+        // Render Play Components
         renderPlayModeHeader();
         renderPlayModeAttributes();
         renderPlayModeAbilities();
@@ -257,7 +223,6 @@ export function togglePlayMode() {
         renderDetailedDisciplines();
         updateRitualsPlayView();
         
-        // Inject Info Buttons (Called after structure is visible)
         setTimeout(() => {
             injectWillpowerInfo();
             injectHumanityInfo();
@@ -274,8 +239,6 @@ export function togglePlayMode() {
         setSafeText('play-gear-carried', carried.join(', ')); 
         setSafeText('play-gear-owned', owned.join(', '));
         
-        // --- PORTRAIT AND BIO RENDERING ---
-        
         const bioDescEl = document.getElementById('play-bio-desc');
         if(bioDescEl) {
             bioDescEl.innerText = document.getElementById('bio-desc')?.value || "";
@@ -285,10 +248,8 @@ export function togglePlayMode() {
         if(bioHistoryEl) {
             bioHistoryEl.innerText = document.getElementById('char-history')?.value || "";
             
-            // --- PORTRAIT INJECTION (UNDER HISTORY) ---
             if (window.state.characterImage) {
-                // Find parent container of history to append after
-                const histContainer = bioHistoryEl.closest('.sheet-section'); // Get the container wrapping the history
+                const histContainer = bioHistoryEl.closest('.sheet-section');
                 
                 if (histContainer && histContainer.parentNode) {
                     let portraitContainer = document.getElementById('play-mode-portrait-container');
@@ -299,7 +260,6 @@ export function togglePlayMode() {
                         portraitContainer.className = 'sheet-section mt-4';
                         portraitContainer.innerHTML = `<div class="section-title">Portrait</div>`;
                         
-                        // Create Inner Box
                         const innerBox = document.createElement('div');
                         innerBox.className = "w-full flex justify-center mt-2 bg-[#111] p-4 border border-[#333]";
                         innerBox.innerHTML = `
@@ -308,18 +268,14 @@ export function togglePlayMode() {
                             </div>
                         `;
                         portraitContainer.appendChild(innerBox);
-                        
-                        // Insert AFTER the history container
                         histContainer.parentNode.insertBefore(portraitContainer, histContainer.nextSibling);
                     } else {
-                        // Update existing (if toggled back and forth)
                         const imgDiv = portraitContainer.querySelector('.bg-cover');
                         if(imgDiv) imgDiv.style.backgroundImage = `url('${window.state.characterImage}')`;
                         portraitContainer.style.display = 'block';
                     }
                 }
             } else {
-                // Hide if no image
                 const portraitContainer = document.getElementById('play-mode-portrait-container');
                 if (portraitContainer) portraitContainer.style.display = 'none';
             }
@@ -382,7 +338,6 @@ export function togglePlayMode() {
 
         if(window.changeStep) window.changeStep(1); 
         
-        // --- CHECK PLAY MODE TUTORIAL ---
         if (!localStorage.getItem('v20_play_tutorial_complete')) {
             setTimeout(() => {
                 if (window.startTutorial) window.startTutorial('play');
@@ -404,10 +359,52 @@ export function togglePlayMode() {
         if(window.changeStep) window.changeStep(window.state.furthestPhase || 1);
     }
 }
+window.applyPlayModeUI = applyPlayModeUI;
+
+// 2. Toggle Mode (Action)
+export function togglePlayMode() {
+    // Sync Text Fields to State before switching
+    const safeVal = (id) => {
+        const el = document.getElementById(id);
+        if (el) return el.value;
+        return window.state.textFields[id] || "";
+    };
+
+    const fieldsToSync = [
+        'c-name', 'c-nature', 'c-demeanor', 'c-clan', 'c-gen', 
+        'c-player', 'c-concept', 'c-sire', 'c-chronicle', 
+        'c-path-name', 'c-path-rating', 'c-xp-total', 'c-freebie-total'
+    ];
+
+    fieldsToSync.forEach(id => {
+        window.state.textFields[id] = safeVal(id);
+    });
+
+    const wEl = document.getElementById('c-clan-weakness');
+    if (wEl) window.state.textFields['c-clan-weakness'] = wEl.value;
+
+    let gen = parseInt(window.state.textFields['c-gen']);
+    if (isNaN(gen) || gen < 3 || gen > 15) {
+        console.warn("Invalid Generation detected (" + gen + "), defaulting to 13");
+        gen = 13;
+        window.state.textFields['c-gen'] = "13";
+    }
+
+    // Toggle Mode State
+    window.state.isPlayMode = !window.state.isPlayMode;
+    
+    // Handle Cross-Module Toggles
+    if (window.state.isPlayMode) {
+        if (window.state.freebieMode && window.toggleFreebieMode) window.toggleFreebieMode();
+        if (window.state.xpMode && window.toggleXpMode) window.toggleXpMode();
+    }
+    
+    applyPlayModeUI();
+}
 window.togglePlayMode = togglePlayMode;
 
 
-// --- RENDER HELPERS ---
+// --- RENDER HELPERS (Unchanged logic, just ensure existence) ---
 
 function renderPlayModeHeader() {
     const row = document.getElementById('play-concept-row');
@@ -460,7 +457,6 @@ function renderPlayModeAdvantages() {
     if (rc) {
         rc.innerHTML = '';
         
-        // --- Disciplines (NON-ROLLABLE SUMMARY) ---
         const ds = document.createElement('div'); 
         ds.className='sheet-section !mt-0'; 
         ds.innerHTML='<div class="column-title">Disciplines</div>';
@@ -468,7 +464,6 @@ function renderPlayModeAdvantages() {
         
         Object.entries(window.state.dots.disc).forEach(([n,v]) => { 
             if(v > 0) {
-                // Manually create row WITHOUT generic click handler
                 const row = document.createElement('div');
                 row.className = 'flex items-center justify-between w-full py-1';
                 row.innerHTML = `
@@ -551,7 +546,7 @@ function renderPlayModeMeritsFlaws() {
             row.innerHTML = `
                 <div class="flex justify-between text-xs mb-1">
                     <span class="font-bold text-white">${item.name}</span>
-                    <span class="${valueColor} font-bold text-[10px]">${item.val} pts</span>
+                    <span class="text-[10px] ${valueColor} font-bold">${item.val} pts</span>
                 </div>
                 <textarea class="merit-flaw-desc bg-transparent border-none text-[10px] text-gray-400 w-full italic focus:text-white focus:not-italic resize-none overflow-hidden" 
                         placeholder="Description / Note..." rows="1" style="min-height: 20px;">${item.desc || ''}</textarea>
@@ -794,9 +789,7 @@ function renderPlayModeXp() {
     }
 }
 
-// --- DEDICATED MOVEMENT RENDERER ---
-
-export function renderMovementSection() {
+function renderMovementSection() {
     if (!window.state.isPlayMode) return;
     const pm2 = document.getElementById('play-mode-2');
     if (!pm2) return;
@@ -807,13 +800,11 @@ export function renderMovementSection() {
         moveSection.id = 'play-movement-section';
         moveSection.className = 'sheet-section mt-6';
         
-        // Ensure inserted before combat maneuvers if possible
         const combatSection = pm2.querySelector('.sheet-section:last-child');
         if(combatSection && combatSection.parentNode === pm2) pm2.insertBefore(moveSection, combatSection);
         else pm2.appendChild(moveSection);
     }
     
-    // Calculate Movement
     const dex = window.state.dots.attr['Dexterity'] || 1;
     const dmgBoxes = (window.state.status.health_states || []).filter(x => x > 0).length;
     
@@ -823,27 +814,25 @@ export function renderMovementSection() {
     let note = "Normal Movement";
     let noteColor = "text-gray-500";
     
-    // Health Penalties (V20 p.282)
-    if (dmgBoxes === 4) { // Wounded
+    if (dmgBoxes === 4) { 
         r = 0; 
         note = "Wounded: Cannot Run"; 
         noteColor = "text-orange-400";
-    } else if (dmgBoxes === 5) { // Mauled
+    } else if (dmgBoxes === 5) {
         j = 0; r = 0;
         if(w > 3) w = 3;
         note = "Mauled: Max 3 yds/turn";
         noteColor = "text-red-400";
-    } else if (dmgBoxes === 6) { // Crippled
+    } else if (dmgBoxes === 6) {
         w = 1; j = 0; r = 0;
         note = "Crippled: Crawl 1 yd/turn";
         noteColor = "text-red-600 font-bold";
-    } else if (dmgBoxes >= 7) { // Incapacitated
+    } else if (dmgBoxes >= 7) {
         w = 0; j = 0; r = 0;
         note = "Incapacitated: Immobile";
         noteColor = "text-red-700 font-black";
     }
 
-    // Render with Units
     moveSection.innerHTML = `
         <div class="section-title">Movement (Yards/Turn)</div>
         <div class="grid grid-cols-3 gap-4 text-center mt-2">
@@ -865,35 +854,26 @@ export function renderMovementSection() {
 }
 window.renderMovementSection = renderMovementSection;
 
-// --- NEW FUNCTION: RENDER DETAILED DISCIPLINES (PHASE 2) ---
 function renderDetailedDisciplines() {
     const pm2 = document.getElementById('play-mode-2');
     if (!pm2) return;
 
     let container = document.getElementById('detailed-disciplines-list');
     if (!container) {
-        // Create the wrapper section if it doesn't exist
         const section = document.createElement('div');
         section.className = 'sheet-section !mt-0 mb-8';
         section.innerHTML = '<div class="section-title">Disciplines & Powers</div>';
         
         container = document.createElement('div');
         container.id = 'detailed-disciplines-list';
-        // CHANGE 1: Grid Layout (2 Columns)
         container.className = 'grid grid-cols-1 md:grid-cols-2 gap-6 mt-4';
         
         section.appendChild(container);
-        
-        // Insert at the VERY TOP of Phase 2
         pm2.insertBefore(section, pm2.firstChild);
     }
 
     container.innerHTML = '';
-    
-    // Safety check for data
     const safeData = typeof DISCIPLINES_DATA !== 'undefined' ? DISCIPLINES_DATA : {};
-
-    // Get learned disciplines
     const learned = Object.entries(window.state.dots.disc).filter(([name, val]) => val > 0);
 
     if (learned.length === 0) {
@@ -902,11 +882,8 @@ function renderDetailedDisciplines() {
     }
 
     learned.forEach(([name, val]) => {
-        // Normalize lookup
         const cleanName = name.trim();
         let data = safeData[cleanName];
-        
-        // Case-insensitive fallback
         if (!data) {
              const key = Object.keys(safeData).find(k => k.toLowerCase() === cleanName.toLowerCase());
              if(key) data = safeData[key];
@@ -915,7 +892,6 @@ function renderDetailedDisciplines() {
         const discBlock = document.createElement('div');
         discBlock.className = 'bg-black/40 border border-[#333] p-3 rounded flex flex-col h-fit';
         
-        // Header (Name + Dots)
         discBlock.innerHTML = `
             <div class="flex justify-between items-center border-b border-[#555] pb-2 mb-2">
                 <h3 class="text-base text-[#d4af37] font-cinzel font-bold uppercase tracking-widest truncate mr-2">${name}</h3>
@@ -923,7 +899,6 @@ function renderDetailedDisciplines() {
             </div>
         `;
 
-        // Powers List
         if (data) {
             const listContainer = document.createElement('div');
             listContainer.className = "space-y-1";
@@ -934,15 +909,12 @@ function renderDetailedDisciplines() {
                     const pDiv = document.createElement('div');
                     pDiv.className = 'border border-[#333] bg-[#111] rounded overflow-hidden';
                     
-                    // Power Header (Always Visible)
                     const pHeader = document.createElement('div');
                     pHeader.className = "flex justify-between items-center p-2 cursor-pointer hover:bg-[#222] transition-colors";
                     
-                    // Roll Button Logic
                     let rollHtml = '';
                     if (power.roll) {
                          const poolStr = JSON.stringify(power.roll.pool).replace(/"/g, "'");
-                         // Note: e.stopPropagation() is crucial here so clicking roll doesn't toggle accordion
                          rollHtml = `<button onclick="event.stopPropagation(); window.rollDiscipline('${power.name}', ${poolStr}, ${power.roll.defaultDiff})" class="bg-[#333] border border-gray-600 text-gray-300 hover:text-white hover:border-[#d4af37] text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-wider transition-all shadow-sm hover:shadow-gold flex-shrink-0 ml-2"><i class="fas fa-dice-d20"></i></button>`;
                     }
 
@@ -956,7 +928,6 @@ function renderDetailedDisciplines() {
                         ${rollHtml}
                     `;
 
-                    // Power Details (Hidden by Default)
                     const pDetails = document.createElement('div');
                     pDetails.className = "hidden p-2 border-t border-[#333] bg-black/50 text-[10px]";
                     pDetails.innerHTML = `
@@ -964,7 +935,6 @@ function renderDetailedDisciplines() {
                         <div class="text-gray-500 font-mono"><span class="text-[#d4af37] font-bold">System:</span> ${power.system}</div>
                     `;
 
-                    // Toggle Logic
                     pHeader.onclick = () => {
                         const isHidden = pDetails.classList.contains('hidden');
                         if (isHidden) {
@@ -992,13 +962,10 @@ function renderDetailedDisciplines() {
     });
 }
 
-// --- NPC TAB RENDERER (Was Retainers) ---
-
 export function renderNpcTab() {
     const container = document.getElementById('play-mode-6');
     if (!container) return;
     
-    // Ensure data exists
     const retainers = window.state.retainers || [];
 
     let html = `
@@ -1025,7 +992,6 @@ export function renderNpcTab() {
     html += `<div class="grid grid-cols-1 gap-4">`;
 
     retainers.forEach((npc, index) => {
-        // Safely handle potentially missing fields
         const name = npc.name || "Unnamed";
         
         let displayType = "Unknown";
@@ -1035,13 +1001,10 @@ export function renderNpcTab() {
         } else if (npc.template === 'mortal') {
             displayType = "Mortal";
         } else {
-            // Default/Ghoul
             displayType = npc.type || "Ghoul";
         }
         
         const concept = npc.concept || "";
-        
-        // Removed Quick stats for summary per user request
         
         html += `
             <div class="bg-gray-900 border border-gray-700 rounded p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 hover:border-red-900/50 transition-colors">
@@ -1073,21 +1036,16 @@ export function renderNpcTab() {
     html += `</div></div>`;
     container.innerHTML = html;
 }
-window.renderNpcTab = renderNpcTab; // Assign to window for call by changeStep
-// Backwards compatibility alias if needed by other modules
+window.renderNpcTab = renderNpcTab; 
 window.renderRetainersTab = renderNpcTab; 
 
-// --- NPC HELPERS ---
 window.editNpc = function(index) {
     if (window.state.retainers && window.state.retainers[index]) {
-        // Pass the actual object and the index
-        // Default to 'ghoul' template if not specified (backward compatibility)
         const npc = window.state.retainers[index];
         const type = npc.template || 'ghoul';
         if(window.openNpcCreator) window.openNpcCreator(type, npc, index);
     }
 };
-// Backward compat alias
 window.editRetainer = window.editNpc;
 
 window.viewNpc = function(index) {
@@ -1102,17 +1060,12 @@ window.deleteNpc = function(index) {
     if(confirm("Permanently release this NPC? This cannot be undone.")) {
         if(window.state.retainers) {
             window.state.retainers.splice(index, 1);
-            // Re-render
             renderNpcTab();
-            // Trigger auto-save if available
             if(window.performSave) window.performSave(true); 
         }
     }
 };
-// Backward compat alias
 window.deleteRetainer = window.deleteNpc;
-
-// --- RITUALS PLAY VIEW (INTERACTIVE) ---
 
 export function updateRitualsPlayView() {
     const playCont = document.getElementById('rituals-list-play');
@@ -1141,7 +1094,6 @@ export function updateRitualsPlayView() {
                 <div class="space-y-1">`;
                 
             byLevel[lvl].forEach(name => {
-                // Lookup Data
                 let rData = null;
                 if (window.RITUALS_DATA) {
                     if (window.RITUALS_DATA.Thaumaturgy && window.RITUALS_DATA.Thaumaturgy[lvl] && window.RITUALS_DATA.Thaumaturgy[lvl][name]) {
@@ -1152,7 +1104,6 @@ export function updateRitualsPlayView() {
                 }
 
                 if (rData) {
-                    // INTERACTIVE RENDER
                     const diff = Math.min(9, 3 + parseInt(lvl));
                     const uid = `rit-${name.replace(/[^a-zA-Z0-9]/g, '')}`;
 
@@ -1174,7 +1125,6 @@ export function updateRitualsPlayView() {
                     </div>`;
 
                 } else {
-                    // FALLBACK (No data found, maybe custom)
                     html += `<div class="text-xs text-gray-400 ml-2 flex items-start py-1"><span class="text-gold mr-1">•</span> ${name}</div>`;
                 }
             });
