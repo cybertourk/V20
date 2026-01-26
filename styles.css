@@ -1,4 +1,3 @@
-/* Please paste the contents of styles.css here for analysis. */
 @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=IM+Fell+English:ital@0;1&display=swap');
 
 :root {
@@ -687,4 +686,22 @@ body.xp-mode #top-xp-counter { display: flex !important; }
     text-transform: uppercase;
     color: #888;
     margin-right: 4px;
+}
+
+/* --- MOBILE FAB ADJUSTMENTS --- */
+/* Raise floating buttons on mobile to clear the bottom navigation bar */
+#dice-toggle-btn, #phase-info-btn {
+    bottom: 5.5rem !important; /* approx 88px, clears the ~60px nav bar + spacing */
+}
+
+@media (min-width: 768px) {
+    /* Reset to corners on desktop where nav is on the right */
+    #dice-toggle-btn {
+        bottom: 1.5rem !important; /* bottom-6 */
+        right: 1.5rem !important; /* right-6 */
+    }
+    #phase-info-btn {
+        bottom: 1.25rem !important; /* bottom-5 */
+        left: 1.25rem !important; /* left-5 */
+    }
 }
