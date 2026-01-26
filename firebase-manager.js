@@ -100,6 +100,9 @@ export async function performSave() {
         }
     }
 
+    // Ensure inputs are synced before constructing save data
+    syncInputs();
+
     const nameIn = document.getElementById('save-name-input');
     const folderIn = document.getElementById('save-folder-input');
     
@@ -117,8 +120,21 @@ export async function performSave() {
     
     try {
         const docRef = doc(db, 'artifacts', appId, 'users', user.uid, 'characters', safeId);
+        
+        // Deep clone the state to create the save payload
         const dataToSave = JSON.parse(JSON.stringify(window.state));
         
+        // --- SIZE CHECK ---
+        // Firestore limit is ~1MB. Calculate rough size.
+        const jsonStr = JSON.stringify(dataToSave);
+        const sizeInBytes = new Blob([jsonStr]).size;
+        const sizeInMB = sizeInBytes / (1024 * 1024);
+        
+        if (sizeInMB > 0.95) {
+            console.warn(`Save file size: ${sizeInMB.toFixed(2)} MB`);
+            notify("Warning: File size near limit (Images). Save might fail.", "warning");
+        }
+
         await setDoc(docRef, dataToSave);
         
         notify("Character Inscribed.");
@@ -139,7 +155,11 @@ export async function performSave() {
 
     } catch (e) { 
         console.error("Save Error:", e); 
-        notify("Save Failed: " + e.message, "error");
+        if (e.code === 'resource-exhausted' || e.message.includes("exceeds the maximum allowed size")) {
+            notify("Save Failed: File too large (Max 1MB). Try removing images.", "error");
+        } else {
+            notify("Save Failed: " + e.message, "error");
+        }
     }
 }
 
@@ -357,12 +377,22 @@ export async function loadSelectedChar(data) {
     if (!data) return;
     if(!confirm(`Recall ${data.meta?.filename || "Character"}? Unsaved progress will be lost.`)) return;
     
+    // Deep Clone to avoid reference issues
     window.state = JSON.parse(JSON.stringify(data));
     
+    // --- BACKWARD COMPATIBILITY INITIALIZATION ---
+    // Ensure all modern fields exist, even if loading an old file
     if(!window.state.meta) window.state.meta = { filename: data.id || "Loaded Character", folder: "" };
     if(!window.state.specialties) window.state.specialties = {}; 
     if(!window.state.rituals) window.state.rituals = [];
     if(!window.state.retainers) window.state.retainers = [];
+    
+    // Ensure new Expansion Fields exist
+    if(!window.state.codex) window.state.codex = [];
+    if(!window.state.sessionLogs) window.state.sessionLogs = [];
+    if(!window.state.characterImage) window.state.characterImage = null;
+    if(!window.state.beastTraits) window.state.beastTraits = []; // Gangrel feature
+
     if (!window.state.furthestPhase) window.state.furthestPhase = 1;
     
     if (window.state.status) {
