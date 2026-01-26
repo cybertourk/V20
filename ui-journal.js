@@ -174,7 +174,7 @@ export function renderJournalTab() {
         urlBtn.onclick = () => {
             let url = prompt("Paste Image URL (e.g. Discord, Imgur, Google Drive):");
             if(url) {
-                // Use global converter if available
+                // Apply Helper for Google Drive if available
                 if (window.convertGoogleDriveLink) url = window.convertGoogleDriveLink(url);
                 
                 window.currentCodexImage = url;
@@ -443,7 +443,14 @@ function renderSessionLogForm(data) {
         
         renderJournalHistoryList();
         renderSessionLogForm(updated);
-        showNotification("Session Saved");
+        
+        // --- AUTO-SAVE TRIGGERED HERE ---
+        if (window.performSave) {
+            window.performSave(true); // Silent save (true = quiet mode)
+            showNotification("Session Saved & Synced");
+        } else {
+            showNotification("Session Saved Locally");
+        }
     };
 
     if(document.getElementById('btn-delete-log')) {
@@ -451,6 +458,8 @@ function renderSessionLogForm(data) {
             if(confirm("Delete log?")) {
                 window.state.sessionLogs = window.state.sessionLogs.filter(l => l.id !== data.id);
                 renderJournalTab();
+                // Trigger auto-save on delete too
+                if (window.performSave) window.performSave(true);
             }
         };
     }
@@ -690,7 +699,15 @@ window.saveCodexEntry = function() {
     codexCache = window.state.codex.map(c => c.name);
     
     renderCodexList();
-    showNotification("Codex Updated");
+    
+    // --- AUTO-SAVE TRIGGERED HERE ---
+    if (window.performSave) {
+        window.performSave(true); // Silent save
+        showNotification("Codex Saved & Synced");
+    } else {
+        showNotification("Codex Updated");
+    }
+
     document.getElementById('codex-editor').classList.add('hidden');
     document.getElementById('codex-empty-state').classList.remove('hidden');
     
@@ -704,6 +721,10 @@ window.deleteCodexEntry = function() {
         window.state.codex = window.state.codex.filter(c => c.id !== id);
         codexCache = window.state.codex.map(c => c.name);
         renderCodexList();
+        
+        // Trigger auto-save on delete
+        if (window.performSave) window.performSave(true);
+        
         document.getElementById('codex-editor').classList.add('hidden');
         document.getElementById('codex-empty-state').classList.remove('hidden');
     }
@@ -959,7 +980,14 @@ window.saveQuickCodex = function() {
     // If main codex view is open, refresh it
     if (document.getElementById('codex-list')) renderCodexList();
     
-    showNotification("Codex Saved");
+    // --- AUTO-SAVE TRIGGERED HERE ---
+    if (window.performSave) {
+        window.performSave(true); // Silent save
+        showNotification("Codex Saved & Synced");
+    } else {
+        showNotification("Codex Updated");
+    }
+
     document.getElementById('codex-popup').classList.add('hidden');
     window.currentCodexImage = null; // Reset
 }
