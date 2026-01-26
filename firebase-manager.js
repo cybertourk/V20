@@ -35,8 +35,8 @@ function syncInputs() {
 // --- LOCAL UI STATE FOR LOAD MENU ---
 let loadMenuState = {
     characters: [],
-    folders: [], // New: Store persistent folders
-    sort: 'date', // 'date' or 'alpha'
+    folders: [], 
+    sort: 'date', 
     expandedFolders: {}
 };
 
@@ -65,7 +65,7 @@ export function handleSaveClick() {
     const modal = document.getElementById('save-modal');
     if(modal) modal.classList.add('active');
     
-    // Populate Folder Datalist (and fetch persistent folders)
+    // Populate Folder Datalist
     populateFolderList();
 }
 
@@ -119,7 +119,7 @@ export async function deletePersistentFolder(folderName) {
     try {
         const folderRef = doc(db, 'artifacts', appId, 'users', auth.currentUser.uid, 'folders', folderName);
         await deleteDoc(folderRef);
-        await renderFileBrowser(auth.currentUser); // Refresh view
+        await renderFileBrowser(auth.currentUser); 
         notify("Folder deleted.");
     } catch (e) {
         console.error("Error deleting folder:", e);
@@ -194,16 +194,13 @@ export async function performSave(silent = false) {
     try {
         const docRef = doc(db, 'artifacts', appId, 'users', user.uid, 'characters', safeId);
         
-        // --- ROLLBACK / BACKUP LOGIC (NEW) ---
-        // Before overwriting, check if file exists. If so, copy to backups collection.
-        // Only do this on manual saves to avoid spamming backups on auto-save
+        // --- ROLLBACK / BACKUP LOGIC ---
         if (isManualSave) {
             const snap = await getDoc(docRef);
             if (snap.exists()) {
                 const oldData = snap.data();
                 const backupId = `${safeId}_bak_${Date.now()}`;
                 const backupRef = doc(db, 'artifacts', appId, 'users', user.uid, 'backups', backupId);
-                // Fire and forget backup to not slow down main save too much
                 setDoc(backupRef, oldData).catch(e => console.warn("Backup failed", e));
             }
         }
@@ -221,7 +218,7 @@ export async function performSave(silent = false) {
         
         if (sizeInMB > 0.95) {
             console.warn(`Save file size: ${sizeInMB.toFixed(2)} MB`);
-            notify("Warning: File size near limit (Images). Save might fail.", "warning");
+            notify("Warning: File size near limit. Save might fail.", "warning");
         }
 
         await setDoc(docRef, dataToSave);
@@ -229,9 +226,7 @@ export async function performSave(silent = false) {
         if (isManualSave) {
             notify("Character Inscribed.");
             modal.classList.remove('active');
-        } else if (!silent) {
-            // Optional: notify("Auto-saved");
-        }
+        } 
         
         const dl = document.getElementById('folder-datalist');
         if(dl && folder && !Array.from(dl.options).some(o => o.value === folder)) {
@@ -247,7 +242,7 @@ export async function performSave(silent = false) {
     } catch (e) { 
         console.error("Save Error:", e); 
         if (e.code === 'resource-exhausted' || e.message.includes("exceeds the maximum allowed size")) {
-            notify("Save Failed: File too large (Max 1MB). Try removing images.", "error");
+            notify("Save Failed: File too large (Max 1MB).", "error");
         } else {
             notify("Save Failed: " + e.message, "error");
         }
@@ -270,13 +265,12 @@ export async function deleteCharacter(id, name, event) {
     }
 }
 
-// --- BROWSER UI (UPDATED FOR PERSISTENT FOLDERS) ---
+// --- BROWSER UI ---
 
 export async function renderFileBrowser(user) {
     const browser = document.getElementById('file-browser');
     
     try {
-        // 1. Fetch Characters
         const qChar = query(collection(db, 'artifacts', appId, 'users', user.uid, 'characters'));
         const snapChar = await getDocs(qChar);
         loadMenuState.characters = [];
@@ -284,7 +278,6 @@ export async function renderFileBrowser(user) {
             loadMenuState.characters.push({ id: d.id, ...d.data() });
         });
 
-        // 2. Fetch Persistent Folders
         const qFolder = query(collection(db, 'artifacts', appId, 'users', user.uid, 'folders'));
         const snapFolder = await getDocs(qFolder);
         loadMenuState.folders = [];
@@ -303,7 +296,6 @@ function renderLoadMenuUI() {
     if (!browser) return;
     browser.innerHTML = '';
 
-    // 1. Controls Header
     const controls = document.createElement('div');
     controls.className = "flex justify-between items-center mb-3 px-1 border-b border-[#333] pb-2";
     
@@ -320,7 +312,6 @@ function renderLoadMenuUI() {
     controls.innerHTML = sortHtml + refreshHtml;
     browser.appendChild(controls);
 
-    // 2. Merge Folders (Persistent + Implicit from characters)
     const structure = {};
     const allFolderNames = new Set(loadMenuState.folders);
     
@@ -331,12 +322,10 @@ function renderLoadMenuUI() {
         structure[f].push(char);
     });
 
-    // Ensure empty persistent folders exist in structure
     allFolderNames.forEach(fName => {
         if (!structure[fName]) structure[fName] = [];
     });
 
-    // Sort Folders
     const getFolderDate = (folderItems) => {
         if (!folderItems || folderItems.length === 0) return 0;
         return Math.max(...folderItems.map(i => i.meta?.lastModified ? new Date(i.meta.lastModified).getTime() : 0));
@@ -348,7 +337,6 @@ function renderLoadMenuUI() {
         if (loadMenuState.sort === 'date') {
             const dateA = getFolderDate(structure[a]);
             const dateB = getFolderDate(structure[b]);
-            // If dates match (e.g. both empty/0), fall back to alpha
             if (dateA === dateB) return a.localeCompare(b);
             return dateB - dateA; 
         } else {
@@ -356,7 +344,6 @@ function renderLoadMenuUI() {
         }
     });
 
-    // 3. Render Folders
     folders.forEach(f => {
         const items = structure[f].sort((a,b) => {
             if (loadMenuState.sort === 'date') {
@@ -376,14 +363,12 @@ function renderLoadMenuUI() {
         const isOpen = loadMenuState.expandedFolders[f];
         const isEmpty = items.length === 0;
         
-        // Folder Header
         const header = document.createElement('div');
         header.className = `flex items-center gap-2 p-2 rounded cursor-pointer transition-colors select-none ${isOpen ? 'bg-[#222] border-gold border text-white' : 'bg-[#111] border border-[#333] text-gray-400 hover:border-gray-500'}`;
         
         let folderIcon = isOpen ? 'fa-folder-open' : 'fa-folder';
         if (f === "Unsorted") folderIcon = 'fa-box-archive';
         
-        // Delete button for empty folders
         const delBtnHtml = (isEmpty && f !== "Unsorted") 
             ? `<button class="text-gray-600 hover:text-red-500 ml-auto px-2" title="Delete Folder" onclick="event.stopPropagation(); window.deletePersistentFolder('${f}')"><i class="fas fa-trash-alt text-[10px]"></i></button>`
             : `<i class="fas fa-chevron-${isOpen ? 'down' : 'right'} text-[10px] ml-auto"></i>`;
@@ -416,15 +401,28 @@ function renderLoadMenuUI() {
                     const charName = char.meta?.filename || char.textFields?.['c-name'] || char.id;
                     const clan = char.textFields?.['c-clan'] || "Unknown";
 
-                    row.innerHTML = `
-                        <div class="flex-1 overflow-hidden" onclick="window.loadSelectedCharFromId('${char.id}')">
-                            <div class="font-bold text-gray-200 group-hover:text-white truncate">${charName}</div>
-                            <div class="text-[10px] text-gray-600 group-hover:text-gray-500 truncate">${clan} • ${date}</div>
-                        </div>
-                        <button class="text-red-900 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity px-2" onclick="window.deleteCharacter('${char.id}', '${charName.replace(/'/g, "\\'")}', event)" title="Delete">
-                            <i class="fas fa-trash"></i>
-                        </button>
+                    // FIXED: Explicitly creating button element and attaching listener in JS
+                    // This avoids issues with inline HTML strings and quoting
+                    
+                    const infoDiv = document.createElement('div');
+                    infoDiv.className = "flex-1 overflow-hidden";
+                    infoDiv.innerHTML = `
+                        <div class="font-bold text-gray-200 group-hover:text-white truncate">${charName}</div>
+                        <div class="text-[10px] text-gray-600 group-hover:text-gray-500 truncate">${clan} • ${date}</div>
                     `;
+                    infoDiv.onclick = () => window.loadSelectedCharFromId(char.id);
+                    
+                    const delBtn = document.createElement('button');
+                    delBtn.className = "text-red-900 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity px-2";
+                    delBtn.title = "Delete";
+                    delBtn.innerHTML = '<i class="fas fa-trash"></i>';
+                    delBtn.onclick = (e) => {
+                         e.stopPropagation();
+                         deleteCharacter(char.id, charName);
+                    };
+
+                    row.appendChild(infoDiv);
+                    row.appendChild(delBtn);
                     listDiv.appendChild(row);
                 });
             }
@@ -435,7 +433,7 @@ function renderLoadMenuUI() {
     });
 }
 
-// --- GLOBAL HELPERS FOR HTML EVENTS ---
+// --- GLOBAL HELPERS ---
 window.setLoadSort = (mode) => {
     loadMenuState.sort = mode;
     renderLoadMenuUI();
@@ -446,7 +444,6 @@ window.loadSelectedCharFromId = (id) => {
     if(char) loadSelectedChar(char);
 }
 
-// NEW: Global bind for deleting folders
 window.deletePersistentFolder = deletePersistentFolder;
 
 // --- MIGRATION TOOL ---
