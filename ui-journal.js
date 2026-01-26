@@ -69,12 +69,13 @@ export function renderJournalTab() {
                     <!-- Image Upload (Edit Mode) -->
                     <div>
                         <label class="block text-[10px] uppercase text-gray-500 font-bold mb-1">Image</label>
-                        <div class="flex items-center gap-2">
+                        <div class="flex items-center gap-2 flex-wrap">
                             <div id="quick-cx-img-preview" class="w-12 h-12 bg-black border border-[#444] flex items-center justify-center overflow-hidden">
                                 <i class="fas fa-image text-gray-600"></i>
                             </div>
                             <input type="file" id="quick-cx-file" accept="image/*" class="hidden">
                             <button onclick="document.getElementById('quick-cx-file').click()" class="bg-[#222] border border-[#444] text-gray-300 px-2 py-1 text-[10px] hover:text-white">Upload</button>
+                            <button id="quick-cx-btn-url" class="bg-[#222] border border-[#444] text-gray-300 px-2 py-1 text-[10px] hover:text-white">Link URL</button>
                             <button id="quick-cx-remove-img" class="text-red-500 hover:text-red-300 text-[10px] hidden">Remove</button>
                         </div>
                     </div>
@@ -126,8 +127,12 @@ export function renderJournalTab() {
         renderCodexView(mainView);
     }
 
-    // Bind Image Upload Listener for Modal
+    // Bind Image Upload Listener for Modal (Quick Edit)
     const fileInput = document.getElementById('quick-cx-file');
+    const urlBtn = document.getElementById('quick-cx-btn-url');
+    const removeBtn = document.getElementById('quick-cx-remove-img');
+    const preview = document.getElementById('quick-cx-img-preview');
+
     if(fileInput) {
         fileInput.onchange = (e) => {
             const file = e.target.files[0];
@@ -138,7 +143,7 @@ export function renderJournalTab() {
                 const img = new Image();
                 img.onload = function() {
                     const canvas = document.createElement('canvas');
-                    const MAX_WIDTH = 600; // Smaller max for Codex
+                    const MAX_WIDTH = 600; 
                     const MAX_HEIGHT = 600;
                     let width = img.width;
                     let height = img.height;
@@ -154,11 +159,9 @@ export function renderJournalTab() {
                     
                     window.currentCodexImage = canvas.toDataURL('image/jpeg', 0.7);
                     
-                    // Update Preview
-                    const preview = document.getElementById('quick-cx-img-preview');
                     if(preview) {
                         preview.innerHTML = `<img src="${window.currentCodexImage}" class="w-full h-full object-cover">`;
-                        document.getElementById('quick-cx-remove-img').classList.remove('hidden');
+                        removeBtn.classList.remove('hidden');
                     }
                 };
                 img.src = event.target.result;
@@ -166,12 +169,28 @@ export function renderJournalTab() {
             reader.readAsDataURL(file);
         };
     }
+
+    if(urlBtn) {
+        urlBtn.onclick = () => {
+            const url = prompt("Paste Image URL (e.g. Discord, Imgur):");
+            if(url) {
+                window.currentCodexImage = url;
+                if(preview) {
+                    preview.innerHTML = `<img src="${url}" class="w-full h-full object-cover">`;
+                    removeBtn.classList.remove('hidden');
+                }
+                showNotification("Image Linked.");
+            }
+        };
+    }
     
-    document.getElementById('quick-cx-remove-img').onclick = () => {
-        window.currentCodexImage = null;
-        document.getElementById('quick-cx-img-preview').innerHTML = '<i class="fas fa-image text-gray-600"></i>';
-        document.getElementById('quick-cx-remove-img').classList.add('hidden');
-    };
+    if(removeBtn) {
+        removeBtn.onclick = () => {
+            window.currentCodexImage = null;
+            if(preview) preview.innerHTML = '<i class="fas fa-image text-gray-600"></i>';
+            removeBtn.classList.add('hidden');
+        };
+    }
 }
 window.renderJournalTab = renderJournalTab;
 
@@ -469,6 +488,7 @@ function renderCodexView(container) {
                             </div>
                             <input type="file" id="cx-file" accept="image/*" class="hidden">
                             <button onclick="document.getElementById('cx-file').click()" class="bg-[#222] border border-[#444] text-gray-300 px-2 py-1 text-[10px] hover:text-white h-full">Upload</button>
+                            <button id="cx-btn-url" class="bg-[#222] border border-[#444] text-gray-300 px-2 py-1 text-[10px] hover:text-white h-full">Link URL</button>
                             <button id="cx-remove-img" class="text-red-500 hover:text-red-300 text-[10px] hidden h-full">Remove</button>
                         </div>
                     </div>
@@ -513,8 +533,12 @@ function renderCodexView(container) {
     
     document.getElementById('codex-search').oninput = (e) => renderCodexList(e.target.value);
 
-    // Bind Main Editor Image Upload
+    // Bind Main Editor Image Upload & URL
     const mainFile = document.getElementById('cx-file');
+    const mainUrlBtn = document.getElementById('cx-btn-url');
+    const mainRemoveBtn = document.getElementById('cx-remove-img');
+    const mainPreview = document.getElementById('cx-img-preview');
+
     if(mainFile) {
         mainFile.onchange = (e) => {
             const file = e.target.files[0];
@@ -540,10 +564,9 @@ function renderCodexView(container) {
                     
                     window.currentCodexImage = canvas.toDataURL('image/jpeg', 0.7);
                     
-                    const preview = document.getElementById('cx-img-preview');
-                    if(preview) {
-                        preview.innerHTML = `<img src="${window.currentCodexImage}" class="w-full h-full object-cover">`;
-                        document.getElementById('cx-remove-img').classList.remove('hidden');
+                    if(mainPreview) {
+                        mainPreview.innerHTML = `<img src="${window.currentCodexImage}" class="w-full h-full object-cover">`;
+                        mainRemoveBtn.classList.remove('hidden');
                     }
                 };
                 img.src = event.target.result;
@@ -552,11 +575,27 @@ function renderCodexView(container) {
         };
     }
 
-    document.getElementById('cx-remove-img').onclick = () => {
-        window.currentCodexImage = null;
-        document.getElementById('cx-img-preview').innerHTML = '<i class="fas fa-image text-gray-600 text-[10px]"></i>';
-        document.getElementById('cx-remove-img').classList.add('hidden');
-    };
+    if(mainUrlBtn) {
+        mainUrlBtn.onclick = () => {
+            const url = prompt("Paste Image URL (e.g. Discord, Imgur):");
+            if(url) {
+                window.currentCodexImage = url;
+                if(mainPreview) {
+                    mainPreview.innerHTML = `<img src="${url}" class="w-full h-full object-cover">`;
+                    mainRemoveBtn.classList.remove('hidden');
+                }
+                showNotification("Image Linked.");
+            }
+        };
+    }
+
+    if(mainRemoveBtn) {
+        mainRemoveBtn.onclick = () => {
+            window.currentCodexImage = null;
+            if(mainPreview) mainPreview.innerHTML = '<i class="fas fa-image text-gray-600 text-[10px]"></i>';
+            mainRemoveBtn.classList.add('hidden');
+        };
+    }
 }
 
 function renderCodexList(filter = "") {
@@ -609,12 +648,14 @@ window.editCodexEntry = function(id = null) {
     // Image Handling
     window.currentCodexImage = entry.image || null;
     const preview = document.getElementById('cx-img-preview');
+    const removeBtn = document.getElementById('cx-remove-img');
+    
     if(window.currentCodexImage) {
         preview.innerHTML = `<img src="${window.currentCodexImage}" class="w-full h-full object-cover">`;
-        document.getElementById('cx-remove-img').classList.remove('hidden');
+        removeBtn.classList.remove('hidden');
     } else {
         preview.innerHTML = '<i class="fas fa-image text-gray-600 text-[10px]"></i>';
-        document.getElementById('cx-remove-img').classList.add('hidden');
+        removeBtn.classList.add('hidden');
     }
 }
 
