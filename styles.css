@@ -691,7 +691,7 @@ body.xp-mode #top-xp-counter { display: flex !important; }
 /* --- MOBILE FAB ADJUSTMENTS --- */
 /* Raise floating buttons on mobile to clear the bottom navigation bar */
 #dice-toggle-btn, #phase-info-btn {
-    bottom: 5.5rem !important; /* approx 88px, clears the ~60px nav bar + spacing */
+    bottom: 3.5rem !important; /* Adjusted to ~56px, halfway between obscured and too high */
 }
 
 @media (min-width: 768px) {
