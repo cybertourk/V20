@@ -97,8 +97,8 @@ function loadAutoSave() {
             if (parsed && parsed.dots) {
                 console.log("Restoring Auto-Save...");
                 window.state = parsed;
-                // FORCE REFRESH AFTER RESTORE
-                // We handle this in initUI now to prevent race conditions
+                // REVERTED: Do not force reset to Phase 1. Respect saved phase.
+                // window.state.currentPhase = 1;
                 return true;
             }
         }
@@ -206,6 +206,9 @@ function handleImport(event) {
             if(!window.state.sessionLogs) window.state.sessionLogs = []; 
             if(!window.state.codex) window.state.codex = []; 
             
+            // Respect imported phase or default to 1 if missing
+            if (!window.state.currentPhase) window.state.currentPhase = 1;
+
             if (!window.state.furthestPhase) window.state.furthestPhase = 1;
             if (window.state.status && window.state.status.tempWillpower === undefined) {
                 window.state.status.tempWillpower = window.state.status.willpower || 5;
