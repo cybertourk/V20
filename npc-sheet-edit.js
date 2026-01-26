@@ -183,7 +183,7 @@ export function renderEditorModal() {
                         </div>
                     </div>` : ''}
 
-                    <!-- STEP 6: BIO (WITH IMAGE UPLOAD) -->
+                    <!-- STEP 6: BIO (WITH IMAGE UPLOAD & URL LINK) -->
                     <div id="stepBio" class="npc-step hidden">
                         <div class="sheet-section !mt-0">
                             <div class="section-title">Biography</div>
@@ -191,12 +191,16 @@ export function renderEditorModal() {
                             <!-- PORTRAIT UPLOAD SECTION -->
                             <div class="flex flex-col items-center mb-6 border-b border-[#333] pb-4">
                                 <div id="npc-img-display" title="Click to upload portrait" 
-                                     class="w-32 h-32 border-2 border-[#444] rounded bg-black relative cursor-pointer hover:border-[#d4af37] transition-colors overflow-hidden bg-cover bg-center bg-no-repeat flex items-center justify-center"
+                                     class="w-32 h-32 border-2 border-[#444] rounded bg-black relative cursor-pointer hover:border-[#d4af37] transition-colors overflow-hidden bg-cover bg-center bg-no-repeat flex items-center justify-center group"
                                      style="${ctx.activeNpc.image ? `background-image: url('${ctx.activeNpc.image}')` : ''}">
-                                    ${!ctx.activeNpc.image ? '<i class="fas fa-camera text-[#333] text-3xl"></i>' : ''}
+                                    ${!ctx.activeNpc.image ? '<i class="fas fa-camera text-[#333] text-3xl group-hover:text-[#d4af37]"></i>' : ''}
                                 </div>
                                 <input type="file" id="npc-img-input" accept="image/*" class="hidden">
-                                <button id="npc-remove-img" class="text-xs text-red-500 hover:text-red-300 mt-1 ${!ctx.activeNpc.image ? 'hidden' : ''}">Remove Image</button>
+                                
+                                <div class="flex gap-2 mt-2">
+                                    <button id="npc-btn-img-url" class="text-[10px] text-gray-400 border border-[#444] px-2 py-1 hover:text-white hover:border-gray-300 transition-colors uppercase font-bold">Link URL</button>
+                                    <button id="npc-remove-img" class="text-[10px] text-red-500 border border-[#444] px-2 py-1 hover:text-red-300 hover:border-red-900 transition-colors uppercase font-bold ${!ctx.activeNpc.image ? 'hidden' : ''}">Remove</button>
+                                </div>
                             </div>
 
                             ${ctx.currentTemplate.renderBio ? ctx.currentTemplate.renderBio(ctx.activeNpc) : `
@@ -300,6 +304,7 @@ export function renderEditorModal() {
     const imgDisplay = document.getElementById('npc-img-display');
     const imgInput = document.getElementById('npc-img-input');
     const removeImgBtn = document.getElementById('npc-remove-img');
+    const urlBtn = document.getElementById('npc-btn-img-url');
 
     if(imgDisplay && imgInput) {
         imgDisplay.onclick = () => imgInput.click();
@@ -338,10 +343,23 @@ export function renderEditorModal() {
             reader.readAsDataURL(file);
         };
 
+        if(urlBtn) {
+            urlBtn.onclick = () => {
+                const url = prompt("Paste Image URL (e.g. Discord, Imgur):");
+                if (url) {
+                    ctx.activeNpc.image = url;
+                    imgDisplay.style.backgroundImage = `url('${url}')`;
+                    imgDisplay.innerHTML = ''; 
+                    removeImgBtn.classList.remove('hidden');
+                    showNotification("NPC Image Linked.");
+                }
+            };
+        }
+
         removeImgBtn.onclick = () => {
             ctx.activeNpc.image = null;
             imgDisplay.style.backgroundImage = 'none';
-            imgDisplay.innerHTML = '<i class="fas fa-camera text-[#333] text-3xl"></i>';
+            imgDisplay.innerHTML = '<i class="fas fa-camera text-[#333] text-3xl group-hover:text-[#d4af37]"></i>';
             removeImgBtn.classList.add('hidden');
         };
     }
