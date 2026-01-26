@@ -17,9 +17,17 @@ body {
     min-height: 100vh;
     margin: 0;
     overflow-x: hidden;
-    /* Mobile: Increased padding to clear the fixed nav bar + potential address bar overlap */
+    /* Default Mobile (Landscape/General) */
     padding-top: 130px; 
     padding-bottom: 80px;
+}
+
+/* Mobile Portrait Specifics */
+@media (orientation: portrait) and (max-width: 767px) {
+    body {
+        /* Increase padding significantly for portrait mode where nav wraps */
+        padding-top: 160px; 
+    }
 }
 
 @media (min-width: 768px) {
