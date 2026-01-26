@@ -54,6 +54,7 @@ export function handleSaveClick() {
     const nameIn = document.getElementById('save-name-input');
     const folderIn = document.getElementById('save-folder-input');
     
+    // Pre-populate modal with current state
     if(nameIn) {
         if(window.state.meta.filename) nameIn.value = window.state.meta.filename;
         else nameIn.value = document.getElementById('c-name')?.value || "Unnamed Vampire";
@@ -62,6 +63,33 @@ export function handleSaveClick() {
     
     const modal = document.getElementById('save-modal');
     if(modal) modal.classList.add('active');
+    
+    // Populate Folder Datalist
+    populateFolderList();
+}
+
+async function populateFolderList() {
+    if (!auth.currentUser) return;
+    const list = document.getElementById('folder-datalist');
+    if (!list) return;
+    list.innerHTML = '';
+    
+    try {
+        const querySnapshot = await getDocs(collection(db, 'artifacts', appId, 'users', auth.currentUser.uid, 'characters'));
+        const folders = new Set();
+        querySnapshot.forEach(doc => {
+            const data = doc.data();
+            if (data.meta && data.meta.folder) folders.add(data.meta.folder);
+        });
+        
+        folders.forEach(f => {
+            const opt = document.createElement('option');
+            opt.value = f;
+            list.appendChild(opt);
+        });
+    } catch (e) {
+        console.warn("Could not fetch folders", e);
+    }
 }
 
 export async function handleLoadClick() {
@@ -103,17 +131,30 @@ export async function performSave() {
     // Ensure inputs are synced before constructing save data
     syncInputs();
 
-    const nameIn = document.getElementById('save-name-input');
-    const folderIn = document.getElementById('save-folder-input');
+    let rawName, folder;
+    const modal = document.getElementById('save-modal');
+    const isManualSave = modal && modal.classList.contains('active');
+
+    if (isManualSave) {
+        // CASE A: User is interacting with the Save Modal. Trust the inputs.
+        rawName = document.getElementById('save-name-input')?.value.trim();
+        folder = document.getElementById('save-folder-input')?.value.trim();
+    } else {
+        // CASE B: Silent/Auto Save. Trust the State.
+        // DO NOT read from the hidden modal inputs, as they may contain old data from a previous load.
+        rawName = window.state.meta.filename || window.state.textFields['c-name'] || "Unnamed Vampire";
+        folder = window.state.meta.folder || "";
+    }
     
-    let rawName = nameIn ? nameIn.value.trim() : "Unnamed";
-    let folder = folderIn ? folderIn.value.trim() : "Unsorted";
+    if(!rawName) {
+        rawName = "Unnamed Vampire";
+    }
     
-    if(!rawName) return notify("Filename required", "error");
+    // Create Safe ID (Alphanumeric only for Firestore doc ID)
     const safeId = rawName.replace(/[^a-zA-Z0-9 _-]/g, "");
     
     if (!window.state.meta) window.state.meta = {};
-    window.state.meta.filename = safeId;
+    window.state.meta.filename = rawName; // Save the human readable name
     window.state.meta.folder = folder;
     window.state.meta.lastModified = new Date().toISOString();
     window.state.meta.uid = user.uid;
@@ -138,9 +179,13 @@ export async function performSave() {
 
         await setDoc(docRef, dataToSave);
         
-        notify("Character Inscribed.");
-        const modal = document.getElementById('save-modal');
-        if(modal) modal.classList.remove('active');
+        // Only show notification if manual save or if we want verbose feedback
+        if (isManualSave) {
+            notify("Character Inscribed.");
+            modal.classList.remove('active');
+        } else {
+            console.log("Auto-save complete.");
+        }
         
         const dl = document.getElementById('folder-datalist');
         if(dl && folder && !Array.from(dl.options).some(o => o.value === folder)) {
@@ -180,7 +225,7 @@ export async function deleteCharacter(id, name, event) {
     }
 }
 
-// --- BROWSER UI (REDESIGNED & FIXED SORTING) ---
+// --- BROWSER UI ---
 
 export async function renderFileBrowser(user) {
     const browser = document.getElementById('file-browser');
@@ -237,34 +282,23 @@ function renderLoadMenuUI() {
         structure[f].push(char);
     });
 
-    // --- FIX: SORT FOLDERS THEMSELVES ---
-    // Helper to get max date in a folder
+    // Sort Folders
     const getFolderDate = (folderItems) => {
         if (!folderItems || folderItems.length === 0) return 0;
         return Math.max(...folderItems.map(i => i.meta?.lastModified ? new Date(i.meta.lastModified).getTime() : 0));
     };
 
     const folders = Object.keys(structure).sort((a,b) => {
-        // Always force 'Unsorted' to the bottom
         if (a === "Unsorted") return 1;
         if (b === "Unsorted") return -1;
-
         if (loadMenuState.sort === 'date') {
             const dateA = getFolderDate(structure[a]);
             const dateB = getFolderDate(structure[b]);
-            return dateB - dateA; // Newest folders first
+            return dateB - dateA; 
         } else {
-            return a.localeCompare(b); // Alphabetical
+            return a.localeCompare(b);
         }
     });
-
-    // Update Datalist for Save Dialog (Using Alpha sort for saving dropdown usually better)
-    const dl = document.getElementById('folder-datalist');
-    if(dl) {
-        dl.innerHTML = ''; 
-        // Always sort datalist alpha for consistent saving UI
-        [...folders].sort().forEach(f => { const opt = document.createElement('option'); opt.value = f; dl.appendChild(opt); });
-    }
 
     // 3. Render Folders
     folders.forEach(f => {
@@ -281,13 +315,11 @@ function renderLoadMenuUI() {
             }
         });
 
-        // Folder Container
         const folderDiv = document.createElement('div');
         folderDiv.className = "mb-2";
         
         const isOpen = loadMenuState.expandedFolders[f];
         
-        // Header Row
         const header = document.createElement('div');
         header.className = `flex items-center gap-2 p-2 rounded cursor-pointer transition-colors select-none ${isOpen ? 'bg-[#222] border-gold border text-white' : 'bg-[#111] border border-[#333] text-gray-400 hover:border-gray-500'}`;
         header.innerHTML = `
@@ -303,7 +335,6 @@ function renderLoadMenuUI() {
         };
         folderDiv.appendChild(header);
 
-        // Character List
         if (isOpen) {
             const listDiv = document.createElement('div');
             listDiv.className = "ml-3 pl-2 border-l border-[#333] mt-1 space-y-1 bg-[#0a0a0a] py-1";
@@ -345,7 +376,7 @@ window.loadSelectedCharFromId = (id) => {
     if(char) loadSelectedChar(char);
 }
 
-// --- MIGRATION TOOL (HIDDEN BUT AVAILABLE) ---
+// --- MIGRATION TOOL ---
 window.migrateOldData = async function(oldCollectionName = "characters") {
     const user = auth.currentUser;
     if (!user) return alert("Please log in.");
@@ -378,21 +409,19 @@ export async function loadSelectedChar(data) {
     if (!data) return;
     if(!confirm(`Recall ${data.meta?.filename || "Character"}? Unsaved progress will be lost.`)) return;
     
-    // Deep Clone to avoid reference issues
+    // Deep Clone
     window.state = JSON.parse(JSON.stringify(data));
     
     // --- BACKWARD COMPATIBILITY INITIALIZATION ---
-    // Ensure all modern fields exist, even if loading an old file
     if(!window.state.meta) window.state.meta = { filename: data.id || "Loaded Character", folder: "" };
     if(!window.state.specialties) window.state.specialties = {}; 
     if(!window.state.rituals) window.state.rituals = [];
     if(!window.state.retainers) window.state.retainers = [];
     
-    // Ensure new Expansion Fields exist
     if(!window.state.codex) window.state.codex = [];
     if(!window.state.sessionLogs) window.state.sessionLogs = [];
     if(!window.state.characterImage) window.state.characterImage = null;
-    if(!window.state.beastTraits) window.state.beastTraits = []; // Gangrel feature
+    if(!window.state.beastTraits) window.state.beastTraits = []; 
 
     if (!window.state.furthestPhase) window.state.furthestPhase = 1;
     
@@ -407,6 +436,7 @@ export async function loadSelectedChar(data) {
         window.state.status = { humanity: 7, willpower: 5, tempWillpower: 5, health_states: [0,0,0,0,0,0,0], blood: 10 };
     }
     
+    // Force Refresh
     if (window.fullRefresh) window.fullRefresh();
     else window.location.reload();
     
