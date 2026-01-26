@@ -17,12 +17,16 @@ export function renderJournalTab() {
     // Update Cache
     codexCache = window.state.codex.map(c => c.name);
 
+    // Styling for tabs
+    const activeClass = "border-b-2 border-[#d4af37] text-[#d4af37] font-bold";
+    const inactiveClass = "text-gray-500 hover:text-white transition-colors";
+
     container.innerHTML = `
         <div class="flex flex-col h-full">
             <!-- Top Tabs -->
-            <div class="flex gap-4 border-b border-[#333] pb-2 mb-2">
-                <button id="tab-sessions" class="journal-nav-btn ${window.state.journalTab==='sessions'?'active':''}">Session Logs</button>
-                <button id="tab-codex" class="journal-nav-btn ${window.state.journalTab==='codex'?'active':''}">Codex (Database)</button>
+            <div class="flex gap-6 border-b border-[#333] pb-2 mb-2 px-2">
+                <button id="tab-sessions" class="text-xs uppercase tracking-wider px-2 pb-1 ${window.state.journalTab==='sessions'?activeClass:inactiveClass}">Session Logs</button>
+                <button id="tab-codex" class="text-xs uppercase tracking-wider px-2 pb-1 ${window.state.journalTab==='codex'?activeClass:inactiveClass}">Codex</button>
             </div>
             
             <!-- Main Content Area -->
@@ -34,12 +38,18 @@ export function renderJournalTab() {
         
         <!-- Quick Definition / Edit Modal -->
         <div id="codex-popup" class="fixed inset-0 bg-black/90 z-[10000] hidden flex items-center justify-center p-4 backdrop-blur-sm">
-            <div class="bg-[#1a1a1a] border border-[#d4af37] p-6 max-w-md w-full shadow-[0_0_30px_rgba(0,0,0,0.8)] relative flex flex-col gap-4">
+            <div class="bg-[#1a1a1a] border border-[#d4af37] p-6 max-w-md w-full shadow-[0_0_30px_rgba(0,0,0,0.8)] relative flex flex-col gap-4 max-h-[90vh] overflow-y-auto no-scrollbar">
                 <button onclick="document.getElementById('codex-popup').classList.add('hidden')" class="absolute top-2 right-3 text-gray-500 hover:text-white text-xl">&times;</button>
                 
                 <!-- VIEW MODE -->
                 <div id="codex-popup-view" class="hidden">
                     <h3 id="codex-popup-title" class="text-xl text-[#d4af37] font-cinzel font-bold mb-2 border-b border-[#333] pb-2"></h3>
+                    
+                    <!-- Image Display (View Mode) -->
+                    <div id="codex-popup-img-container" class="hidden mb-4 rounded border border-[#333] overflow-hidden bg-black flex justify-center">
+                        <img id="codex-popup-img" src="" class="max-h-48 object-contain">
+                    </div>
+
                     <div class="flex gap-2 mb-3" id="codex-popup-tags"></div>
                     <div id="codex-popup-desc" class="text-sm text-gray-300 leading-relaxed font-serif whitespace-pre-wrap"></div>
                     <div class="mt-4 pt-4 border-t border-[#333] text-right">
@@ -55,6 +65,20 @@ export function renderJournalTab() {
                         <label class="block text-[10px] uppercase text-gray-500 font-bold mb-1">Name</label>
                         <input type="text" id="quick-cx-name" class="w-full bg-[#111] border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] outline-none">
                     </div>
+                    
+                    <!-- Image Upload (Edit Mode) -->
+                    <div>
+                        <label class="block text-[10px] uppercase text-gray-500 font-bold mb-1">Image</label>
+                        <div class="flex items-center gap-2">
+                            <div id="quick-cx-img-preview" class="w-12 h-12 bg-black border border-[#444] flex items-center justify-center overflow-hidden">
+                                <i class="fas fa-image text-gray-600"></i>
+                            </div>
+                            <input type="file" id="quick-cx-file" accept="image/*" class="hidden">
+                            <button onclick="document.getElementById('quick-cx-file').click()" class="bg-[#222] border border-[#444] text-gray-300 px-2 py-1 text-[10px] hover:text-white">Upload</button>
+                            <button id="quick-cx-remove-img" class="text-red-500 hover:text-red-300 text-[10px] hidden">Remove</button>
+                        </div>
+                    </div>
+
                     <div class="grid grid-cols-2 gap-4">
                         <div>
                             <label class="block text-[10px] uppercase text-gray-500 font-bold mb-1">Type</label>
@@ -101,6 +125,53 @@ export function renderJournalTab() {
     } else {
         renderCodexView(mainView);
     }
+
+    // Bind Image Upload Listener for Modal
+    const fileInput = document.getElementById('quick-cx-file');
+    if(fileInput) {
+        fileInput.onchange = (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                // Resize Logic
+                const img = new Image();
+                img.onload = function() {
+                    const canvas = document.createElement('canvas');
+                    const MAX_WIDTH = 600; // Smaller max for Codex
+                    const MAX_HEIGHT = 600;
+                    let width = img.width;
+                    let height = img.height;
+                    if (width > height) {
+                        if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; }
+                    } else {
+                        if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; }
+                    }
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctxCanvas = canvas.getContext('2d');
+                    ctxCanvas.drawImage(img, 0, 0, width, height);
+                    
+                    window.currentCodexImage = canvas.toDataURL('image/jpeg', 0.7);
+                    
+                    // Update Preview
+                    const preview = document.getElementById('quick-cx-img-preview');
+                    if(preview) {
+                        preview.innerHTML = `<img src="${window.currentCodexImage}" class="w-full h-full object-cover">`;
+                        document.getElementById('quick-cx-remove-img').classList.remove('hidden');
+                    }
+                };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        };
+    }
+    
+    document.getElementById('quick-cx-remove-img').onclick = () => {
+        window.currentCodexImage = null;
+        document.getElementById('quick-cx-img-preview').innerHTML = '<i class="fas fa-image text-gray-600"></i>';
+        document.getElementById('quick-cx-remove-img').classList.add('hidden');
+    };
 }
 window.renderJournalTab = renderJournalTab;
 
@@ -379,7 +450,7 @@ function renderCodexView(container) {
                 <div id="codex-list" class="flex-1 overflow-y-auto space-y-1"></div>
             </div>
             <!-- Editor Form -->
-            <div class="w-3/4 h-full bg-[#080808] border border-[#333] p-6 relative hidden" id="codex-editor">
+            <div class="w-3/4 h-full bg-[#080808] border border-[#333] p-6 relative hidden overflow-y-auto no-scrollbar" id="codex-editor">
                 <h3 class="text-xl font-cinzel text-[#d4af37] mb-6 border-b border-[#333] pb-2">Codex Entry</h3>
                 <input type="hidden" id="cx-id">
                 
@@ -388,6 +459,22 @@ function renderCodexView(container) {
                         <label class="block text-[10px] uppercase text-gray-500 font-bold mb-1">Name / Title</label>
                         <input type="text" id="cx-name" class="w-full bg-[#111] border-b border-[#444] text-white p-2 font-bold focus:border-[#d4af37] outline-none">
                     </div>
+                    
+                    <!-- Main Codex Editor Image Upload -->
+                    <div>
+                        <label class="block text-[10px] uppercase text-gray-500 font-bold mb-1">Image</label>
+                        <div class="flex items-center gap-2 h-[34px]">
+                            <div id="cx-img-preview" class="w-8 h-8 bg-black border border-[#444] flex items-center justify-center overflow-hidden flex-shrink-0">
+                                <i class="fas fa-image text-gray-600 text-[10px]"></i>
+                            </div>
+                            <input type="file" id="cx-file" accept="image/*" class="hidden">
+                            <button onclick="document.getElementById('cx-file').click()" class="bg-[#222] border border-[#444] text-gray-300 px-2 py-1 text-[10px] hover:text-white h-full">Upload</button>
+                            <button id="cx-remove-img" class="text-red-500 hover:text-red-300 text-[10px] hidden h-full">Remove</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4 mb-4">
                     <div>
                         <label class="block text-[10px] uppercase text-gray-500 font-bold mb-1">Type</label>
                         <select id="cx-type" class="w-full bg-[#111] border-b border-[#444] text-white p-2 outline-none">
@@ -398,11 +485,10 @@ function renderCodexView(container) {
                             <option value="Concept">Concept/Lore</option>
                         </select>
                     </div>
-                </div>
-
-                <div class="mb-4">
-                    <label class="block text-[10px] uppercase text-gray-500 font-bold mb-1">Tags (comma separated)</label>
-                    <input type="text" id="cx-tags" class="w-full bg-[#111] border-b border-[#444] text-gray-300 p-2 text-xs focus:border-[#d4af37] outline-none" placeholder="e.g. Brujah, Safehouse, Ally">
+                    <div>
+                        <label class="block text-[10px] uppercase text-gray-500 font-bold mb-1">Tags (comma separated)</label>
+                        <input type="text" id="cx-tags" class="w-full bg-[#111] border-b border-[#444] text-gray-300 p-2 text-xs focus:border-[#d4af37] outline-none" placeholder="e.g. Brujah, Safehouse, Ally">
+                    </div>
                 </div>
 
                 <div class="mb-6">
@@ -426,6 +512,51 @@ function renderCodexView(container) {
     renderCodexList();
     
     document.getElementById('codex-search').oninput = (e) => renderCodexList(e.target.value);
+
+    // Bind Main Editor Image Upload
+    const mainFile = document.getElementById('cx-file');
+    if(mainFile) {
+        mainFile.onchange = (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const img = new Image();
+                img.onload = function() {
+                    const canvas = document.createElement('canvas');
+                    const MAX_WIDTH = 600; 
+                    const MAX_HEIGHT = 600;
+                    let width = img.width;
+                    let height = img.height;
+                    if (width > height) {
+                        if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; }
+                    } else {
+                        if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; }
+                    }
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctxCanvas = canvas.getContext('2d');
+                    ctxCanvas.drawImage(img, 0, 0, width, height);
+                    
+                    window.currentCodexImage = canvas.toDataURL('image/jpeg', 0.7);
+                    
+                    const preview = document.getElementById('cx-img-preview');
+                    if(preview) {
+                        preview.innerHTML = `<img src="${window.currentCodexImage}" class="w-full h-full object-cover">`;
+                        document.getElementById('cx-remove-img').classList.remove('hidden');
+                    }
+                };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        };
+    }
+
+    document.getElementById('cx-remove-img').onclick = () => {
+        window.currentCodexImage = null;
+        document.getElementById('cx-img-preview').innerHTML = '<i class="fas fa-image text-gray-600 text-[10px]"></i>';
+        document.getElementById('cx-remove-img').classList.add('hidden');
+    };
 }
 
 function renderCodexList(filter = "") {
@@ -442,9 +573,10 @@ function renderCodexList(filter = "") {
         item.className = "p-2 border-b border-[#222] cursor-pointer hover:bg-[#1a1a1a] group";
         
         const typeColor = entry.type === 'NPC' ? 'text-blue-400' : entry.type === 'Location' ? 'text-green-400' : 'text-gray-500';
-        
+        const hasImg = entry.image ? '<i class="fas fa-image text-[8px] text-gray-500 ml-1"></i>' : '';
+
         item.innerHTML = `
-            <div class="text-xs font-bold text-gray-200 group-hover:text-[#d4af37]">${entry.name}</div>
+            <div class="text-xs font-bold text-gray-200 group-hover:text-[#d4af37] flex items-center">${entry.name} ${hasImg}</div>
             <div class="text-[9px] ${typeColor} uppercase font-bold mt-0.5">${entry.type}</div>
         `;
         item.onclick = () => window.editCodexEntry(entry.id);
@@ -461,7 +593,7 @@ window.editCodexEntry = function(id = null) {
     empty.classList.add('hidden');
     editor.classList.remove('hidden');
     
-    let entry = { id: "", name: "", type: "NPC", tags: [], desc: "" };
+    let entry = { id: "", name: "", type: "NPC", tags: [], desc: "", image: null };
     
     if (id) {
         const found = window.state.codex.find(c => c.id === id);
@@ -473,6 +605,17 @@ window.editCodexEntry = function(id = null) {
     document.getElementById('cx-type').value = entry.type;
     document.getElementById('cx-tags').value = entry.tags.join(', ');
     document.getElementById('cx-desc').value = entry.desc;
+    
+    // Image Handling
+    window.currentCodexImage = entry.image || null;
+    const preview = document.getElementById('cx-img-preview');
+    if(window.currentCodexImage) {
+        preview.innerHTML = `<img src="${window.currentCodexImage}" class="w-full h-full object-cover">`;
+        document.getElementById('cx-remove-img').classList.remove('hidden');
+    } else {
+        preview.innerHTML = '<i class="fas fa-image text-gray-600 text-[10px]"></i>';
+        document.getElementById('cx-remove-img').classList.add('hidden');
+    }
 }
 
 window.saveCodexEntry = function() {
@@ -485,7 +628,8 @@ window.saveCodexEntry = function() {
         name: name,
         type: document.getElementById('cx-type').value,
         tags: document.getElementById('cx-tags').value.split(',').map(t=>t.trim()).filter(t=>t),
-        desc: document.getElementById('cx-desc').value
+        desc: document.getElementById('cx-desc').value,
+        image: window.currentCodexImage || null
     };
     
     if (id) {
@@ -502,6 +646,8 @@ window.saveCodexEntry = function() {
     showNotification("Codex Updated");
     document.getElementById('codex-editor').classList.add('hidden');
     document.getElementById('codex-empty-state').classList.remove('hidden');
+    
+    window.currentCodexImage = null; // Reset
 }
 
 window.deleteCodexEntry = function() {
@@ -584,6 +730,16 @@ window.viewCodex = function(id) {
     document.getElementById('codex-popup-title').innerText = entry.name;
     document.getElementById('codex-popup-desc').innerText = entry.desc || "No description provided.";
     
+    const imgContainer = document.getElementById('codex-popup-img-container');
+    const imgEl = document.getElementById('codex-popup-img');
+    
+    if (entry.image) {
+        imgEl.src = entry.image;
+        imgContainer.classList.remove('hidden');
+    } else {
+        imgContainer.classList.add('hidden');
+    }
+    
     const tagCont = document.getElementById('codex-popup-tags');
     tagCont.innerHTML = `<span class="codex-tag border border-gray-600 text-gray-400">${entry.type}</span>` + 
         entry.tags.map(t => `<span class="codex-tag">${t}</span>`).join('');
@@ -599,6 +755,16 @@ window.viewCodex = function(id) {
         document.getElementById('quick-cx-type').value = entry.type;
         document.getElementById('quick-cx-tags').value = entry.tags.join(', ');
         document.getElementById('quick-cx-desc').value = entry.desc;
+        
+        window.currentCodexImage = entry.image || null;
+        const preview = document.getElementById('quick-cx-img-preview');
+        if(window.currentCodexImage) {
+            preview.innerHTML = `<img src="${window.currentCodexImage}" class="w-full h-full object-cover">`;
+            document.getElementById('quick-cx-remove-img').classList.remove('hidden');
+        } else {
+            preview.innerHTML = '<i class="fas fa-image text-gray-600"></i>';
+            document.getElementById('quick-cx-remove-img').classList.add('hidden');
+        }
     };
     
     modal.classList.remove('hidden');
@@ -699,6 +865,9 @@ window.defineSelection = function(btn) {
     document.getElementById('quick-cx-type').value = "NPC";
     document.getElementById('quick-cx-tags').value = "";
     document.getElementById('quick-cx-desc').value = "";
+    window.currentCodexImage = null;
+    document.getElementById('quick-cx-img-preview').innerHTML = '<i class="fas fa-image text-gray-600"></i>';
+    document.getElementById('quick-cx-remove-img').classList.add('hidden');
     
     modal.classList.remove('hidden');
     document.getElementById('quick-cx-desc').focus();
@@ -716,7 +885,8 @@ window.saveQuickCodex = function() {
         name: name,
         type: document.getElementById('quick-cx-type').value,
         tags: document.getElementById('quick-cx-tags').value.split(',').map(t=>t.trim()).filter(t=>t),
-        desc: document.getElementById('quick-cx-desc').value
+        desc: document.getElementById('quick-cx-desc').value,
+        image: window.currentCodexImage || null
     };
     
     // Check for existing ID
@@ -744,6 +914,7 @@ window.saveQuickCodex = function() {
     
     showNotification("Codex Saved");
     document.getElementById('codex-popup').classList.add('hidden');
+    window.currentCodexImage = null; // Reset
 }
 
 // Global click to close autocomplete
