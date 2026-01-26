@@ -17,12 +17,18 @@ body {
     min-height: 100vh;
     margin: 0;
     overflow-x: hidden;
-    padding-top: 100px; /* Increased to ensure content clears top nav on mobile */
+    /* Mobile: Increased padding to clear the fixed nav bar + potential address bar overlap */
+    padding-top: 130px; 
     padding-bottom: 80px;
 }
 
 @media (min-width: 768px) {
-    body { padding-bottom: 0; padding-right: 60px; }
+    body { 
+        /* Desktop: Tighter top padding, nav is on the side/top */
+        padding-top: 90px; 
+        padding-bottom: 0; 
+        padding-right: 60px; 
+    }
 }
 
 h1, h2, h3, .heading { font-family: 'Cinzel', serif; letter-spacing: 0.1em; }
