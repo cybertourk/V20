@@ -9,6 +9,10 @@ import * as Logic from "./npc-logic.js";
 import * as EditUI from "./npc-sheet-edit.js";
 import * as PlayUI from "./npc-sheet-play.js";
 
+// Import Storyteller State to check permissions
+import { stState } from "./ui-storyteller.js";
+import { db, doc, setDoc, collection } from "./firebase-config.js";
+
 // Registry of available templates
 const TEMPLATES = {
     'mortal': MortalTemplate,
@@ -91,6 +95,25 @@ export function openNpcCreator(typeKey = 'mortal', dataOrEvent = null, index = n
     );
 
     EditUI.renderEditorModal();
+    
+    // Inject "Save to Bestiary" button if Storyteller
+    if (stState && stState.isStoryteller) {
+        injectBestiarySaveButton();
+    }
+}
+
+function injectBestiarySaveButton() {
+    const footer = document.querySelector('#npc-modal .border-t .flex');
+    if (footer && !document.getElementById('npc-save-bestiary')) {
+        const btn = document.createElement('button');
+        btn.id = 'npc-save-bestiary';
+        btn.className = "bg-purple-900 hover:bg-purple-700 text-white px-4 py-2 uppercase font-bold text-xs shadow-lg tracking-widest transition flex items-center gap-2 border border-purple-500 mr-2";
+        btn.innerHTML = `<i class="fas fa-book-dead"></i> Save to Bestiary`;
+        btn.onclick = () => handleSaveNpc(true); // true = save to cloud bestiary
+        
+        // Insert before the Cancel button
+        footer.insertBefore(btn, footer.firstChild);
+    }
 }
 
 export function openNpcSheet(npc, index) {
@@ -124,7 +147,7 @@ function getEditCallbacks() {
             document.getElementById('npc-modal').style.display = 'none'; 
             toggleDiceUI(true); 
         },
-        saveNpc: handleSaveNpc,
+        saveNpc: () => handleSaveNpc(false), // Default: Local Save
         toggleMode: handleToggleMode,
         switchTemplate: handleSwitchTemplate,
         handleValueChange: handleValueChange,
@@ -187,6 +210,7 @@ function handleSwitchTemplate(newType) {
         getEditCallbacks()
     );
     EditUI.renderEditorModal();
+    if (stState && stState.isStoryteller) injectBestiarySaveButton();
     showNotification(`Switched to ${currentTemplate.label} template.`);
 }
 
@@ -350,7 +374,7 @@ function applyChange(type, key, val) {
 // IMPORT / EXPORT / SAVE
 // ==========================================================================
 
-function handleSaveNpc() {
+async function handleSaveNpc(toBestiary = false) {
     // Scrape DOM inputs
     activeNpc.name = document.getElementById('npc-name').value;
     activeNpc.domitor = document.getElementById('npc-domitor') ? document.getElementById('npc-domitor').value : "";
@@ -378,33 +402,65 @@ function handleSaveNpc() {
 
     setIf('npc-extra-clan', 'domitorClan');
     setIf('npc-subtype', 'type');
-    setIf('g-weakness', 'weakness'); // if exists in specific template
+    setIf('g-weakness', 'weakness'); 
     setIf('npc-bond-level', 'bondLevel');
     setIf('inv-feeding-grounds', 'feedingGrounds');
     setIf('npc-nat-weapons', 'naturalWeapons');
 
-    // Save to Global State
+    // Create Clean Copy
     const cleanNpc = JSON.parse(JSON.stringify(activeNpc));
-    if (!window.state.retainers) window.state.retainers = [];
-    
-    if (activeIndex !== null && activeIndex >= 0) window.state.retainers[activeIndex] = cleanNpc;
-    else window.state.retainers.push(cleanNpc);
 
-    if (window.renderNpcTab) window.renderNpcTab();
-    
-    // --- AUTO-GENERATE CODEX ENTRY ---
-    generateNpcCodexEntry(cleanNpc);
-    
-    // --- TRIGGER CLOUD SAVE IMMEDIATELY ---
-    if (window.performSave) {
-        window.performSave(true); // true = silent save
-        showNotification(`${currentTemplate.label} Saved & Synced.`);
+    if (toBestiary) {
+        // --- SAVE TO CLOUD BESTIARY (STORYTELLER MODE) ---
+        if (!stState.activeChronicleId) {
+            showNotification("No Active Chronicle found.", "error");
+            return;
+        }
+        
+        try {
+            const npcId = cleanNpc.name.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() + "_" + Date.now();
+            const npcRef = doc(db, 'chronicles', stState.activeChronicleId, 'bestiary', npcId);
+            
+            await setDoc(npcRef, {
+                name: cleanNpc.name,
+                type: cleanNpc.template || "mortal",
+                data: cleanNpc,
+                source: "Custom",
+                created_at: new Date().toISOString()
+            });
+            
+            showNotification(`"${cleanNpc.name}" saved to Bestiary!`);
+            document.getElementById('npc-modal').style.display = 'none';
+            toggleDiceUI(true);
+            
+        } catch (e) {
+            console.error("Bestiary Save Error:", e);
+            showNotification("Error saving to Bestiary: " + e.message, "error");
+        }
+        
     } else {
-        showNotification(`${currentTemplate.label} Saved locally.`);
-    }
+        // --- STANDARD LOCAL SAVE (PLAYER MODE) ---
+        if (!window.state.retainers) window.state.retainers = [];
+        
+        if (activeIndex !== null && activeIndex >= 0) window.state.retainers[activeIndex] = cleanNpc;
+        else window.state.retainers.push(cleanNpc);
 
-    document.getElementById('npc-modal').style.display = 'none';
-    toggleDiceUI(true);
+        if (window.renderNpcTab) window.renderNpcTab();
+        
+        // Auto-Generate Codex Entry
+        generateNpcCodexEntry(cleanNpc);
+        
+        // Trigger Cloud Sync if active
+        if (window.performSave) {
+            window.performSave(true); // true = silent save
+            showNotification(`${currentTemplate.label} Saved & Synced.`);
+        } else {
+            showNotification(`${currentTemplate.label} Saved locally.`);
+        }
+
+        document.getElementById('npc-modal').style.display = 'none';
+        toggleDiceUI(true);
+    }
 }
 
 // --- CODEX AUTO-GENERATION HELPER ---
@@ -440,7 +496,6 @@ function generateNpcCodexEntry(npc) {
     
     window.state.codex.push(entry);
     console.log("Auto-generated Codex Entry for:", name);
-    // Optional: showNotification("Added to Codex"); // Kept silent to avoid notification spam on save
 }
 
 function exportNpcData() {
@@ -484,6 +539,7 @@ function importNpcData(event) {
                     getEditCallbacks()
                 );
                 EditUI.renderEditorModal();
+                if (stState && stState.isStoryteller) injectBestiarySaveButton();
                 showNotification("NPC Imported Successfully");
             } else {
                 alert("Invalid JSON structure.");
