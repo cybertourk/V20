@@ -103,6 +103,13 @@
 
                 <div class="h-8 w-px bg-[#333]"></div>
 
+                <!-- CHRONICLE BUTTON (NEW) -->
+                <button type="button" id="chronicles-btn" class="text-xs text-white font-bold uppercase hover:text-[#d4af37] transition flex items-center gap-2 border border-[#444] bg-[#1a0505] px-3 py-1.5 rounded hover:border-[#d4af37] shadow-lg">
+                    <i class="fas fa-book-dead text-red-700"></i> Chronicles
+                </button>
+
+                <div class="h-8 w-px bg-[#333]"></div>
+
                 <!-- File Actions (Always Visible, Scrollable) -->
                 <div id="file-actions-group" class="flex items-center gap-2 bg-black/40 px-4 py-1.5 rounded-full border border-[#222]">
                     <button type="button" id="cmd-new" class="text-xs text-gray-400 font-bold uppercase hover:text-white hover:bg-[#222] px-3 py-1 rounded transition border border-transparent hover:border-[#444]">
@@ -670,6 +677,13 @@
     
     <!-- NPC CREATOR MODAL -->
     <div id="npc-modal" class="fixed inset-0 bg-black/90 z-[100] flex items-center justify-center hidden"></div>
+
+    <!-- NEW CHRONICLE MODAL -->
+    <div id="chronicle-modal" class="modal-overlay">
+        <div class="modal-box w-full max-w-3xl" id="chronicle-modal-content">
+            <!-- Content injected dynamically by ui-storyteller.js -->
+        </div>
+    </div>
 
     <div id="save-modal" class="modal-overlay">
         <div class="modal-box">
@@ -1269,6 +1283,9 @@
     <script type="module" src="npc-sheet-edit.js"></script>
     <script type="module" src="npc-creator.js"></script>
     
+    <!-- STORYTELLER SYSTEM (NEW) -->
+    <script type="module" src="ui-storyteller.js"></script>
+
     <!-- MAIN ENTRY -->
     <script type="module" src="main.js"></script>
 
