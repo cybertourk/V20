@@ -16,15 +16,16 @@ import {
     doc, 
     setDoc, 
     getDoc, 
+    addDoc,      // NEW
+    onSnapshot,  // NEW
     collection, 
     getDocs, 
     query, 
     deleteDoc,
-    where // ADDED THIS EXPORT
+    where 
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 // FIREBASE CONFIGURATION
-// Extracted from your original script.js
 const firebaseConfig = {
   apiKey: "AIzaSyB8qLWOiC3csqPnucbj3XOtireOgPjjL_k",
   authDomain: "v20-character-creator.firebaseapp.com",
@@ -58,13 +59,15 @@ export {
     createUserWithEmailAndPassword,
     signInWithEmailAndPassword,
     
-    // FIRESTORE FUNCTIONS (Re-exported for Manager)
+    // FIRESTORE FUNCTIONS
     doc, 
     setDoc, 
-    getDoc, 
+    getDoc,
+    addDoc,      // Exported for Storyteller
+    onSnapshot,  // Exported for Realtime Listeners
     collection, 
     getDocs, 
     query, 
     deleteDoc,
-    where // EXPORTED HERE TO FIX ERROR
+    where
 };
