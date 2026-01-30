@@ -13,6 +13,9 @@ import {
     appId 
 } from "./firebase-config.js";
 
+// IMPORT STORYTELLER STATE to check for active connection
+import { stState } from "./ui-storyteller.js";
+
 // Helper for UI notifications
 function notify(msg, type='info') {
     if (window.showNotification) window.showNotification(msg, type);
@@ -100,7 +103,7 @@ async function populateFolderList() {
     }
 }
 
-// NEW: Function to explicitly create a persistent folder
+// Function to explicitly create a persistent folder
 export async function createPersistentFolder(folderName) {
     if (!folderName || !auth.currentUser) return;
     try {
@@ -112,7 +115,7 @@ export async function createPersistentFolder(folderName) {
     }
 }
 
-// NEW: Delete empty folder manually
+// Delete empty folder manually
 export async function deletePersistentFolder(folderName) {
     if (!folderName || !auth.currentUser) return;
     if(!confirm(`Delete folder '${folderName}'? (Only empty folders can be removed)`)) return;
@@ -223,6 +226,25 @@ export async function performSave(silent = false) {
 
         await setDoc(docRef, dataToSave);
         
+        // --- STORYTELLER SYNC LOGIC ---
+        if (stState && stState.activeChronicleId && stState.playerRef && !stState.isStoryteller) {
+            // Push update to the active player record in the chronicle
+            try {
+                await setDoc(stState.playerRef, {
+                    character_name: rawName,
+                    live_stats: {
+                        health: window.state.status.health_states || [],
+                        willpower: window.state.status.tempWillpower || 0,
+                        blood: window.state.status.blood || 0
+                    },
+                    last_active: new Date().toISOString()
+                }, { merge: true });
+                console.log("Synced to Chronicle.");
+            } catch (syncErr) {
+                console.warn("Chronicle Sync Failed:", syncErr);
+            }
+        }
+
         if (isManualSave) {
             notify("Character Inscribed.");
             modal.classList.remove('active');
@@ -401,9 +423,6 @@ function renderLoadMenuUI() {
                     const charName = char.meta?.filename || char.textFields?.['c-name'] || char.id;
                     const clan = char.textFields?.['c-clan'] || "Unknown";
 
-                    // FIXED: Explicitly creating button element and attaching listener in JS
-                    // This avoids issues with inline HTML strings and quoting
-                    
                     const infoDiv = document.createElement('div');
                     infoDiv.className = "flex-1 overflow-hidden";
                     infoDiv.innerHTML = `
