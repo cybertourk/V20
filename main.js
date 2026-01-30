@@ -48,6 +48,9 @@ import { NECROMANCY_DATA } from './necromancy-data.js';
 import { THAUMATURGY_RITUALS } from './thaumaturgy-rituals.js';
 import { NECROMANCY_RITUALS } from './necromancy-rituals.js';
 
+// --- NEW STORYTELLER SYSTEM ---
+import { initStorytellerSystem } from "./ui-storyteller.js";
+
 // Merge Thaumaturgy and Necromancy Paths into the main Disciplines object
 Object.assign(DISCIPLINES_DATA, THAUMATURGY_DATA, NECROMANCY_DATA);
 
@@ -725,6 +728,10 @@ function initUI() {
         const topXpBtn = document.getElementById('toggle-xp-btn'); 
         if(topXpBtn) topXpBtn.onclick = () => { if(window.toggleXpMode) window.toggleXpMode(); };
 
+        // --- NEW CHRONICLES BUTTON LISTENER ---
+        const chronBtn = document.getElementById('chronicles-btn');
+        if(chronBtn) chronBtn.onclick = () => { if(window.openChronicleModal) window.openChronicleModal(); };
+
         const loginBtn = document.getElementById('login-btn');
         if(loginBtn) {
             loginBtn.onclick = () => {
@@ -852,6 +859,9 @@ function initUI() {
             }
             window.updatePools();
         });
+
+        // --- INIT STORYTELLER SYSTEM ---
+        if (initStorytellerSystem) initStorytellerSystem();
 
         // 2. FORCE SYNC AT END OF INIT
         // Ensure pools and initial UI state are consistent
