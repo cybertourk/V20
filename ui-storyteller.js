@@ -16,7 +16,9 @@ export const stState = {
     listeners: [], // Store unsubscribe functions
     players: {},   // Store connected player data
     bestiary: {},  // Store custom cloud NPCs
-    currentView: 'roster' // roster, combat, bestiary, journal
+    journal: {},   // Store campaign handouts/notes
+    currentView: 'roster', // roster, combat, bestiary, journal
+    syncInterval: null
 };
 
 // --- INITIALIZATION ---
@@ -32,6 +34,8 @@ export function initStorytellerSystem() {
     window.handleJoinChronicle = handleJoinChronicle;
     window.disconnectChronicle = disconnectChronicle;
     window.switchStorytellerView = switchStorytellerView;
+    
+    // Bestiary Actions
     window.copyStaticNpc = copyStaticNpc;
     window.deleteCloudNpc = deleteCloudNpc;
     window.editCloudNpc = editCloudNpc;
@@ -44,9 +48,13 @@ export function initStorytellerSystem() {
     window.stRemoveCombatant = removeCombatant;
     window.stRollInit = rollNPCInitiative;
     window.stAddToCombat = handleAddToCombat;
-    
-    // Expose render for the tracker to call back
     window.renderCombatView = renderCombatView;
+
+    // Journal Bindings
+    window.stCreateJournalEntry = stCreateJournalEntry;
+    window.stSaveJournalEntry = stSaveJournalEntry;
+    window.stDeleteJournalEntry = stDeleteJournalEntry;
+    window.stPushHandout = pushHandoutToPlayers;
 }
 
 // --- MODAL HANDLERS ---
@@ -232,7 +240,7 @@ async function handleCreateChronicle() {
         stState.isStoryteller = true;
         
         window.closeChronicleModal();
-        activateStorytellerMode(); 
+        activateStorytellerMode(); // Switch UI to ST Dashboard
         
     } catch (e) {
         console.error("Create Error:", e);
@@ -290,6 +298,7 @@ async function handleJoinChronicle() {
         stState.isStoryteller = false;
         stState.playerRef = playerRef;
 
+        // Start Live Sync
         startPlayerSync();
 
         showNotification(`Joined ${data.name}`);
@@ -318,6 +327,7 @@ function disconnectChronicle() {
     stState.isStoryteller = false;
     stState.players = {};
     stState.bestiary = {};
+    stState.journal = {};
 
     showNotification("Disconnected from Chronicle.");
     
@@ -398,6 +408,9 @@ function activateStorytellerMode() {
                 <button class="st-tab px-6 py-3 text-xs font-bold uppercase tracking-wider text-gray-500 hover:text-white hover:bg-[#222] transition-colors" onclick="window.switchStorytellerView('bestiary')">
                     <i class="fas fa-dragon mr-2"></i> Bestiary
                 </button>
+                <button class="st-tab px-6 py-3 text-xs font-bold uppercase tracking-wider text-gray-500 hover:text-white hover:bg-[#222] transition-colors" onclick="window.switchStorytellerView('journal')">
+                    <i class="fas fa-book-open mr-2"></i> Journal
+                </button>
             </div>
 
             <!-- ST Viewport -->
@@ -407,26 +420,29 @@ function activateStorytellerMode() {
         </div>
     `;
 
-    // Initialize Sub-Listeners
+    // Listeners
     const qRoster = query(collection(db, 'chronicles', stState.activeChronicleId, 'players'));
-    const unsubRoster = onSnapshot(qRoster, (snapshot) => {
+    stState.listeners.push(onSnapshot(qRoster, (snapshot) => {
         stState.players = {};
         snapshot.forEach(doc => { stState.players[doc.id] = doc.data(); });
         if (stState.currentView === 'roster') renderRosterView();
-    });
-    stState.listeners.push(unsubRoster);
+    }));
 
     const qBestiary = query(collection(db, 'chronicles', stState.activeChronicleId, 'bestiary'));
-    const unsubBestiary = onSnapshot(qBestiary, (snapshot) => {
+    stState.listeners.push(onSnapshot(qBestiary, (snapshot) => {
         stState.bestiary = {};
         snapshot.forEach(doc => { stState.bestiary[doc.id] = doc.data(); });
         if (stState.currentView === 'bestiary') renderBestiaryView();
-    });
-    stState.listeners.push(unsubBestiary);
+    }));
 
-    // Init Combat Tracker Logic
+    const qJournal = query(collection(db, 'chronicles', stState.activeChronicleId, 'journal'));
+    stState.listeners.push(onSnapshot(qJournal, (snapshot) => {
+        stState.journal = {};
+        snapshot.forEach(doc => { stState.journal[doc.id] = doc.data(); });
+        if (stState.currentView === 'journal') renderJournalView();
+    }));
+
     initCombatTracker(stState.activeChronicleId);
-
     switchStorytellerView('roster');
 }
 
@@ -442,6 +458,7 @@ function switchStorytellerView(view) {
     if (view === 'roster') renderRosterView();
     else if (view === 'combat') renderCombatView();
     else if (view === 'bestiary') renderBestiaryView();
+    else if (view === 'journal') renderJournalView();
 }
 
 // --- VIEW 1: ROSTER ---
@@ -462,10 +479,7 @@ function renderRosterView() {
         const health = p.live_stats?.health || [];
         const dmgCount = health.filter(x => x > 0).length;
         const statusDot = p.status === 'Offline' ? 'bg-red-500' : 'bg-green-500';
-        
-        // Pass Player object to handler
-        // We use a safe ID or index if ID missing
-        const playerId = Object.keys(stState.players).find(key => stState.players[key] === p);
+        const pid = Object.keys(stState.players).find(k => stState.players[k] === p);
 
         html += `
             <div class="bg-[#111] border border-[#333] rounded p-4 shadow-md relative group hover:border-[#555] transition-colors">
@@ -481,7 +495,7 @@ function renderRosterView() {
                         <div class="text-lg font-bold ${dmgCount > 3 ? 'text-red-500' : 'text-green-500'}">${7 - dmgCount}/7</div>
                     </div>
                     <div class="bg-black/30 p-2 rounded border border-[#222]">
-                        <div class="text-[9px] uppercase text-gray-500 font-bold mb-1">Willpower</div>
+                        <div class="text-[9px] uppercase text-gray-500 font-bold mb-1">WP</div>
                         <div class="text-lg font-bold text-blue-400">${p.live_stats?.willpower || 0}</div>
                     </div>
                     <div class="bg-black/30 p-2 rounded border border-[#222]">
@@ -491,7 +505,7 @@ function renderRosterView() {
                 </div>
 
                 <div class="mt-4 pt-2 border-t border-[#222] flex justify-end gap-2 opacity-50 group-hover:opacity-100 transition-opacity">
-                    <button class="text-[10px] uppercase font-bold text-gray-400 hover:text-white px-2 py-1 border border-[#333] rounded hover:bg-[#222]" onclick="window.stAddToCombat({id:'${playerId}', name:'${p.character_name}'}, 'Player')">
+                    <button class="text-[10px] uppercase font-bold text-gray-400 hover:text-white px-2 py-1 border border-[#333] rounded hover:bg-[#222]" onclick="window.stAddToCombat({id:'${pid}', name:'${p.character_name}'}, 'Player')">
                         <i class="fas fa-swords mr-1"></i> Combat
                     </button>
                 </div>
@@ -507,7 +521,6 @@ function renderCombatView() {
     const viewport = document.getElementById('st-viewport');
     if (!viewport || stState.currentView !== 'combat') return;
 
-    // Use state from tracker
     const { isActive, turn, combatants } = combatState;
 
     if (!isActive) {
@@ -515,10 +528,7 @@ function renderCombatView() {
             <div class="flex flex-col items-center justify-center h-full text-gray-500">
                 <i class="fas fa-peace text-6xl mb-6 opacity-30"></i>
                 <h3 class="text-xl font-bold text-gray-400 mb-2">No Active Combat</h3>
-                <p class="text-xs text-gray-600 mb-6 max-w-md text-center">Add combatants from the Roster or Bestiary, then initialize the encounter.</p>
-                <button onclick="window.stStartCombat()" class="bg-[#8b0000] hover:bg-red-700 text-white font-bold py-3 px-8 uppercase tracking-widest shadow-lg rounded transition-transform hover:scale-105">
-                    Start Encounter
-                </button>
+                <button onclick="window.stStartCombat()" class="bg-[#8b0000] hover:bg-red-700 text-white font-bold py-3 px-8 uppercase tracking-widest shadow-lg rounded transition-transform hover:scale-105">Start Encounter</button>
             </div>
         `;
         return;
@@ -526,7 +536,6 @@ function renderCombatView() {
 
     let html = `
         <div class="flex flex-col h-full">
-            <!-- Combat Header -->
             <div class="bg-[#111] border-b border-[#333] p-4 flex justify-between items-center shadow-md z-20">
                 <div class="flex items-center gap-6">
                     <div class="text-center">
@@ -537,12 +546,8 @@ function renderCombatView() {
                         Next Turn <i class="fas fa-step-forward"></i>
                     </button>
                 </div>
-                <div class="flex gap-3">
-                    <button onclick="window.stEndCombat()" class="text-red-500 hover:text-red-300 text-xs font-bold uppercase border border-red-900/30 px-4 py-2 rounded hover:bg-red-900/10">End Combat</button>
-                </div>
+                <button onclick="window.stEndCombat()" class="text-red-500 hover:text-red-300 text-xs font-bold uppercase border border-red-900/30 px-4 py-2 rounded hover:bg-red-900/10">End Combat</button>
             </div>
-
-            <!-- Combatants List -->
             <div class="flex-1 overflow-y-auto p-4 space-y-2 bg-black/50">
     `;
 
@@ -551,47 +556,18 @@ function renderCombatView() {
     } else {
         combatants.forEach(c => {
             const isNPC = c.type === 'NPC';
-            // Health Bar Calculation
-            let hpBar = '';
-            if (isNPC && c.health) {
-                // Determine boxes based on simple track (0=Ok, 1=Bash, 2=Lethal, 3=Agg)
-                // Just count damage for a simple visual bar
-                // Legacy support: c.health might be { damage: X } or { track: [] }
-                let dmg = 0;
-                if (c.health.track) dmg = c.health.track.filter(x => x>0).length;
-                else dmg = c.health.damage || 0;
-                
-                const pct = Math.max(0, (7 - dmg) / 7) * 100;
-                let color = 'bg-green-600';
-                if (dmg > 3) color = 'bg-yellow-600';
-                if (dmg > 5) color = 'bg-red-600';
-                
-                hpBar = `<div class="w-24 h-2 bg-gray-800 rounded overflow-hidden ml-4"><div class="${color} h-full" style="width: ${pct}%"></div></div>`;
-            } else {
-                // Player health is synced via roster usually, but combatant obj might strictly track initiative
-                hpBar = `<div class="ml-4 text-[10px] text-blue-400 font-bold">PLAYER</div>`;
-            }
-
             html += `
                 <div class="bg-[#1a1a1a] border border-[#333] p-2 rounded flex items-center justify-between group hover:border-[#555] transition-colors relative overflow-hidden">
-                    <!-- Left: Init & Name -->
                     <div class="flex items-center gap-4 flex-1">
                         <div class="flex flex-col items-center w-12">
-                            <input type="number" value="${c.init}" 
-                                onchange="window.stUpdateInit('${c.id}', this.value)" 
-                                class="w-10 bg-black border border-[#444] text-center text-lg font-bold text-[#d4af37] focus:outline-none focus:border-[#d4af37] rounded">
+                            <input type="number" value="${c.init}" onchange="window.stUpdateInit('${c.id}', this.value)" class="w-10 bg-black border border-[#444] text-center text-lg font-bold text-[#d4af37] focus:outline-none focus:border-[#d4af37] rounded">
                             <span class="text-[8px] text-gray-600 uppercase font-bold mt-0.5">Init</span>
                         </div>
-                        
                         <div class="flex flex-col">
                             <span class="text-white font-bold text-sm ${c.status === 'done' ? 'line-through opacity-50' : ''}">${c.name}</span>
                             <span class="text-[9px] text-gray-500 uppercase">${c.type}</span>
                         </div>
-                        
-                        ${hpBar}
                     </div>
-
-                    <!-- Right: Actions -->
                     <div class="flex items-center gap-2">
                         ${isNPC ? `<button onclick="window.stRollInit('${c.id}')" class="text-gray-500 hover:text-white" title="Roll Initiative"><i class="fas fa-dice-d10"></i></button>` : ''}
                         <button onclick="window.stRemoveCombatant('${c.id}')" class="text-red-900 hover:text-red-500 px-2 transition-colors"><i class="fas fa-times"></i></button>
@@ -600,7 +576,6 @@ function renderCombatView() {
             `;
         });
     }
-
     html += `</div></div>`;
     viewport.innerHTML = html;
 }
@@ -646,7 +621,7 @@ function renderCustomBestiaryList() {
     if (!container || !grid) return;
 
     container.innerHTML = '';
-    grid.innerHTML = ''; // Default to showing custom cards
+    grid.innerHTML = ''; 
 
     const customNPCs = Object.values(stState.bestiary);
     
@@ -658,26 +633,15 @@ function renderCustomBestiaryList() {
     customNPCs.forEach(entry => {
         const id = Object.keys(stState.bestiary).find(key => stState.bestiary[key] === entry);
         
-        // Sidebar Link
         const item = document.createElement('div');
         item.className = "cursor-pointer hover:text-blue-300 px-2 py-1 text-[11px] text-blue-500 truncate";
         item.innerText = entry.name;
-        item.onclick = () => renderNpcCard(entry, id, true, grid, true); // true = clear grid first
+        item.onclick = () => renderNpcCard(entry, id, true, grid, true);
         container.appendChild(item);
 
-        // Grid Card
         renderNpcCard(entry, id, true, grid);
     });
 }
-
-window.previewStaticNpc = function(category, key) {
-    const npc = BESTIARY[category][key];
-    const grid = document.getElementById('bestiary-grid');
-    if (grid && npc) {
-        grid.innerHTML = '';
-        renderNpcCard({ data: npc, name: key, type: npc.template }, null, false, grid);
-    }
-};
 
 function renderNpcCard(entry, id, isCustom, container, clearFirst = false) {
     if (clearFirst) container.innerHTML = '';
@@ -715,53 +679,161 @@ function renderNpcCard(entry, id, isCustom, container, clearFirst = false) {
         </div>
         <div class="flex justify-between items-center border-t border-[#222] pt-2 mt-auto">
             <div class="flex gap-1">${actionsHtml}</div>
-            <button class="bg-[#8b0000] hover:bg-red-700 text-white px-3 py-1 text-[9px] font-bold uppercase rounded shadow-md" onclick="event.stopPropagation(); window.stAddToCombat({id:'${id||name}', name:'${name}', health: ${isCustom ? 'null' : '{damage:0}'}, sourceId: '${id}'}, 'NPC')">Spawn</button>
+            <button class="bg-[#8b0000] hover:bg-red-700 text-white px-3 py-1 text-[9px] font-bold uppercase rounded shadow-md" onclick="event.stopPropagation(); window.stAddToCombat({id:'${id||name}', name:'${name}', health:${isCustom?'null':'{damage:0}'}, sourceId:'${id}'}, 'NPC')">Spawn</button>
         </div>
     `;
-    
-    // Clicking card opens sheet view (readonly)
     card.onclick = () => { if(window.openNpcSheet) window.openNpcSheet(npc); };
-    
     container.appendChild(card);
 }
 
-// --- HELPER: ADD TO COMBAT ---
-function handleAddToCombat(entity, type) {
-    if (!stState.activeChronicleId) {
-        showNotification("No active chronicle.", "error");
-        return;
-    }
+// ==========================================================================
+// VIEW 4: JOURNAL & HANDOUTS
+// ==========================================================================
+
+function renderJournalView() {
+    const viewport = document.getElementById('st-viewport');
+    if (!viewport || stState.currentView !== 'journal') return;
     
-    // If entity has no health struct (e.g. from static bestiary), give default
-    if (!entity.health) entity.health = { damage: 0, track: [0,0,0,0,0,0,0] };
-    
-    addCombatant(entity, type);
-    
-    // Optional: Auto-switch view?
-    // switchStorytellerView('combat');
+    viewport.innerHTML = `
+        <div class="flex h-full">
+            <div class="w-64 bg-[#080808] border-r border-[#333] flex flex-col">
+                <div class="p-3 border-b border-[#333] bg-[#111]"><h3 class="text-xs font-bold text-gray-400 uppercase">Campaign Handouts</h3></div>
+                <div id="st-journal-list" class="flex-1 overflow-y-auto p-2 space-y-1"></div>
+                <div class="p-2 border-t border-[#333]"><button onclick="window.stCreateJournalEntry()" class="w-full bg-[#d4af37] text-black text-xs font-bold py-2 uppercase hover:bg-[#fcd34d]">New Handout</button></div>
+            </div>
+            <div id="st-journal-editor" class="flex-1 p-6 overflow-y-auto bg-[#0a0a0a] hidden">
+                <!-- Editor Injected Here -->
+            </div>
+            <div id="st-journal-empty" class="flex-1 flex items-center justify-center text-gray-500 italic text-xs">Select or Create a Handout to share.</div>
+        </div>
+    `;
+    renderJournalList();
 }
 
-// --- ACTIONS WRAPPERS ---
+function renderJournalList() {
+    const list = document.getElementById('st-journal-list');
+    if(!list) return;
+    list.innerHTML = '';
+    
+    Object.entries(stState.journal).forEach(([id, entry]) => {
+        const item = document.createElement('div');
+        item.className = "p-2 border-b border-[#222] cursor-pointer hover:bg-[#1a1a1a] group flex justify-between items-center";
+        item.innerHTML = `
+            <span class="text-xs font-bold text-gray-300 group-hover:text-white truncate">${entry.name}</span>
+            <div class="flex gap-1">
+                ${entry.image ? '<i class="fas fa-image text-[8px] text-blue-400" title="Has Image"></i>' : ''}
+                ${entry.pushed ? '<i class="fas fa-share-alt text-[8px] text-green-500" title="Shared"></i>' : ''}
+            </div>
+        `;
+        item.onclick = () => openJournalEditor(id, entry);
+        list.appendChild(item);
+    });
+}
+
+function openJournalEditor(id, entry) {
+    document.getElementById('st-journal-empty').classList.add('hidden');
+    const editor = document.getElementById('st-journal-editor');
+    editor.classList.remove('hidden');
+    
+    editor.innerHTML = `
+        <div class="max-w-2xl mx-auto">
+            <input type="text" id="st-j-name" value="${entry.name}" class="w-full bg-transparent border-b border-[#444] text-2xl font-cinzel font-bold text-[#d4af37] mb-4 focus:outline-none" placeholder="Handout Title">
+            <div class="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                    <label class="block text-[10px] uppercase text-gray-500 font-bold mb-1">Image URL</label>
+                    <div class="flex gap-2">
+                        <input type="text" id="st-j-img" value="${entry.image||''}" class="flex-1 bg-[#111] border border-[#333] text-xs p-2 text-white" placeholder="https://...">
+                        <button onclick="window.stPushHandout('${id}')" class="bg-blue-900/40 border border-blue-800 text-blue-200 hover:text-white px-3 py-1 text-xs font-bold uppercase rounded" title="Share with Players"><i class="fas fa-share-alt"></i> Push</button>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-[10px] uppercase text-gray-500 font-bold mb-1">Type</label>
+                    <select id="st-j-type" class="w-full bg-[#111] border border-[#333] text-xs p-2 text-white">
+                        <option value="Handout" ${entry.type==='Handout'?'selected':''}>Handout</option>
+                        <option value="Map" ${entry.type==='Map'?'selected':''}>Map</option>
+                        <option value="Letter" ${entry.type==='Letter'?'selected':''}>Letter</option>
+                    </select>
+                </div>
+            </div>
+            ${entry.image ? `<div class="mb-4 bg-black border border-[#333] p-1"><img src="${entry.image}" class="max-h-64 object-contain mx-auto"></div>` : ''}
+            <textarea id="st-j-desc" class="w-full h-64 bg-[#111] border border-[#333] text-gray-300 p-4 text-sm resize-none leading-relaxed font-serif" placeholder="Description / Text...">${entry.desc||''}</textarea>
+            <div class="flex justify-between mt-4 border-t border-[#333] pt-4">
+                <button onclick="window.stDeleteJournalEntry('${id}')" class="text-red-500 text-xs font-bold uppercase hover:text-red-300">Delete</button>
+                <button onclick="window.stSaveJournalEntry('${id}')" class="bg-[#8b0000] text-white px-6 py-2 text-xs font-bold uppercase hover:bg-red-700">Save Changes</button>
+            </div>
+        </div>
+    `;
+}
+
+// --- JOURNAL ACTIONS ---
+async function stCreateJournalEntry() {
+    const id = "h_" + Date.now();
+    try {
+        await setDoc(doc(db, 'chronicles', stState.activeChronicleId, 'journal', id), {
+            name: "New Handout", type: "Handout", desc: "", image: "", pushed: false
+        });
+    } catch(e) { console.error(e); }
+}
+
+async function stSaveJournalEntry(id) {
+    try {
+        await setDoc(doc(db, 'chronicles', stState.activeChronicleId, 'journal', id), {
+            name: document.getElementById('st-j-name').value,
+            image: document.getElementById('st-j-img').value,
+            type: document.getElementById('st-j-type').value,
+            desc: document.getElementById('st-j-desc').value,
+            pushed: false 
+        }, { merge: true });
+        showNotification("Saved.");
+    } catch(e) { console.error(e); }
+}
+
+async function stDeleteJournalEntry(id) {
+    if(!confirm("Delete this handout?")) return;
+    try {
+        await deleteDoc(doc(db, 'chronicles', stState.activeChronicleId, 'journal', id));
+        document.getElementById('st-journal-editor').classList.add('hidden');
+        document.getElementById('st-journal-empty').classList.remove('hidden');
+    } catch(e) { console.error(e); }
+}
+
+async function pushHandoutToPlayers(id) {
+    const entry = stState.journal[id];
+    if(!entry) return;
+    try {
+        await setDoc(doc(db, 'chronicles', stState.activeChronicleId, 'journal', id), { pushed: true, pushTime: Date.now() }, { merge: true });
+        showNotification("Pushed to Players!");
+    } catch(e) { console.error(e); }
+}
+
+// --- WRAPPERS ---
+function handleAddToCombat(entity, type) {
+    if (!stState.activeChronicleId) { showNotification("No active chronicle.", "error"); return; }
+    if (!entity.health) entity.health = { damage: 0, track: [0,0,0,0,0,0,0] };
+    addCombatant(entity, type);
+}
+
 window.copyStaticNpc = function(name) {
     let found = null;
     for(const cat in BESTIARY) { if(BESTIARY[cat][name]) found = BESTIARY[cat][name]; }
-    if(found && window.openNpcCreator) {
-        window.openNpcCreator(found.template||'mortal', found);
-        showNotification("Template Loaded. Save to Cloud Bestiary to customize.");
-    }
+    if(found && window.openNpcCreator) { window.openNpcCreator(found.template||'mortal', found); showNotification("Template Loaded."); }
 };
 
 window.deleteCloudNpc = async function(id) {
-    if(!confirm("Delete this NPC?")) return;
-    try {
-        await deleteDoc(doc(db, 'chronicles', stState.activeChronicleId, 'bestiary', id));
-        showNotification("Deleted.");
-    } catch(e) { console.error(e); }
+    if(!confirm("Delete?")) return;
+    try { await deleteDoc(doc(db, 'chronicles', stState.activeChronicleId, 'bestiary', id)); showNotification("Deleted."); } catch(e) {}
 };
 
 window.editCloudNpc = function(id) {
     const entry = stState.bestiary[id];
-    if(entry && entry.data && window.openNpcCreator) {
-        window.openNpcCreator(entry.type, entry.data);
-    }
+    if(entry && entry.data && window.openNpcCreator) window.openNpcCreator(entry.type, entry.data);
 }
+
+window.previewStaticNpc = function(category, key) {
+    const npc = BESTIARY[category][key];
+    const grid = document.getElementById('bestiary-grid');
+    if (grid && npc) {
+        grid.innerHTML = '';
+        renderNpcCard({ data: npc, name: key, type: npc.template }, null, false, grid);
+    }
+};
