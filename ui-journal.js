@@ -1073,7 +1073,11 @@ window.applyAutocomplete = function(fullName) {
 }
 
 document.addEventListener('click', (e) => {
-    if (!e.target.closest('.autocomplete-box')) document.getElementById('autocomplete-suggestions').style.display = 'none';
+    // FIX: Check if suggestions exists BEFORE checking style to avoid startup crash
+    const suggestions = document.getElementById('autocomplete-suggestions');
+    if (suggestions && !e.target.closest('.autocomplete-box')) {
+        suggestions.style.display = 'none';
+    }
 });
 
 // Exports
