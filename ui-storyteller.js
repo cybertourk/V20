@@ -8,6 +8,9 @@ import {
     addCombatant, removeCombatant, updateInitiative, rollNPCInitiative 
 } from "./combat-tracker.js";
 
+// IMPORT NEW JOURNAL LOGIC (Delegation)
+import { renderStorytellerJournal } from "./ui-journal.js";
+
 // --- STATE ---
 export const stState = {
     activeChronicleId: null,
@@ -33,7 +36,7 @@ export function initStorytellerSystem() {
     window.renderCreateChronicleUI = renderCreateChronicleUI;
     window.handleCreateChronicle = handleCreateChronicle;
     window.handleJoinChronicle = handleJoinChronicle;
-    window.handleResumeChronicle = handleResumeChronicle; // NEW
+    window.handleResumeChronicle = handleResumeChronicle;
     window.disconnectChronicle = disconnectChronicle;
     window.switchStorytellerView = switchStorytellerView;
     
@@ -41,6 +44,7 @@ export function initStorytellerSystem() {
     window.copyStaticNpc = copyStaticNpc;
     window.deleteCloudNpc = deleteCloudNpc;
     window.editCloudNpc = editCloudNpc;
+    window.previewStaticNpc = previewStaticNpc;
     
     // Combat Bindings
     window.stStartCombat = startCombat;
@@ -52,11 +56,9 @@ export function initStorytellerSystem() {
     window.stAddToCombat = handleAddToCombat;
     window.renderCombatView = renderCombatView;
 
-    // Journal Bindings
-    window.stCreateJournalEntry = stCreateJournalEntry;
-    window.stSaveJournalEntry = stSaveJournalEntry;
-    window.stDeleteJournalEntry = stDeleteJournalEntry;
+    // Journal Bindings (Delegated Wrappers for UI Journal)
     window.stPushHandout = pushHandoutToPlayers;
+    window.stDeleteJournalEntry = stDeleteJournalEntry;
     
     // Player Bindings
     window.togglePlayerCombatView = togglePlayerCombatView;
@@ -95,7 +97,7 @@ function renderChronicleMenu() {
     // Check for Recent Chronicle
     const recentId = localStorage.getItem('v20_last_chronicle_id');
     const recentName = localStorage.getItem('v20_last_chronicle_name') || recentId;
-    const recentRole = localStorage.getItem('v20_last_chronicle_role'); // 'ST' or 'Player'
+    const recentRole = localStorage.getItem('v20_last_chronicle_role'); 
 
     let resumeHtml = '';
     if (recentId && user) {
@@ -263,7 +265,6 @@ async function handleCreateChronicle() {
 
         await setDoc(doc(db, 'chronicles', chronicleId), chronicleData);
         
-        // Save to Local Storage for Resume
         localStorage.setItem('v20_last_chronicle_id', chronicleId);
         localStorage.setItem('v20_last_chronicle_name', name);
         localStorage.setItem('v20_last_chronicle_role', 'ST');
@@ -327,7 +328,6 @@ async function handleJoinChronicle() {
             }
         }, { merge: true });
 
-        // Save to Local Storage for Resume
         localStorage.setItem('v20_last_chronicle_id', idInput);
         localStorage.setItem('v20_last_chronicle_name', data.name);
         localStorage.setItem('v20_last_chronicle_role', 'Player');
@@ -349,7 +349,6 @@ async function handleJoinChronicle() {
     }
 }
 
-// --- NEW RESUME HANDLER ---
 async function handleResumeChronicle(id, role) {
     if (!auth.currentUser) return;
     
@@ -377,9 +376,7 @@ async function handleResumeChronicle(id, role) {
             activateStorytellerMode();
             showNotification(`Resumed ${data.name}`);
         } else {
-            // Player Resume (Implicitly allowed if previously joined)
             const playerRef = doc(db, 'chronicles', id, 'players', auth.currentUser.uid);
-            // Refresh status
             await setDoc(playerRef, { status: "Connected", last_active: new Date().toISOString() }, { merge: true });
             
             stState.activeChronicleId = id;
@@ -582,8 +579,6 @@ function renderPlayerCombatModal() {
             const highlight = isMe ? "border-[#d4af37] bg-[#d4af37]/10" : "border-[#333] bg-[#1a1a1a]";
             const status = c.status === 'done' ? "opacity-50 grayscale" : "";
             
-            // Health Bar (Simplified for Players - Fog of War logic can be added later)
-            // For now, players see approximate health bars of everyone
             let hpBar = '';
             if (c.health) {
                 let dmg = 0;
@@ -687,7 +682,7 @@ function activateStorytellerMode() {
     stState.listeners.push(onSnapshot(qJournal, (snapshot) => {
         stState.journal = {};
         snapshot.forEach(doc => { stState.journal[doc.id] = doc.data(); });
-        if (stState.currentView === 'journal') renderJournalView();
+        if (stState.currentView === 'journal') renderStorytellerJournal(document.getElementById('st-viewport'));
     }));
 
     initCombatTracker(stState.activeChronicleId);
@@ -703,10 +698,11 @@ function switchStorytellerView(view) {
             : "st-tab px-6 py-3 text-xs font-bold uppercase tracking-wider text-gray-500 hover:text-white hover:bg-[#222] transition-colors";
     });
 
+    const viewport = document.getElementById('st-viewport');
     if (view === 'roster') renderRosterView();
     else if (view === 'combat') renderCombatView();
     else if (view === 'bestiary') renderBestiaryView();
-    else if (view === 'journal') renderJournalView();
+    else if (view === 'journal') renderStorytellerJournal(viewport);
 }
 
 // --- VIEW 1: ROSTER ---
@@ -934,105 +930,13 @@ function renderNpcCard(entry, id, isCustom, container, clearFirst = false) {
     container.appendChild(card);
 }
 
-// ==========================================================================
-// VIEW 4: JOURNAL & HANDOUTS
-// ==========================================================================
-
-function renderJournalView() {
-    const viewport = document.getElementById('st-viewport');
-    if (!viewport || stState.currentView !== 'journal') return;
-    
-    viewport.innerHTML = `
-        <div class="flex h-full">
-            <div class="w-64 bg-[#080808] border-r border-[#333] flex flex-col">
-                <div class="p-3 border-b border-[#333] bg-[#111]"><h3 class="text-xs font-bold text-gray-400 uppercase">Campaign Handouts</h3></div>
-                <div id="st-journal-list" class="flex-1 overflow-y-auto p-2 space-y-1"></div>
-                <div class="p-2 border-t border-[#333]"><button onclick="window.stCreateJournalEntry()" class="w-full bg-[#d4af37] text-black text-xs font-bold py-2 uppercase hover:bg-[#fcd34d]">New Handout</button></div>
-            </div>
-            <div id="st-journal-editor" class="flex-1 p-6 overflow-y-auto bg-[#0a0a0a] hidden">
-                <!-- Editor Injected Here -->
-            </div>
-            <div id="st-journal-empty" class="flex-1 flex items-center justify-center text-gray-500 italic text-xs">Select or Create a Handout to share.</div>
-        </div>
-    `;
-    renderJournalList();
-}
-
-function renderJournalList() {
-    const list = document.getElementById('st-journal-list');
-    if(!list) return;
-    list.innerHTML = '';
-    
-    Object.entries(stState.journal).forEach(([id, entry]) => {
-        const item = document.createElement('div');
-        item.className = "p-2 border-b border-[#222] cursor-pointer hover:bg-[#1a1a1a] group flex justify-between items-center";
-        item.innerHTML = `
-            <span class="text-xs font-bold text-gray-300 group-hover:text-white truncate">${entry.name}</span>
-            <div class="flex gap-1">
-                ${entry.image ? '<i class="fas fa-image text-[8px] text-blue-400" title="Has Image"></i>' : ''}
-                ${entry.pushed ? '<i class="fas fa-share-alt text-[8px] text-green-500" title="Shared"></i>' : ''}
-            </div>
-        `;
-        item.onclick = () => openJournalEditor(id, entry);
-        list.appendChild(item);
-    });
-}
-
-function openJournalEditor(id, entry) {
-    document.getElementById('st-journal-empty').classList.add('hidden');
-    const editor = document.getElementById('st-journal-editor');
-    editor.classList.remove('hidden');
-    
-    editor.innerHTML = `
-        <div class="max-w-2xl mx-auto">
-            <input type="text" id="st-j-name" value="${entry.name}" class="w-full bg-transparent border-b border-[#444] text-2xl font-cinzel font-bold text-[#d4af37] mb-4 focus:outline-none" placeholder="Handout Title">
-            <div class="grid grid-cols-2 gap-4 mb-4">
-                <div>
-                    <label class="block text-[10px] uppercase text-gray-500 font-bold mb-1">Image URL</label>
-                    <div class="flex gap-2">
-                        <input type="text" id="st-j-img" value="${entry.image||''}" class="flex-1 bg-[#111] border border-[#333] text-xs p-2 text-white" placeholder="https://...">
-                        <button onclick="window.stPushHandout('${id}')" class="bg-blue-900/40 border border-blue-800 text-blue-200 hover:text-white px-3 py-1 text-xs font-bold uppercase rounded" title="Share with Players"><i class="fas fa-share-alt"></i> Push</button>
-                    </div>
-                </div>
-                <div>
-                    <label class="block text-[10px] uppercase text-gray-500 font-bold mb-1">Type</label>
-                    <select id="st-j-type" class="w-full bg-[#111] border border-[#333] text-xs p-2 text-white">
-                        <option value="Handout" ${entry.type==='Handout'?'selected':''}>Handout</option>
-                        <option value="Map" ${entry.type==='Map'?'selected':''}>Map</option>
-                        <option value="Letter" ${entry.type==='Letter'?'selected':''}>Letter</option>
-                    </select>
-                </div>
-            </div>
-            ${entry.image ? `<div class="mb-4 bg-black border border-[#333] p-1"><img src="${entry.image}" class="max-h-64 object-contain mx-auto"></div>` : ''}
-            <textarea id="st-j-desc" class="w-full h-64 bg-[#111] border border-[#333] text-gray-300 p-4 text-sm resize-none leading-relaxed font-serif" placeholder="Description / Text...">${entry.desc||''}</textarea>
-            <div class="flex justify-between mt-4 border-t border-[#333] pt-4">
-                <button onclick="window.stDeleteJournalEntry('${id}')" class="text-red-500 text-xs font-bold uppercase hover:text-red-300">Delete</button>
-                <button onclick="window.stSaveJournalEntry('${id}')" class="bg-[#8b0000] text-white px-6 py-2 text-xs font-bold uppercase hover:bg-red-700">Save Changes</button>
-            </div>
-        </div>
-    `;
-}
-
-// --- JOURNAL ACTIONS ---
-async function stCreateJournalEntry() {
-    const id = "h_" + Date.now();
+// --- DELEGATED JOURNAL HELPERS ---
+async function pushHandoutToPlayers(id) {
+    const entry = stState.journal[id];
+    if(!entry) return;
     try {
-        await setDoc(doc(db, 'chronicles', stState.activeChronicleId, 'journal', id), {
-            name: "New Handout", type: "Handout", desc: "", image: "", pushed: false
-        });
-    } catch(e) { console.error(e); }
-}
-
-async function stSaveJournalEntry(id) {
-    try {
-        await setDoc(doc(db, 'chronicles', stState.activeChronicleId, 'journal', id), {
-            name: document.getElementById('st-j-name').value,
-            image: document.getElementById('st-j-img').value,
-            type: document.getElementById('st-j-type').value,
-            desc: document.getElementById('st-j-desc').value,
-            pushed: false 
-        }, { merge: true });
-        showNotification("Saved.");
+        await setDoc(doc(db, 'chronicles', stState.activeChronicleId, 'journal', id), { pushed: true, pushTime: Date.now() }, { merge: true });
+        showNotification("Pushed to Players!");
     } catch(e) { console.error(e); }
 }
 
@@ -1040,17 +944,6 @@ async function stDeleteJournalEntry(id) {
     if(!confirm("Delete this handout?")) return;
     try {
         await deleteDoc(doc(db, 'chronicles', stState.activeChronicleId, 'journal', id));
-        document.getElementById('st-journal-editor').classList.add('hidden');
-        document.getElementById('st-journal-empty').classList.remove('hidden');
-    } catch(e) { console.error(e); }
-}
-
-async function pushHandoutToPlayers(id) {
-    const entry = stState.journal[id];
-    if(!entry) return;
-    try {
-        await setDoc(doc(db, 'chronicles', stState.activeChronicleId, 'journal', id), { pushed: true, pushTime: Date.now() }, { merge: true });
-        showNotification("Pushed to Players!");
     } catch(e) { console.error(e); }
 }
 
