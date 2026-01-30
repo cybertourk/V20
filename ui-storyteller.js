@@ -18,7 +18,8 @@ export const stState = {
     bestiary: {},  // Store custom cloud NPCs
     journal: {},   // Store campaign handouts/notes
     currentView: 'roster', // roster, combat, bestiary, journal
-    syncInterval: null
+    syncInterval: null,
+    seenHandouts: new Set() // Track handouts we've already popped up
 };
 
 // --- INITIALIZATION ---
@@ -55,6 +56,9 @@ export function initStorytellerSystem() {
     window.stSaveJournalEntry = stSaveJournalEntry;
     window.stDeleteJournalEntry = stDeleteJournalEntry;
     window.stPushHandout = pushHandoutToPlayers;
+    
+    // Player Bindings
+    window.togglePlayerCombatView = togglePlayerCombatView;
 }
 
 // --- MODAL HANDLERS ---
@@ -240,7 +244,7 @@ async function handleCreateChronicle() {
         stState.isStoryteller = true;
         
         window.closeChronicleModal();
-        activateStorytellerMode(); // Switch UI to ST Dashboard
+        activateStorytellerMode(); 
         
     } catch (e) {
         console.error("Create Error:", e);
@@ -298,8 +302,9 @@ async function handleJoinChronicle() {
         stState.isStoryteller = false;
         stState.playerRef = playerRef;
 
-        // Start Live Sync
+        // Start Sync and Listeners
         startPlayerSync();
+        activatePlayerMode();
 
         showNotification(`Joined ${data.name}`);
         window.closeChronicleModal();
@@ -328,8 +333,13 @@ function disconnectChronicle() {
     stState.players = {};
     stState.bestiary = {};
     stState.journal = {};
+    stState.seenHandouts = new Set();
 
     showNotification("Disconnected from Chronicle.");
+    
+    // Remove injected UI elements
+    const floatBtn = document.getElementById('player-combat-float');
+    if(floatBtn) floatBtn.remove();
     
     const mainContent = document.getElementById('sheet-content');
     if (mainContent) {
@@ -365,6 +375,166 @@ function startPlayerSync() {
     }, 10000);
     
     stState.syncInterval = interval;
+}
+
+// ==========================================================================
+// PLAYER REACTIVITY (NEW)
+// ==========================================================================
+
+function activatePlayerMode() {
+    if (stState.isStoryteller || !stState.activeChronicleId) return;
+
+    // 1. LISTEN FOR COMBAT
+    const combatRef = doc(db, 'chronicles', stState.activeChronicleId, 'combat', 'active');
+    stState.listeners.push(onSnapshot(combatRef, (snapshot) => {
+        const data = snapshot.data();
+        const floatBtn = document.getElementById('player-combat-float');
+        
+        if (data && snapshot.exists() && data.turn > 0) {
+            // Combat is Active
+            if (!floatBtn) {
+                const btn = document.createElement('button');
+                btn.id = 'player-combat-float';
+                btn.className = "fixed top-20 right-4 z-50 bg-[#8b0000] text-white px-4 py-2 rounded-full border-2 border-[#d4af37] shadow-lg animate-pulse hover:animate-none font-cinzel font-bold uppercase flex items-center gap-2";
+                btn.innerHTML = `<i class="fas fa-swords"></i> Combat Active`;
+                btn.onclick = () => window.togglePlayerCombatView();
+                document.body.appendChild(btn);
+            }
+            
+            // Sync Combat State locally for the view
+            combatState.combatants = data.combatants || [];
+            combatState.turn = data.turn || 1;
+            combatState.isActive = true;
+            
+            // If the modal is open, refresh it
+            const modal = document.getElementById('player-combat-modal');
+            if (modal && !modal.classList.contains('hidden')) {
+                renderPlayerCombatModal();
+            }
+            
+        } else {
+            // Combat Ended
+            if (floatBtn) floatBtn.remove();
+            combatState.isActive = false;
+            const modal = document.getElementById('player-combat-modal');
+            if(modal) modal.classList.add('hidden');
+        }
+    }));
+
+    // 2. LISTEN FOR HANDOUTS
+    const journalRef = collection(db, 'chronicles', stState.activeChronicleId, 'journal');
+    stState.listeners.push(onSnapshot(journalRef, (snapshot) => {
+        snapshot.docChanges().forEach((change) => {
+            if (change.type === "added" || change.type === "modified") {
+                const data = change.doc.data();
+                if (data.pushed && !stState.seenHandouts.has(change.doc.id)) {
+                    // Check timestamp to avoid spamming old push on reload (optional, simple check for now)
+                    // We only show if we haven't seen it in this session.
+                    stState.seenHandouts.add(change.doc.id);
+                    renderPlayerHandoutModal(data);
+                }
+            }
+        });
+    }));
+}
+
+function renderPlayerHandoutModal(data) {
+    let modal = document.getElementById('player-handout-modal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'player-handout-modal';
+        modal.className = "fixed inset-0 bg-black/90 z-[1000] flex items-center justify-center p-4";
+        document.body.appendChild(modal);
+    }
+    
+    modal.innerHTML = `
+        <div class="bg-[#111] border-2 border-[#d4af37] max-w-4xl w-full max-h-[90vh] overflow-y-auto relative p-6 shadow-[0_0_50px_rgba(212,175,55,0.3)]">
+            <button onclick="document.getElementById('player-handout-modal').remove()" class="absolute top-2 right-4 text-gray-400 hover:text-white text-2xl">&times;</button>
+            
+            <h2 class="text-3xl text-[#d4af37] font-cinzel font-bold text-center mb-6 uppercase tracking-widest border-b border-[#333] pb-4">${data.name}</h2>
+            
+            ${data.image ? `<div class="mb-6 flex justify-center"><img src="${data.image}" class="max-h-[60vh] object-contain border border-[#333]"></div>` : ''}
+            
+            ${data.desc ? `<div class="text-gray-300 font-serif text-lg leading-relaxed whitespace-pre-wrap px-4">${data.desc}</div>` : ''}
+            
+            <div class="mt-8 text-center">
+                <button onclick="document.getElementById('player-handout-modal').remove()" class="bg-[#222] border border-[#444] text-white px-6 py-2 uppercase font-bold text-sm hover:bg-[#333]">Close</button>
+            </div>
+        </div>
+    `;
+}
+
+function togglePlayerCombatView() {
+    let modal = document.getElementById('player-combat-modal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'player-combat-modal';
+        modal.className = "fixed inset-0 bg-black/80 z-[900] flex items-center justify-center p-4 hidden backdrop-blur-sm";
+        document.body.appendChild(modal);
+    }
+    
+    if (modal.classList.contains('hidden')) {
+        modal.classList.remove('hidden');
+        renderPlayerCombatModal();
+    } else {
+        modal.classList.add('hidden');
+    }
+}
+
+function renderPlayerCombatModal() {
+    const modal = document.getElementById('player-combat-modal');
+    if (!modal) return;
+    
+    const list = combatState.combatants || [];
+    
+    let html = `
+        <div class="bg-[#111] border border-[#8b0000] max-w-2xl w-full max-h-[80vh] flex flex-col shadow-2xl relative">
+            <div class="bg-[#1a0505] p-4 border-b border-[#8b0000] flex justify-between items-center">
+                <h2 class="text-xl font-cinzel font-bold text-white uppercase tracking-widest"><i class="fas fa-swords mr-2"></i> Combat Tracker <span class="text-gray-500 text-sm ml-2">Turn ${combatState.turn}</span></h2>
+                <button onclick="document.getElementById('player-combat-modal').classList.add('hidden')" class="text-gray-400 hover:text-white">&times;</button>
+            </div>
+            <div class="flex-1 overflow-y-auto p-4 space-y-2 bg-[url('https://www.transparenttextures.com/patterns/black-linen.png')]">
+    `;
+    
+    if (list.length === 0) {
+        html += `<div class="text-center text-gray-500 italic">Waiting for combatants...</div>`;
+    } else {
+        list.forEach(c => {
+            const isMe = c.id === auth.currentUser?.uid;
+            const highlight = isMe ? "border-[#d4af37] bg-[#d4af37]/10" : "border-[#333] bg-[#1a1a1a]";
+            const status = c.status === 'done' ? "opacity-50 grayscale" : "";
+            
+            // Health Bar (Simplified for Players - Fog of War logic can be added later)
+            // For now, players see approximate health bars of everyone
+            let hpBar = '';
+            if (c.health) {
+                let dmg = 0;
+                if (c.health.track) dmg = c.health.track.filter(x => x>0).length;
+                else dmg = c.health.damage || 0;
+                const pct = Math.max(0, (7 - dmg) / 7) * 100;
+                let color = 'bg-green-600';
+                if (dmg > 3) color = 'bg-yellow-600';
+                if (dmg > 5) color = 'bg-red-600';
+                hpBar = `<div class="w-16 h-1.5 bg-gray-800 rounded overflow-hidden ml-2"><div class="${color} h-full" style="width: ${pct}%"></div></div>`;
+            }
+
+            html += `
+                <div class="flex items-center justify-between p-3 rounded border ${highlight} ${status}">
+                    <div class="flex items-center gap-3">
+                        <div class="bg-black border border-[#444] w-8 h-8 flex items-center justify-center rounded font-bold text-[#d4af37]">${c.init}</div>
+                        <div>
+                            <div class="font-bold text-white text-sm ${isMe ? 'text-[#d4af37]' : ''}">${c.name}</div>
+                            <div class="text-[9px] text-gray-500 uppercase">${c.type}</div>
+                        </div>
+                    </div>
+                    ${hpBar}
+                </div>
+            `;
+        });
+    }
+    
+    html += `</div></div>`;
+    modal.innerHTML = html;
 }
 
 // ==========================================================================
