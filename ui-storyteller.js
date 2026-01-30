@@ -39,6 +39,7 @@ export function initStorytellerSystem() {
     window.handleResumeChronicle = handleResumeChronicle;
     window.disconnectChronicle = disconnectChronicle;
     window.switchStorytellerView = switchStorytellerView;
+    window.renderStorytellerDashboard = renderStorytellerDashboard;
     
     // Bestiary Actions
     window.copyStaticNpc = copyStaticNpc;
@@ -62,6 +63,20 @@ export function initStorytellerSystem() {
     
     // Player Bindings
     window.togglePlayerCombatView = togglePlayerCombatView;
+
+    // GLOBAL PUSH API (For integration with other modules)
+    window.stPushNpc = async (npcData) => {
+        if (!stState.activeChronicleId || !stState.isStoryteller) return showNotification("Not in ST Mode", "error");
+        try {
+            const id = npcData.id || "npc_" + Date.now();
+            await setDoc(doc(db, 'chronicles', stState.activeChronicleId, 'bestiary', id), {
+                name: npcData.name || "Unknown",
+                type: "Custom",
+                data: npcData
+            });
+            showNotification(`${npcData.name} sent to Bestiary`);
+        } catch(e) { console.error(e); showNotification("Failed to push NPC", "error"); }
+    };
 }
 
 // --- MODAL HANDLERS ---
@@ -269,12 +284,12 @@ async function handleCreateChronicle() {
         localStorage.setItem('v20_last_chronicle_name', name);
         localStorage.setItem('v20_last_chronicle_role', 'ST');
 
-        showNotification("Chronicle Initialized!");
         stState.activeChronicleId = chronicleId;
         stState.isStoryteller = true;
         
         window.closeChronicleModal();
-        activateStorytellerMode(); 
+        startStorytellerSession(); // NEW: Start session but don't lock view
+        renderStorytellerDashboard(); // Default to showing dashboard
         
     } catch (e) {
         console.error("Create Error:", e);
@@ -373,8 +388,9 @@ async function handleResumeChronicle(id, role) {
             stState.activeChronicleId = id;
             stState.isStoryteller = true;
             window.closeChronicleModal();
-            activateStorytellerMode();
-            showNotification(`Resumed ${data.name}`);
+            startStorytellerSession(); // NEW: Start background session
+            showNotification(`Resumed ${data.name} (ST Mode)`);
+            renderStorytellerDashboard(); // Open Dashboard
         } else {
             const playerRef = doc(db, 'chronicles', id, 'players', auth.currentUser.uid);
             await setDoc(playerRef, { status: "Connected", last_active: new Date().toISOString() }, { merge: true });
@@ -418,12 +434,13 @@ function disconnectChronicle() {
     const floatBtn = document.getElementById('player-combat-float');
     if(floatBtn) floatBtn.remove();
     
-    const mainContent = document.getElementById('sheet-content');
-    if (mainContent) {
-        mainContent.innerHTML = ''; 
+    // Remove ST HUD
+    const stHud = document.getElementById('st-hud');
+    if(stHud) stHud.remove();
+    
+    // Reload to clear view if we are stuck in ST dashboard
+    if (document.getElementById('st-viewport')) {
         window.location.reload(); 
-    } else {
-        window.openChronicleModal();
     }
 }
 
@@ -611,10 +628,65 @@ function renderPlayerCombatModal() {
 }
 
 // ==========================================================================
-// STORYTELLER DASHBOARD
+// STORYTELLER DASHBOARD (Refactored)
 // ==========================================================================
 
-function activateStorytellerMode() {
+function startStorytellerSession() {
+    // 1. LISTENERS (Background)
+    const qRoster = query(collection(db, 'chronicles', stState.activeChronicleId, 'players'));
+    stState.listeners.push(onSnapshot(qRoster, (snapshot) => {
+        stState.players = {};
+        snapshot.forEach(doc => { stState.players[doc.id] = doc.data(); });
+        if (stState.currentView === 'roster' && document.getElementById('st-viewport')) renderRosterView();
+    }));
+
+    const qBestiary = query(collection(db, 'chronicles', stState.activeChronicleId, 'bestiary'));
+    stState.listeners.push(onSnapshot(qBestiary, (snapshot) => {
+        stState.bestiary = {};
+        snapshot.forEach(doc => { stState.bestiary[doc.id] = doc.data(); });
+        if (stState.currentView === 'bestiary' && document.getElementById('st-viewport')) renderBestiaryView();
+    }));
+
+    const qJournal = query(collection(db, 'chronicles', stState.activeChronicleId, 'journal'));
+    stState.listeners.push(onSnapshot(qJournal, (snapshot) => {
+        stState.journal = {};
+        snapshot.forEach(doc => { stState.journal[doc.id] = doc.data(); });
+        if (stState.currentView === 'journal' && document.getElementById('st-viewport')) renderStorytellerJournal(document.getElementById('st-viewport'));
+    }));
+
+    initCombatTracker(stState.activeChronicleId);
+
+    // 2. HUD (Persistent Widget)
+    renderStorytellerHUD();
+}
+
+function renderStorytellerHUD() {
+    let hud = document.getElementById('st-hud');
+    if (!hud) {
+        hud = document.createElement('div');
+        hud.id = 'st-hud';
+        hud.className = "fixed bottom-4 right-4 z-[9999] flex flex-col items-end gap-2 animate-in fade-in";
+        document.body.appendChild(hud);
+    }
+    
+    hud.innerHTML = `
+        <div class="bg-[#111] border border-red-900 rounded shadow-2xl p-2 flex flex-col gap-2 w-48">
+            <div class="text-[10px] text-gray-500 font-bold uppercase border-b border-[#333] pb-1 flex justify-between">
+                <span>Storyteller Mode</span>
+                <span class="text-green-500">Live</span>
+            </div>
+            <div class="text-[9px] text-gray-400 font-mono truncate">${stState.activeChronicleId}</div>
+            <button onclick="window.renderStorytellerDashboard()" class="bg-red-900 hover:bg-red-700 text-white text-xs font-bold py-2 rounded uppercase transition-colors">
+                <i class="fas fa-crown mr-2"></i> Dashboard
+            </button>
+            <button onclick="window.disconnectChronicle()" class="text-[10px] text-gray-500 hover:text-red-500 uppercase text-right mt-1">
+                Disconnect
+            </button>
+        </div>
+    `;
+}
+
+function renderStorytellerDashboard() {
     const mainContent = document.getElementById('sheet-content');
     if (!mainContent) return;
 
@@ -631,9 +703,6 @@ function activateStorytellerMode() {
                     </span>
                 </div>
                 <div class="flex gap-2">
-                    <button onclick="window.openNpcCreator('mortal')" class="bg-purple-900/40 border border-purple-500/50 text-purple-200 hover:text-white px-3 py-1 text-xs font-bold uppercase rounded transition-colors">
-                        <i class="fas fa-plus mr-1"></i> Quick NPC
-                    </button>
                     <button class="bg-[#222] border border-[#444] text-gray-300 hover:text-white px-3 py-1 text-xs font-bold uppercase rounded transition-colors" onclick="window.disconnectChronicle()">
                         <i class="fas fa-sign-out-alt mr-1"></i> Exit Chronicle
                     </button>
@@ -662,30 +731,8 @@ function activateStorytellerMode() {
             </div>
         </div>
     `;
-
-    // Listeners
-    const qRoster = query(collection(db, 'chronicles', stState.activeChronicleId, 'players'));
-    stState.listeners.push(onSnapshot(qRoster, (snapshot) => {
-        stState.players = {};
-        snapshot.forEach(doc => { stState.players[doc.id] = doc.data(); });
-        if (stState.currentView === 'roster') renderRosterView();
-    }));
-
-    const qBestiary = query(collection(db, 'chronicles', stState.activeChronicleId, 'bestiary'));
-    stState.listeners.push(onSnapshot(qBestiary, (snapshot) => {
-        stState.bestiary = {};
-        snapshot.forEach(doc => { stState.bestiary[doc.id] = doc.data(); });
-        if (stState.currentView === 'bestiary') renderBestiaryView();
-    }));
-
-    const qJournal = query(collection(db, 'chronicles', stState.activeChronicleId, 'journal'));
-    stState.listeners.push(onSnapshot(qJournal, (snapshot) => {
-        stState.journal = {};
-        snapshot.forEach(doc => { stState.journal[doc.id] = doc.data(); });
-        if (stState.currentView === 'journal') renderStorytellerJournal(document.getElementById('st-viewport'));
-    }));
-
-    initCombatTracker(stState.activeChronicleId);
+    
+    // Default View
     switchStorytellerView('roster');
 }
 
