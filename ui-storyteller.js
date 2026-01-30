@@ -8,7 +8,9 @@ export const stState = {
     activeChronicleId: null,
     isStoryteller: false,
     playerRef: null,
-    listeners: [] // Store unsubscribe functions
+    listeners: [], // Store unsubscribe functions
+    players: {},   // Store connected player data
+    currentView: 'roster' // roster, combat, bestiary, journal
 };
 
 // --- INITIALIZATION ---
@@ -22,13 +24,14 @@ export function initStorytellerSystem() {
     window.renderCreateChronicleUI = renderCreateChronicleUI;
     window.handleCreateChronicle = handleCreateChronicle;
     window.handleJoinChronicle = handleJoinChronicle;
+    window.disconnectChronicle = disconnectChronicle;
+    window.switchStorytellerView = switchStorytellerView;
 }
 
 // --- MODAL HANDLERS ---
 export function openChronicleModal() {
     let modal = document.getElementById('chronicle-modal');
     if (!modal) {
-        // If modal doesn't exist in DOM yet (Phase 1 transitional), create placeholder or warn
         console.warn("Chronicle Modal container missing.");
         return;
     }
@@ -204,15 +207,12 @@ async function handleCreateChronicle() {
 
         await setDoc(doc(db, 'chronicles', chronicleId), chronicleData);
         
-        // Also create sub-collections structure implicitly by adding a dummy doc? 
-        // Not needed in Firestore, but good to know.
-
         showNotification("Chronicle Initialized!");
         stState.activeChronicleId = chronicleId;
         stState.isStoryteller = true;
         
-        // TODO: Switch to ST Dashboard View (Phase 2)
         window.closeChronicleModal();
+        activateStorytellerMode(); // Switch UI to ST Dashboard
         
     } catch (e) {
         console.error("Create Error:", e);
@@ -271,7 +271,7 @@ async function handleJoinChronicle() {
         stState.isStoryteller = false;
         stState.playerRef = playerRef;
 
-        // Start Live Sync (Phase 2 feature, but we hook it up now)
+        // Start Live Sync
         startPlayerSync();
 
         showNotification(`Joined ${data.name}`);
@@ -284,33 +284,41 @@ async function handleJoinChronicle() {
     }
 }
 
-window.disconnectChronicle = async function() {
+function disconnectChronicle() {
     // If player, remove from active list (optional, or just set status to offline)
     if (!stState.isStoryteller && stState.playerRef) {
         try {
-            // We don't delete the doc (to keep history), just update status
-            await setDoc(stState.playerRef, { status: "Offline" }, { merge: true });
+            setDoc(stState.playerRef, { status: "Offline" }, { merge: true });
         } catch(e) { console.warn(e); }
     }
 
     // Stop listeners
     stState.listeners.forEach(unsub => unsub());
     stState.listeners = [];
+    if (stState.syncInterval) clearInterval(stState.syncInterval);
+    
     stState.activeChronicleId = null;
     stState.playerRef = null;
     stState.isStoryteller = false;
+    stState.players = {};
 
     showNotification("Disconnected from Chronicle.");
-    window.openChronicleModal(); // Return to menu
-};
+    
+    // Reset UI to standard player view
+    const mainContent = document.getElementById('sheet-content');
+    if (mainContent) {
+        mainContent.innerHTML = ''; 
+        // This forces a reload of the standard sheet structure next time it renders
+        window.location.reload(); 
+    } else {
+        window.openChronicleModal();
+    }
+}
 
 // --- SYNC ENGINE ---
 function startPlayerSync() {
     if (stState.isStoryteller) return;
 
-    // Listen for changes to window.state.status and push to Firebase
-    // We hook into the existing save mechanism or add a specific interval
-    
     // 1. Interval Sync (Every 10 seconds to avoid spamming writes)
     const interval = setInterval(async () => {
         if (!stState.activeChronicleId || !stState.playerRef) {
@@ -320,6 +328,7 @@ function startPlayerSync() {
         
         try {
             await setDoc(stState.playerRef, {
+                character_name: document.getElementById('c-name')?.value || "Unknown",
                 live_stats: {
                     health: window.state.status.health_states || [],
                     willpower: window.state.status.tempWillpower || 0,
@@ -332,6 +341,160 @@ function startPlayerSync() {
         }
     }, 10000);
     
-    // Store interval ID to clear later if needed (simple approach for now)
     stState.syncInterval = interval;
+}
+
+// ==========================================================================
+// STORYTELLER DASHBOARD LOGIC
+// ==========================================================================
+
+function activateStorytellerMode() {
+    const mainContent = document.getElementById('sheet-content');
+    if (!mainContent) return;
+
+    // Replace Main Content with Dashboard
+    mainContent.innerHTML = `
+        <div class="h-screen flex flex-col bg-[#050505] text-white">
+            <!-- ST Header -->
+            <div class="bg-[#1a0505] border-b border-[#500] p-4 flex justify-between items-center shadow-lg z-10">
+                <div class="flex items-center gap-4">
+                    <h2 class="text-2xl font-cinzel text-red-500 font-bold tracking-widest uppercase">
+                        <i class="fas fa-crown mr-2"></i> Storyteller Mode
+                    </h2>
+                    <span class="text-xs font-mono text-gray-500 border border-[#333] px-2 py-1 rounded bg-black">
+                        ID: <span class="text-gold select-all cursor-pointer" onclick="navigator.clipboard.writeText('${stState.activeChronicleId}')">${stState.activeChronicleId}</span>
+                    </span>
+                </div>
+                <div class="flex gap-2">
+                    <button class="bg-[#222] border border-[#444] text-gray-300 hover:text-white px-3 py-1 text-xs font-bold uppercase rounded transition-colors" onclick="window.disconnectChronicle()">
+                        <i class="fas fa-sign-out-alt mr-1"></i> Exit Chronicle
+                    </button>
+                </div>
+            </div>
+
+            <!-- ST Tabs -->
+            <div class="flex bg-[#111] border-b border-[#333] px-4">
+                <button class="st-tab active px-6 py-3 text-xs font-bold uppercase tracking-wider text-[#d4af37] border-b-2 border-[#d4af37] hover:bg-[#222] transition-colors" onclick="window.switchStorytellerView('roster')">
+                    <i class="fas fa-users mr-2"></i> Roster
+                </button>
+                <button class="st-tab px-6 py-3 text-xs font-bold uppercase tracking-wider text-gray-500 hover:text-white hover:bg-[#222] transition-colors" onclick="window.switchStorytellerView('combat')">
+                    <i class="fas fa-swords mr-2"></i> Combat
+                </button>
+                <button class="st-tab px-6 py-3 text-xs font-bold uppercase tracking-wider text-gray-500 hover:text-white hover:bg-[#222] transition-colors" onclick="window.switchStorytellerView('bestiary')">
+                    <i class="fas fa-dragon mr-2"></i> Bestiary
+                </button>
+            </div>
+
+            <!-- ST Viewport -->
+            <div id="st-viewport" class="flex-1 overflow-hidden relative bg-[url('https://www.transparenttextures.com/patterns/black-linen.png')]">
+                <!-- Views injected here -->
+            </div>
+        </div>
+    `;
+
+    // Initialize Roster Listener
+    const q = query(collection(db, 'chronicles', stState.activeChronicleId, 'players'));
+    const unsub = onSnapshot(q, (snapshot) => {
+        stState.players = {};
+        snapshot.forEach(doc => {
+            stState.players[doc.id] = doc.data();
+        });
+        if (stState.currentView === 'roster') renderRosterView();
+    });
+    stState.listeners.push(unsub);
+
+    // Initial Render
+    switchStorytellerView('roster');
+}
+
+function switchStorytellerView(view) {
+    stState.currentView = view;
+    
+    // Update Tabs
+    document.querySelectorAll('.st-tab').forEach(btn => {
+        const isActive = btn.onclick.toString().includes(`'${view}'`);
+        btn.className = isActive 
+            ? "st-tab active px-6 py-3 text-xs font-bold uppercase tracking-wider text-[#d4af37] border-b-2 border-[#d4af37] bg-[#222] transition-colors"
+            : "st-tab px-6 py-3 text-xs font-bold uppercase tracking-wider text-gray-500 hover:text-white hover:bg-[#222] transition-colors";
+    });
+
+    const viewport = document.getElementById('st-viewport');
+    if (!viewport) return;
+
+    if (view === 'roster') {
+        renderRosterView();
+    } else if (view === 'combat') {
+        viewport.innerHTML = `<div class="p-8 text-center text-gray-500 italic">Combat Tracker - Coming Soon in Phase 4</div>`;
+    } else if (view === 'bestiary') {
+        viewport.innerHTML = `<div class="p-8 text-center text-gray-500 italic">Bestiary Manager - Coming Soon in Phase 3</div>`;
+    }
+}
+
+function renderRosterView() {
+    const viewport = document.getElementById('st-viewport');
+    if (!viewport || stState.currentView !== 'roster') return;
+
+    const players = Object.values(stState.players);
+    
+    if (players.length === 0) {
+        viewport.innerHTML = `
+            <div class="flex flex-col items-center justify-center h-full text-gray-500">
+                <i class="fas fa-users-slash text-4xl mb-4 opacity-50"></i>
+                <p>No players connected.</p>
+                <p class="text-xs mt-2">Share Chronicle ID: <span class="text-gold font-mono font-bold">${stState.activeChronicleId}</span></p>
+            </div>`;
+        return;
+    }
+
+    let html = `<div class="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 overflow-y-auto h-full">`;
+
+    players.forEach(p => {
+        const health = p.live_stats?.health || [];
+        const dmgCount = health.filter(x => x > 0).length;
+        
+        let healthColor = "text-green-500";
+        if (dmgCount > 3) healthColor = "text-yellow-500";
+        if (dmgCount > 5) healthColor = "text-red-500";
+        if (dmgCount >= 7) healthColor = "text-red-700 font-black animate-pulse";
+
+        const statusDot = p.status === 'Offline' ? 'bg-red-500' : 'bg-green-500';
+
+        html += `
+            <div class="bg-[#111] border border-[#333] rounded p-4 shadow-md relative group hover:border-[#555] transition-colors">
+                <div class="absolute top-2 right-2 flex items-center gap-2">
+                    <span class="text-[10px] uppercase text-gray-600 font-bold">${p.status || 'Unknown'}</span>
+                    <span class="w-2 h-2 rounded-full ${statusDot}"></span>
+                </div>
+                
+                <h3 class="text-lg text-[#d4af37] font-bold font-cinzel truncate pr-16">${p.character_name || "Unknown"}</h3>
+                
+                <div class="grid grid-cols-3 gap-2 mt-4 text-center">
+                    <div class="bg-black/30 p-2 rounded border border-[#222]">
+                        <div class="text-[9px] uppercase text-gray-500 font-bold mb-1">Health</div>
+                        <div class="text-lg font-bold ${healthColor}">${7 - dmgCount}/7</div>
+                    </div>
+                    <div class="bg-black/30 p-2 rounded border border-[#222]">
+                        <div class="text-[9px] uppercase text-gray-500 font-bold mb-1">Willpower</div>
+                        <div class="text-lg font-bold text-blue-400">${p.live_stats?.willpower || 0}</div>
+                    </div>
+                    <div class="bg-black/30 p-2 rounded border border-[#222]">
+                        <div class="text-[9px] uppercase text-gray-500 font-bold mb-1">Blood</div>
+                        <div class="text-lg font-bold text-red-500">${p.live_stats?.blood || 0}</div>
+                    </div>
+                </div>
+
+                <div class="mt-4 pt-2 border-t border-[#222] flex justify-end gap-2 opacity-50 group-hover:opacity-100 transition-opacity">
+                    <button class="text-[10px] uppercase font-bold text-gray-400 hover:text-white px-2 py-1 border border-[#333] rounded hover:bg-[#222]">
+                        View Sheet
+                    </button>
+                    <button class="text-[10px] uppercase font-bold text-red-500 hover:text-red-300 px-2 py-1 border border-red-900/30 rounded hover:bg-red-900/20">
+                        Kick
+                    </button>
+                </div>
+            </div>
+        `;
+    });
+
+    html += `</div>`;
+    viewport.innerHTML = html;
 }
