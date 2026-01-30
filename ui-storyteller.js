@@ -3,6 +3,10 @@ import {
 } from "./firebase-config.js";
 import { showNotification } from "./ui-common.js";
 import { BESTIARY } from "./bestiary-data.js";
+import { 
+    initCombatTracker, combatState, startCombat, endCombat, nextTurn, 
+    addCombatant, removeCombatant, updateInitiative, rollNPCInitiative 
+} from "./combat-tracker.js";
 
 // --- STATE ---
 export const stState = {
@@ -30,6 +34,19 @@ export function initStorytellerSystem() {
     window.switchStorytellerView = switchStorytellerView;
     window.copyStaticNpc = copyStaticNpc;
     window.deleteCloudNpc = deleteCloudNpc;
+    window.editCloudNpc = editCloudNpc;
+    
+    // Combat Bindings
+    window.stStartCombat = startCombat;
+    window.stEndCombat = endCombat;
+    window.stNextTurn = nextTurn;
+    window.stUpdateInit = (id, val) => updateInitiative(id, val);
+    window.stRemoveCombatant = removeCombatant;
+    window.stRollInit = rollNPCInitiative;
+    window.stAddToCombat = handleAddToCombat;
+    
+    // Expose render for the tracker to call back
+    window.renderCombatView = renderCombatView;
 }
 
 // --- MODAL HANDLERS ---
@@ -196,7 +213,6 @@ async function handleCreateChronicle() {
     }
 
     try {
-        // Generate a human-readable ID + random suffix
         const safeName = name.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().substring(0, 10);
         const suffix = Math.floor(1000 + Math.random() * 9000);
         const chronicleId = `${safeName}-${suffix}`;
@@ -216,7 +232,7 @@ async function handleCreateChronicle() {
         stState.isStoryteller = true;
         
         window.closeChronicleModal();
-        activateStorytellerMode(); // Switch UI to ST Dashboard
+        activateStorytellerMode(); 
         
     } catch (e) {
         console.error("Create Error:", e);
@@ -256,7 +272,6 @@ async function handleJoinChronicle() {
             return;
         }
 
-        // Add player to 'players' sub-collection
         const playerRef = doc(db, 'chronicles', idInput, 'players', user.uid);
         const charName = document.getElementById('c-name')?.value || "Unknown Kindred";
         
@@ -275,7 +290,6 @@ async function handleJoinChronicle() {
         stState.isStoryteller = false;
         stState.playerRef = playerRef;
 
-        // Start Live Sync
         startPlayerSync();
 
         showNotification(`Joined ${data.name}`);
@@ -289,14 +303,12 @@ async function handleJoinChronicle() {
 }
 
 function disconnectChronicle() {
-    // If player, remove from active list (optional, or just set status to offline)
     if (!stState.isStoryteller && stState.playerRef) {
         try {
             setDoc(stState.playerRef, { status: "Offline" }, { merge: true });
         } catch(e) { console.warn(e); }
     }
 
-    // Stop listeners
     stState.listeners.forEach(unsub => unsub());
     stState.listeners = [];
     if (stState.syncInterval) clearInterval(stState.syncInterval);
@@ -309,7 +321,6 @@ function disconnectChronicle() {
 
     showNotification("Disconnected from Chronicle.");
     
-    // Reset UI to standard player view
     const mainContent = document.getElementById('sheet-content');
     if (mainContent) {
         mainContent.innerHTML = ''; 
@@ -319,7 +330,6 @@ function disconnectChronicle() {
     }
 }
 
-// --- SYNC ENGINE ---
 function startPlayerSync() {
     if (stState.isStoryteller) return;
 
@@ -348,14 +358,13 @@ function startPlayerSync() {
 }
 
 // ==========================================================================
-// STORYTELLER DASHBOARD LOGIC
+// STORYTELLER DASHBOARD
 // ==========================================================================
 
 function activateStorytellerMode() {
     const mainContent = document.getElementById('sheet-content');
     if (!mainContent) return;
 
-    // Replace Main Content with Dashboard
     mainContent.innerHTML = `
         <div class="h-screen flex flex-col bg-[#050505] text-white">
             <!-- ST Header -->
@@ -398,7 +407,7 @@ function activateStorytellerMode() {
         </div>
     `;
 
-    // 1. Initialize Roster Listener
+    // Initialize Sub-Listeners
     const qRoster = query(collection(db, 'chronicles', stState.activeChronicleId, 'players'));
     const unsubRoster = onSnapshot(qRoster, (snapshot) => {
         stState.players = {};
@@ -407,7 +416,6 @@ function activateStorytellerMode() {
     });
     stState.listeners.push(unsubRoster);
 
-    // 2. Initialize Bestiary Listener
     const qBestiary = query(collection(db, 'chronicles', stState.activeChronicleId, 'bestiary'));
     const unsubBestiary = onSnapshot(qBestiary, (snapshot) => {
         stState.bestiary = {};
@@ -416,14 +424,14 @@ function activateStorytellerMode() {
     });
     stState.listeners.push(unsubBestiary);
 
-    // Initial Render
+    // Init Combat Tracker Logic
+    initCombatTracker(stState.activeChronicleId);
+
     switchStorytellerView('roster');
 }
 
 function switchStorytellerView(view) {
     stState.currentView = view;
-    
-    // Update Tabs
     document.querySelectorAll('.st-tab').forEach(btn => {
         const isActive = btn.onclick.toString().includes(`'${view}'`);
         btn.className = isActive 
@@ -431,18 +439,12 @@ function switchStorytellerView(view) {
             : "st-tab px-6 py-3 text-xs font-bold uppercase tracking-wider text-gray-500 hover:text-white hover:bg-[#222] transition-colors";
     });
 
-    const viewport = document.getElementById('st-viewport');
-    if (!viewport) return;
-
-    if (view === 'roster') {
-        renderRosterView();
-    } else if (view === 'combat') {
-        viewport.innerHTML = `<div class="p-8 text-center text-gray-500 italic">Combat Tracker - Coming Soon in Phase 4</div>`;
-    } else if (view === 'bestiary') {
-        renderBestiaryView();
-    }
+    if (view === 'roster') renderRosterView();
+    else if (view === 'combat') renderCombatView();
+    else if (view === 'bestiary') renderBestiaryView();
 }
 
+// --- VIEW 1: ROSTER ---
 function renderRosterView() {
     const viewport = document.getElementById('st-viewport');
     if (!viewport || stState.currentView !== 'roster') return;
@@ -450,12 +452,7 @@ function renderRosterView() {
     const players = Object.values(stState.players);
     
     if (players.length === 0) {
-        viewport.innerHTML = `
-            <div class="flex flex-col items-center justify-center h-full text-gray-500">
-                <i class="fas fa-users-slash text-4xl mb-4 opacity-50"></i>
-                <p>No players connected.</p>
-                <p class="text-xs mt-2">Share Chronicle ID: <span class="text-gold font-mono font-bold">${stState.activeChronicleId}</span></p>
-            </div>`;
+        viewport.innerHTML = `<div class="flex flex-col items-center justify-center h-full text-gray-500"><i class="fas fa-users-slash text-4xl mb-4 opacity-50"></i><p>No players connected.</p><p class="text-xs mt-2">Share ID: <span class="text-gold font-mono font-bold">${stState.activeChronicleId}</span></p></div>`;
         return;
     }
 
@@ -464,13 +461,11 @@ function renderRosterView() {
     players.forEach(p => {
         const health = p.live_stats?.health || [];
         const dmgCount = health.filter(x => x > 0).length;
-        
-        let healthColor = "text-green-500";
-        if (dmgCount > 3) healthColor = "text-yellow-500";
-        if (dmgCount > 5) healthColor = "text-red-500";
-        if (dmgCount >= 7) healthColor = "text-red-700 font-black animate-pulse";
-
         const statusDot = p.status === 'Offline' ? 'bg-red-500' : 'bg-green-500';
+        
+        // Pass Player object to handler
+        // We use a safe ID or index if ID missing
+        const playerId = Object.keys(stState.players).find(key => stState.players[key] === p);
 
         html += `
             <div class="bg-[#111] border border-[#333] rounded p-4 shadow-md relative group hover:border-[#555] transition-colors">
@@ -478,13 +473,12 @@ function renderRosterView() {
                     <span class="text-[10px] uppercase text-gray-600 font-bold">${p.status || 'Unknown'}</span>
                     <span class="w-2 h-2 rounded-full ${statusDot}"></span>
                 </div>
-                
                 <h3 class="text-lg text-[#d4af37] font-bold font-cinzel truncate pr-16">${p.character_name || "Unknown"}</h3>
                 
                 <div class="grid grid-cols-3 gap-2 mt-4 text-center">
                     <div class="bg-black/30 p-2 rounded border border-[#222]">
                         <div class="text-[9px] uppercase text-gray-500 font-bold mb-1">Health</div>
-                        <div class="text-lg font-bold ${healthColor}">${7 - dmgCount}/7</div>
+                        <div class="text-lg font-bold ${dmgCount > 3 ? 'text-red-500' : 'text-green-500'}">${7 - dmgCount}/7</div>
                     </div>
                     <div class="bg-black/30 p-2 rounded border border-[#222]">
                         <div class="text-[9px] uppercase text-gray-500 font-bold mb-1">Willpower</div>
@@ -497,66 +491,151 @@ function renderRosterView() {
                 </div>
 
                 <div class="mt-4 pt-2 border-t border-[#222] flex justify-end gap-2 opacity-50 group-hover:opacity-100 transition-opacity">
-                    <button class="text-[10px] uppercase font-bold text-gray-400 hover:text-white px-2 py-1 border border-[#333] rounded hover:bg-[#222]">
-                        View Sheet
-                    </button>
-                    <button class="text-[10px] uppercase font-bold text-red-500 hover:text-red-300 px-2 py-1 border border-red-900/30 rounded hover:bg-red-900/20">
-                        Kick
+                    <button class="text-[10px] uppercase font-bold text-gray-400 hover:text-white px-2 py-1 border border-[#333] rounded hover:bg-[#222]" onclick="window.stAddToCombat({id:'${playerId}', name:'${p.character_name}'}, 'Player')">
+                        <i class="fas fa-swords mr-1"></i> Combat
                     </button>
                 </div>
             </div>
         `;
     });
-
     html += `</div>`;
     viewport.innerHTML = html;
 }
 
-// ==========================================================================
-// BESTIARY VIEW LOGIC
-// ==========================================================================
+// --- VIEW 2: COMBAT ---
+function renderCombatView() {
+    const viewport = document.getElementById('st-viewport');
+    if (!viewport || stState.currentView !== 'combat') return;
 
+    // Use state from tracker
+    const { isActive, turn, combatants } = combatState;
+
+    if (!isActive) {
+        viewport.innerHTML = `
+            <div class="flex flex-col items-center justify-center h-full text-gray-500">
+                <i class="fas fa-peace text-6xl mb-6 opacity-30"></i>
+                <h3 class="text-xl font-bold text-gray-400 mb-2">No Active Combat</h3>
+                <p class="text-xs text-gray-600 mb-6 max-w-md text-center">Add combatants from the Roster or Bestiary, then initialize the encounter.</p>
+                <button onclick="window.stStartCombat()" class="bg-[#8b0000] hover:bg-red-700 text-white font-bold py-3 px-8 uppercase tracking-widest shadow-lg rounded transition-transform hover:scale-105">
+                    Start Encounter
+                </button>
+            </div>
+        `;
+        return;
+    }
+
+    let html = `
+        <div class="flex flex-col h-full">
+            <!-- Combat Header -->
+            <div class="bg-[#111] border-b border-[#333] p-4 flex justify-between items-center shadow-md z-20">
+                <div class="flex items-center gap-6">
+                    <div class="text-center">
+                        <div class="text-[10px] text-gray-500 uppercase font-bold tracking-widest">Turn</div>
+                        <div class="text-3xl font-black text-[#d4af37] leading-none">${turn}</div>
+                    </div>
+                    <button onclick="window.stNextTurn()" class="bg-[#222] hover:bg-[#333] border border-[#444] text-white px-4 py-2 text-xs font-bold uppercase rounded flex items-center gap-2 transition-colors">
+                        Next Turn <i class="fas fa-step-forward"></i>
+                    </button>
+                </div>
+                <div class="flex gap-3">
+                    <button onclick="window.stEndCombat()" class="text-red-500 hover:text-red-300 text-xs font-bold uppercase border border-red-900/30 px-4 py-2 rounded hover:bg-red-900/10">End Combat</button>
+                </div>
+            </div>
+
+            <!-- Combatants List -->
+            <div class="flex-1 overflow-y-auto p-4 space-y-2 bg-black/50">
+    `;
+
+    if (combatants.length === 0) {
+        html += `<div class="text-center text-gray-500 italic mt-10">Waiting for combatants...</div>`;
+    } else {
+        combatants.forEach(c => {
+            const isNPC = c.type === 'NPC';
+            // Health Bar Calculation
+            let hpBar = '';
+            if (isNPC && c.health) {
+                // Determine boxes based on simple track (0=Ok, 1=Bash, 2=Lethal, 3=Agg)
+                // Just count damage for a simple visual bar
+                // Legacy support: c.health might be { damage: X } or { track: [] }
+                let dmg = 0;
+                if (c.health.track) dmg = c.health.track.filter(x => x>0).length;
+                else dmg = c.health.damage || 0;
+                
+                const pct = Math.max(0, (7 - dmg) / 7) * 100;
+                let color = 'bg-green-600';
+                if (dmg > 3) color = 'bg-yellow-600';
+                if (dmg > 5) color = 'bg-red-600';
+                
+                hpBar = `<div class="w-24 h-2 bg-gray-800 rounded overflow-hidden ml-4"><div class="${color} h-full" style="width: ${pct}%"></div></div>`;
+            } else {
+                // Player health is synced via roster usually, but combatant obj might strictly track initiative
+                hpBar = `<div class="ml-4 text-[10px] text-blue-400 font-bold">PLAYER</div>`;
+            }
+
+            html += `
+                <div class="bg-[#1a1a1a] border border-[#333] p-2 rounded flex items-center justify-between group hover:border-[#555] transition-colors relative overflow-hidden">
+                    <!-- Left: Init & Name -->
+                    <div class="flex items-center gap-4 flex-1">
+                        <div class="flex flex-col items-center w-12">
+                            <input type="number" value="${c.init}" 
+                                onchange="window.stUpdateInit('${c.id}', this.value)" 
+                                class="w-10 bg-black border border-[#444] text-center text-lg font-bold text-[#d4af37] focus:outline-none focus:border-[#d4af37] rounded">
+                            <span class="text-[8px] text-gray-600 uppercase font-bold mt-0.5">Init</span>
+                        </div>
+                        
+                        <div class="flex flex-col">
+                            <span class="text-white font-bold text-sm ${c.status === 'done' ? 'line-through opacity-50' : ''}">${c.name}</span>
+                            <span class="text-[9px] text-gray-500 uppercase">${c.type}</span>
+                        </div>
+                        
+                        ${hpBar}
+                    </div>
+
+                    <!-- Right: Actions -->
+                    <div class="flex items-center gap-2">
+                        ${isNPC ? `<button onclick="window.stRollInit('${c.id}')" class="text-gray-500 hover:text-white" title="Roll Initiative"><i class="fas fa-dice-d10"></i></button>` : ''}
+                        <button onclick="window.stRemoveCombatant('${c.id}')" class="text-red-900 hover:text-red-500 px-2 transition-colors"><i class="fas fa-times"></i></button>
+                    </div>
+                </div>
+            `;
+        });
+    }
+
+    html += `</div></div>`;
+    viewport.innerHTML = html;
+}
+
+// --- VIEW 3: BESTIARY ---
 function renderBestiaryView() {
     const viewport = document.getElementById('st-viewport');
     if (!viewport || stState.currentView !== 'bestiary') return;
 
     let html = `
         <div class="flex h-full">
-            <!-- Sidebar: Categories -->
             <div class="w-64 bg-[#080808] border-r border-[#333] flex flex-col">
                 <div class="p-3 border-b border-[#333]">
-                    <input type="text" id="bestiary-search" placeholder="Search NPCs..." class="w-full bg-[#111] border border-[#333] text-xs p-2 text-white outline-none focus:border-[#d4af37]">
+                    <input type="text" id="bestiary-search" placeholder="Search..." class="w-full bg-[#111] border border-[#333] text-xs p-2 text-white outline-none focus:border-[#d4af37]">
                 </div>
-                <div class="flex-1 overflow-y-auto" id="bestiary-categories">
-                    <div class="p-2 text-[10px] font-bold text-gray-500 uppercase">Chronicle Custom</div>
-                    <div id="cat-custom" class="space-y-1 p-2 border-b border-[#222]"></div>
+                <div class="flex-1 overflow-y-auto p-2" id="bestiary-categories">
+                    <div class="text-[10px] font-bold text-gray-500 uppercase mb-1">Custom</div>
+                    <div id="cat-custom" class="space-y-1 mb-4"></div>
                     
-                    <div class="p-2 text-[10px] font-bold text-gray-500 uppercase mt-2">Core Rulebook</div>
+                    <div class="text-[10px] font-bold text-gray-500 uppercase mb-1">Core Rulebook</div>
                     ${Object.keys(BESTIARY).map(cat => `
-                        <div class="cursor-pointer hover:bg-[#222] px-3 py-1 text-xs text-gray-300 flex justify-between items-center group" onclick="document.getElementById('cat-group-${cat}').classList.toggle('hidden')">
-                            <span>${cat}</span>
-                            <i class="fas fa-chevron-down text-[8px] text-gray-600 group-hover:text-white"></i>
+                        <div class="cursor-pointer hover:bg-[#222] px-2 py-1 text-xs text-gray-300 flex justify-between group" onclick="document.getElementById('cat-group-${cat}').classList.toggle('hidden')">
+                            <span>${cat}</span><i class="fas fa-chevron-down text-[8px] text-gray-600"></i>
                         </div>
-                        <div id="cat-group-${cat}" class="hidden pl-2 space-y-1 mb-2">
-                            ${Object.keys(BESTIARY[cat]).map(key => `
-                                <div class="cursor-pointer hover:text-[#d4af37] px-3 py-1 text-[11px] text-gray-500" onclick="window.previewStaticNpc('${cat}', '${key}')">
-                                    ${key}
-                                </div>
-                            `).join('')}
+                        <div id="cat-group-${cat}" class="hidden pl-2 border-l border-[#222] ml-1">
+                            ${Object.keys(BESTIARY[cat]).map(key => `<div class="cursor-pointer hover:text-[#d4af37] px-2 py-1 text-[10px] text-gray-500" onclick="window.previewStaticNpc('${cat}', '${key}')">${key}</div>`).join('')}
                         </div>
                     `).join('')}
                 </div>
             </div>
-
-            <!-- Main Content: Cards Grid -->
             <div class="flex-1 overflow-y-auto p-6 bg-[url('https://www.transparenttextures.com/patterns/black-linen.png')]">
-                <div id="bestiary-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                    <!-- Cards injected here -->
-                </div>
+                <div id="bestiary-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></div>
             </div>
         </div>
     `;
-
     viewport.innerHTML = html;
     renderCustomBestiaryList();
 }
@@ -567,141 +646,122 @@ function renderCustomBestiaryList() {
     if (!container || !grid) return;
 
     container.innerHTML = '';
-    grid.innerHTML = '';
+    grid.innerHTML = ''; // Default to showing custom cards
 
     const customNPCs = Object.values(stState.bestiary);
-
-    if (customNPCs.length === 0) {
-        container.innerHTML = `<div class="px-3 py-1 text-[10px] italic text-gray-600">Empty</div>`;
-        grid.innerHTML = `<div class="col-span-full text-center text-gray-500 italic mt-10">Select a category or Create Custom NPCs via Quick NPC.</div>`;
+    
+    if(customNPCs.length === 0) {
+        container.innerHTML = `<div class="px-2 py-1 text-[10px] italic text-gray-600">Empty</div>`;
+        grid.innerHTML = `<div class="col-span-full text-center text-gray-500 italic mt-10">Bestiary is empty. Use "Quick NPC" -> "Save to Bestiary".</div>`;
     }
 
     customNPCs.forEach(entry => {
         const id = Object.keys(stState.bestiary).find(key => stState.bestiary[key] === entry);
         
-        // Sidebar Item
+        // Sidebar Link
         const item = document.createElement('div');
-        item.className = "cursor-pointer hover:text-[#d4af37] px-3 py-1 text-[11px] text-blue-300 truncate";
+        item.className = "cursor-pointer hover:text-blue-300 px-2 py-1 text-[11px] text-blue-500 truncate";
         item.innerText = entry.name;
-        item.onclick = () => renderNpcCard(entry, id, true); // true = isCustom
+        item.onclick = () => renderNpcCard(entry, id, true, grid, true); // true = clear grid first
         container.appendChild(item);
 
-        // Grid Card (Render all custom by default)
+        // Grid Card
         renderNpcCard(entry, id, true, grid);
     });
 }
 
-// Global helper to find static data
 window.previewStaticNpc = function(category, key) {
     const npc = BESTIARY[category][key];
     const grid = document.getElementById('bestiary-grid');
     if (grid && npc) {
-        grid.innerHTML = ''; // Clear grid to show focused selection
+        grid.innerHTML = '';
         renderNpcCard({ data: npc, name: key, type: npc.template }, null, false, grid);
     }
 };
 
-function renderNpcCard(entry, id, isCustom, container) {
-    if (!container) return; // Should pass grid container
-
-    const npc = entry.data || entry; // Handle wrapper vs raw data
+function renderNpcCard(entry, id, isCustom, container, clearFirst = false) {
+    if (clearFirst) container.innerHTML = '';
+    
+    const npc = entry.data || entry;
     const name = entry.name || npc.name;
     const type = entry.type || npc.template || "Mortal";
-    
-    // Stats Summary
-    const phys = (npc.attributes?.Strength || 1) + (npc.attributes?.Dexterity || 1) + (npc.attributes?.Stamina || 1);
-    const discCount = Object.values(npc.disciplines || {}).reduce((a,b)=>a+b,0);
+    const phys = (npc.attributes?.Strength||1) + (npc.attributes?.Dexterity||1) + (npc.attributes?.Stamina||1);
     
     const card = document.createElement('div');
-    card.className = "bg-[#111] border border-[#333] p-3 rounded shadow-lg hover:border-[#555] transition-colors relative group animate-in fade-in";
+    card.className = "bg-[#111] border border-[#333] p-3 rounded shadow-lg hover:border-[#555] transition-all group relative flex flex-col";
     
     let actionsHtml = '';
-    
     if (isCustom) {
-        // Cloud Actions
         actionsHtml = `
-            <button onclick="window.deleteCloudNpc('${id}')" class="text-red-900 hover:text-red-500 p-1" title="Delete Permanent"><i class="fas fa-trash"></i></button>
-            <button class="bg-[#222] hover:bg-[#333] text-gray-300 px-2 py-1 text-[10px] font-bold uppercase rounded border border-[#444]" onclick='window.editCloudNpc("${id}")'>Edit</button>
+            <button onclick="event.stopPropagation(); window.deleteCloudNpc('${id}')" class="text-red-900 hover:text-red-500 p-1" title="Delete"><i class="fas fa-trash"></i></button>
+            <button class="bg-[#222] hover:bg-[#333] text-gray-300 px-2 py-1 text-[9px] font-bold uppercase rounded border border-[#444]" onclick='event.stopPropagation(); window.editCloudNpc("${id}")'>Edit</button>
         `;
     } else {
-        // Static Actions
-        actionsHtml = `
-            <button class="bg-blue-900/30 hover:bg-blue-900/50 text-blue-200 px-2 py-1 text-[10px] font-bold uppercase rounded border border-blue-800" onclick='window.copyStaticNpc("${name}")'>Copy</button>
-        `;
+        actionsHtml = `<button class="bg-blue-900/30 hover:bg-blue-900/50 text-blue-200 px-2 py-1 text-[9px] font-bold uppercase rounded border border-blue-800" onclick='event.stopPropagation(); window.copyStaticNpc("${name}")'>Copy</button>`;
     }
 
     card.innerHTML = `
         <div class="flex justify-between items-start mb-2">
-            <div>
-                <div class="text-[#d4af37] font-bold text-sm truncate pr-2">${name}</div>
-                <div class="text-[10px] text-gray-500 uppercase tracking-wider">${type}</div>
+            <div class="overflow-hidden">
+                <div class="text-[#d4af37] font-bold text-sm truncate" title="${name}">${name}</div>
+                <div class="text-[9px] text-gray-500 uppercase tracking-wider">${type}</div>
             </div>
-            ${isCustom ? `<i class="fas fa-cloud text-[10px] text-blue-500" title="Cloud Saved"></i>` : `<i class="fas fa-book text-[10px] text-gray-600" title="Core Rulebook"></i>`}
+            ${isCustom ? `<i class="fas fa-cloud text-[10px] text-blue-500"></i>` : `<i class="fas fa-book text-[10px] text-gray-600"></i>`}
         </div>
-        
-        <div class="grid grid-cols-3 gap-1 text-[9px] text-gray-400 mb-3 bg-black/30 p-1 rounded">
+        <div class="grid grid-cols-3 gap-1 text-[8px] text-gray-400 mb-3 bg-black/30 p-1 rounded">
             <div class="text-center"><div class="font-bold text-gray-300">${phys}</div><div>Phys</div></div>
-            <div class="text-center"><div class="font-bold text-gray-300">${discCount}</div><div>Disc</div></div>
+            <div class="text-center"><div class="font-bold text-gray-300">${Object.keys(npc.disciplines||{}).length}</div><div>Disc</div></div>
             <div class="text-center"><div class="font-bold text-gray-300">${npc.willpower||1}</div><div>Will</div></div>
         </div>
-
         <div class="flex justify-between items-center border-t border-[#222] pt-2 mt-auto">
-            <div class="flex gap-2">
-                ${actionsHtml}
-            </div>
-            <button class="bg-[#8b0000] hover:bg-red-700 text-white px-3 py-1 text-[10px] font-bold uppercase rounded shadow-md" title="Add to Combat (Coming Soon)">Spawn</button>
+            <div class="flex gap-1">${actionsHtml}</div>
+            <button class="bg-[#8b0000] hover:bg-red-700 text-white px-3 py-1 text-[9px] font-bold uppercase rounded shadow-md" onclick="event.stopPropagation(); window.stAddToCombat({id:'${id||name}', name:'${name}', health: ${isCustom ? 'null' : '{damage:0}'}, sourceId: '${id}'}, 'NPC')">Spawn</button>
         </div>
     `;
     
-    // Add View Click to Body
-    card.addEventListener('click', (e) => {
-        if(e.target.tagName !== 'BUTTON' && e.target.tagName !== 'I') {
-            if(window.openNpcSheet) window.openNpcSheet(npc);
-        }
-    });
-
+    // Clicking card opens sheet view (readonly)
+    card.onclick = () => { if(window.openNpcSheet) window.openNpcSheet(npc); };
+    
     container.appendChild(card);
 }
 
-// --- BESTIARY ACTIONS ---
-
-window.copyStaticNpc = function(name) {
-    // Find in Static Data
-    let found = null;
-    for (const cat in BESTIARY) {
-        if (BESTIARY[cat][name]) found = BESTIARY[cat][name];
+// --- HELPER: ADD TO COMBAT ---
+function handleAddToCombat(entity, type) {
+    if (!stState.activeChronicleId) {
+        showNotification("No active chronicle.", "error");
+        return;
     }
     
-    if (found) {
-        // Open Creator with this data (which triggers Save to Bestiary flow)
-        if(window.openNpcCreator) {
-            window.openNpcCreator(found.template || 'mortal', found);
-            showNotification("Template Loaded. Click 'Save to Bestiary' to customize.");
-        }
+    // If entity has no health struct (e.g. from static bestiary), give default
+    if (!entity.health) entity.health = { damage: 0, track: [0,0,0,0,0,0,0] };
+    
+    addCombatant(entity, type);
+    
+    // Optional: Auto-switch view?
+    // switchStorytellerView('combat');
+}
+
+// --- ACTIONS WRAPPERS ---
+window.copyStaticNpc = function(name) {
+    let found = null;
+    for(const cat in BESTIARY) { if(BESTIARY[cat][name]) found = BESTIARY[cat][name]; }
+    if(found && window.openNpcCreator) {
+        window.openNpcCreator(found.template||'mortal', found);
+        showNotification("Template Loaded. Save to Cloud Bestiary to customize.");
     }
 };
 
 window.deleteCloudNpc = async function(id) {
-    if(!confirm("Delete this NPC from the Cloud Bestiary?")) return;
+    if(!confirm("Delete this NPC?")) return;
     try {
         await deleteDoc(doc(db, 'chronicles', stState.activeChronicleId, 'bestiary', id));
-        showNotification("NPC Deleted.");
-    } catch(e) {
-        console.error(e);
-        showNotification("Error deleting NPC.");
-    }
+        showNotification("Deleted.");
+    } catch(e) { console.error(e); }
 };
 
 window.editCloudNpc = function(id) {
     const entry = stState.bestiary[id];
-    if (entry && entry.data) {
-        // We open the creator, but we need to handle the "Update" vs "New Save" logic
-        // For simplicity in Phase 3, we open it, and saving will create a NEW entry or overwrite based on name logic in npc-creator
-        // Ideally we pass the ID to update properly.
-        if (window.openNpcCreator) {
-            window.openNpcCreator(entry.type, entry.data);
-            // Hint to user
-            showNotification("Editing Cloud NPC.");
-        }
+    if(entry && entry.data && window.openNpcCreator) {
+        window.openNpcCreator(entry.type, entry.data);
     }
 }
