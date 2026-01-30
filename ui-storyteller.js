@@ -13,26 +13,27 @@ export const stState = {
     activeChronicleId: null,
     isStoryteller: false,
     playerRef: null,
-    listeners: [], // Store unsubscribe functions
-    players: {},   // Store connected player data
-    bestiary: {},  // Store custom cloud NPCs
-    journal: {},   // Store campaign handouts/notes
-    currentView: 'roster', // roster, combat, bestiary, journal
+    listeners: [], 
+    players: {},   
+    bestiary: {},  
+    journal: {},   
+    currentView: 'roster', 
     syncInterval: null,
-    seenHandouts: new Set() // Track handouts we've already popped up
+    seenHandouts: new Set() 
 };
 
 // --- INITIALIZATION ---
 export function initStorytellerSystem() {
     console.log("Storyteller System Initialized");
     
-    // Window bindings for HTML interaction
+    // Window bindings
     window.openChronicleModal = openChronicleModal;
     window.closeChronicleModal = closeChronicleModal;
     window.renderJoinChronicleUI = renderJoinChronicleUI;
     window.renderCreateChronicleUI = renderCreateChronicleUI;
     window.handleCreateChronicle = handleCreateChronicle;
     window.handleJoinChronicle = handleJoinChronicle;
+    window.handleResumeChronicle = handleResumeChronicle; // NEW
     window.disconnectChronicle = disconnectChronicle;
     window.switchStorytellerView = switchStorytellerView;
     
@@ -71,7 +72,6 @@ export function openChronicleModal() {
     
     modal.classList.add('active');
     
-    // If already connected, show status/dashboard entry instead of menu
     if (stState.activeChronicleId) {
         renderConnectedStatus();
     } else {
@@ -92,9 +92,33 @@ function renderChronicleMenu() {
     const user = auth.currentUser;
     const authWarning = !user ? `<div class="bg-red-900/20 border border-red-500/50 p-2 mb-4 text-xs text-red-300 text-center">You must be logged in to use Chronicle features.</div>` : '';
 
+    // Check for Recent Chronicle
+    const recentId = localStorage.getItem('v20_last_chronicle_id');
+    const recentName = localStorage.getItem('v20_last_chronicle_name') || recentId;
+    const recentRole = localStorage.getItem('v20_last_chronicle_role'); // 'ST' or 'Player'
+
+    let resumeHtml = '';
+    if (recentId && user) {
+        const btnColor = recentRole === 'ST' ? 'text-red-500 border-red-900 hover:bg-red-900/20' : 'text-blue-400 border-blue-900 hover:bg-blue-900/20';
+        const roleLabel = recentRole === 'ST' ? 'Storyteller' : 'Player';
+        resumeHtml = `
+            <div class="mb-6 p-4 bg-[#111] border border-[#333] flex justify-between items-center animate-in fade-in">
+                <div>
+                    <div class="text-[10px] text-gray-500 uppercase font-bold">Resume Last Session</div>
+                    <div class="text-white font-bold font-cinzel text-lg">${recentName}</div>
+                    <div class="text-[9px] text-gray-400">${roleLabel}</div>
+                </div>
+                <button onclick="window.handleResumeChronicle('${recentId}', '${recentRole}')" class="px-4 py-2 border rounded uppercase font-bold text-xs ${btnColor}">
+                    Resume <i class="fas fa-arrow-right ml-1"></i>
+                </button>
+            </div>
+        `;
+    }
+
     container.innerHTML = `
         <h2 class="heading text-xl text-[#d4af37] mb-6 border-b border-[#333] pb-2">Chronicles</h2>
         ${authWarning}
+        ${resumeHtml}
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <!-- JOIN CARD -->
             <div class="bg-[#111] p-6 border border-[#333] hover:border-[#d4af37] transition-all cursor-pointer group relative overflow-hidden" 
@@ -239,6 +263,11 @@ async function handleCreateChronicle() {
 
         await setDoc(doc(db, 'chronicles', chronicleId), chronicleData);
         
+        // Save to Local Storage for Resume
+        localStorage.setItem('v20_last_chronicle_id', chronicleId);
+        localStorage.setItem('v20_last_chronicle_name', name);
+        localStorage.setItem('v20_last_chronicle_role', 'ST');
+
         showNotification("Chronicle Initialized!");
         stState.activeChronicleId = chronicleId;
         stState.isStoryteller = true;
@@ -298,11 +327,15 @@ async function handleJoinChronicle() {
             }
         }, { merge: true });
 
+        // Save to Local Storage for Resume
+        localStorage.setItem('v20_last_chronicle_id', idInput);
+        localStorage.setItem('v20_last_chronicle_name', data.name);
+        localStorage.setItem('v20_last_chronicle_role', 'Player');
+
         stState.activeChronicleId = idInput;
         stState.isStoryteller = false;
         stState.playerRef = playerRef;
 
-        // Start Sync and Listeners
         startPlayerSync();
         activatePlayerMode();
 
@@ -313,6 +346,54 @@ async function handleJoinChronicle() {
         console.error("Join Error:", e);
         err.innerText = "Connection failed: " + e.message;
         err.classList.remove('hidden');
+    }
+}
+
+// --- NEW RESUME HANDLER ---
+async function handleResumeChronicle(id, role) {
+    if (!auth.currentUser) return;
+    
+    try {
+        const docRef = doc(db, 'chronicles', id);
+        const docSnap = await getDoc(docRef);
+        
+        if (!docSnap.exists()) {
+            showNotification("Chronicle no longer exists.", "error");
+            localStorage.removeItem('v20_last_chronicle_id');
+            renderChronicleMenu();
+            return;
+        }
+        
+        const data = docSnap.data();
+        
+        if (role === 'ST') {
+            if (data.storyteller_uid !== auth.currentUser.uid) {
+                showNotification("Permission Denied: You are not the Storyteller.", "error");
+                return;
+            }
+            stState.activeChronicleId = id;
+            stState.isStoryteller = true;
+            window.closeChronicleModal();
+            activateStorytellerMode();
+            showNotification(`Resumed ${data.name}`);
+        } else {
+            // Player Resume (Implicitly allowed if previously joined)
+            const playerRef = doc(db, 'chronicles', id, 'players', auth.currentUser.uid);
+            // Refresh status
+            await setDoc(playerRef, { status: "Connected", last_active: new Date().toISOString() }, { merge: true });
+            
+            stState.activeChronicleId = id;
+            stState.isStoryteller = false;
+            stState.playerRef = playerRef;
+            startPlayerSync();
+            activatePlayerMode();
+            window.closeChronicleModal();
+            showNotification(`Reconnected to ${data.name}`);
+        }
+        
+    } catch (e) {
+        console.error("Resume Error:", e);
+        showNotification("Failed to resume.", "error");
     }
 }
 
@@ -337,7 +418,6 @@ function disconnectChronicle() {
 
     showNotification("Disconnected from Chronicle.");
     
-    // Remove injected UI elements
     const floatBtn = document.getElementById('player-combat-float');
     if(floatBtn) floatBtn.remove();
     
@@ -428,8 +508,6 @@ function activatePlayerMode() {
             if (change.type === "added" || change.type === "modified") {
                 const data = change.doc.data();
                 if (data.pushed && !stState.seenHandouts.has(change.doc.id)) {
-                    // Check timestamp to avoid spamming old push on reload (optional, simple check for now)
-                    // We only show if we haven't seen it in this session.
                     stState.seenHandouts.add(change.doc.id);
                     renderPlayerHandoutModal(data);
                 }
