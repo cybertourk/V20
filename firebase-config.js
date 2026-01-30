@@ -16,12 +16,16 @@ import {
     doc, 
     setDoc, 
     getDoc, 
-    addDoc,      // NEW
-    onSnapshot,  // NEW
+    addDoc,
+    updateDoc,    // NEW
+    deleteDoc,
+    deleteField,  // NEW
+    arrayUnion,   // NEW
+    arrayRemove,  // NEW
+    onSnapshot,
     collection, 
     getDocs, 
     query, 
-    deleteDoc,
     where 
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
@@ -63,11 +67,15 @@ export {
     doc, 
     setDoc, 
     getDoc,
-    addDoc,      // Exported for Storyteller
-    onSnapshot,  // Exported for Realtime Listeners
+    addDoc,
+    updateDoc,    // Exported
+    deleteDoc,
+    deleteField,  // Exported
+    arrayUnion,   // Exported
+    arrayRemove,  // Exported
+    onSnapshot,
     collection, 
     getDocs, 
     query, 
-    deleteDoc,
     where
 };
