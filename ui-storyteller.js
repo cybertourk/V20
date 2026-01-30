@@ -1,7 +1,8 @@
 import { 
-    db, auth, collection, doc, setDoc, getDoc, getDocs, query, where, addDoc, onSnapshot 
+    db, auth, collection, doc, setDoc, getDoc, getDocs, query, where, addDoc, onSnapshot, deleteDoc 
 } from "./firebase-config.js";
 import { showNotification } from "./ui-common.js";
+import { BESTIARY } from "./bestiary-data.js";
 
 // --- STATE ---
 export const stState = {
@@ -10,6 +11,7 @@ export const stState = {
     playerRef: null,
     listeners: [], // Store unsubscribe functions
     players: {},   // Store connected player data
+    bestiary: {},  // Store custom cloud NPCs
     currentView: 'roster' // roster, combat, bestiary, journal
 };
 
@@ -26,6 +28,8 @@ export function initStorytellerSystem() {
     window.handleJoinChronicle = handleJoinChronicle;
     window.disconnectChronicle = disconnectChronicle;
     window.switchStorytellerView = switchStorytellerView;
+    window.copyStaticNpc = copyStaticNpc;
+    window.deleteCloudNpc = deleteCloudNpc;
 }
 
 // --- MODAL HANDLERS ---
@@ -301,6 +305,7 @@ function disconnectChronicle() {
     stState.playerRef = null;
     stState.isStoryteller = false;
     stState.players = {};
+    stState.bestiary = {};
 
     showNotification("Disconnected from Chronicle.");
     
@@ -308,7 +313,6 @@ function disconnectChronicle() {
     const mainContent = document.getElementById('sheet-content');
     if (mainContent) {
         mainContent.innerHTML = ''; 
-        // This forces a reload of the standard sheet structure next time it renders
         window.location.reload(); 
     } else {
         window.openChronicleModal();
@@ -319,7 +323,6 @@ function disconnectChronicle() {
 function startPlayerSync() {
     if (stState.isStoryteller) return;
 
-    // 1. Interval Sync (Every 10 seconds to avoid spamming writes)
     const interval = setInterval(async () => {
         if (!stState.activeChronicleId || !stState.playerRef) {
             clearInterval(interval);
@@ -366,6 +369,9 @@ function activateStorytellerMode() {
                     </span>
                 </div>
                 <div class="flex gap-2">
+                    <button onclick="window.openNpcCreator('mortal')" class="bg-purple-900/40 border border-purple-500/50 text-purple-200 hover:text-white px-3 py-1 text-xs font-bold uppercase rounded transition-colors">
+                        <i class="fas fa-plus mr-1"></i> Quick NPC
+                    </button>
                     <button class="bg-[#222] border border-[#444] text-gray-300 hover:text-white px-3 py-1 text-xs font-bold uppercase rounded transition-colors" onclick="window.disconnectChronicle()">
                         <i class="fas fa-sign-out-alt mr-1"></i> Exit Chronicle
                     </button>
@@ -392,16 +398,23 @@ function activateStorytellerMode() {
         </div>
     `;
 
-    // Initialize Roster Listener
-    const q = query(collection(db, 'chronicles', stState.activeChronicleId, 'players'));
-    const unsub = onSnapshot(q, (snapshot) => {
+    // 1. Initialize Roster Listener
+    const qRoster = query(collection(db, 'chronicles', stState.activeChronicleId, 'players'));
+    const unsubRoster = onSnapshot(qRoster, (snapshot) => {
         stState.players = {};
-        snapshot.forEach(doc => {
-            stState.players[doc.id] = doc.data();
-        });
+        snapshot.forEach(doc => { stState.players[doc.id] = doc.data(); });
         if (stState.currentView === 'roster') renderRosterView();
     });
-    stState.listeners.push(unsub);
+    stState.listeners.push(unsubRoster);
+
+    // 2. Initialize Bestiary Listener
+    const qBestiary = query(collection(db, 'chronicles', stState.activeChronicleId, 'bestiary'));
+    const unsubBestiary = onSnapshot(qBestiary, (snapshot) => {
+        stState.bestiary = {};
+        snapshot.forEach(doc => { stState.bestiary[doc.id] = doc.data(); });
+        if (stState.currentView === 'bestiary') renderBestiaryView();
+    });
+    stState.listeners.push(unsubBestiary);
 
     // Initial Render
     switchStorytellerView('roster');
@@ -426,7 +439,7 @@ function switchStorytellerView(view) {
     } else if (view === 'combat') {
         viewport.innerHTML = `<div class="p-8 text-center text-gray-500 italic">Combat Tracker - Coming Soon in Phase 4</div>`;
     } else if (view === 'bestiary') {
-        viewport.innerHTML = `<div class="p-8 text-center text-gray-500 italic">Bestiary Manager - Coming Soon in Phase 3</div>`;
+        renderBestiaryView();
     }
 }
 
@@ -497,4 +510,198 @@ function renderRosterView() {
 
     html += `</div>`;
     viewport.innerHTML = html;
+}
+
+// ==========================================================================
+// BESTIARY VIEW LOGIC
+// ==========================================================================
+
+function renderBestiaryView() {
+    const viewport = document.getElementById('st-viewport');
+    if (!viewport || stState.currentView !== 'bestiary') return;
+
+    let html = `
+        <div class="flex h-full">
+            <!-- Sidebar: Categories -->
+            <div class="w-64 bg-[#080808] border-r border-[#333] flex flex-col">
+                <div class="p-3 border-b border-[#333]">
+                    <input type="text" id="bestiary-search" placeholder="Search NPCs..." class="w-full bg-[#111] border border-[#333] text-xs p-2 text-white outline-none focus:border-[#d4af37]">
+                </div>
+                <div class="flex-1 overflow-y-auto" id="bestiary-categories">
+                    <div class="p-2 text-[10px] font-bold text-gray-500 uppercase">Chronicle Custom</div>
+                    <div id="cat-custom" class="space-y-1 p-2 border-b border-[#222]"></div>
+                    
+                    <div class="p-2 text-[10px] font-bold text-gray-500 uppercase mt-2">Core Rulebook</div>
+                    ${Object.keys(BESTIARY).map(cat => `
+                        <div class="cursor-pointer hover:bg-[#222] px-3 py-1 text-xs text-gray-300 flex justify-between items-center group" onclick="document.getElementById('cat-group-${cat}').classList.toggle('hidden')">
+                            <span>${cat}</span>
+                            <i class="fas fa-chevron-down text-[8px] text-gray-600 group-hover:text-white"></i>
+                        </div>
+                        <div id="cat-group-${cat}" class="hidden pl-2 space-y-1 mb-2">
+                            ${Object.keys(BESTIARY[cat]).map(key => `
+                                <div class="cursor-pointer hover:text-[#d4af37] px-3 py-1 text-[11px] text-gray-500" onclick="window.previewStaticNpc('${cat}', '${key}')">
+                                    ${key}
+                                </div>
+                            `).join('')}
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+
+            <!-- Main Content: Cards Grid -->
+            <div class="flex-1 overflow-y-auto p-6 bg-[url('https://www.transparenttextures.com/patterns/black-linen.png')]">
+                <div id="bestiary-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    <!-- Cards injected here -->
+                </div>
+            </div>
+        </div>
+    `;
+
+    viewport.innerHTML = html;
+    renderCustomBestiaryList();
+}
+
+function renderCustomBestiaryList() {
+    const container = document.getElementById('cat-custom');
+    const grid = document.getElementById('bestiary-grid');
+    if (!container || !grid) return;
+
+    container.innerHTML = '';
+    grid.innerHTML = '';
+
+    const customNPCs = Object.values(stState.bestiary);
+
+    if (customNPCs.length === 0) {
+        container.innerHTML = `<div class="px-3 py-1 text-[10px] italic text-gray-600">Empty</div>`;
+        grid.innerHTML = `<div class="col-span-full text-center text-gray-500 italic mt-10">Select a category or Create Custom NPCs via Quick NPC.</div>`;
+    }
+
+    customNPCs.forEach(entry => {
+        const id = Object.keys(stState.bestiary).find(key => stState.bestiary[key] === entry);
+        
+        // Sidebar Item
+        const item = document.createElement('div');
+        item.className = "cursor-pointer hover:text-[#d4af37] px-3 py-1 text-[11px] text-blue-300 truncate";
+        item.innerText = entry.name;
+        item.onclick = () => renderNpcCard(entry, id, true); // true = isCustom
+        container.appendChild(item);
+
+        // Grid Card (Render all custom by default)
+        renderNpcCard(entry, id, true, grid);
+    });
+}
+
+// Global helper to find static data
+window.previewStaticNpc = function(category, key) {
+    const npc = BESTIARY[category][key];
+    const grid = document.getElementById('bestiary-grid');
+    if (grid && npc) {
+        grid.innerHTML = ''; // Clear grid to show focused selection
+        renderNpcCard({ data: npc, name: key, type: npc.template }, null, false, grid);
+    }
+};
+
+function renderNpcCard(entry, id, isCustom, container) {
+    if (!container) return; // Should pass grid container
+
+    const npc = entry.data || entry; // Handle wrapper vs raw data
+    const name = entry.name || npc.name;
+    const type = entry.type || npc.template || "Mortal";
+    
+    // Stats Summary
+    const phys = (npc.attributes?.Strength || 1) + (npc.attributes?.Dexterity || 1) + (npc.attributes?.Stamina || 1);
+    const discCount = Object.values(npc.disciplines || {}).reduce((a,b)=>a+b,0);
+    
+    const card = document.createElement('div');
+    card.className = "bg-[#111] border border-[#333] p-3 rounded shadow-lg hover:border-[#555] transition-colors relative group animate-in fade-in";
+    
+    let actionsHtml = '';
+    
+    if (isCustom) {
+        // Cloud Actions
+        actionsHtml = `
+            <button onclick="window.deleteCloudNpc('${id}')" class="text-red-900 hover:text-red-500 p-1" title="Delete Permanent"><i class="fas fa-trash"></i></button>
+            <button class="bg-[#222] hover:bg-[#333] text-gray-300 px-2 py-1 text-[10px] font-bold uppercase rounded border border-[#444]" onclick='window.editCloudNpc("${id}")'>Edit</button>
+        `;
+    } else {
+        // Static Actions
+        actionsHtml = `
+            <button class="bg-blue-900/30 hover:bg-blue-900/50 text-blue-200 px-2 py-1 text-[10px] font-bold uppercase rounded border border-blue-800" onclick='window.copyStaticNpc("${name}")'>Copy</button>
+        `;
+    }
+
+    card.innerHTML = `
+        <div class="flex justify-between items-start mb-2">
+            <div>
+                <div class="text-[#d4af37] font-bold text-sm truncate pr-2">${name}</div>
+                <div class="text-[10px] text-gray-500 uppercase tracking-wider">${type}</div>
+            </div>
+            ${isCustom ? `<i class="fas fa-cloud text-[10px] text-blue-500" title="Cloud Saved"></i>` : `<i class="fas fa-book text-[10px] text-gray-600" title="Core Rulebook"></i>`}
+        </div>
+        
+        <div class="grid grid-cols-3 gap-1 text-[9px] text-gray-400 mb-3 bg-black/30 p-1 rounded">
+            <div class="text-center"><div class="font-bold text-gray-300">${phys}</div><div>Phys</div></div>
+            <div class="text-center"><div class="font-bold text-gray-300">${discCount}</div><div>Disc</div></div>
+            <div class="text-center"><div class="font-bold text-gray-300">${npc.willpower||1}</div><div>Will</div></div>
+        </div>
+
+        <div class="flex justify-between items-center border-t border-[#222] pt-2 mt-auto">
+            <div class="flex gap-2">
+                ${actionsHtml}
+            </div>
+            <button class="bg-[#8b0000] hover:bg-red-700 text-white px-3 py-1 text-[10px] font-bold uppercase rounded shadow-md" title="Add to Combat (Coming Soon)">Spawn</button>
+        </div>
+    `;
+    
+    // Add View Click to Body
+    card.addEventListener('click', (e) => {
+        if(e.target.tagName !== 'BUTTON' && e.target.tagName !== 'I') {
+            if(window.openNpcSheet) window.openNpcSheet(npc);
+        }
+    });
+
+    container.appendChild(card);
+}
+
+// --- BESTIARY ACTIONS ---
+
+window.copyStaticNpc = function(name) {
+    // Find in Static Data
+    let found = null;
+    for (const cat in BESTIARY) {
+        if (BESTIARY[cat][name]) found = BESTIARY[cat][name];
+    }
+    
+    if (found) {
+        // Open Creator with this data (which triggers Save to Bestiary flow)
+        if(window.openNpcCreator) {
+            window.openNpcCreator(found.template || 'mortal', found);
+            showNotification("Template Loaded. Click 'Save to Bestiary' to customize.");
+        }
+    }
+};
+
+window.deleteCloudNpc = async function(id) {
+    if(!confirm("Delete this NPC from the Cloud Bestiary?")) return;
+    try {
+        await deleteDoc(doc(db, 'chronicles', stState.activeChronicleId, 'bestiary', id));
+        showNotification("NPC Deleted.");
+    } catch(e) {
+        console.error(e);
+        showNotification("Error deleting NPC.");
+    }
+};
+
+window.editCloudNpc = function(id) {
+    const entry = stState.bestiary[id];
+    if (entry && entry.data) {
+        // We open the creator, but we need to handle the "Update" vs "New Save" logic
+        // For simplicity in Phase 3, we open it, and saving will create a NEW entry or overwrite based on name logic in npc-creator
+        // Ideally we pass the ID to update properly.
+        if (window.openNpcCreator) {
+            window.openNpcCreator(entry.type, entry.data);
+            // Hint to user
+            showNotification("Editing Cloud NPC.");
+        }
+    }
 }
