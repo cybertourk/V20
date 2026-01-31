@@ -113,12 +113,12 @@ async function renderChronicleMenu() {
     const user = auth.currentUser;
     const authWarning = !user ? `<div class="bg-red-900/20 border border-red-500/50 p-2 mb-4 text-xs text-red-300 text-center">You must be logged in to use Chronicle features.</div>` : '';
 
+    // Initial Skeleton Render to prevent layout shift
     container.innerHTML = `
         <h2 class="heading text-xl text-[#d4af37] mb-4 border-b border-[#333] pb-2">Chronicles</h2>
         ${authWarning}
-        <div id="st-campaign-list" class="mb-6 hidden">
-            <!-- Loaded Async -->
-        </div>
+        <div id="st-resume-block"></div>
+        <div id="st-campaign-list" class="mb-6 hidden"></div>
         
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <!-- JOIN CARD -->
@@ -156,9 +156,71 @@ async function renderChronicleMenu() {
         </div>
     `;
 
-    // Async Load Owned Campaigns
-    if (user) {
-        const listDiv = document.getElementById('st-campaign-list');
+    if (!user) return;
+
+    // --- SECURE RESUME CHECK ---
+    const recentId = localStorage.getItem('v20_last_chronicle_id');
+    const recentRole = localStorage.getItem('v20_last_chronicle_role'); 
+    
+    if (recentId) {
+        try {
+            let isValid = false;
+            let displayName = localStorage.getItem('v20_last_chronicle_name') || recentId;
+
+            // Verify ownership/membership before showing
+            if (recentRole === 'ST') {
+                const docRef = doc(db, 'chronicles', recentId);
+                const snap = await getDoc(docRef);
+                if (snap.exists() && snap.data().storyteller_uid === user.uid) {
+                    isValid = true;
+                    displayName = snap.data().name;
+                }
+            } else {
+                // Player check - verify player doc exists
+                const playerRef = doc(db, 'chronicles', recentId, 'players', user.uid);
+                const snap = await getDoc(playerRef);
+                if (snap.exists()) {
+                    isValid = true;
+                    // Optional: Fetch chronicle name if missing
+                    if (!localStorage.getItem('v20_last_chronicle_name')) {
+                        const cSnap = await getDoc(doc(db, 'chronicles', recentId));
+                        if(cSnap.exists()) displayName = cSnap.data().name;
+                    }
+                }
+            }
+
+            if (isValid) {
+                const btnColor = recentRole === 'ST' ? 'text-red-500 border-red-900 hover:bg-red-900/20' : 'text-blue-400 border-blue-900 hover:bg-blue-900/20';
+                const roleLabel = recentRole === 'ST' ? 'Storyteller' : 'Player';
+                const resumeHtml = `
+                    <div class="mb-6 p-4 bg-[#111] border border-[#333] flex justify-between items-center animate-in fade-in">
+                        <div>
+                            <div class="text-[10px] text-gray-500 uppercase font-bold">Resume Last Session</div>
+                            <div class="text-white font-bold font-cinzel text-lg">${displayName}</div>
+                            <div class="text-[9px] text-gray-400">${roleLabel}</div>
+                        </div>
+                        <button onclick="window.handleResumeChronicle('${recentId}', '${recentRole}')" class="px-4 py-2 border rounded uppercase font-bold text-xs ${btnColor}">
+                            Resume <i class="fas fa-arrow-right ml-1"></i>
+                        </button>
+                    </div>
+                `;
+                const rBlock = document.getElementById('st-resume-block');
+                if(rBlock) rBlock.innerHTML = resumeHtml;
+            } else {
+                // Invalid or mismatch (e.g. Guest ID on User Account) -> Clear It
+                console.log("Clearing stale chronicle data.");
+                localStorage.removeItem('v20_last_chronicle_id');
+                localStorage.removeItem('v20_last_chronicle_name');
+                localStorage.removeItem('v20_last_chronicle_role');
+            }
+        } catch (e) {
+            console.error("Resume check failed:", e);
+        }
+    }
+
+    // --- ASYNC LOAD OWNED CAMPAIGNS ---
+    const listDiv = document.getElementById('st-campaign-list');
+    if (listDiv) {
         try {
             const q = query(collection(db, "chronicles"), where("storyteller_uid", "==", user.uid));
             const querySnapshot = await getDocs(q);
@@ -478,6 +540,8 @@ async function handleResumeChronicle(id, role) {
         if (role === 'ST') {
             if (data.storyteller_uid !== auth.currentUser.uid) {
                 showNotification("Permission Denied: You are not the Storyteller.", "error");
+                // Clear invalid stored data if they somehow got here
+                localStorage.removeItem('v20_last_chronicle_id');
                 return;
             }
             stState.activeChronicleId = id;
