@@ -1,5 +1,5 @@
 import { 
-    db, auth, collection, doc, setDoc, getDoc, getDocs, query, where, addDoc, onSnapshot, deleteDoc 
+    db, auth, collection, doc, setDoc, getDoc, getDocs, query, where, addDoc, onSnapshot, deleteDoc, updateDoc 
 } from "./firebase-config.js";
 import { showNotification } from "./ui-common.js";
 import { BESTIARY } from "./bestiary-data.js";
@@ -23,7 +23,7 @@ export const stState = {
     currentView: 'roster', 
     syncInterval: null,
     seenHandouts: new Set(),
-    dashboardActive: false // Track if we are looking at the ST Dashboard or the Creator
+    dashboardActive: false 
 };
 
 // --- INITIALIZATION ---
@@ -41,7 +41,7 @@ export function initStorytellerSystem() {
     window.disconnectChronicle = disconnectChronicle;
     window.switchStorytellerView = switchStorytellerView;
     window.renderStorytellerDashboard = renderStorytellerDashboard;
-    window.exitStorytellerDashboard = exitStorytellerDashboard; // NEW
+    window.exitStorytellerDashboard = exitStorytellerDashboard;
     
     // Bestiary Actions
     window.copyStaticNpc = copyStaticNpc;
@@ -59,14 +59,14 @@ export function initStorytellerSystem() {
     window.stAddToCombat = handleAddToCombat;
     window.renderCombatView = renderCombatView;
 
-    // Journal Bindings (Delegated Wrappers for UI Journal)
+    // Journal Bindings
     window.stPushHandout = pushHandoutToPlayers;
     window.stDeleteJournalEntry = stDeleteJournalEntry;
     
     // Player Bindings
     window.togglePlayerCombatView = togglePlayerCombatView;
 
-    // GLOBAL PUSH API (For integration with other modules)
+    // GLOBAL PUSH API
     window.stPushNpc = async (npcData) => {
         if (!stState.activeChronicleId || !stState.isStoryteller) return showNotification("Not in ST Mode", "error");
         try {
@@ -104,40 +104,20 @@ export function closeChronicleModal() {
 }
 
 // --- UI RENDERING (MENU) ---
-function renderChronicleMenu() {
+async function renderChronicleMenu() {
     const container = document.getElementById('chronicle-modal-content');
     if(!container) return;
 
     const user = auth.currentUser;
     const authWarning = !user ? `<div class="bg-red-900/20 border border-red-500/50 p-2 mb-4 text-xs text-red-300 text-center">You must be logged in to use Chronicle features.</div>` : '';
 
-    // Check for Recent Chronicle
-    const recentId = localStorage.getItem('v20_last_chronicle_id');
-    const recentName = localStorage.getItem('v20_last_chronicle_name') || recentId;
-    const recentRole = localStorage.getItem('v20_last_chronicle_role'); 
-
-    let resumeHtml = '';
-    if (recentId && user) {
-        const btnColor = recentRole === 'ST' ? 'text-red-500 border-red-900 hover:bg-red-900/20' : 'text-blue-400 border-blue-900 hover:bg-blue-900/20';
-        const roleLabel = recentRole === 'ST' ? 'Storyteller' : 'Player';
-        resumeHtml = `
-            <div class="mb-6 p-4 bg-[#111] border border-[#333] flex justify-between items-center animate-in fade-in">
-                <div>
-                    <div class="text-[10px] text-gray-500 uppercase font-bold">Resume Last Session</div>
-                    <div class="text-white font-bold font-cinzel text-lg">${recentName}</div>
-                    <div class="text-[9px] text-gray-400">${roleLabel}</div>
-                </div>
-                <button onclick="window.handleResumeChronicle('${recentId}', '${recentRole}')" class="px-4 py-2 border rounded uppercase font-bold text-xs ${btnColor}">
-                    Resume <i class="fas fa-arrow-right ml-1"></i>
-                </button>
-            </div>
-        `;
-    }
-
     container.innerHTML = `
-        <h2 class="heading text-xl text-[#d4af37] mb-6 border-b border-[#333] pb-2">Chronicles</h2>
+        <h2 class="heading text-xl text-[#d4af37] mb-4 border-b border-[#333] pb-2">Chronicles</h2>
         ${authWarning}
-        ${resumeHtml}
+        <div id="st-campaign-list" class="mb-6 hidden">
+            <!-- Loaded Async -->
+        </div>
+        
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <!-- JOIN CARD -->
             <div class="bg-[#111] p-6 border border-[#333] hover:border-[#d4af37] transition-all cursor-pointer group relative overflow-hidden" 
@@ -150,7 +130,7 @@ function renderChronicleMenu() {
                     Join Chronicle
                 </h3>
                 <p class="text-xs text-gray-400 leading-relaxed">
-                    Connect to an existing story as a <strong>Player</strong>. Your health and status will be synced to the Storyteller.
+                    Connect to an existing story as a <strong>Player</strong>.
                 </p>
             </div>
 
@@ -162,10 +142,10 @@ function renderChronicleMenu() {
                     <i class="fas fa-book-dead text-6xl text-red-600"></i>
                 </div>
                 <h3 class="text-white font-cinzel font-bold uppercase mb-2 text-lg group-hover:text-red-500 transition-colors">
-                    Storyteller Mode
+                    New Chronicle
                 </h3>
                 <p class="text-xs text-gray-400 leading-relaxed">
-                    Create or manage a Chronicle. You will control NPCs, combat, and distribute handouts.
+                    Initialize a new story as <strong>Storyteller</strong>.
                 </p>
             </div>
         </div>
@@ -173,6 +153,36 @@ function renderChronicleMenu() {
             <button class="text-gray-500 hover:text-white text-xs uppercase font-bold tracking-widest" onclick="window.closeChronicleModal()">Close</button>
         </div>
     `;
+
+    // Async Load Owned Campaigns
+    if (user) {
+        const listDiv = document.getElementById('st-campaign-list');
+        try {
+            const q = query(collection(db, "chronicles"), where("storyteller_uid", "==", user.uid));
+            const querySnapshot = await getDocs(q);
+            
+            if (!querySnapshot.empty) {
+                let html = `<h4 class="text-[10px] text-gray-500 uppercase font-bold mb-2">My Campaigns</h4><div class="grid grid-cols-1 gap-2 max-h-40 overflow-y-auto pr-2 custom-scrollbar">`;
+                querySnapshot.forEach((doc) => {
+                    const data = doc.data();
+                    html += `
+                        <div class="flex justify-between items-center bg-[#1a1a1a] p-3 border-l-2 border-red-900 hover:bg-[#222] cursor-pointer group transition-colors" onclick="window.handleResumeChronicle('${doc.id}', 'ST')">
+                            <div>
+                                <div class="text-white font-bold text-sm font-cinzel group-hover:text-[#d4af37] transition-colors">${data.name}</div>
+                                <div class="text-[9px] text-gray-500">${data.timePeriod || "Modern Nights"}</div>
+                            </div>
+                            <div class="text-[9px] text-gray-600 font-mono group-hover:text-white">${doc.id}</div>
+                        </div>
+                    `;
+                });
+                html += `</div>`;
+                listDiv.innerHTML = html;
+                listDiv.classList.remove('hidden');
+            }
+        } catch (e) {
+            console.error("Error loading campaigns:", e);
+        }
+    }
 }
 
 function renderJoinChronicleUI() {
@@ -186,6 +196,13 @@ function renderJoinChronicleUI() {
                 <label class="label-text text-gray-400">Chronicle ID (Ask your ST)</label>
                 <input type="text" id="join-id" class="w-full bg-[#050505] border border-[#333] text-white p-3 text-sm focus:border-[#d4af37] outline-none font-mono text-center tracking-widest uppercase" placeholder="XXXX-XXXX">
             </div>
+            
+            <div id="join-preview" class="hidden bg-[#111] p-4 border border-[#d4af37] text-center space-y-2">
+                <div class="text-[#d4af37] font-cinzel font-bold text-lg" id="preview-name"></div>
+                <div class="text-[10px] text-gray-400 uppercase tracking-widest" id="preview-time"></div>
+                <div class="text-xs text-gray-300 italic font-serif" id="preview-synopsis"></div>
+            </div>
+
             <div>
                 <label class="label-text text-gray-400">Passcode (Optional)</label>
                 <input type="password" id="join-pass" class="w-full bg-[#050505] border border-[#333] text-white p-3 text-sm focus:border-[#d4af37] outline-none text-center" placeholder="******">
@@ -199,6 +216,24 @@ function renderJoinChronicleUI() {
             </div>
         </div>
     `;
+
+    // Auto-preview on paste/type
+    const input = document.getElementById('join-id');
+    input.addEventListener('input', async (e) => {
+        const val = e.target.value.trim();
+        if (val.length >= 8) { // Assuming ID structure
+            try {
+                const snap = await getDoc(doc(db, 'chronicles', val));
+                if (snap.exists()) {
+                    const data = snap.data();
+                    document.getElementById('preview-name').innerText = data.name;
+                    document.getElementById('preview-time').innerText = data.timePeriod || "Modern Nights";
+                    document.getElementById('preview-synopsis').innerText = data.synopsis ? `"${data.synopsis.substring(0, 100)}..."` : "";
+                    document.getElementById('join-preview').classList.remove('hidden');
+                }
+            } catch(e) {}
+        }
+    });
 }
 
 function renderCreateChronicleUI() {
@@ -206,23 +241,43 @@ function renderCreateChronicleUI() {
     if(!container) return;
 
     container.innerHTML = `
-        <h2 class="heading text-xl text-red-500 mb-4 border-b border-[#333] pb-2">Create Chronicle</h2>
-        <div class="space-y-4 max-w-md mx-auto">
-            <div>
-                <label class="label-text text-gray-400">Chronicle Name</label>
-                <input type="text" id="create-name" class="w-full bg-[#050505] border border-[#333] text-white p-3 text-sm focus:border-red-500 outline-none" placeholder="e.g. Los Angeles by Night">
+        <h2 class="heading text-xl text-red-500 mb-4 border-b border-[#333] pb-2">Initialize Chronicle</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
+            <div class="space-y-4">
+                <div>
+                    <label class="label-text text-gray-400">Chronicle Name</label>
+                    <input type="text" id="create-name" class="w-full bg-[#050505] border border-[#333] text-white p-2 text-sm focus:border-red-500 outline-none font-bold" placeholder="e.g. Los Angeles by Night">
+                </div>
+                <div>
+                    <label class="label-text text-gray-400">Time Period / Setting</label>
+                    <input type="text" id="create-time" class="w-full bg-[#050505] border border-[#333] text-white p-2 text-sm focus:border-red-500 outline-none" placeholder="e.g. 1990s, Dark Ages, Modern">
+                </div>
+                <div>
+                    <label class="label-text text-gray-400">Passcode (Optional)</label>
+                    <input type="text" id="create-pass" class="w-full bg-[#050505] border border-[#333] text-white p-2 text-sm focus:border-red-500 outline-none" placeholder="Leave blank for open game">
+                </div>
+                <div>
+                    <label class="label-text text-gray-400">Synopsis / Briefing</label>
+                    <textarea id="create-synopsis" class="w-full bg-[#050505] border border-[#333] text-gray-300 p-2 text-xs focus:border-red-500 outline-none resize-none h-32" placeholder="The elevator pitch for your players..."></textarea>
+                </div>
             </div>
-            <div>
-                <label class="label-text text-gray-400">Passcode (Optional)</label>
-                <input type="text" id="create-pass" class="w-full bg-[#050505] border border-[#333] text-white p-3 text-sm focus:border-red-500 outline-none" placeholder="Leave blank for open game">
+            <div class="space-y-4">
+                <div>
+                    <label class="label-text text-gray-400">House Rules</label>
+                    <textarea id="create-rules" class="w-full bg-[#050505] border border-[#333] text-gray-300 p-2 text-xs focus:border-red-500 outline-none resize-none h-32" placeholder="e.g. No Potence/Celerity stacking, custom XP costs..."></textarea>
+                </div>
+                <div>
+                    <label class="label-text text-gray-400">Lore / Rumors</label>
+                    <textarea id="create-lore" class="w-full bg-[#050505] border border-[#333] text-gray-300 p-2 text-xs focus:border-red-500 outline-none resize-none h-32" placeholder="Public knowledge about the city..."></textarea>
+                </div>
             </div>
-            
-            <div id="create-error" class="text-red-500 text-xs font-bold text-center hidden"></div>
+        </div>
+        
+        <div id="create-error" class="text-red-500 text-xs font-bold text-center hidden mt-2"></div>
 
-            <div class="flex gap-4 mt-6">
-                <button class="flex-1 border border-[#333] text-gray-400 py-2 text-xs font-bold uppercase hover:bg-[#222]" onclick="window.openChronicleModal()">Back</button>
-                <button class="flex-1 bg-red-900 text-white py-2 text-xs font-bold uppercase hover:bg-red-700 shadow-lg" onclick="window.handleCreateChronicle()">Initialize</button>
-            </div>
+        <div class="flex gap-4 mt-6 border-t border-[#333] pt-4">
+            <button class="flex-1 border border-[#333] text-gray-400 py-2 text-xs font-bold uppercase hover:bg-[#222]" onclick="window.openChronicleModal()">Back</button>
+            <button class="flex-1 bg-red-900 text-white py-2 text-xs font-bold uppercase hover:bg-red-700 shadow-lg" onclick="window.handleCreateChronicle()">Initialize System</button>
         </div>
     `;
 }
@@ -258,7 +313,12 @@ async function handleCreateChronicle() {
     if(!user) return;
 
     const name = document.getElementById('create-name').value.trim();
+    const time = document.getElementById('create-time').value.trim();
     const pass = document.getElementById('create-pass').value.trim();
+    const synopsis = document.getElementById('create-synopsis').value.trim();
+    const rules = document.getElementById('create-rules').value.trim();
+    const lore = document.getElementById('create-lore').value.trim();
+    
     const err = document.getElementById('create-error');
 
     if (!name) {
@@ -276,6 +336,10 @@ async function handleCreateChronicle() {
             name: name,
             storyteller_uid: user.uid,
             passcode: pass,
+            timePeriod: time,
+            synopsis: synopsis,
+            houseRules: rules,
+            lore: lore,
             created_at: new Date().toISOString(),
             active_scene: "Prologue"
         };
@@ -382,6 +446,11 @@ async function handleResumeChronicle(id, role) {
         
         const data = docSnap.data();
         
+        // Update LocalStorage to specific resumed chronicle
+        localStorage.setItem('v20_last_chronicle_id', id);
+        localStorage.setItem('v20_last_chronicle_name', data.name);
+        localStorage.setItem('v20_last_chronicle_role', role);
+
         if (role === 'ST') {
             if (data.storyteller_uid !== auth.currentUser.uid) {
                 showNotification("Permission Denied: You are not the Storyteller.", "error");
@@ -615,7 +684,7 @@ function renderPlayerCombatModal() {
 }
 
 // ==========================================================================
-// STORYTELLER DASHBOARD (FIXED: NON-DESTRUCTIVE)
+// STORYTELLER DASHBOARD
 // ==========================================================================
 
 function startStorytellerSession() {
@@ -656,7 +725,6 @@ function renderStorytellerHUD() {
         document.body.appendChild(hud);
     }
     
-    // Check if dashboard is active to toggle button text
     const btnText = stState.dashboardActive ? '<i class="fas fa-edit mr-2"></i> Creator Mode' : '<i class="fas fa-crown mr-2"></i> Dashboard';
     const btnAction = stState.dashboardActive ? 'window.exitStorytellerDashboard()' : 'window.renderStorytellerDashboard()';
     const btnColor = stState.dashboardActive ? 'bg-[#222] border border-gray-600 hover:bg-[#333]' : 'bg-red-900 hover:bg-red-700';
@@ -680,26 +748,20 @@ function renderStorytellerHUD() {
 
 function renderStorytellerDashboard() {
     stState.dashboardActive = true;
-    
-    // Update HUD
     renderStorytellerHUD();
 
-    // 1. Hide Standard UI (Do NOT delete it)
-    document.querySelectorAll('.step-container').forEach(el => el.classList.remove('active')); // Hide all phases
+    document.querySelectorAll('.step-container').forEach(el => el.classList.remove('active'));
     const nav = document.getElementById('sheet-nav');
-    if(nav) nav.style.display = 'none'; // Hide Navigation
+    if(nav) nav.style.display = 'none'; 
     
-    // 2. Locate or Create Dashboard Container
     const mainContent = document.getElementById('sheet-content');
     if (!mainContent) return;
 
-    // Check if dashboard wrapper exists inside main content
     let dash = document.getElementById('st-dashboard-view');
     if (!dash) {
         dash = document.createElement('div');
         dash.id = 'st-dashboard-view';
         dash.className = "w-full h-screen fixed top-0 left-0 bg-[#050505] z-[100] overflow-hidden flex flex-col animate-in fade-in"; 
-        // We use fixed positioning to overlay everything cleanly
         document.body.appendChild(dash);
     }
     dash.style.display = 'flex';
@@ -747,26 +809,17 @@ function renderStorytellerDashboard() {
         </div>
     `;
     
-    // Default View
     switchStorytellerView(stState.currentView || 'roster');
 }
 
 function exitStorytellerDashboard() {
     stState.dashboardActive = false;
-    
-    // Hide Dashboard
     const dash = document.getElementById('st-dashboard-view');
     if(dash) dash.style.display = 'none';
-
-    // Restore Standard UI
     const nav = document.getElementById('sheet-nav');
-    if(nav) nav.style.display = ''; // Restore default display
-    
-    // Restore Active Phase
+    if(nav) nav.style.display = '';
     const currentPhase = window.state.currentPhase || 1;
     if(window.changeStep) window.changeStep(currentPhase);
-    
-    // Update HUD to show "Dashboard" button
     renderStorytellerHUD();
 }
 
@@ -1042,7 +1095,6 @@ window.copyStaticNpc = function(name) {
     if(found && window.openNpcCreator) { 
         window.openNpcCreator(found.template||'mortal', found); 
         showNotification("Template Loaded. Use 'Save to Bestiary' to edit."); 
-        // Auto-switch back to creator view if we are deep in dashboard
         exitStorytellerDashboard();
     }
 };
@@ -1056,7 +1108,7 @@ window.editCloudNpc = function(id) {
     const entry = stState.bestiary[id];
     if(entry && entry.data && window.openNpcCreator) {
         window.openNpcCreator(entry.type, entry.data);
-        exitStorytellerDashboard(); // Switch view to creator
+        exitStorytellerDashboard(); 
         showNotification("Editing NPC...");
     }
 }
