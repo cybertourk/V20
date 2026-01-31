@@ -14,7 +14,7 @@ import {
 
 import { renderJournalTab } from "./ui-journal.js";
 import { renderPrintSheet } from "./ui-print.js";
-import { renderNpcTab } from "./ui-play.js"; 
+import { renderNpcTab, renderChronicleTab } from "./ui-play.js"; 
 import { renderRitualsEdit } from "./ui-advantages.js";
 
 // --- NAVIGATION & STEPS ---
@@ -80,26 +80,40 @@ export function changeStep(s, updateGlobalState = true) {
     
     const prefix = window.state.isPlayMode ? 'play-mode-' : 'phase-';
     
-    if (window.state.isPlayMode && s === 5) {
-        let pm5 = document.getElementById('play-mode-5');
-        if (!pm5) {
-            pm5 = document.createElement('div');
-            pm5.id = 'play-mode-5';
-            pm5.className = 'step-container p-4 hidden'; 
-            document.getElementById('play-mode-sheet').appendChild(pm5);
+    // Play Mode Dynamic Container Injection
+    if (window.state.isPlayMode) {
+        if (s === 5) { // Journal
+            let pm5 = document.getElementById('play-mode-5');
+            if (!pm5) {
+                pm5 = document.createElement('div');
+                pm5.id = 'play-mode-5';
+                pm5.className = 'step-container p-4 hidden h-full'; 
+                document.getElementById('play-mode-sheet').appendChild(pm5);
+            }
+            renderJournalTab();
         }
-        renderJournalTab();
-    }
 
-    if (window.state.isPlayMode && s === 6) {
-        let pm6 = document.getElementById('play-mode-6');
-        if (!pm6) {
-            pm6 = document.createElement('div');
-            pm6.id = 'play-mode-6';
-            pm6.className = 'step-container p-4 hidden';
-            document.getElementById('play-mode-sheet').appendChild(pm6);
+        if (s === 6) { // NPCs
+            let pm6 = document.getElementById('play-mode-6');
+            if (!pm6) {
+                pm6 = document.createElement('div');
+                pm6.id = 'play-mode-6';
+                pm6.className = 'step-container p-4 hidden';
+                document.getElementById('play-mode-sheet').appendChild(pm6);
+            }
+            renderNpcTab();
         }
-        renderNpcTab();
+
+        if (s === 7) { // Chronicle Info
+            let pm7 = document.getElementById('play-mode-7');
+            if (!pm7) {
+                pm7 = document.createElement('div');
+                pm7.id = 'play-mode-7';
+                pm7.className = 'step-container p-4 hidden h-full overflow-y-auto';
+                document.getElementById('play-mode-sheet').appendChild(pm7);
+            }
+            renderChronicleTab();
+        }
     }
     
     if (!window.state.isPlayMode && s === 6) {
@@ -116,11 +130,20 @@ export function changeStep(s, updateGlobalState = true) {
     if (nav) {
         nav.innerHTML = '';
         if (window.state.isPlayMode) {
-             const steps = ["Sheet", "Traits", "Social", "Biography", "Journal", "NPCs"];
+             // Updated steps array to include Chronicle
+             const steps = ["Sheet", "Traits", "Social", "Biography", "Journal", "NPCs", "Chronicle"];
              steps.forEach((text, i) => {
-                 const it = document.createElement('div'); it.className = `nav-item ${window.state.currentPhase === (i+1) ? 'active' : ''}`;
-                 it.innerHTML = `<i class="fas fa-scroll"></i><span style="display:block; font-size:9px; margin-top:2px;">${text}</span>`;
-                 it.onclick = () => { if(window.changeStep) changeStep(i+1); };
+                 const stepNum = i + 1;
+                 const it = document.createElement('div'); 
+                 it.className = `nav-item ${window.state.currentPhase === stepNum ? 'active' : ''}`;
+                 
+                 let icon = 'fa-scroll';
+                 if (text === 'Journal') icon = 'fa-book-open';
+                 if (text === 'NPCs') icon = 'fa-users';
+                 if (text === 'Chronicle') icon = 'fa-globe'; // Globe or Map icon for Chronicle
+                 
+                 it.innerHTML = `<i class="fas ${icon}"></i><span style="display:block; font-size:9px; margin-top:2px;">${text}</span>`;
+                 it.onclick = () => { if(window.changeStep) changeStep(stepNum); };
                  nav.appendChild(it);
              });
         } else {
@@ -292,7 +315,6 @@ const GUIDE_TEXT = {
 };
 
 // --- THIS BUTTON SHOWS PHASE INFO (Bottom Left) ---
-// RENAMED from createWalkthroughButton to createPhaseInfoButton to avoid conflict
 function createPhaseInfoButton() {
     if (document.getElementById('phase-info-btn')) return;
     const btn = document.createElement('button');
@@ -366,7 +388,8 @@ const PLAY_TUTORIAL_STEPS = [
     { title: "Interactive Traits", content: "Click any Attribute, Ability, or Discipline name to add it to the Dice Pool.", targetId: "play-row-attr", phase: 1 },
     { title: "Interactive Pools", content: "Click boxes to track Health, Willpower, and Blood usage.", targetId: "willpower-boxes-play", phase: 1 },
     { title: "Dice Engine", content: "The Dice Tray slides up when you select traits.", targetId: "dice-toggle-btn", phase: 1 },
-    { title: "Journal & NPCs", content: "Use these tabs to track session logs and manage Retainers.", targetId: "sheet-nav", phase: 1 }
+    { title: "Journal & NPCs", content: "Use these tabs to track session logs and manage Retainers.", targetId: "sheet-nav", phase: 1 },
+    { title: "Chronicle Info", content: "View Lore and House Rules for your current campaign here.", targetId: "sheet-nav", phase: 1 }
 ];
 
 let currentTutorialStep = 0;
