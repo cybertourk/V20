@@ -33,7 +33,7 @@ import {
     renderDynamicTraitRow, 
     renderDerangementsList, 
     renderBloodBondRow, 
-    renderDynamicHavenRow,
+    renderDynamicHavenRow, 
     renderRitualsEdit 
 } from "./ui-advantages.js";
 
@@ -74,15 +74,15 @@ window.onerror = function(msg, url, line) {
 // --- AUTO-SAVE SYSTEM (ENHANCED) ---
 const AUTOSAVE_KEY = 'v20_character_autosave_v1';
 let autoSaveTimeout = null;
+let isCreatingNew = false; // Flag to prevent save on unload during reset
 
 // 1. Synchronous Save (Immediate)
 function forceLocalSave() {
+    if (isCreatingNew) return; // Block save if resetting
     if (!window.state || !window.state.dots) return;
     try {
         const data = JSON.stringify(window.state);
         localStorage.setItem(AUTOSAVE_KEY, data);
-        // Optional: Console log for debugging, but kept quiet for production
-        // console.log("Force saved to local storage");
     } catch (e) {
         console.warn("Force save failed:", e);
     }
@@ -90,6 +90,7 @@ function forceLocalSave() {
 
 // 2. Debounced Save (Typing/Clicking)
 function triggerAutoSave() {
+    if (isCreatingNew) return;
     if (autoSaveTimeout) clearTimeout(autoSaveTimeout);
     autoSaveTimeout = setTimeout(() => {
         forceLocalSave();
@@ -97,19 +98,21 @@ function triggerAutoSave() {
 }
 
 // 3. Browser Lifecycle Hooks (Save on Exit/Refresh/Hide)
-// Modern mobile/desktop support
 window.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') {
         forceLocalSave();
     }
 });
-window.addEventListener('pagehide', forceLocalSave); // Reliable on mobile Safari/Chrome
-window.addEventListener('beforeunload', (e) => {
-    forceLocalSave();
-    // Standard "Unsaved Changes" prompt logic below
-    e.preventDefault();
-    e.returnValue = '';
-});
+window.addEventListener('pagehide', forceLocalSave); 
+
+// --- NAVIGATION GUARD ---
+const beforeUnloadHandler = (e) => {
+    if (!isCreatingNew) {
+        forceLocalSave(); // Ensure save happens before prompt
+    }
+    // Standard prompt logic removed to be less intrusive, but save happens above.
+};
+window.addEventListener('beforeunload', beforeUnloadHandler);
 
 function loadAutoSave() {
     try {
@@ -119,8 +122,6 @@ function loadAutoSave() {
             if (parsed && parsed.dots) {
                 console.log("Restoring Auto-Save...");
                 window.state = parsed;
-                // REVERTED: Do not force reset to Phase 1. Respect saved phase.
-                // window.state.currentPhase = 1;
                 return true;
             }
         }
@@ -139,7 +140,7 @@ window.state = {
     activePool: [], 
     currentPhase: 1, 
     furthestPhase: 1,
-    characterImage: null, // New Field for Image Data
+    characterImage: null, 
     dots: { attr: {}, abil: {}, disc: {}, back: {}, virt: {}, other: {} },
     prios: { attr: {}, abil: {} },
     status: { humanity: 7, willpower: 5, tempWillpower: 5, health_states: [0,0,0,0,0,0,0], blood: 0 },
@@ -159,19 +160,20 @@ window.state = {
 
 let user = null;
 
-// --- NAVIGATION GUARD ---
-const beforeUnloadHandler = (e) => {
-    forceLocalSave(); // Ensure save happens before prompt
-    e.preventDefault();
-    e.returnValue = '';
-};
-
 // --- BINDING EXPORTS TO WINDOW ---
-// Modified handleNew to clear AUTOSAVE_KEY
+// CRITICAL FIX: Ensure handleNew completely wipes storage and bypasses save triggers
 window.handleNew = () => {
     if(confirm("Create New Character? Unsaved changes will be overwritten.")) {
+        isCreatingNew = true; // Set flag to block autosave
+        
+        // Remove listeners
         window.removeEventListener('beforeunload', beforeUnloadHandler);
+        window.removeEventListener('pagehide', forceLocalSave);
+        if (autoSaveTimeout) clearTimeout(autoSaveTimeout);
+        
+        // Clear Storage
         localStorage.removeItem(AUTOSAVE_KEY);
+        
         // Reload Page (Cleanest reset)
         window.location.reload();
     }
@@ -511,9 +513,7 @@ function initUI() {
         }
 
         // --- PREVENT ACCIDENTAL EXIT & FORCE SAVE ---
-        window.addEventListener('beforeunload', beforeUnloadHandler);
-
-        // --- 1. SETUP BASE EVENT LISTENERS ---
+        // (Moved inside initUI so it respects `isCreatingNew` flag defined above)
         
         // Anti-Autofill
         const sensitiveInputs = ['c-name', 'c-player', 'c-sire', 'c-concept', 'c-chronicle'];
@@ -575,7 +575,7 @@ function initUI() {
             // --- INJECT IMAGE WRAPPER (MOVED TO BOTTOM OF BIO SECTION) ---
             const imgWrap = document.createElement('div');
             imgWrap.id = 'char-image-wrapper';
-            imgWrap.className = 'w-full flex justify-center mt-4 mb-2'; // Adjusted margin: top spacing, little bottom
+            imgWrap.className = 'w-full flex justify-center mt-4 mb-2'; 
             imgWrap.innerHTML = `
                 <div class="flex flex-col items-center">
                     <div id="char-img-display" title="Click to upload or right-click to paste URL" 
@@ -600,7 +600,6 @@ function initUI() {
             display.onclick = () => input.click();
             input.onchange = (e) => handleImageUpload(e);
             
-            // URL Handler
             urlBtn.onclick = () => {
                 let url = prompt("Paste Image URL (e.g. from Discord, Imgur, or Google Drive):");
                 if(url) {
@@ -617,7 +616,6 @@ function initUI() {
                 window.fullRefresh();
                 triggerAutoSave();
             };
-            // --- END INJECT ---
         }
         
         renderDynamicTraitRow('merits-list-create', 'Merit', V20_MERITS_LIST);
