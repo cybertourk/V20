@@ -1,5 +1,5 @@
 import { 
-    db, doc, setDoc, onSnapshot, updateDoc, arrayUnion, arrayRemove, deleteField 
+    db, doc, setDoc, onSnapshot, updateDoc, arrayUnion, arrayRemove, deleteField, deleteDoc
 } from "./firebase-config.js";
 import { stState } from "./ui-storyteller.js";
 import { showNotification } from "./ui-common.js";
@@ -17,6 +17,12 @@ export const combatState = {
 export function initCombatTracker(chronicleId) {
     if (combatState.unsub) combatState.unsub();
     
+    // SAFETY GUARD: Do not listen if ID is null/undefined
+    if (!chronicleId) {
+        console.warn("initCombatTracker called with null ID. Skipping listener.");
+        return;
+    }
+
     // Listen to the singleton combat document 'active'
     const docRef = doc(db, 'chronicles', chronicleId, 'combat', 'active');
     
@@ -33,10 +39,23 @@ export function initCombatTracker(chronicleId) {
             
             // Trigger UI Refresh
             if (window.renderCombatView) window.renderCombatView();
+            
+            // Update Player Float if active
+            if (window.togglePlayerCombatView && document.getElementById('player-combat-float')) {
+                // Refresh content if visible
+                const float = document.getElementById('player-combat-float');
+                if (float.classList.contains('expanded')) window.togglePlayerCombatView(); // Toggle off/on to refresh or separate render function
+            }
         } else {
             combatState.isActive = false;
             combatState.combatants = [];
             if (window.renderCombatView) window.renderCombatView();
+        }
+    }, (error) => {
+        if (error.code === 'permission-denied') {
+            console.warn("Combat Tracker: Permission Denied (User likely not in chronicle yet).");
+        } else {
+            console.error("Combat Tracker Error:", error);
         }
     });
 }
@@ -63,12 +82,8 @@ export async function endCombat() {
     if (!confirm("End Combat? This clears the tracker.")) return;
     try {
         const docRef = doc(db, 'chronicles', stState.activeChronicleId, 'combat', 'active');
-        // We don't delete the doc, we just clear the list or delete the doc.
-        // Deleting doc is cleaner for 'Inactive' state.
+        // We delete the doc to signal Inactive state
         await deleteDoc(docRef); 
-        // Note: deleteDoc needs to be imported if we use it, otherwise set to empty
-        // Re-using setDoc to empty state is safer if delete isn't imported in this scope yet
-        await setDoc(docRef, { combatants: [], turn: 0 }); 
         showNotification("Combat Ended.");
     } catch (e) {
         console.error(e);
@@ -96,6 +111,10 @@ export async function addCombatant(entity, type = 'NPC') {
 
     try {
         const docRef = doc(db, 'chronicles', stState.activeChronicleId, 'combat', 'active');
+        // Ensure doc exists first (in case startCombat wasn't called manually)
+        // merge: true ensures we don't wipe existing
+        await setDoc(docRef, { turn: combatState.turn || 1 }, { merge: true }); 
+        
         await updateDoc(docRef, {
             combatants: arrayUnion(newCombatant)
         });
@@ -133,11 +152,6 @@ export async function updateInitiative(id, newVal) {
 }
 
 export async function nextTurn() {
-    const list = [...combatState.combatants];
-    // Reset statuses? Or just increment counter
-    // Usually V20 re-rolls init every turn, but many groups act static.
-    // We'll just increment turn counter.
-    
     try {
         const docRef = doc(db, 'chronicles', stState.activeChronicleId, 'combat', 'active');
         await updateDoc(docRef, {
@@ -151,18 +165,9 @@ export async function rollNPCInitiative(id) {
     const c = combatState.combatants.find(x => x.id === id);
     if (!c) return;
     
-    // Retrieve stats if possible (This is hard if we don't have the full data loaded)
-    // For Phase 4, we assume manual entry or simple roll.
-    // Advanced: Fetch from Bestiary cache in stState
-    
+    // Simple d10 roll for now (Phase 4 scope)
     const roll = Math.floor(Math.random() * 10) + 1;
     let mod = 0;
-    
-    // Try to find mod from cache
-    if (c.type === 'NPC' && stState.bestiary) {
-        // ... logic to find mod ...
-        // For now, simple d10
-    }
     
     await updateInitiative(id, roll + mod);
 }
