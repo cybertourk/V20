@@ -205,16 +205,19 @@ function renderPlayerCombatOverlay(container) {
     container.innerHTML = `
         <div class="absolute top-0 right-0 w-64 bg-[#1a0505] border border-red-500 rounded p-4 shadow-xl text-left cursor-default" onclick="event.stopPropagation()">
             <div class="flex justify-between items-center mb-2 border-b border-red-900 pb-1">
-                <h3 class="text-red-500 font-bold font-cinzel">Combat - Turn ${turn}</h3>
+                <h3 class="text-red-500 font-bold font-cinzel">Combat - Round ${turn}</h3>
                 <button class="text-gray-500 hover:text-white" onclick="window.togglePlayerCombatView()">&times;</button>
             </div>
             <div class="space-y-1 max-h-60 overflow-y-auto custom-scrollbar">
                 ${combatants.length === 0 ? '<div class="text-gray-500 italic text-[10px]">Waiting for combatants...</div>' : ''}
                 ${combatants.map(c => `
-                    <div class="flex justify-between text-xs ${c.status === 'done' ? 'opacity-50 line-through' : ''}">
-                        <span class="text-[#d4af37] font-bold w-6 text-center">${c.init}</span>
-                        <span class="text-gray-300 truncate flex-1 ml-2">${c.name}</span>
-                        <span class="text-[9px] text-gray-500 uppercase">${c.type}</span>
+                    <div class="flex justify-between text-xs items-center p-1 rounded ${c.active ? 'bg-[#d4af37]/20 border border-[#d4af37]/50' : 'opacity-80'} ${c.status === 'done' ? 'opacity-30 line-through' : ''}">
+                        <div class="flex items-center gap-2 overflow-hidden">
+                            ${c.active ? '<i class="fas fa-caret-right text-[#d4af37]"></i>' : ''}
+                            <span class="text-[#d4af37] font-bold w-6 text-center">${c.init}</span>
+                            <span class="text-gray-300 truncate w-32 ${c.active ? 'text-white font-bold' : ''}">${c.name}</span>
+                        </div>
+                        <span class="text-[8px] text-gray-500 uppercase">${c.type}</span>
                     </div>
                 `).join('')}
             </div>
