@@ -31,28 +31,63 @@ export const stState = {
 export function initStorytellerSystem() {
     console.log("Storyteller System Initialized");
     
-    // Bind Top Nav Button explicitly with retry logic to ensure DOM is ready
-    const bindButton = () => {
-        const btn = document.getElementById('st-dashboard-btn');
-        if (btn) {
-            // Remove old listeners by cloning
-            const newBtn = btn.cloneNode(true);
-            btn.parentNode.replaceChild(newBtn, btn);
-            
-            newBtn.onclick = (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                console.log("Storyteller Button Clicked");
-                window.renderStorytellerDashboard();
-            };
-            // Initial visibility check
-            toggleStorytellerButton(stState.isStoryteller);
-        } else {
-            // Retry if button not found yet (race condition)
-            setTimeout(bindButton, 500);
-        }
+    // Window bindings
+    window.openChronicleModal = openChronicleModal;
+    window.closeChronicleModal = closeChronicleModal;
+    window.renderJoinChronicleUI = renderJoinChronicleUI;
+    window.renderCreateChronicleUI = renderCreateChronicleUI;
+    window.handleCreateChronicle = handleCreateChronicle;
+    window.handleJoinChronicle = handleJoinChronicle;
+    window.handleResumeChronicle = handleResumeChronicle;
+    window.handleDeleteChronicle = handleDeleteChronicle;
+    window.disconnectChronicle = disconnectChronicle;
+    window.switchStorytellerView = switchStorytellerView;
+    window.renderStorytellerDashboard = renderStorytellerDashboard;
+    window.exitStorytellerDashboard = exitStorytellerDashboard;
+    
+    // Settings Actions
+    window.stSaveSettings = stSaveSettings;
+
+    // Bestiary Actions
+    window.copyStaticNpc = copyStaticNpc;
+    window.deleteCloudNpc = deleteCloudNpc;
+    window.editCloudNpc = editCloudNpc;
+    window.previewStaticNpc = previewStaticNpc;
+    
+    // Combat Bindings
+    window.stStartCombat = startCombat;
+    window.stEndCombat = endCombat;
+    window.stNextTurn = nextTurn;
+    window.stUpdateInit = (id, val) => updateInitiative(id, val);
+    window.stRemoveCombatant = removeCombatant;
+    window.stRollInit = rollNPCInitiative;
+    window.stAddToCombat = handleAddToCombat;
+    window.renderCombatView = renderCombatView;
+
+    // Journal Bindings
+    window.stPushHandout = pushHandoutToPlayers;
+    window.stDeleteJournalEntry = stDeleteJournalEntry;
+    
+    // Player Bindings
+    window.togglePlayerCombatView = togglePlayerCombatView;
+
+    // GLOBAL PUSH API
+    window.stPushNpc = async (npcData) => {
+        if (!stState.activeChronicleId || !stState.isStoryteller) return showNotification("Not in ST Mode", "error");
+        try {
+            const id = npcData.id || "npc_" + Date.now();
+            await setDoc(doc(db, 'chronicles', stState.activeChronicleId, 'bestiary', id), {
+                name: npcData.name || "Unknown",
+                type: "Custom",
+                data: npcData
+            });
+            showNotification(`${npcData.name} sent to Bestiary`);
+        } catch(e) { console.error(e); showNotification("Failed to push NPC", "error"); }
     };
-    bindButton();
+
+    // --- BIND TOP NAV BUTTON ---
+    const btn = document.getElementById('st-dashboard-btn');
+    if (btn) btn.onclick = () => window.renderStorytellerDashboard();
 
     // Check for stale session data on load
     setTimeout(checkStaleSession, 1000);
@@ -67,8 +102,10 @@ async function checkStaleSession() {
     // 1. If Guest (no user), they cannot have an active Cloud Session
     if (!user && storedId) {
         console.log("Guest User: Clearing stale Chronicle data.");
-        disconnectChronicle(); 
-        clearStorage();
+        disconnectChronicle(); // This clears local state
+        localStorage.removeItem('v20_last_chronicle_id');
+        localStorage.removeItem('v20_last_chronicle_name');
+        localStorage.removeItem('v20_last_chronicle_role');
         toggleStorytellerButton(false);
         return;
     }
@@ -83,13 +120,15 @@ async function checkStaleSession() {
             if (!snap.exists() || snap.data().storyteller_uid !== user.uid) {
                 console.warn("Session Mismatch: Clearing unauthorized ST data.");
                 disconnectChronicle();
-                clearStorage();
+                localStorage.removeItem('v20_last_chronicle_id');
+                localStorage.removeItem('v20_last_chronicle_name');
+                localStorage.removeItem('v20_last_chronicle_role');
                 toggleStorytellerButton(false);
             } else {
-                // Valid Session: Enable Button & Start Background Listeners
+                // Valid Session: Enable Button
                 stState.activeChronicleId = storedId;
                 stState.isStoryteller = true;
-                startStorytellerSession(); 
+                startStorytellerSession(); // Start listeners in background
                 toggleStorytellerButton(true);
             }
         } catch(e) {
@@ -98,18 +137,12 @@ async function checkStaleSession() {
     }
 }
 
-function clearStorage() {
-    localStorage.removeItem('v20_last_chronicle_id');
-    localStorage.removeItem('v20_last_chronicle_name');
-    localStorage.removeItem('v20_last_chronicle_role');
-}
-
 function toggleStorytellerButton(show) {
     const btn = document.getElementById('st-dashboard-btn');
     if (btn) {
         if (show) {
             btn.classList.remove('hidden');
-            btn.classList.add('flex'); // Ensure flex display matches index.html
+            btn.classList.add('flex');
         } else {
             btn.classList.add('hidden');
             btn.classList.remove('flex');
@@ -196,6 +229,7 @@ async function renderChronicleMenu() {
             let isValid = false;
             let displayName = localStorage.getItem('v20_last_chronicle_name') || recentId;
 
+            // Verify ownership/membership before showing
             if (recentRole === 'ST') {
                 const docRef = doc(db, 'chronicles', recentId);
                 const snap = await getDoc(docRef);
@@ -204,10 +238,12 @@ async function renderChronicleMenu() {
                     displayName = snap.data().name;
                 }
             } else {
+                // Player check - verify player doc exists
                 const playerRef = doc(db, 'chronicles', recentId, 'players', user.uid);
                 const snap = await getDoc(playerRef);
                 if (snap.exists()) {
                     isValid = true;
+                    // Optional: Fetch chronicle name if missing
                     if (!localStorage.getItem('v20_last_chronicle_name')) {
                         const cSnap = await getDoc(doc(db, 'chronicles', recentId));
                         if(cSnap.exists()) displayName = cSnap.data().name;
@@ -233,7 +269,11 @@ async function renderChronicleMenu() {
                 const rBlock = document.getElementById('st-resume-block');
                 if(rBlock) rBlock.innerHTML = resumeHtml;
             } else {
-                clearStorage();
+                // Invalid or mismatch (e.g. Guest ID on User Account) -> Clear It
+                console.log("Clearing stale chronicle data.");
+                localStorage.removeItem('v20_last_chronicle_id');
+                localStorage.removeItem('v20_last_chronicle_name');
+                localStorage.removeItem('v20_last_chronicle_role');
             }
         } catch (e) {
             console.error("Resume check failed:", e);
@@ -416,7 +456,19 @@ async function handleCreateChronicle() {
     if(!user) return;
 
     const name = document.getElementById('create-name').value.trim();
-    if (!name) return;
+    const time = document.getElementById('create-time').value.trim();
+    const pass = document.getElementById('create-pass').value.trim();
+    const synopsis = document.getElementById('create-synopsis').value.trim();
+    const rules = document.getElementById('create-rules').value.trim();
+    const lore = document.getElementById('create-lore').value.trim();
+    
+    const err = document.getElementById('create-error');
+
+    if (!name) {
+        err.innerText = "Chronicle Name is required.";
+        err.classList.remove('hidden');
+        return;
+    }
 
     try {
         const safeName = name.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().substring(0, 10);
@@ -426,12 +478,13 @@ async function handleCreateChronicle() {
         const chronicleData = {
             name: name,
             storyteller_uid: user.uid,
-            passcode: document.getElementById('create-pass').value.trim(),
-            timePeriod: document.getElementById('create-time').value.trim(),
-            synopsis: document.getElementById('create-synopsis').value.trim(),
-            houseRules: document.getElementById('create-rules').value.trim(),
-            lore: document.getElementById('create-lore').value.trim(),
-            created_at: new Date().toISOString()
+            passcode: pass,
+            timePeriod: time,
+            synopsis: synopsis,
+            houseRules: rules,
+            lore: lore,
+            created_at: new Date().toISOString(),
+            active_scene: "Prologue"
         };
 
         await setDoc(doc(db, 'chronicles', chronicleId), chronicleData);
@@ -461,20 +514,34 @@ async function handleJoinChronicle() {
     if(!user) return;
 
     const idInput = document.getElementById('join-id').value.trim();
-    if (!idInput) return;
+    const passInput = document.getElementById('join-pass').value.trim();
+    const err = document.getElementById('join-error');
+
+    if (!idInput) {
+        err.innerText = "Chronicle ID is required.";
+        err.classList.remove('hidden');
+        return;
+    }
 
     try {
         const docRef = doc(db, 'chronicles', idInput);
         const docSnap = await getDoc(docRef);
 
-        if (!docSnap.exists()) throw new Error("Chronicle not found.");
+        if (!docSnap.exists()) {
+            err.innerText = "Chronicle not found.";
+            err.classList.remove('hidden');
+            return;
+        }
 
         const data = docSnap.data();
-        const passInput = document.getElementById('join-pass').value.trim();
-        if (data.passcode && data.passcode !== passInput) throw new Error("Incorrect Passcode.");
+        if (data.passcode && data.passcode !== passInput) {
+            err.innerText = "Incorrect Passcode.";
+            err.classList.remove('hidden');
+            return;
+        }
 
         const playerRef = doc(db, 'chronicles', idInput, 'players', user.uid);
-        const charName = document.getElementById('c-name')?.value || "Unknown";
+        const charName = document.getElementById('c-name')?.value || "Unknown Kindred";
         
         await setDoc(playerRef, {
             character_name: charName,
@@ -503,8 +570,9 @@ async function handleJoinChronicle() {
         if(window.changeStep) window.changeStep(7); 
 
     } catch (e) {
-        const err = document.getElementById('join-error');
-        if(err) { err.innerText = e.message; err.classList.remove('hidden'); }
+        console.error("Join Error:", e);
+        err.innerText = "Connection failed: " + e.message;
+        err.classList.remove('hidden');
     }
 }
 
@@ -516,8 +584,8 @@ async function handleResumeChronicle(id, role) {
         const docSnap = await getDoc(docRef);
         
         if (!docSnap.exists()) {
-            showNotification("Chronicle unavailable.", "error");
-            clearStorage();
+            showNotification("Chronicle no longer exists.", "error");
+            localStorage.removeItem('v20_last_chronicle_id');
             renderChronicleMenu();
             return;
         }
@@ -530,7 +598,8 @@ async function handleResumeChronicle(id, role) {
 
         if (role === 'ST') {
             if (data.storyteller_uid !== auth.currentUser.uid) {
-                showNotification("Access Denied.", "error");
+                showNotification("Permission Denied: You are not the Storyteller.", "error");
+                localStorage.removeItem('v20_last_chronicle_id');
                 return;
             }
             stState.activeChronicleId = id;
@@ -555,15 +624,18 @@ async function handleResumeChronicle(id, role) {
             showNotification(`Reconnected to ${data.name}`);
             if(window.changeStep) window.changeStep(7);
         }
+        
     } catch (e) {
-        console.error(e);
-        showNotification("Resume Failed", "error");
+        console.error("Resume Error:", e);
+        showNotification("Failed to resume.", "error");
     }
 }
 
 function disconnectChronicle() {
     if (!stState.isStoryteller && stState.playerRef) {
-        try { setDoc(stState.playerRef, { status: "Offline" }, { merge: true }); } catch(e) {}
+        try {
+            setDoc(stState.playerRef, { status: "Offline" }, { merge: true });
+        } catch(e) { console.warn(e); }
     }
 
     stState.listeners.forEach(unsub => unsub());
@@ -574,22 +646,38 @@ function disconnectChronicle() {
     stState.playerRef = null;
     stState.isStoryteller = false;
     stState.dashboardActive = false;
+    stState.players = {};
+    stState.bestiary = {};
+    stState.journal = {};
+    stState.settings = {};
+    stState.seenHandouts = new Set();
+
+    showNotification("Disconnected from Chronicle.");
     
-    clearStorage();
+    localStorage.removeItem('v20_last_chronicle_id');
+    localStorage.removeItem('v20_last_chronicle_name');
+    localStorage.removeItem('v20_last_chronicle_role');
+
+    const floatBtn = document.getElementById('player-combat-float');
+    if(floatBtn) floatBtn.remove();
+    
     toggleStorytellerButton(false);
     exitStorytellerDashboard();
     
-    showNotification("Disconnected.");
-    if (window.state && window.state.currentPhase === 7) if(window.changeStep) window.changeStep(1);
+    if (window.state && window.state.currentPhase === 7) {
+        if(window.changeStep) window.changeStep(1);
+    }
 }
 
 function startPlayerSync() {
     if (stState.isStoryteller) return;
+
     const interval = setInterval(async () => {
         if (!stState.activeChronicleId || !stState.playerRef) {
             clearInterval(interval);
             return;
         }
+        
         try {
             await setDoc(stState.playerRef, {
                 character_name: document.getElementById('c-name')?.value || "Unknown",
@@ -600,8 +688,11 @@ function startPlayerSync() {
                 },
                 last_active: new Date().toISOString()
             }, { merge: true });
-        } catch(e) {}
+        } catch(e) {
+            console.warn("Sync error:", e);
+        }
     }, 10000);
+    
     stState.syncInterval = interval;
 }
 
@@ -614,34 +705,36 @@ function startStorytellerSession() {
     stState.listeners.push(onSnapshot(qRoster, (snapshot) => {
         stState.players = {};
         snapshot.forEach(doc => { stState.players[doc.id] = doc.data(); });
-        if (stState.dashboardActive && stState.currentView === 'roster') renderRosterView();
+        if (stState.dashboardActive && stState.currentView === 'roster' && document.getElementById('st-viewport')) renderRosterView();
     }));
 
     const qBestiary = query(collection(db, 'chronicles', stState.activeChronicleId, 'bestiary'));
     stState.listeners.push(onSnapshot(qBestiary, (snapshot) => {
         stState.bestiary = {};
         snapshot.forEach(doc => { stState.bestiary[doc.id] = doc.data(); });
-        if (stState.dashboardActive && stState.currentView === 'bestiary') renderBestiaryView();
+        if (stState.dashboardActive && stState.currentView === 'bestiary' && document.getElementById('st-viewport')) renderBestiaryView();
     }));
 
     const qJournal = query(collection(db, 'chronicles', stState.activeChronicleId, 'journal'));
     stState.listeners.push(onSnapshot(qJournal, (snapshot) => {
         stState.journal = {};
         snapshot.forEach(doc => { stState.journal[doc.id] = doc.data(); });
-        if (stState.dashboardActive && stState.currentView === 'journal') renderStorytellerJournal(document.getElementById('st-viewport'));
+        if (stState.dashboardActive && stState.currentView === 'journal' && document.getElementById('st-viewport')) renderStorytellerJournal(document.getElementById('st-viewport'));
     }));
 
     initCombatTracker(stState.activeChronicleId);
 }
 
-// Global Export MUST be defined here
+// Renders into the dedicated Overlay Div
 function renderStorytellerDashboard(container = null) {
     if (!container) container = document.getElementById('st-dashboard-view');
-    if (!container) { console.error("Dashboard Container Not Found"); return; }
+    if (!container) {
+        console.warn("ST Dashboard: No container found.");
+        return;
+    }
 
+    // Force Visibility
     stState.dashboardActive = true;
-    
-    // CRITICAL: Ensure visibility overrides hidden class
     container.classList.remove('hidden');
     container.style.display = 'flex'; 
 
@@ -687,7 +780,9 @@ function renderStorytellerDashboard(container = null) {
             </div>
 
             <!-- ST Viewport -->
-            <div id="st-viewport" class="flex-1 overflow-hidden relative bg-[url('https://www.transparenttextures.com/patterns/black-linen.png')]"></div>
+            <div id="st-viewport" class="flex-1 overflow-hidden relative bg-[url('https://www.transparenttextures.com/patterns/black-linen.png')]">
+                <!-- Views injected here -->
+            </div>
         </div>
     `;
     
@@ -713,8 +808,6 @@ function switchStorytellerView(view) {
     });
 
     const viewport = document.getElementById('st-viewport');
-    if(!viewport) return;
-    
     if (view === 'roster') renderRosterView();
     else if (view === 'combat') renderCombatView();
     else if (view === 'bestiary') renderBestiaryView();
@@ -728,95 +821,233 @@ async function renderSettingsView(container) {
     
     const docRef = doc(db, 'chronicles', stState.activeChronicleId);
     let data = stState.settings || {};
-    try { const snap = await getDoc(docRef); if(snap.exists()) { data = snap.data(); stState.settings = data; } } catch(e) {}
+    
+    try {
+        const snap = await getDoc(docRef);
+        if(snap.exists()) {
+            data = snap.data();
+            stState.settings = data;
+        }
+    } catch(e) { console.error(e); }
 
     container.innerHTML = `
         <div class="p-8 max-w-4xl mx-auto pb-20 overflow-y-auto h-full custom-scrollbar">
             <h2 class="text-2xl text-[#d4af37] font-cinzel font-bold mb-6 border-b border-[#333] pb-2 uppercase tracking-wider">Chronicle Configuration</h2>
+            
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                <div><label class="label-text text-gray-400">Chronicle Name</label><input type="text" id="st-set-name" class="w-full bg-[#111] border border-[#333] text-white p-3 text-sm focus:border-[#d4af37] outline-none" value="${data.name || ''}"></div>
-                <div><label class="label-text text-gray-400">Time Period / Setting</label><input type="text" id="st-set-time" class="w-full bg-[#111] border border-[#333] text-white p-3 text-sm focus:border-[#d4af37] outline-none" value="${data.timePeriod || ''}"></div>
+                <div>
+                    <label class="label-text text-gray-400">Chronicle Name</label>
+                    <input type="text" id="st-set-name" class="w-full bg-[#111] border border-[#333] text-white p-3 text-sm focus:border-[#d4af37] outline-none" value="${data.name || ''}">
+                </div>
+                <div>
+                    <label class="label-text text-gray-400">Time Period / Setting</label>
+                    <input type="text" id="st-set-time" class="w-full bg-[#111] border border-[#333] text-white p-3 text-sm focus:border-[#d4af37] outline-none" value="${data.timePeriod || ''}">
+                </div>
             </div>
-            <div class="mb-6"><label class="label-text text-gray-400">Passcode</label><input type="text" id="st-set-pass" class="w-full bg-[#111] border border-[#333] text-white p-3 text-sm focus:border-[#d4af37] outline-none" value="${data.passcode || ''}"></div>
-            <div class="mb-6"><label class="label-text text-gray-400">Synopsis</label><textarea id="st-set-synopsis" class="w-full bg-[#111] border border-[#333] text-gray-300 p-3 text-xs focus:border-[#d4af37] outline-none resize-none h-32 leading-relaxed">${data.synopsis || ''}</textarea></div>
+
+            <div class="mb-6">
+                <label class="label-text text-gray-400">Passcode (Leave empty for open access)</label>
+                <input type="text" id="st-set-pass" class="w-full bg-[#111] border border-[#333] text-white p-3 text-sm focus:border-[#d4af37] outline-none" value="${data.passcode || ''}">
+            </div>
+
+            <div class="mb-6">
+                <label class="label-text text-gray-400">Synopsis / Briefing (Public)</label>
+                <textarea id="st-set-synopsis" class="w-full bg-[#111] border border-[#333] text-gray-300 p-3 text-xs focus:border-[#d4af37] outline-none resize-none h-32 leading-relaxed">${data.synopsis || ''}</textarea>
+            </div>
+
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                <div><label class="label-text text-gray-400">House Rules</label><textarea id="st-set-rules" class="w-full bg-[#1a0505] border border-red-900/30 text-gray-300 p-3 text-xs focus:border-red-500 outline-none resize-none h-48 leading-relaxed">${data.houseRules || ''}</textarea></div>
-                <div><label class="label-text text-gray-400">Lore</label><textarea id="st-set-lore" class="w-full bg-[#0a0a0a] border border-[#d4af37]/30 text-gray-300 p-3 text-xs focus:border-[#d4af37] outline-none resize-none h-48 leading-relaxed">${data.lore || ''}</textarea></div>
+                <div>
+                    <label class="label-text text-gray-400">House Rules</label>
+                    <textarea id="st-set-rules" class="w-full bg-[#1a0505] border border-red-900/30 text-gray-300 p-3 text-xs focus:border-red-500 outline-none resize-none h-48 leading-relaxed">${data.houseRules || ''}</textarea>
+                </div>
+                <div>
+                    <label class="label-text text-gray-400">Lore / Setting Details</label>
+                    <textarea id="st-set-lore" class="w-full bg-[#0a0a0a] border border-[#d4af37]/30 text-gray-300 p-3 text-xs focus:border-[#d4af37] outline-none resize-none h-48 leading-relaxed">${data.lore || ''}</textarea>
+                </div>
             </div>
-            <div class="text-right"><button onclick="window.stSaveSettings()" class="bg-[#d4af37] text-black font-bold px-8 py-3 rounded uppercase hover:bg-[#fcd34d] shadow-lg tracking-widest transition-transform hover:scale-105">Save Changes</button></div>
+
+            <div class="text-right">
+                <button onclick="window.stSaveSettings()" class="bg-[#d4af37] text-black font-bold px-8 py-3 rounded uppercase hover:bg-[#fcd34d] shadow-lg tracking-widest transition-transform hover:scale-105">
+                    Save Changes
+                </button>
+            </div>
         </div>
     `;
 }
 
-// --- GLOBAL BINDINGS ---
-window.openChronicleModal = openChronicleModal;
-window.closeChronicleModal = closeChronicleModal;
-window.renderJoinChronicleUI = renderJoinChronicleUI;
-window.renderCreateChronicleUI = renderCreateChronicleUI;
-window.handleCreateChronicle = handleCreateChronicle;
-window.handleJoinChronicle = handleJoinChronicle;
-window.handleResumeChronicle = handleResumeChronicle;
-window.handleDeleteChronicle = handleDeleteChronicle;
-window.disconnectChronicle = disconnectChronicle;
-window.switchStorytellerView = switchStorytellerView;
-window.renderStorytellerDashboard = renderStorytellerDashboard;
-window.exitStorytellerDashboard = exitStorytellerDashboard;
-window.stSaveSettings = stSaveSettings;
-window.copyStaticNpc = copyStaticNpc;
-window.deleteCloudNpc = deleteCloudNpc;
-window.editCloudNpc = editCloudNpc;
-window.previewStaticNpc = previewStaticNpc;
-window.stStartCombat = startCombat;
-window.stEndCombat = endCombat;
-window.stNextTurn = nextTurn;
-window.stUpdateInit = (id, val) => updateInitiative(id, val);
-window.stRemoveCombatant = removeCombatant;
-window.stRollInit = rollNPCInitiative;
-window.stAddToCombat = handleAddToCombat;
-window.renderCombatView = renderCombatView;
-window.stPushHandout = pushHandoutToPlayers;
-window.stDeleteJournalEntry = stDeleteJournalEntry;
-window.togglePlayerCombatView = togglePlayerCombatView;
+async function stSaveSettings() {
+    if(!stState.activeChronicleId) return;
+    
+    const updates = {
+        name: document.getElementById('st-set-name').value,
+        timePeriod: document.getElementById('st-set-time').value,
+        passcode: document.getElementById('st-set-pass').value,
+        synopsis: document.getElementById('st-set-synopsis').value,
+        houseRules: document.getElementById('st-set-rules').value,
+        lore: document.getElementById('st-set-lore').value
+    };
+    
+    try {
+        await updateDoc(doc(db, 'chronicles', stState.activeChronicleId), updates);
+        stState.settings = { ...stState.settings, ...updates };
+        showNotification("Settings Updated");
+    } catch(e) {
+        console.error(e);
+        showNotification("Update Failed", "error");
+    }
+}
 
-// Re-add helper functions that were in 1109 version but might be needed
+// --- VIEW 1: ROSTER ---
 function renderRosterView() {
     const viewport = document.getElementById('st-viewport');
-    if (!viewport) return;
+    if (!viewport || stState.currentView !== 'roster') return;
+
     const players = Object.values(stState.players);
-    if (players.length === 0) { viewport.innerHTML = `<div class="flex flex-col items-center justify-center h-full text-gray-500"><i class="fas fa-users-slash text-4xl mb-4 opacity-50"></i><p>No players connected.</p><p class="text-xs mt-2">Share ID: <span class="text-gold font-mono font-bold">${stState.activeChronicleId}</span></p></div>`; return; }
+    
+    if (players.length === 0) {
+        viewport.innerHTML = `<div class="flex flex-col items-center justify-center h-full text-gray-500"><i class="fas fa-users-slash text-4xl mb-4 opacity-50"></i><p>No players connected.</p><p class="text-xs mt-2">Share ID: <span class="text-gold font-mono font-bold">${stState.activeChronicleId}</span></p></div>`;
+        return;
+    }
+
     let html = `<div class="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 overflow-y-auto h-full pb-20">`;
+
     players.forEach(p => {
         const health = p.live_stats?.health || [];
         const dmgCount = health.filter(x => x > 0).length;
         const statusDot = p.status === 'Offline' ? 'bg-red-500' : 'bg-green-500';
         const pid = Object.keys(stState.players).find(k => stState.players[k] === p);
-        html += `<div class="bg-[#111] border border-[#333] rounded p-4 shadow-md relative group hover:border-[#555] transition-colors"><div class="absolute top-2 right-2 flex items-center gap-2"><span class="text-[10px] uppercase text-gray-600 font-bold">${p.status || 'Unknown'}</span><span class="w-2 h-2 rounded-full ${statusDot}"></span></div><h3 class="text-lg text-[#d4af37] font-bold font-cinzel truncate pr-16">${p.character_name || "Unknown"}</h3><div class="grid grid-cols-3 gap-2 mt-4 text-center"><div class="bg-black/30 p-2 rounded border border-[#222]"><div class="text-[9px] uppercase text-gray-500 font-bold mb-1">Health</div><div class="text-lg font-bold ${dmgCount > 3 ? 'text-red-500' : 'text-green-500'}">${7 - dmgCount}/7</div></div><div class="bg-black/30 p-2 rounded border border-[#222]"><div class="text-[9px] uppercase text-gray-500 font-bold mb-1">WP</div><div class="text-lg font-bold text-blue-400">${p.live_stats?.willpower || 0}</div></div><div class="bg-black/30 p-2 rounded border border-[#222]"><div class="text-[9px] uppercase text-gray-500 font-bold mb-1">Blood</div><div class="text-lg font-bold text-red-500">${p.live_stats?.blood || 0}</div></div></div><div class="mt-4 pt-2 border-t border-[#222] flex justify-end gap-2 opacity-50 group-hover:opacity-100 transition-opacity"><button class="text-[10px] uppercase font-bold text-gray-400 hover:text-white px-2 py-1 border border-[#333] rounded hover:bg-[#222]" onclick="window.stAddToCombat({id:'${pid}', name:'${p.character_name}'}, 'Player')"><i class="fas fa-swords mr-1"></i> Combat</button></div></div>`;
+
+        html += `
+            <div class="bg-[#111] border border-[#333] rounded p-4 shadow-md relative group hover:border-[#555] transition-colors">
+                <div class="absolute top-2 right-2 flex items-center gap-2">
+                    <span class="text-[10px] uppercase text-gray-600 font-bold">${p.status || 'Unknown'}</span>
+                    <span class="w-2 h-2 rounded-full ${statusDot}"></span>
+                </div>
+                <h3 class="text-lg text-[#d4af37] font-bold font-cinzel truncate pr-16">${p.character_name || "Unknown"}</h3>
+                
+                <div class="grid grid-cols-3 gap-2 mt-4 text-center">
+                    <div class="bg-black/30 p-2 rounded border border-[#222]">
+                        <div class="text-[9px] uppercase text-gray-500 font-bold mb-1">Health</div>
+                        <div class="text-lg font-bold ${dmgCount > 3 ? 'text-red-500' : 'text-green-500'}">${7 - dmgCount}/7</div>
+                    </div>
+                    <div class="bg-black/30 p-2 rounded border border-[#222]">
+                        <div class="text-[9px] uppercase text-gray-500 font-bold mb-1">WP</div>
+                        <div class="text-lg font-bold text-blue-400">${p.live_stats?.willpower || 0}</div>
+                    </div>
+                    <div class="bg-black/30 p-2 rounded border border-[#222]">
+                        <div class="text-[9px] uppercase text-gray-500 font-bold mb-1">Blood</div>
+                        <div class="text-lg font-bold text-red-500">${p.live_stats?.blood || 0}</div>
+                    </div>
+                </div>
+
+                <div class="mt-4 pt-2 border-t border-[#222] flex justify-end gap-2 opacity-50 group-hover:opacity-100 transition-opacity">
+                    <button class="text-[10px] uppercase font-bold text-gray-400 hover:text-white px-2 py-1 border border-[#333] rounded hover:bg-[#222]" onclick="window.stAddToCombat({id:'${pid}', name:'${p.character_name}'}, 'Player')">
+                        <i class="fas fa-swords mr-1"></i> Combat
+                    </button>
+                </div>
+            </div>
+        `;
     });
     html += `</div>`;
     viewport.innerHTML = html;
 }
 
+// --- VIEW 2: COMBAT ---
 function renderCombatView() {
     const viewport = document.getElementById('st-viewport');
-    if (!viewport) return;
+    if (!viewport || stState.currentView !== 'combat') return;
+
     const { isActive, turn, combatants } = combatState;
-    if (!isActive) { viewport.innerHTML = `<div class="flex flex-col items-center justify-center h-full text-gray-500"><i class="fas fa-peace text-6xl mb-6 opacity-30"></i><h3 class="text-xl font-bold text-gray-400 mb-2">No Active Combat</h3><button onclick="window.stStartCombat()" class="bg-[#8b0000] hover:bg-red-700 text-white font-bold py-3 px-8 uppercase tracking-widest shadow-lg rounded transition-transform hover:scale-105">Start Encounter</button></div>`; return; }
-    let html = `<div class="flex flex-col h-full"><div class="bg-[#111] border-b border-[#333] p-4 flex justify-between items-center shadow-md z-20"><div class="flex items-center gap-6"><div class="text-center"><div class="text-[10px] text-gray-500 uppercase font-bold tracking-widest">Turn</div><div class="text-3xl font-black text-[#d4af37] leading-none">${turn}</div></div><button onclick="window.stNextTurn()" class="bg-[#222] hover:bg-[#333] border border-[#444] text-white px-4 py-2 text-xs font-bold uppercase rounded flex items-center gap-2 transition-colors">Next Turn <i class="fas fa-step-forward"></i></button></div><button onclick="window.stEndCombat()" class="text-red-500 hover:text-red-300 text-xs font-bold uppercase border border-red-900/30 px-4 py-2 rounded hover:bg-red-900/10">End Combat</button></div><div class="flex-1 overflow-y-auto p-4 space-y-2 bg-black/50 pb-20">`;
-    if (combatants.length === 0) { html += `<div class="text-center text-gray-500 italic mt-10">Waiting for combatants...</div>`; } 
-    else {
+
+    if (!isActive) {
+        viewport.innerHTML = `
+            <div class="flex flex-col items-center justify-center h-full text-gray-500">
+                <i class="fas fa-peace text-6xl mb-6 opacity-30"></i>
+                <h3 class="text-xl font-bold text-gray-400 mb-2">No Active Combat</h3>
+                <button onclick="window.stStartCombat()" class="bg-[#8b0000] hover:bg-red-700 text-white font-bold py-3 px-8 uppercase tracking-widest shadow-lg rounded transition-transform hover:scale-105">Start Encounter</button>
+            </div>
+        `;
+        return;
+    }
+
+    let html = `
+        <div class="flex flex-col h-full">
+            <div class="bg-[#111] border-b border-[#333] p-4 flex justify-between items-center shadow-md z-20">
+                <div class="flex items-center gap-6">
+                    <div class="text-center">
+                        <div class="text-[10px] text-gray-500 uppercase font-bold tracking-widest">Turn</div>
+                        <div class="text-3xl font-black text-[#d4af37] leading-none">${turn}</div>
+                    </div>
+                    <button onclick="window.stNextTurn()" class="bg-[#222] hover:bg-[#333] border border-[#444] text-white px-4 py-2 text-xs font-bold uppercase rounded flex items-center gap-2 transition-colors">
+                        Next Turn <i class="fas fa-step-forward"></i>
+                    </button>
+                </div>
+                <button onclick="window.stEndCombat()" class="text-red-500 hover:text-red-300 text-xs font-bold uppercase border border-red-900/30 px-4 py-2 rounded hover:bg-red-900/10">End Combat</button>
+            </div>
+            <div class="flex-1 overflow-y-auto p-4 space-y-2 bg-black/50 pb-20">
+    `;
+
+    if (combatants.length === 0) {
+        html += `<div class="text-center text-gray-500 italic mt-10">Waiting for combatants...</div>`;
+    } else {
         combatants.forEach(c => {
             const isNPC = c.type === 'NPC';
-            html += `<div class="bg-[#1a1a1a] border border-[#333] p-2 rounded flex items-center justify-between group hover:border-[#555] transition-colors relative overflow-hidden"><div class="flex items-center gap-4 flex-1"><div class="flex flex-col items-center w-12"><input type="number" value="${c.init}" onchange="window.stUpdateInit('${c.id}', this.value)" class="w-10 bg-black border border-[#444] text-center text-lg font-bold text-[#d4af37] focus:outline-none focus:border-[#d4af37] rounded"><span class="text-[8px] text-gray-600 uppercase font-bold mt-0.5">Init</span></div><div class="flex flex-col"><span class="text-white font-bold text-sm ${c.status === 'done' ? 'line-through opacity-50' : ''}">${c.name}</span><span class="text-[9px] text-gray-500 uppercase">${c.type}</span></div></div><div class="flex items-center gap-2">${isNPC ? `<button onclick="window.stRollInit('${c.id}')" class="text-gray-500 hover:text-white" title="Roll Initiative"><i class="fas fa-dice-d10"></i></button>` : ''}<button onclick="window.stRemoveCombatant('${c.id}')" class="text-red-900 hover:text-red-500 px-2 transition-colors"><i class="fas fa-times"></i></button></div></div>`;
+            html += `
+                <div class="bg-[#1a1a1a] border border-[#333] p-2 rounded flex items-center justify-between group hover:border-[#555] transition-colors relative overflow-hidden">
+                    <div class="flex items-center gap-4 flex-1">
+                        <div class="flex flex-col items-center w-12">
+                            <input type="number" value="${c.init}" onchange="window.stUpdateInit('${c.id}', this.value)" class="w-10 bg-black border border-[#444] text-center text-lg font-bold text-[#d4af37] focus:outline-none focus:border-[#d4af37] rounded">
+                            <span class="text-[8px] text-gray-600 uppercase font-bold mt-0.5">Init</span>
+                        </div>
+                        <div class="flex flex-col">
+                            <span class="text-white font-bold text-sm ${c.status === 'done' ? 'line-through opacity-50' : ''}">${c.name}</span>
+                            <span class="text-[9px] text-gray-500 uppercase">${c.type}</span>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        ${isNPC ? `<button onclick="window.stRollInit('${c.id}')" class="text-gray-500 hover:text-white" title="Roll Initiative"><i class="fas fa-dice-d10"></i></button>` : ''}
+                        <button onclick="window.stRemoveCombatant('${c.id}')" class="text-red-900 hover:text-red-500 px-2 transition-colors"><i class="fas fa-times"></i></button>
+                    </div>
+                </div>
+            `;
         });
     }
     html += `</div></div>`;
     viewport.innerHTML = html;
 }
 
+// --- VIEW 3: BESTIARY ---
 function renderBestiaryView() {
     const viewport = document.getElementById('st-viewport');
-    if (!viewport) return;
-    viewport.innerHTML = `<div class="flex h-full"><div class="w-64 bg-[#080808] border-r border-[#333] flex flex-col"><div class="p-3 border-b border-[#333]"><input type="text" id="bestiary-search" placeholder="Search..." class="w-full bg-[#111] border border-[#333] text-xs p-2 text-white outline-none focus:border-[#d4af37]"></div><div class="flex-1 overflow-y-auto p-2" id="bestiary-categories"><div class="text-[10px] font-bold text-gray-500 uppercase mb-1">Custom</div><div id="cat-custom" class="space-y-1 mb-4"></div><div class="text-[10px] font-bold text-gray-500 uppercase mb-1">Core Rulebook</div>${Object.keys(BESTIARY).map(cat => `<div class="cursor-pointer hover:bg-[#222] px-2 py-1 text-xs text-gray-300 flex justify-between group" onclick="document.getElementById('cat-group-${cat}').classList.toggle('hidden')"><span>${cat}</span><i class="fas fa-chevron-down text-[8px] text-gray-600"></i></div><div id="cat-group-${cat}" class="hidden pl-2 border-l border-[#222] ml-1">${Object.keys(BESTIARY[cat]).map(key => `<div class="cursor-pointer hover:text-[#d4af37] px-2 py-1 text-[10px] text-gray-500" onclick="window.previewStaticNpc('${cat}', '${key}')">${key}</div>`).join('')}</div>`).join('')}</div></div><div class="flex-1 overflow-y-auto p-6 bg-[url('https://www.transparenttextures.com/patterns/black-linen.png')] pb-20"><div id="bestiary-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></div></div></div>`;
+    if (!viewport || stState.currentView !== 'bestiary') return;
+
+    let html = `
+        <div class="flex h-full">
+            <div class="w-64 bg-[#080808] border-r border-[#333] flex flex-col">
+                <div class="p-3 border-b border-[#333]">
+                    <input type="text" id="bestiary-search" placeholder="Search..." class="w-full bg-[#111] border border-[#333] text-xs p-2 text-white outline-none focus:border-[#d4af37]">
+                </div>
+                <div class="flex-1 overflow-y-auto p-2" id="bestiary-categories">
+                    <div class="text-[10px] font-bold text-gray-500 uppercase mb-1">Custom</div>
+                    <div id="cat-custom" class="space-y-1 mb-4"></div>
+                    
+                    <div class="text-[10px] font-bold text-gray-500 uppercase mb-1">Core Rulebook</div>
+                    ${Object.keys(BESTIARY).map(cat => `
+                        <div class="cursor-pointer hover:bg-[#222] px-2 py-1 text-xs text-gray-300 flex justify-between group" onclick="document.getElementById('cat-group-${cat}').classList.toggle('hidden')">
+                            <span>${cat}</span><i class="fas fa-chevron-down text-[8px] text-gray-600"></i>
+                        </div>
+                        <div id="cat-group-${cat}" class="hidden pl-2 border-l border-[#222] ml-1">
+                            ${Object.keys(BESTIARY[cat]).map(key => `<div class="cursor-pointer hover:text-[#d4af37] px-2 py-1 text-[10px] text-gray-500" onclick="window.previewStaticNpc('${cat}', '${key}')">${key}</div>`).join('')}
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+            <div class="flex-1 overflow-y-auto p-6 bg-[url('https://www.transparenttextures.com/patterns/black-linen.png')] pb-20">
+                <div id="bestiary-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></div>
+            </div>
+        </div>
+    `;
+    viewport.innerHTML = html;
     renderCustomBestiaryList();
 }
 
@@ -824,30 +1055,127 @@ function renderCustomBestiaryList() {
     const container = document.getElementById('cat-custom');
     const grid = document.getElementById('bestiary-grid');
     if (!container || !grid) return;
+
     container.innerHTML = '';
+    grid.innerHTML = ''; 
+
     const customNPCs = Object.values(stState.bestiary);
-    if(customNPCs.length === 0) { container.innerHTML = `<div class="px-2 py-1 text-[10px] italic text-gray-600">Empty</div>`; grid.innerHTML = `<div class="col-span-full text-center text-gray-500 italic mt-10">Bestiary is empty. Use "Character Creator" -> "NPC" tab to build one, then "Push to Bestiary".</div>`; }
+    
+    if(customNPCs.length === 0) {
+        container.innerHTML = `<div class="px-2 py-1 text-[10px] italic text-gray-600">Empty</div>`;
+        grid.innerHTML = `<div class="col-span-full text-center text-gray-500 italic mt-10">Bestiary is empty. Use "Character Creator" -> "NPC" tab to build one, then "Push to Bestiary".</div>`;
+    }
+
     customNPCs.forEach(entry => {
         const id = Object.keys(stState.bestiary).find(key => stState.bestiary[key] === entry);
+        
         const item = document.createElement('div');
         item.className = "cursor-pointer hover:text-blue-300 px-2 py-1 text-[11px] text-blue-500 truncate";
         item.innerText = entry.name;
         item.onclick = () => renderNpcCard(entry, id, true, grid, true);
         container.appendChild(item);
+
         renderNpcCard(entry, id, true, grid);
     });
 }
 
 function renderNpcCard(entry, id, isCustom, container, clearFirst = false) {
     if (clearFirst) container.innerHTML = '';
+    
     const npc = entry.data || entry;
     const name = entry.name || npc.name;
     const type = entry.type || npc.template || "Mortal";
     const phys = (npc.attributes?.Strength||1) + (npc.attributes?.Dexterity||1) + (npc.attributes?.Stamina||1);
+    
     const card = document.createElement('div');
     card.className = "bg-[#111] border border-[#333] p-3 rounded shadow-lg hover:border-[#555] transition-all group relative flex flex-col";
-    let actionsHtml = isCustom ? `<button onclick="event.stopPropagation(); window.deleteCloudNpc('${id}')" class="text-red-900 hover:text-red-500 p-1" title="Delete"><i class="fas fa-trash"></i></button><button class="bg-[#222] hover:bg-[#333] text-gray-300 px-2 py-1 text-[9px] font-bold uppercase rounded border border-[#444]" onclick='event.stopPropagation(); window.editCloudNpc("${id}")'>Edit</button>` : `<button class="bg-blue-900/30 hover:bg-blue-900/50 text-blue-200 px-2 py-1 text-[9px] font-bold uppercase rounded border border-blue-800" onclick='event.stopPropagation(); window.copyStaticNpc("${name}")'>Copy</button>`;
-    card.innerHTML = `<div class="flex justify-between items-start mb-2"><div class="overflow-hidden"><div class="text-[#d4af37] font-bold text-sm truncate" title="${name}">${name}</div><div class="text-[9px] text-gray-500 uppercase tracking-wider">${type}</div></div>${isCustom ? `<i class="fas fa-cloud text-[10px] text-blue-500"></i>` : `<i class="fas fa-book text-[10px] text-gray-600"></i>`}</div><div class="grid grid-cols-3 gap-1 text-[8px] text-gray-400 mb-3 bg-black/30 p-1 rounded"><div class="text-center"><div class="font-bold text-gray-300">${phys}</div><div>Phys</div></div><div class="text-center"><div class="font-bold text-gray-300">${Object.keys(npc.disciplines||{}).length}</div><div>Disc</div></div><div class="text-center"><div class="font-bold text-gray-300">${npc.willpower||1}</div><div>Will</div></div></div><div class="flex justify-between items-center border-t border-[#222] pt-2 mt-auto"><div class="flex gap-1">${actionsHtml}</div><button class="bg-[#8b0000] hover:bg-red-700 text-white px-3 py-1 text-[9px] font-bold uppercase rounded shadow-md" onclick="event.stopPropagation(); window.stAddToCombat({id:'${id||name}', name:'${name}', health:${isCustom?'null':'{damage:0}'}, sourceId:'${id}'}, 'NPC')">Spawn</button></div>`;
+    
+    let actionsHtml = '';
+    if (isCustom) {
+        actionsHtml = `
+            <button onclick="event.stopPropagation(); window.deleteCloudNpc('${id}')" class="text-red-900 hover:text-red-500 p-1" title="Delete"><i class="fas fa-trash"></i></button>
+            <button class="bg-[#222] hover:bg-[#333] text-gray-300 px-2 py-1 text-[9px] font-bold uppercase rounded border border-[#444]" onclick='event.stopPropagation(); window.editCloudNpc("${id}")'>Edit</button>
+        `;
+    } else {
+        actionsHtml = `<button class="bg-blue-900/30 hover:bg-blue-900/50 text-blue-200 px-2 py-1 text-[9px] font-bold uppercase rounded border border-blue-800" onclick='event.stopPropagation(); window.copyStaticNpc("${name}")'>Copy</button>`;
+    }
+
+    card.innerHTML = `
+        <div class="flex justify-between items-start mb-2">
+            <div class="overflow-hidden">
+                <div class="text-[#d4af37] font-bold text-sm truncate" title="${name}">${name}</div>
+                <div class="text-[9px] text-gray-500 uppercase tracking-wider">${type}</div>
+            </div>
+            ${isCustom ? `<i class="fas fa-cloud text-[10px] text-blue-500"></i>` : `<i class="fas fa-book text-[10px] text-gray-600"></i>`}
+        </div>
+        <div class="grid grid-cols-3 gap-1 text-[8px] text-gray-400 mb-3 bg-black/30 p-1 rounded">
+            <div class="text-center"><div class="font-bold text-gray-300">${phys}</div><div>Phys</div></div>
+            <div class="text-center"><div class="font-bold text-gray-300">${Object.keys(npc.disciplines||{}).length}</div><div>Disc</div></div>
+            <div class="text-center"><div class="font-bold text-gray-300">${npc.willpower||1}</div><div>Will</div></div>
+        </div>
+        <div class="flex justify-between items-center border-t border-[#222] pt-2 mt-auto">
+            <div class="flex gap-1">${actionsHtml}</div>
+            <button class="bg-[#8b0000] hover:bg-red-700 text-white px-3 py-1 text-[9px] font-bold uppercase rounded shadow-md" onclick="event.stopPropagation(); window.stAddToCombat({id:'${id||name}', name:'${name}', health:${isCustom?'null':'{damage:0}'}, sourceId:'${id}'}, 'NPC')">Spawn</button>
+        </div>
+    `;
     card.onclick = () => { if(window.openNpcSheet) window.openNpcSheet(npc); };
     container.appendChild(card);
 }
+
+// --- DELEGATED JOURNAL HELPERS ---
+async function pushHandoutToPlayers(id) {
+    const entry = stState.journal[id];
+    if(!entry) return;
+    try {
+        await setDoc(doc(db, 'chronicles', stState.activeChronicleId, 'journal', id), { pushed: true, pushTime: Date.now() }, { merge: true });
+        showNotification("Pushed to Players!");
+    } catch(e) { console.error(e); }
+}
+
+async function stDeleteJournalEntry(id) {
+    if(!confirm("Delete this handout?")) return;
+    try {
+        await deleteDoc(doc(db, 'chronicles', stState.activeChronicleId, 'journal', id));
+    } catch(e) { console.error(e); }
+}
+
+// --- WRAPPERS ---
+function handleAddToCombat(entity, type) {
+    if (!stState.activeChronicleId) { showNotification("No active chronicle.", "error"); return; }
+    if (!entity.health) entity.health = { damage: 0, track: [0,0,0,0,0,0,0] };
+    addCombatant(entity, type);
+    showNotification(`${entity.name} added to Combat`);
+}
+
+window.copyStaticNpc = function(name) {
+    let found = null;
+    for(const cat in BESTIARY) { if(BESTIARY[cat][name]) found = BESTIARY[cat][name]; }
+    if(found && window.openNpcCreator) { 
+        window.openNpcCreator(found.template||'mortal', found); 
+        showNotification("Template Loaded. Use 'Save to Bestiary' to edit."); 
+        // No need to exit dashboard as we are now just switching tabs
+    }
+};
+
+window.deleteCloudNpc = async function(id) {
+    if(!confirm("Delete?")) return;
+    try { await deleteDoc(doc(db, 'chronicles', stState.activeChronicleId, 'bestiary', id)); showNotification("Deleted."); } catch(e) {}
+};
+
+window.editCloudNpc = function(id) {
+    const entry = stState.bestiary[id];
+    if(entry && entry.data && window.openNpcCreator) {
+        window.openNpcCreator(entry.type, entry.data);
+        showNotification("Editing NPC...");
+        exitStorytellerDashboard(); // Switch back to creator to edit
+    }
+}
+
+window.previewStaticNpc = function(category, key) {
+    const npc = BESTIARY[category][key];
+    const grid = document.getElementById('bestiary-grid');
+    if (grid && npc) {
+        grid.innerHTML = '';
+        renderNpcCard({ data: npc, name: key, type: npc.template }, null, false, grid);
+    }
+};
