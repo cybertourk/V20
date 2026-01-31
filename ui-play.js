@@ -198,18 +198,29 @@ export function applyPlayModeUI() {
     });
 
     const playSheet = document.getElementById('play-mode-sheet');
-    const phases = document.querySelectorAll('.step-container');
+    
+    // FIX: Only target the specific Edit Mode phases to hide
+    const editPhases = document.querySelectorAll('div[id^="phase-"]');
 
     if (isPlay) {
-        // HIDE Edit Containers
-        phases.forEach(el => el.classList.add('hidden'));
-        phases.forEach(el => el.classList.remove('active')); 
+        // HIDE Edit Containers specifically
+        editPhases.forEach(el => {
+            el.classList.add('hidden');
+            el.classList.remove('active');
+        });
 
-        // SHOW Play Sheet
+        // SHOW Play Sheet Container
         if (playSheet) {
             playSheet.classList.remove('hidden');
             playSheet.style.display = 'block'; 
         }
+        
+        // Ensure Play Mode Containers are NOT hidden
+        // (Fixes the issue where querySelectorAll('.step-container') hid everything)
+        document.querySelectorAll('div[id^="play-mode-"]').forEach(el => {
+            el.classList.remove('hidden');
+            // We don't add active yet, changeStep does that
+        });
 
         // Render Play Components
         renderPlayModeHeader();
@@ -348,11 +359,15 @@ export function applyPlayModeUI() {
         }
         
     } else {
-        // Exit Play Mode
+        // EXIT Play Mode
         if (playSheet) {
             playSheet.classList.add('hidden');
             playSheet.style.display = 'none'; 
         }
+        
+        // Restore visibility of edit phases (they will be hidden/shown by changeStep, but remove the forced hidden)
+        editPhases.forEach(el => el.classList.remove('hidden'));
+
         const current = window.state.currentPhase || 1;
         const currentPhaseEl = document.getElementById(`phase-${current}`);
         if (currentPhaseEl) {
