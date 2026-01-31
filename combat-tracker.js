@@ -46,16 +46,25 @@ export function initCombatTracker(chronicleId) {
             // Trigger UI Refresh
             if (window.renderCombatView) window.renderCombatView();
             
-            // Update Player Float if active
-            if (window.togglePlayerCombatView && document.getElementById('player-combat-float')) {
-                const float = document.getElementById('player-combat-float');
-                if (float.classList.contains('expanded')) window.togglePlayerCombatView(); 
+            // Update Player Float if active (SAFE UPDATE instead of toggle)
+            if (window.updatePlayerCombatView && document.getElementById('player-combat-float')) {
+                window.updatePlayerCombatView();
+            }
+            // Auto-show logic (initial)
+            else if (window.togglePlayerCombatView && !document.getElementById('player-combat-float')) {
+                // If it's active but float doesn't exist, we can force show or just let user click it.
+                // For now, let's keep it manual or triggered by specific events if needed.
+                // Actually, existing logic in ui-play handles initial show.
             }
         } else {
             combatState.isActive = false;
             combatState.combatants = [];
             combatState.activeCombatantId = null;
             if (window.renderCombatView) window.renderCombatView();
+            
+            // If combat ends, remove float
+            const float = document.getElementById('player-combat-float');
+            if (float) float.remove();
         }
     }, (error) => {
         if (error.code === 'permission-denied') {
@@ -156,7 +165,7 @@ export async function updateInitiative(id, newVal) {
     
     list[idx].init = parseInt(newVal) || 0;
     
-    // Client-side sort to determine if active status needs shift (optional, but good for immediate feedback)
+    // Sort logic handled on client receive, but good to keep data clean
     list.sort((a, b) => b.init - a.init);
     
     await pushUpdate(list);
