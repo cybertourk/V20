@@ -87,8 +87,6 @@ export function updateJournalList(newData) {
     
     // 4. Note: We intentionally DO NOT re-render the Editor or Popup.
     // This allows the user to keep typing while background updates happen.
-    // If someone else edits the SAME entry you are editing, last write wins. 
-    // Real-time collaborative editing of text fields is complex; we stick to document locking or last-write for now.
 }
 
 // ==========================================================================
@@ -578,14 +576,14 @@ function renderCodexView(container) {
 
                 <div class="flex justify-between mt-auto pt-4 border-t border-[#333]">
                     <div class="flex gap-2">
-                        <!-- NEW PUSH BUTTON LOGIC -->
+                        <!-- PUSH BUTTON WITH NEW HANDLER -->
                         ${isST ? `<button onclick="window.handleJournalPush()" class="bg-blue-900/40 border border-blue-500 text-blue-200 px-4 py-2 text-xs uppercase font-bold hover:text-white hover:bg-blue-800 transition-colors"><i class="fas fa-share-alt mr-1"></i> Push to Players</button>` : ''}
                         <button onclick="window.deleteCodexEntry()" class="text-red-500 text-xs hover:text-red-300 uppercase font-bold transition-colors">Delete Entry</button>
                     </div>
                     <div class="flex gap-2">
-                        <button onclick="document.getElementById('codex-editor').classList.add('hidden')" class="border border-[#444] text-gray-400 px-4 py-2 text-xs uppercase font-bold hover:bg-[#222] transition-colors">Cancel</button>
-                        <!-- NEW SAVE LOGIC (Optional Close) -->
-                        <button onclick="window.saveCodexEntry(true)" class="bg-[#d4af37] text-black px-6 py-2 text-xs uppercase font-bold hover:bg-[#fcd34d] shadow-lg transition-colors">Save & Close</button>
+                        <button onclick="document.getElementById('codex-editor').classList.add('hidden')" class="border border-[#444] text-gray-400 px-4 py-2 text-xs uppercase font-bold hover:bg-[#222] transition-colors">Close</button>
+                        <!-- SAVE BUTTON -->
+                        <button onclick="window.saveCodexEntry(false)" class="bg-[#d4af37] text-black px-6 py-2 text-xs uppercase font-bold hover:bg-[#fcd34d] shadow-lg transition-colors">Save</button>
                     </div>
                 </div>
             </div>
@@ -732,15 +730,21 @@ window.editCodexEntry = function(id = null) {
 
 // Updated Save Function (Returns Promise with ID)
 window.saveCodexEntry = async function(closeAfter = false) {
-    const id = document.getElementById('cx-id').value;
+    const idField = document.getElementById('cx-id');
+    const id = idField.value;
     const name = document.getElementById('cx-name').value.trim();
     if (!name) {
         showNotification("Name required");
         return null;
     }
     
+    // Generate ID immediately if new
+    const finalId = id || "cx_" + Date.now();
+    // CRITICAL: Update the hidden field so next clicks use this ID
+    idField.value = finalId;
+    
     const newEntry = {
-        id: id || "cx_" + Date.now(),
+        id: finalId,
         name: name,
         type: document.getElementById('cx-type').value,
         tags: document.getElementById('cx-tags').value.split(',').map(t=>t.trim()).filter(t=>t),
@@ -759,26 +763,22 @@ window.saveCodexEntry = async function(closeAfter = false) {
         showNotification("Entry Saved Locally.");
         renderCodexList();
     } else {
-        await activeContext.onSave(newEntry); // Cloud Save
+        await activeContext.onSave(newEntry); // Cloud Save (Await ensures completion)
     }
     
-    // Update Hidden ID field if this was a new creation
-    document.getElementById('cx-id').value = newEntry.id;
-
     if (closeAfter) {
         document.getElementById('codex-editor').classList.add('hidden');
         document.getElementById('codex-empty-state').classList.remove('hidden');
     }
     
-    return newEntry.id;
+    return finalId;
 }
 
 // NEW: Push Handler (Saves first then pushes)
 window.handleJournalPush = async function() {
     let id = document.getElementById('cx-id').value;
     
-    // Auto-Save if dirty or new
-    // We always save to be safe
+    // Auto-Save if dirty or new (and get the valid ID back)
     id = await window.saveCodexEntry(false); // false = keep open
     
     if (id && window.stPushHandout) {
