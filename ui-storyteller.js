@@ -8,7 +8,8 @@ import {
     addCombatant, removeCombatant, updateInitiative, rollNPCInitiative 
 } from "./combat-tracker.js";
 
-// IMPORT NEW JOURNAL LOGIC (Delegation)
+// IMPORT NEW JOURNAL LOGIC
+// Note: We use a try-catch pattern or check during execution to handle circular dependencies safely
 import { renderStorytellerJournal } from "./ui-journal.js";
 
 // --- STATE ---
@@ -29,9 +30,9 @@ export const stState = {
 
 // --- INITIALIZATION ---
 export function initStorytellerSystem() {
-    console.log("Storyteller System Initialized");
+    console.log("Storyteller System Initializing...");
     
-    // Window bindings
+    // Window bindings - EXPOSE THESE FIRST
     window.openChronicleModal = openChronicleModal;
     window.closeChronicleModal = closeChronicleModal;
     window.renderJoinChronicleUI = renderJoinChronicleUI;
@@ -85,12 +86,31 @@ export function initStorytellerSystem() {
         } catch(e) { console.error(e); showNotification("Failed to push NPC", "error"); }
     };
 
-    // --- BIND TOP NAV BUTTON ---
-    const btn = document.getElementById('st-dashboard-btn');
-    if (btn) btn.onclick = () => window.renderStorytellerDashboard();
+    // --- BIND TOP NAV BUTTON (ROBUST METHOD) ---
+    // We try immediately, and also set a fallback in case DOM isn't ready
+    bindDashboardButton();
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', bindDashboardButton);
+    }
 
     // Check for stale session data on load
     setTimeout(checkStaleSession, 1000);
+}
+
+function bindDashboardButton() {
+    const btn = document.getElementById('st-dashboard-btn');
+    if (btn) {
+        // Remove old listener if exists (by replacing node or just ensuring we don't duplicate logic excessively)
+        // For simplicity, we just add the listener.
+        btn.onclick = (e) => {
+            e.preventDefault();
+            console.log("ST Dashboard Button Clicked");
+            window.renderStorytellerDashboard();
+        };
+        console.log("ST Dashboard Button Bound");
+    } else {
+        // console.warn("ST Dashboard Button not found in DOM");
+    }
 }
 
 // --- SESSION HYGIENE ---
@@ -102,7 +122,7 @@ async function checkStaleSession() {
     // 1. If Guest (no user), they cannot have an active Cloud Session
     if (!user && storedId) {
         console.log("Guest User: Clearing stale Chronicle data.");
-        disconnectChronicle(); // This clears local state
+        disconnectChronicle(); 
         localStorage.removeItem('v20_last_chronicle_id');
         localStorage.removeItem('v20_last_chronicle_name');
         localStorage.removeItem('v20_last_chronicle_role');
@@ -719,7 +739,9 @@ function startStorytellerSession() {
     stState.listeners.push(onSnapshot(qJournal, (snapshot) => {
         stState.journal = {};
         snapshot.forEach(doc => { stState.journal[doc.id] = doc.data(); });
-        if (stState.dashboardActive && stState.currentView === 'journal' && document.getElementById('st-viewport')) renderStorytellerJournal(document.getElementById('st-viewport'));
+        if (stState.dashboardActive && stState.currentView === 'journal' && document.getElementById('st-viewport')) {
+            if (renderStorytellerJournal) renderStorytellerJournal(document.getElementById('st-viewport'));
+        }
     }));
 
     initCombatTracker(stState.activeChronicleId);
@@ -811,7 +833,10 @@ function switchStorytellerView(view) {
     if (view === 'roster') renderRosterView();
     else if (view === 'combat') renderCombatView();
     else if (view === 'bestiary') renderBestiaryView();
-    else if (view === 'journal') renderStorytellerJournal(viewport);
+    else if (view === 'journal') {
+        if(renderStorytellerJournal) renderStorytellerJournal(viewport);
+        else console.warn("renderStorytellerJournal is unavailable (likely due to circular dependency).");
+    }
     else if (view === 'settings') renderSettingsView(viewport);
 }
 
