@@ -1,5 +1,5 @@
 import { 
-    STEPS_CONFIG, CLAN_DISCIPLINES
+    STEPS_CONFIG
 } from "./data.js";
 
 import { checkStepComplete } from "./v20-rules.js";
@@ -76,11 +76,12 @@ export function changeStep(s, updateGlobalState = true) {
         }
     }
     
+    // Hide all containers first
     document.querySelectorAll('.step-container').forEach(c => c.classList.remove('active'));
     
     const prefix = window.state.isPlayMode ? 'play-mode-' : 'phase-';
     
-    // Play Mode Dynamic Container Injection
+    // --- PLAY MODE DYNAMIC INJECTION ---
     if (window.state.isPlayMode) {
         if (s === 5) { // Journal
             let pm5 = document.getElementById('play-mode-5');
@@ -104,7 +105,8 @@ export function changeStep(s, updateGlobalState = true) {
             renderNpcTab();
         }
 
-        if (s === 7) { // Chronicle Info (Storyteller Dashboard OR Player Info)
+        // CHRONICLE TAB (Step 7) - PLAYER ONLY
+        if (s === 7) { 
             let pm7 = document.getElementById('play-mode-7');
             if (!pm7) {
                 pm7 = document.createElement('div');
@@ -112,14 +114,7 @@ export function changeStep(s, updateGlobalState = true) {
                 pm7.className = 'step-container p-4 hidden h-full overflow-y-auto';
                 document.getElementById('play-mode-sheet').appendChild(pm7);
             }
-            
-            // LOGIC FIX: Check Role to determine view
-            const role = localStorage.getItem('v20_last_chronicle_role');
-            if (role === 'ST' && window.renderStorytellerDashboard) {
-                window.renderStorytellerDashboard(pm7);
-            } else {
-                renderChronicleTab();
-            }
+            renderChronicleTab();
         }
     }
     
@@ -127,18 +122,33 @@ export function changeStep(s, updateGlobalState = true) {
         renderRitualsEdit();
     }
 
+    // Activate Target Container
     const target = document.getElementById(prefix + s);
     if (target) { 
         target.classList.add('active'); 
         window.state.currentPhase = s; 
+    } else {
+        console.warn(`Target container ${prefix + s} not found. Defaulting to 1.`);
+        const def = document.getElementById(prefix + '1');
+        if(def) { def.classList.add('active'); window.state.currentPhase = 1; }
     }
     
+    // --- RENDER NAVIGATION BAR ---
     const nav = document.getElementById('sheet-nav');
     if (nav) {
         nav.innerHTML = '';
         if (window.state.isPlayMode) {
-             // Updated steps array to include Chronicle
-             const steps = ["Sheet", "Traits", "Social", "Biography", "Journal", "NPCs", "Chronicle"];
+             // Base Steps
+             const steps = ["Sheet", "Traits", "Social", "Biography", "Journal", "NPCs"];
+             
+             // Dynamic Step: Chronicle Info (ONLY if Player connected)
+             const chronicleId = localStorage.getItem('v20_last_chronicle_id');
+             const role = localStorage.getItem('v20_last_chronicle_role');
+             
+             if (chronicleId && role === 'Player') {
+                 steps.push("Chronicle");
+             }
+
              steps.forEach((text, i) => {
                  const stepNum = i + 1;
                  const it = document.createElement('div'); 
@@ -147,13 +157,14 @@ export function changeStep(s, updateGlobalState = true) {
                  let icon = 'fa-scroll';
                  if (text === 'Journal') icon = 'fa-book-open';
                  if (text === 'NPCs') icon = 'fa-users';
-                 if (text === 'Chronicle') icon = 'fa-globe'; // Globe or Map icon for Chronicle
+                 if (text === 'Chronicle') icon = 'fa-globe'; 
                  
                  it.innerHTML = `<i class="fas ${icon}"></i><span style="display:block; font-size:9px; margin-top:2px;">${text}</span>`;
                  it.onclick = () => { if(window.changeStep) changeStep(stepNum); };
                  nav.appendChild(it);
              });
         } else {
+            // Creation Mode Steps
             const furthest = window.state.furthestPhase || 1;
             STEPS_CONFIG.forEach(step => {
                 const it = document.createElement('div'); let statusClass = '';
