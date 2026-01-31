@@ -19,7 +19,8 @@ export const stState = {
     listeners: [], 
     players: {},   
     bestiary: {},  
-    journal: {},   
+    journal: {},
+    settings: {}, // Cache for chronicle settings
     currentView: 'roster', 
     syncInterval: null,
     seenHandouts: new Set(),
@@ -43,6 +44,9 @@ export function initStorytellerSystem() {
     window.renderStorytellerDashboard = renderStorytellerDashboard;
     window.exitStorytellerDashboard = exitStorytellerDashboard;
     
+    // Settings Actions
+    window.stSaveSettings = stSaveSettings;
+
     // Bestiary Actions
     window.copyStaticNpc = copyStaticNpc;
     window.deleteCloudNpc = deleteCloudNpc;
@@ -88,7 +92,6 @@ export function openChronicleModal() {
         console.warn("Chronicle Modal container missing.");
         return;
     }
-    
     modal.classList.add('active');
     
     if (stState.activeChronicleId) {
@@ -217,11 +220,10 @@ function renderJoinChronicleUI() {
         </div>
     `;
 
-    // Auto-preview on paste/type
     const input = document.getElementById('join-id');
     input.addEventListener('input', async (e) => {
         const val = e.target.value.trim();
-        if (val.length >= 8) { // Assuming ID structure
+        if (val.length >= 8) { 
             try {
                 const snap = await getDoc(doc(db, 'chronicles', val));
                 if (snap.exists()) {
@@ -272,9 +274,7 @@ function renderCreateChronicleUI() {
                 </div>
             </div>
         </div>
-        
         <div id="create-error" class="text-red-500 text-xs font-bold text-center hidden mt-2"></div>
-
         <div class="flex gap-4 mt-6 border-t border-[#333] pt-4">
             <button class="flex-1 border border-[#333] text-gray-400 py-2 text-xs font-bold uppercase hover:bg-[#222]" onclick="window.openChronicleModal()">Back</button>
             <button class="flex-1 bg-red-900 text-white py-2 text-xs font-bold uppercase hover:bg-red-700 shadow-lg" onclick="window.handleCreateChronicle()">Initialize System</button>
@@ -352,6 +352,7 @@ async function handleCreateChronicle() {
 
         stState.activeChronicleId = chronicleId;
         stState.isStoryteller = true;
+        stState.settings = chronicleData;
         
         window.closeChronicleModal();
         startStorytellerSession(); 
@@ -446,7 +447,7 @@ async function handleResumeChronicle(id, role) {
         
         const data = docSnap.data();
         
-        // Update LocalStorage to specific resumed chronicle
+        // Update LocalStorage
         localStorage.setItem('v20_last_chronicle_id', id);
         localStorage.setItem('v20_last_chronicle_name', data.name);
         localStorage.setItem('v20_last_chronicle_role', role);
@@ -458,6 +459,7 @@ async function handleResumeChronicle(id, role) {
             }
             stState.activeChronicleId = id;
             stState.isStoryteller = true;
+            stState.settings = data; // Load settings
             window.closeChronicleModal();
             startStorytellerSession(); 
             showNotification(`Resumed ${data.name} (ST Mode)`);
@@ -499,6 +501,7 @@ function disconnectChronicle() {
     stState.players = {};
     stState.bestiary = {};
     stState.journal = {};
+    stState.settings = {};
     stState.seenHandouts = new Set();
 
     showNotification("Disconnected from Chronicle.");
@@ -801,6 +804,9 @@ function renderStorytellerDashboard() {
             <button class="st-tab px-6 py-3 text-xs font-bold uppercase tracking-wider text-gray-500 hover:text-white hover:bg-[#222] transition-colors whitespace-nowrap" onclick="window.switchStorytellerView('journal')">
                 <i class="fas fa-book-open mr-2"></i> Journal
             </button>
+            <button class="st-tab px-6 py-3 text-xs font-bold uppercase tracking-wider text-gray-500 hover:text-white hover:bg-[#222] transition-colors whitespace-nowrap" onclick="window.switchStorytellerView('settings')">
+                <i class="fas fa-cogs mr-2"></i> Settings
+            </button>
         </div>
 
         <!-- ST Viewport -->
@@ -837,6 +843,90 @@ function switchStorytellerView(view) {
     else if (view === 'combat') renderCombatView();
     else if (view === 'bestiary') renderBestiaryView();
     else if (view === 'journal') renderStorytellerJournal(viewport);
+    else if (view === 'settings') renderSettingsView(viewport);
+}
+
+// --- NEW SETTINGS VIEW ---
+async function renderSettingsView(container) {
+    if(!container) return;
+    
+    // Ensure we have latest data
+    const docRef = doc(db, 'chronicles', stState.activeChronicleId);
+    let data = stState.settings || {};
+    
+    try {
+        const snap = await getDoc(docRef);
+        if(snap.exists()) {
+            data = snap.data();
+            stState.settings = data;
+        }
+    } catch(e) { console.error(e); }
+
+    container.innerHTML = `
+        <div class="p-8 max-w-4xl mx-auto pb-20 overflow-y-auto h-full">
+            <h2 class="text-2xl text-[#d4af37] font-cinzel font-bold mb-6 border-b border-[#333] pb-2 uppercase tracking-wider">Chronicle Configuration</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <div>
+                    <label class="label-text text-gray-400">Chronicle Name</label>
+                    <input type="text" id="st-set-name" class="w-full bg-[#111] border border-[#333] text-white p-3 text-sm focus:border-[#d4af37] outline-none" value="${data.name || ''}">
+                </div>
+                <div>
+                    <label class="label-text text-gray-400">Time Period / Setting</label>
+                    <input type="text" id="st-set-time" class="w-full bg-[#111] border border-[#333] text-white p-3 text-sm focus:border-[#d4af37] outline-none" value="${data.timePeriod || ''}">
+                </div>
+            </div>
+
+            <div class="mb-6">
+                <label class="label-text text-gray-400">Passcode (Leave empty for open access)</label>
+                <input type="text" id="st-set-pass" class="w-full bg-[#111] border border-[#333] text-white p-3 text-sm focus:border-[#d4af37] outline-none" value="${data.passcode || ''}">
+            </div>
+
+            <div class="mb-6">
+                <label class="label-text text-gray-400">Synopsis / Briefing (Public)</label>
+                <textarea id="st-set-synopsis" class="w-full bg-[#111] border border-[#333] text-gray-300 p-3 text-xs focus:border-[#d4af37] outline-none resize-none h-32 leading-relaxed">${data.synopsis || ''}</textarea>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                <div>
+                    <label class="label-text text-gray-400">House Rules</label>
+                    <textarea id="st-set-rules" class="w-full bg-[#1a0505] border border-red-900/30 text-gray-300 p-3 text-xs focus:border-red-500 outline-none resize-none h-48 leading-relaxed">${data.houseRules || ''}</textarea>
+                </div>
+                <div>
+                    <label class="label-text text-gray-400">Lore / Setting Details</label>
+                    <textarea id="st-set-lore" class="w-full bg-[#0a0a0a] border border-[#d4af37]/30 text-gray-300 p-3 text-xs focus:border-[#d4af37] outline-none resize-none h-48 leading-relaxed">${data.lore || ''}</textarea>
+                </div>
+            </div>
+
+            <div class="text-right">
+                <button onclick="window.stSaveSettings()" class="bg-[#d4af37] text-black font-bold px-8 py-3 rounded uppercase hover:bg-[#fcd34d] shadow-lg tracking-widest transition-transform hover:scale-105">
+                    Save Changes
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+async function stSaveSettings() {
+    if(!stState.activeChronicleId) return;
+    
+    const updates = {
+        name: document.getElementById('st-set-name').value,
+        timePeriod: document.getElementById('st-set-time').value,
+        passcode: document.getElementById('st-set-pass').value,
+        synopsis: document.getElementById('st-set-synopsis').value,
+        houseRules: document.getElementById('st-set-rules').value,
+        lore: document.getElementById('st-set-lore').value
+    };
+    
+    try {
+        await updateDoc(doc(db, 'chronicles', stState.activeChronicleId), updates);
+        stState.settings = { ...stState.settings, ...updates };
+        showNotification("Settings Updated");
+    } catch(e) {
+        console.error(e);
+        showNotification("Update Failed", "error");
+    }
 }
 
 // --- VIEW 1: ROSTER ---
