@@ -9,7 +9,6 @@ import {
 } from "./combat-tracker.js";
 
 // IMPORT NEW JOURNAL LOGIC
-// Note: We use a try-catch pattern or check during execution to handle circular dependencies safely
 import { renderStorytellerJournal } from "./ui-journal.js";
 
 // --- STATE ---
@@ -70,7 +69,7 @@ export function initStorytellerSystem() {
     window.stDeleteJournalEntry = stDeleteJournalEntry;
     
     // Player Bindings
-    window.togglePlayerCombatView = togglePlayerCombatView;
+    // Removed: togglePlayerCombatView assignment (Handled in ui-play.js)
 
     // GLOBAL PUSH API
     window.stPushNpc = async (npcData) => {
@@ -87,7 +86,6 @@ export function initStorytellerSystem() {
     };
 
     // --- BIND TOP NAV BUTTON (ROBUST METHOD) ---
-    // We try immediately, and also set a fallback in case DOM isn't ready
     bindDashboardButton();
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', bindDashboardButton);
@@ -100,16 +98,12 @@ export function initStorytellerSystem() {
 function bindDashboardButton() {
     const btn = document.getElementById('st-dashboard-btn');
     if (btn) {
-        // Remove old listener if exists (by replacing node or just ensuring we don't duplicate logic excessively)
-        // For simplicity, we just add the listener.
         btn.onclick = (e) => {
             e.preventDefault();
             console.log("ST Dashboard Button Clicked");
             window.renderStorytellerDashboard();
         };
         console.log("ST Dashboard Button Bound");
-    } else {
-        // console.warn("ST Dashboard Button not found in DOM");
     }
 }
 
@@ -583,7 +577,7 @@ async function handleJoinChronicle() {
         stState.playerRef = playerRef;
 
         startPlayerSync();
-        activatePlayerMode();
+        activatePlayerMode(); // Assumes this function is available via window from ui-play.js
 
         showNotification(`Joined ${data.name}`);
         window.closeChronicleModal();
