@@ -68,9 +68,6 @@ export function initStorytellerSystem() {
     window.stPushHandout = pushHandoutToPlayers;
     window.stDeleteJournalEntry = stDeleteJournalEntry;
     
-    // Player Bindings
-    // Removed: togglePlayerCombatView assignment (Handled in ui-play.js)
-
     // GLOBAL PUSH API
     window.stPushNpc = async (npcData) => {
         if (!stState.activeChronicleId || !stState.isStoryteller) return showNotification("Not in ST Mode", "error");
@@ -577,7 +574,7 @@ async function handleJoinChronicle() {
         stState.playerRef = playerRef;
 
         startPlayerSync();
-        activatePlayerMode(); // Assumes this function is available via window from ui-play.js
+        // activatePlayerMode(); // Call via window if needed, or let main loop handle
 
         showNotification(`Joined ${data.name}`);
         window.closeChronicleModal();
@@ -633,7 +630,7 @@ async function handleResumeChronicle(id, role) {
             stState.isStoryteller = false;
             stState.playerRef = playerRef;
             startPlayerSync();
-            activatePlayerMode();
+            // activatePlayerMode();
             window.closeChronicleModal();
             showNotification(`Reconnected to ${data.name}`);
             if(window.changeStep) window.changeStep(7);
