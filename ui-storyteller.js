@@ -20,7 +20,7 @@ export const stState = {
     players: {},   
     bestiary: {},  
     journal: {},
-    settings: {}, // Cache for chronicle settings
+    settings: {}, 
     currentView: 'roster', 
     syncInterval: null,
     seenHandouts: new Set()
@@ -42,6 +42,7 @@ export function initStorytellerSystem() {
     window.disconnectChronicle = disconnectChronicle;
     window.switchStorytellerView = switchStorytellerView;
     window.renderStorytellerDashboard = renderStorytellerDashboard;
+    window.exitStorytellerDashboard = exitStorytellerDashboard;
     
     // Settings Actions
     window.stSaveSettings = stSaveSettings;
@@ -82,15 +83,76 @@ export function initStorytellerSystem() {
             showNotification(`${npcData.name} sent to Bestiary`);
         } catch(e) { console.error(e); showNotification("Failed to push NPC", "error"); }
     };
+
+    // --- BIND TOP NAV BUTTON ---
+    const btn = document.getElementById('st-dashboard-btn');
+    if (btn) btn.onclick = () => window.renderStorytellerDashboard();
+
+    // Check for stale session data on load
+    setTimeout(checkStaleSession, 1000);
+}
+
+// --- SESSION HYGIENE ---
+async function checkStaleSession() {
+    const user = auth.currentUser;
+    const storedId = localStorage.getItem('v20_last_chronicle_id');
+    const storedRole = localStorage.getItem('v20_last_chronicle_role');
+
+    // 1. If Guest (no user), they cannot have an active Cloud Session
+    if (!user && storedId) {
+        console.log("Guest User: Clearing stale Chronicle data.");
+        disconnectChronicle(); // This clears local state
+        localStorage.removeItem('v20_last_chronicle_id');
+        localStorage.removeItem('v20_last_chronicle_name');
+        localStorage.removeItem('v20_last_chronicle_role');
+        toggleStorytellerButton(false);
+        return;
+    }
+
+    // 2. If ST Role, Verify Ownership
+    if (user && storedId && storedRole === 'ST') {
+        try {
+            const docRef = doc(db, 'chronicles', storedId);
+            const snap = await getDoc(docRef);
+            
+            // If doc missing OR user is not the owner
+            if (!snap.exists() || snap.data().storyteller_uid !== user.uid) {
+                console.warn("Session Mismatch: Clearing unauthorized ST data.");
+                disconnectChronicle();
+                localStorage.removeItem('v20_last_chronicle_id');
+                localStorage.removeItem('v20_last_chronicle_name');
+                localStorage.removeItem('v20_last_chronicle_role');
+                toggleStorytellerButton(false);
+            } else {
+                // Valid Session: Enable Button
+                stState.activeChronicleId = storedId;
+                stState.isStoryteller = true;
+                startStorytellerSession(); // Start listeners in background
+                toggleStorytellerButton(true);
+            }
+        } catch(e) {
+            console.error("Session Check Error:", e);
+        }
+    }
+}
+
+function toggleStorytellerButton(show) {
+    const btn = document.getElementById('st-dashboard-btn');
+    if (btn) {
+        if (show) {
+            btn.classList.remove('hidden');
+            btn.classList.add('flex');
+        } else {
+            btn.classList.add('hidden');
+            btn.classList.remove('flex');
+        }
+    }
 }
 
 // --- MODAL HANDLERS ---
 export function openChronicleModal() {
     let modal = document.getElementById('chronicle-modal');
-    if (!modal) {
-        console.warn("Chronicle Modal container missing.");
-        return;
-    }
+    if (!modal) return;
     modal.classList.add('active');
     
     if (stState.activeChronicleId) {
@@ -113,11 +175,9 @@ async function renderChronicleMenu() {
     const user = auth.currentUser;
     const authWarning = !user ? `<div class="bg-red-900/20 border border-red-500/50 p-2 mb-4 text-xs text-red-300 text-center">You must be logged in to use Chronicle features.</div>` : '';
 
-    // Initial Skeleton Render to prevent layout shift
     container.innerHTML = `
         <h2 class="heading text-xl text-[#d4af37] mb-4 border-b border-[#333] pb-2">Chronicles</h2>
         ${authWarning}
-        <div id="st-resume-block"></div>
         <div id="st-campaign-list" class="mb-6 hidden"></div>
         
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -156,71 +216,9 @@ async function renderChronicleMenu() {
         </div>
     `;
 
-    if (!user) return;
-
-    // --- SECURE RESUME CHECK ---
-    const recentId = localStorage.getItem('v20_last_chronicle_id');
-    const recentRole = localStorage.getItem('v20_last_chronicle_role'); 
-    
-    if (recentId) {
-        try {
-            let isValid = false;
-            let displayName = localStorage.getItem('v20_last_chronicle_name') || recentId;
-
-            // Verify ownership/membership before showing
-            if (recentRole === 'ST') {
-                const docRef = doc(db, 'chronicles', recentId);
-                const snap = await getDoc(docRef);
-                if (snap.exists() && snap.data().storyteller_uid === user.uid) {
-                    isValid = true;
-                    displayName = snap.data().name;
-                }
-            } else {
-                // Player check - verify player doc exists
-                const playerRef = doc(db, 'chronicles', recentId, 'players', user.uid);
-                const snap = await getDoc(playerRef);
-                if (snap.exists()) {
-                    isValid = true;
-                    // Optional: Fetch chronicle name if missing
-                    if (!localStorage.getItem('v20_last_chronicle_name')) {
-                        const cSnap = await getDoc(doc(db, 'chronicles', recentId));
-                        if(cSnap.exists()) displayName = cSnap.data().name;
-                    }
-                }
-            }
-
-            if (isValid) {
-                const btnColor = recentRole === 'ST' ? 'text-red-500 border-red-900 hover:bg-red-900/20' : 'text-blue-400 border-blue-900 hover:bg-blue-900/20';
-                const roleLabel = recentRole === 'ST' ? 'Storyteller' : 'Player';
-                const resumeHtml = `
-                    <div class="mb-6 p-4 bg-[#111] border border-[#333] flex justify-between items-center animate-in fade-in">
-                        <div>
-                            <div class="text-[10px] text-gray-500 uppercase font-bold">Resume Last Session</div>
-                            <div class="text-white font-bold font-cinzel text-lg">${displayName}</div>
-                            <div class="text-[9px] text-gray-400">${roleLabel}</div>
-                        </div>
-                        <button onclick="window.handleResumeChronicle('${recentId}', '${recentRole}')" class="px-4 py-2 border rounded uppercase font-bold text-xs ${btnColor}">
-                            Resume <i class="fas fa-arrow-right ml-1"></i>
-                        </button>
-                    </div>
-                `;
-                const rBlock = document.getElementById('st-resume-block');
-                if(rBlock) rBlock.innerHTML = resumeHtml;
-            } else {
-                // Invalid or mismatch (e.g. Guest ID on User Account) -> Clear It
-                console.log("Clearing stale chronicle data.");
-                localStorage.removeItem('v20_last_chronicle_id');
-                localStorage.removeItem('v20_last_chronicle_name');
-                localStorage.removeItem('v20_last_chronicle_role');
-            }
-        } catch (e) {
-            console.error("Resume check failed:", e);
-        }
-    }
-
-    // --- ASYNC LOAD OWNED CAMPAIGNS ---
-    const listDiv = document.getElementById('st-campaign-list');
-    if (listDiv) {
+    // Async Load Owned Campaigns
+    if (user) {
+        const listDiv = document.getElementById('st-campaign-list');
         try {
             const q = query(collection(db, "chronicles"), where("storyteller_uid", "==", user.uid));
             const querySnapshot = await getDocs(q);
@@ -280,20 +278,16 @@ function renderJoinChronicleUI() {
                 <label class="label-text text-gray-400">Chronicle ID (Ask your ST)</label>
                 <input type="text" id="join-id" class="w-full bg-[#050505] border border-[#333] text-white p-3 text-sm focus:border-[#d4af37] outline-none font-mono text-center tracking-widest uppercase" placeholder="XXXX-XXXX">
             </div>
-            
             <div id="join-preview" class="hidden bg-[#111] p-4 border border-[#d4af37] text-center space-y-2">
                 <div class="text-[#d4af37] font-cinzel font-bold text-lg" id="preview-name"></div>
                 <div class="text-[10px] text-gray-400 uppercase tracking-widest" id="preview-time"></div>
                 <div class="text-xs text-gray-300 italic font-serif" id="preview-synopsis"></div>
             </div>
-
             <div>
                 <label class="label-text text-gray-400">Passcode (Optional)</label>
                 <input type="password" id="join-pass" class="w-full bg-[#050505] border border-[#333] text-white p-3 text-sm focus:border-[#d4af37] outline-none text-center" placeholder="******">
             </div>
-            
             <div id="join-error" class="text-red-500 text-xs font-bold text-center hidden"></div>
-
             <div class="flex gap-4 mt-6">
                 <button class="flex-1 border border-[#333] text-gray-400 py-2 text-xs font-bold uppercase hover:bg-[#222]" onclick="window.openChronicleModal()">Back</button>
                 <button class="flex-1 bg-[#d4af37] text-black py-2 text-xs font-bold uppercase hover:bg-[#fcd34d] shadow-lg" onclick="window.handleJoinChronicle()">Connect</button>
@@ -437,11 +431,8 @@ async function handleCreateChronicle() {
         
         window.closeChronicleModal();
         startStorytellerSession(); 
-        
-        if(window.changeStep) {
-            window.changeStep(7);
-            showNotification("Chronicle Created - Dashboard Loaded");
-        }
+        toggleStorytellerButton(true);
+        window.renderStorytellerDashboard(); // Open immediately
         
     } catch (e) {
         console.error("Create Error:", e);
@@ -508,7 +499,7 @@ async function handleJoinChronicle() {
 
         showNotification(`Joined ${data.name}`);
         window.closeChronicleModal();
-        if(window.changeStep) window.changeStep(7); 
+        if(window.changeStep) window.changeStep(7); // Jump to info tab
 
     } catch (e) {
         console.error("Join Error:", e);
@@ -540,17 +531,21 @@ async function handleResumeChronicle(id, role) {
         if (role === 'ST') {
             if (data.storyteller_uid !== auth.currentUser.uid) {
                 showNotification("Permission Denied: You are not the Storyteller.", "error");
-                // Clear invalid stored data if they somehow got here
+                // Clear bad data
                 localStorage.removeItem('v20_last_chronicle_id');
+                localStorage.removeItem('v20_last_chronicle_name');
+                localStorage.removeItem('v20_last_chronicle_role');
                 return;
             }
             stState.activeChronicleId = id;
             stState.isStoryteller = true;
             stState.settings = data;
+            
             window.closeChronicleModal();
             startStorytellerSession(); 
             showNotification(`Resumed ${data.name} (ST Mode)`);
-            if(window.changeStep) window.changeStep(7);
+            toggleStorytellerButton(true);
+            window.renderStorytellerDashboard(); // Open automatically on resume
         } else {
             const playerRef = doc(db, 'chronicles', id, 'players', auth.currentUser.uid);
             await setDoc(playerRef, { status: "Connected", last_active: new Date().toISOString() }, { merge: true });
@@ -562,7 +557,7 @@ async function handleResumeChronicle(id, role) {
             activatePlayerMode();
             window.closeChronicleModal();
             showNotification(`Reconnected to ${data.name}`);
-            if(window.changeStep) window.changeStep(7);
+            if(window.changeStep) window.changeStep(7); // Jump to Info Tab
         }
         
     } catch (e) {
@@ -594,11 +589,20 @@ function disconnectChronicle() {
 
     showNotification("Disconnected from Chronicle.");
     
+    // Clear storage to prevent auto-resume on refresh
+    localStorage.removeItem('v20_last_chronicle_id');
+    localStorage.removeItem('v20_last_chronicle_name');
+    localStorage.removeItem('v20_last_chronicle_role');
+
     const floatBtn = document.getElementById('player-combat-float');
     if(floatBtn) floatBtn.remove();
     
-    if(document.getElementById('st-viewport')) {
-       if (window.renderChronicleTab) window.renderChronicleTab(); 
+    toggleStorytellerButton(false);
+    exitStorytellerDashboard();
+    
+    // If on Step 7 (Chronicle Tab), kick back to Sheet
+    if (window.state && window.state.currentPhase === 7) {
+        if(window.changeStep) window.changeStep(1);
     }
 }
 
@@ -630,147 +634,7 @@ function startPlayerSync() {
 }
 
 // ==========================================================================
-// PLAYER REACTIVITY
-// ==========================================================================
-
-function activatePlayerMode() {
-    if (stState.isStoryteller || !stState.activeChronicleId) return;
-
-    const combatRef = doc(db, 'chronicles', stState.activeChronicleId, 'combat', 'active');
-    stState.listeners.push(onSnapshot(combatRef, (snapshot) => {
-        const data = snapshot.data();
-        const floatBtn = document.getElementById('player-combat-float');
-        
-        if (data && snapshot.exists() && data.turn > 0) {
-            if (!floatBtn) {
-                const btn = document.createElement('button');
-                btn.id = 'player-combat-float';
-                btn.className = "fixed top-20 right-4 z-50 bg-[#8b0000] text-white px-4 py-2 rounded-full border-2 border-[#d4af37] shadow-lg animate-pulse hover:animate-none font-cinzel font-bold uppercase flex items-center gap-2";
-                btn.innerHTML = `<i class="fas fa-swords"></i> Combat Active`;
-                btn.onclick = () => window.togglePlayerCombatView();
-                document.body.appendChild(btn);
-            }
-            combatState.combatants = data.combatants || [];
-            combatState.turn = data.turn || 1;
-            combatState.isActive = true;
-            
-            const modal = document.getElementById('player-combat-modal');
-            if (modal && !modal.classList.contains('hidden')) {
-                renderPlayerCombatModal();
-            }
-        } else {
-            if (floatBtn) floatBtn.remove();
-            combatState.isActive = false;
-            const modal = document.getElementById('player-combat-modal');
-            if(modal) modal.classList.add('hidden');
-        }
-    }));
-
-    const journalRef = collection(db, 'chronicles', stState.activeChronicleId, 'journal');
-    stState.listeners.push(onSnapshot(journalRef, (snapshot) => {
-        snapshot.docChanges().forEach((change) => {
-            if (change.type === "added" || change.type === "modified") {
-                const data = change.doc.data();
-                if (data.pushed && !stState.seenHandouts.has(change.doc.id)) {
-                    stState.seenHandouts.add(change.doc.id);
-                    renderPlayerHandoutModal(data);
-                }
-            }
-        });
-    }));
-}
-
-function renderPlayerHandoutModal(data) {
-    let modal = document.getElementById('player-handout-modal');
-    if (!modal) {
-        modal = document.createElement('div');
-        modal.id = 'player-handout-modal';
-        modal.className = "fixed inset-0 bg-black/90 z-[1000] flex items-center justify-center p-4";
-        document.body.appendChild(modal);
-    }
-    
-    modal.innerHTML = `
-        <div class="bg-[#111] border-2 border-[#d4af37] max-w-4xl w-full max-h-[90vh] overflow-y-auto relative p-6 shadow-[0_0_50px_rgba(212,175,55,0.3)]">
-            <button onclick="document.getElementById('player-handout-modal').remove()" class="absolute top-2 right-4 text-gray-400 hover:text-white text-2xl">&times;</button>
-            <h2 class="text-3xl text-[#d4af37] font-cinzel font-bold text-center mb-6 uppercase tracking-widest border-b border-[#333] pb-4">${data.name}</h2>
-            ${data.image ? `<div class="mb-6 flex justify-center"><img src="${data.image}" class="max-h-[60vh] object-contain border border-[#333]"></div>` : ''}
-            ${data.desc ? `<div class="text-gray-300 font-serif text-lg leading-relaxed whitespace-pre-wrap px-4">${data.desc}</div>` : ''}
-            <div class="mt-8 text-center"><button onclick="document.getElementById('player-handout-modal').remove()" class="bg-[#222] border border-[#444] text-white px-6 py-2 uppercase font-bold text-sm hover:bg-[#333]">Close</button></div>
-        </div>
-    `;
-}
-
-function togglePlayerCombatView() {
-    let modal = document.getElementById('player-combat-modal');
-    if (!modal) {
-        modal = document.createElement('div');
-        modal.id = 'player-combat-modal';
-        modal.className = "fixed inset-0 bg-black/80 z-[900] flex items-center justify-center p-4 hidden backdrop-blur-sm";
-        document.body.appendChild(modal);
-    }
-    
-    if (modal.classList.contains('hidden')) {
-        modal.classList.remove('hidden');
-        renderPlayerCombatModal();
-    } else {
-        modal.classList.add('hidden');
-    }
-}
-
-function renderPlayerCombatModal() {
-    const modal = document.getElementById('player-combat-modal');
-    if (!modal) return;
-    const list = combatState.combatants || [];
-    let html = `
-        <div class="bg-[#111] border border-[#8b0000] max-w-2xl w-full max-h-[80vh] flex flex-col shadow-2xl relative">
-            <div class="bg-[#1a0505] p-4 border-b border-[#8b0000] flex justify-between items-center">
-                <h2 class="text-xl font-cinzel font-bold text-white uppercase tracking-widest"><i class="fas fa-swords mr-2"></i> Combat Tracker <span class="text-gray-500 text-sm ml-2">Turn ${combatState.turn}</span></h2>
-                <button onclick="document.getElementById('player-combat-modal').classList.add('hidden')" class="text-gray-400 hover:text-white">&times;</button>
-            </div>
-            <div class="flex-1 overflow-y-auto p-4 space-y-2 bg-[url('https://www.transparenttextures.com/patterns/black-linen.png')]">
-    `;
-    
-    if (list.length === 0) {
-        html += `<div class="text-center text-gray-500 italic">Waiting for combatants...</div>`;
-    } else {
-        list.forEach(c => {
-            const isMe = c.id === auth.currentUser?.uid;
-            const highlight = isMe ? "border-[#d4af37] bg-[#d4af37]/10" : "border-[#333] bg-[#1a1a1a]";
-            const status = c.status === 'done' ? "opacity-50 grayscale" : "";
-            
-            let hpBar = '';
-            if (c.health) {
-                let dmg = 0;
-                if (c.health.track) dmg = c.health.track.filter(x => x>0).length;
-                else dmg = c.health.damage || 0;
-                const pct = Math.max(0, (7 - dmg) / 7) * 100;
-                let color = 'bg-green-600';
-                if (dmg > 3) color = 'bg-yellow-600';
-                if (dmg > 5) color = 'bg-red-600';
-                hpBar = `<div class="w-16 h-1.5 bg-gray-800 rounded overflow-hidden ml-2"><div class="${color} h-full" style="width: ${pct}%"></div></div>`;
-            }
-
-            html += `
-                <div class="flex items-center justify-between p-3 rounded border ${highlight} ${status}">
-                    <div class="flex items-center gap-3">
-                        <div class="bg-black border border-[#444] w-8 h-8 flex items-center justify-center rounded font-bold text-[#d4af37]">${c.init}</div>
-                        <div>
-                            <div class="font-bold text-white text-sm ${isMe ? 'text-[#d4af37]' : ''}">${c.name}</div>
-                            <div class="text-[9px] text-gray-500 uppercase">${c.type}</div>
-                        </div>
-                    </div>
-                    ${hpBar}
-                </div>
-            `;
-        });
-    }
-    
-    html += `</div></div>`;
-    modal.innerHTML = html;
-}
-
-// ==========================================================================
-// STORYTELLER DASHBOARD
+// STORYTELLER DASHBOARD (Overlay)
 // ==========================================================================
 
 function startStorytellerSession() {
@@ -778,42 +642,36 @@ function startStorytellerSession() {
     stState.listeners.push(onSnapshot(qRoster, (snapshot) => {
         stState.players = {};
         snapshot.forEach(doc => { stState.players[doc.id] = doc.data(); });
-        if (stState.currentView === 'roster' && document.getElementById('st-viewport')) renderRosterView();
+        if (stState.dashboardActive && stState.currentView === 'roster' && document.getElementById('st-viewport')) renderRosterView();
     }));
 
     const qBestiary = query(collection(db, 'chronicles', stState.activeChronicleId, 'bestiary'));
     stState.listeners.push(onSnapshot(qBestiary, (snapshot) => {
         stState.bestiary = {};
         snapshot.forEach(doc => { stState.bestiary[doc.id] = doc.data(); });
-        if (stState.currentView === 'bestiary' && document.getElementById('st-viewport')) renderBestiaryView();
+        if (stState.dashboardActive && stState.currentView === 'bestiary' && document.getElementById('st-viewport')) renderBestiaryView();
     }));
 
     const qJournal = query(collection(db, 'chronicles', stState.activeChronicleId, 'journal'));
     stState.listeners.push(onSnapshot(qJournal, (snapshot) => {
         stState.journal = {};
         snapshot.forEach(doc => { stState.journal[doc.id] = doc.data(); });
-        if (stState.currentView === 'journal' && document.getElementById('st-viewport')) renderStorytellerJournal(document.getElementById('st-viewport'));
+        if (stState.dashboardActive && stState.currentView === 'journal' && document.getElementById('st-viewport')) renderStorytellerJournal(document.getElementById('st-viewport'));
     }));
 
     initCombatTracker(stState.activeChronicleId);
 }
 
-// Replaces the Overlay logic with a container-based render
-function renderStorytellerDashboard(container = null) {
-    if (!container) container = document.getElementById('play-mode-7');
-    if (!container) {
-        console.warn("ST Dashboard: No container found.");
-        return;
-    }
+// Renders into the dedicated Overlay Div
+function renderStorytellerDashboard() {
+    stState.dashboardActive = true;
+    const dash = document.getElementById('st-dashboard-view');
+    if (!dash) return;
 
-    // FIX 1: REMOVED container.style.display = 'block'; 
-    // This allows the navigation tabs to correctly hide/show the dashboard.
+    dash.style.display = 'flex';
 
-    // FIX 2: Height Calculation
-    // We use a fixed height calculation to ensure the dashboard takes up remaining screen space
-    // without overflowing or being too small. calc(100vh - 120px) roughly accounts for standard nav bars.
-    container.innerHTML = `
-        <div class="flex flex-col w-full h-[calc(100vh-120px)] bg-[#050505]">
+    dash.innerHTML = `
+        <div class="flex flex-col w-full h-full bg-[#050505] pt-16">
             <!-- ST Header -->
             <div class="bg-[#1a0505] border-b border-[#500] p-4 flex justify-between items-center shadow-lg z-10 shrink-0">
                 <div class="flex items-center gap-4">
@@ -824,9 +682,14 @@ function renderStorytellerDashboard(container = null) {
                         ID: <span class="text-gold select-all cursor-pointer" onclick="navigator.clipboard.writeText('${stState.activeChronicleId}')">${stState.activeChronicleId}</span>
                     </span>
                 </div>
-                <button class="bg-[#222] border border-red-900 text-red-500 hover:text-white hover:bg-red-900 px-3 py-1 text-xs font-bold uppercase rounded transition-colors" onclick="window.disconnectChronicle()">
-                    <i class="fas fa-sign-out-alt mr-1"></i> Exit
-                </button>
+                <div class="flex gap-2">
+                    <button class="bg-[#222] border border-[#444] text-gray-300 hover:text-white px-3 py-1 text-xs font-bold uppercase rounded transition-colors" onclick="window.exitStorytellerDashboard()">
+                        <i class="fas fa-arrow-left mr-1"></i> Character Creator
+                    </button>
+                    <button class="bg-[#222] border border-red-900 text-red-500 hover:text-white hover:bg-red-900 px-3 py-1 text-xs font-bold uppercase rounded transition-colors" onclick="window.disconnectChronicle()">
+                        <i class="fas fa-sign-out-alt mr-1"></i> Disconnect
+                    </button>
+                </div>
             </div>
 
             <!-- ST Tabs -->
@@ -849,7 +712,6 @@ function renderStorytellerDashboard(container = null) {
             </div>
 
             <!-- ST Viewport -->
-            <!-- flex-1 allows it to take remaining space, overflow-hidden keeps scrollbar inside -->
             <div id="st-viewport" class="flex-1 overflow-hidden relative bg-[url('https://www.transparenttextures.com/patterns/black-linen.png')]">
                 <!-- Views injected here -->
             </div>
@@ -857,6 +719,12 @@ function renderStorytellerDashboard(container = null) {
     `;
     
     switchStorytellerView(stState.currentView || 'roster');
+}
+
+function exitStorytellerDashboard() {
+    stState.dashboardActive = false;
+    const dash = document.getElementById('st-dashboard-view');
+    if(dash) dash.style.display = 'none';
 }
 
 function switchStorytellerView(view) {
@@ -1214,7 +1082,6 @@ window.copyStaticNpc = function(name) {
     if(found && window.openNpcCreator) { 
         window.openNpcCreator(found.template||'mortal', found); 
         showNotification("Template Loaded. Use 'Save to Bestiary' to edit."); 
-        // No need to exit dashboard as we are now just switching tabs
     }
 };
 
@@ -1228,6 +1095,7 @@ window.editCloudNpc = function(id) {
     if(entry && entry.data && window.openNpcCreator) {
         window.openNpcCreator(entry.type, entry.data);
         showNotification("Editing NPC...");
+        exitStorytellerDashboard(); // Switch back to creator to edit
     }
 }
 
