@@ -16,8 +16,10 @@ import {
 
 import { openNpcCreator, openNpcSheet } from "./npc-creator.js";
 
-// NEW IMPORTS FOR CHRONICLE TAB
+// NEW IMPORTS FOR CHRONICLE TAB & COMBAT TRACKER
 import { db, doc, getDoc } from "./firebase-config.js";
+import { stState } from "./ui-storyteller.js"; 
+import { combatState } from "./combat-tracker.js";
 
 // --- WINDOW BINDINGS ---
 window.openNpcCreator = openNpcCreator;
@@ -158,6 +160,68 @@ function injectBloodInfo() {
     }
 }
 
+// --- COMBAT INTEGRATION FOR PLAYERS (NEW ADDITION) ---
+function checkCombatStatus() {
+    // If connected to a chronicle, we check the global combat state
+    if (stState.activeChronicleId && combatState.isActive) {
+        // Show floating combat indicator
+        showPlayerCombatFloat();
+    }
+}
+
+export function togglePlayerCombatView() {
+    const float = document.getElementById('player-combat-float');
+    if (!float) return;
+    
+    const isExpanded = float.classList.contains('expanded');
+    
+    if (isExpanded) {
+        float.classList.remove('expanded');
+        float.innerHTML = `<i class="fas fa-swords text-2xl"></i>`;
+    } else {
+        float.classList.add('expanded');
+        renderPlayerCombatOverlay(float);
+    }
+}
+window.togglePlayerCombatView = togglePlayerCombatView;
+
+function showPlayerCombatFloat() {
+    let float = document.getElementById('player-combat-float');
+    if (!float) {
+        float = document.createElement('button');
+        float.id = 'player-combat-float';
+        float.className = 'fixed top-20 right-4 z-50 bg-[#8b0000] text-white w-12 h-12 rounded-full shadow-[0_0_15px_red] border-2 border-[#d4af37] flex items-center justify-center transition-all animate-pulse hover:scale-110';
+        float.onclick = togglePlayerCombatView;
+        float.innerHTML = `<i class="fas fa-swords text-2xl"></i>`;
+        document.body.appendChild(float);
+    }
+    float.style.display = 'flex';
+}
+
+function renderPlayerCombatOverlay(container) {
+    const turn = combatState.turn;
+    const combatants = combatState.combatants || [];
+    
+    container.innerHTML = `
+        <div class="absolute top-0 right-0 w-64 bg-[#1a0505] border border-red-500 rounded p-4 shadow-xl text-left cursor-default" onclick="event.stopPropagation()">
+            <div class="flex justify-between items-center mb-2 border-b border-red-900 pb-1">
+                <h3 class="text-red-500 font-bold font-cinzel">Combat - Turn ${turn}</h3>
+                <button class="text-gray-500 hover:text-white" onclick="window.togglePlayerCombatView()">&times;</button>
+            </div>
+            <div class="space-y-1 max-h-60 overflow-y-auto custom-scrollbar">
+                ${combatants.length === 0 ? '<div class="text-gray-500 italic text-[10px]">Waiting for combatants...</div>' : ''}
+                ${combatants.map(c => `
+                    <div class="flex justify-between text-xs ${c.status === 'done' ? 'opacity-50 line-through' : ''}">
+                        <span class="text-[#d4af37] font-bold w-6 text-center">${c.init}</span>
+                        <span class="text-gray-300 truncate flex-1 ml-2">${c.name}</span>
+                        <span class="text-[9px] text-gray-500 uppercase">${c.type}</span>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+    `;
+}
+
 
 // --- PLAY MODE LOGIC (REFACTORED) ---
 
@@ -236,6 +300,9 @@ export function applyPlayModeUI() {
         renderMovementSection();
         renderDetailedDisciplines();
         updateRitualsPlayView();
+        
+        // Check for active combat (NEW)
+        checkCombatStatus();
         
         setTimeout(() => {
             injectWillpowerInfo();
