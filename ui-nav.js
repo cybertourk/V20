@@ -104,7 +104,7 @@ export function changeStep(s, updateGlobalState = true) {
             renderNpcTab();
         }
 
-        if (s === 7) { // Chronicle Info
+        if (s === 7) { // Chronicle Info (Storyteller Dashboard OR Player Info)
             let pm7 = document.getElementById('play-mode-7');
             if (!pm7) {
                 pm7 = document.createElement('div');
@@ -112,7 +112,14 @@ export function changeStep(s, updateGlobalState = true) {
                 pm7.className = 'step-container p-4 hidden h-full overflow-y-auto';
                 document.getElementById('play-mode-sheet').appendChild(pm7);
             }
-            renderChronicleTab();
+            
+            // LOGIC FIX: Check Role to determine view
+            const role = localStorage.getItem('v20_last_chronicle_role');
+            if (role === 'ST' && window.renderStorytellerDashboard) {
+                window.renderStorytellerDashboard(pm7);
+            } else {
+                renderChronicleTab();
+            }
         }
     }
     
