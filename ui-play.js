@@ -16,6 +16,9 @@ import {
 
 import { openNpcCreator, openNpcSheet } from "./npc-creator.js";
 
+// NEW IMPORTS FOR CHRONICLE TAB
+import { db, doc, getDoc } from "./firebase-config.js";
+
 // --- WINDOW BINDINGS ---
 window.openNpcCreator = openNpcCreator;
 window.openNpcSheet = openNpcSheet;
@@ -1138,3 +1141,74 @@ export function updateRitualsPlayView() {
     playCont.className = "";
 }
 window.updateRitualsPlayView = updateRitualsPlayView;
+
+// --- NEW FUNCTION: RENDER CHRONICLE TAB ---
+export async function renderChronicleTab() {
+    const container = document.getElementById('play-mode-7');
+    if (!container) return;
+
+    // Check if player has joined a chronicle (stored in localStorage)
+    const chronicleId = localStorage.getItem('v20_last_chronicle_id');
+    
+    if (!chronicleId) {
+        container.innerHTML = `
+            <div class="h-full flex flex-col items-center justify-center text-gray-500">
+                <i class="fas fa-book-dead text-4xl mb-4 opacity-50"></i>
+                <p>Not connected to a Chronicle.</p>
+                <p class="text-xs mt-2">Join a game via the "Chronicles" menu to view Lore & House Rules.</p>
+            </div>`;
+        return;
+    }
+
+    // Loading state
+    container.innerHTML = `<div class="flex flex-col items-center justify-center h-full text-gold"><i class="fas fa-circle-notch fa-spin text-2xl mb-2"></i><span class="text-xs uppercase tracking-widest">Accessing Archives...</span></div>`;
+
+    try {
+        const docRef = doc(db, 'chronicles', chronicleId);
+        const snap = await getDoc(docRef);
+
+        if (!snap.exists()) {
+            container.innerHTML = `<div class="text-center text-red-500 mt-10">Chronicle Not Found.</div>`;
+            return;
+        }
+
+        const data = snap.data();
+
+        container.innerHTML = `
+            <div class="max-w-4xl mx-auto space-y-8 animate-in fade-in pb-10">
+                <!-- Header -->
+                <div class="border-b border-[#af0000] pb-4 text-center mt-6">
+                    <h2 class="text-3xl font-cinzel text-[#af0000] font-bold tracking-widest uppercase">${data.name || "Untitled Chronicle"}</h2>
+                    <div class="text-xs text-gold font-serif italic mt-1 uppercase tracking-widest">${data.timePeriod || "Modern Nights"}</div>
+                </div>
+
+                <!-- Synopsis -->
+                <div class="bg-[#111] p-6 border border-[#333] relative group hover:border-[#af0000] transition-colors">
+                    <div class="absolute -top-2 left-4 bg-black px-2 text-[10px] text-gray-500 font-bold uppercase tracking-wider group-hover:text-[#af0000] transition-colors">Synopsis</div>
+                    <div class="text-sm text-gray-300 font-serif leading-relaxed whitespace-pre-wrap">${data.synopsis || "No synopsis provided."}</div>
+                </div>
+
+                <!-- Two Column Layout -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <!-- House Rules -->
+                    <div class="bg-[#1a0505] p-6 border border-red-900/30 relative shadow-lg">
+                        <div class="absolute -top-2 left-4 bg-black px-2 text-[10px] text-red-500 font-bold uppercase tracking-wider">House Rules</div>
+                        <div class="text-xs text-gray-400 font-serif leading-relaxed whitespace-pre-wrap">${data.houseRules || "Standard V20 Rules apply."}</div>
+                    </div>
+
+                    <!-- Lore / Setting -->
+                    <div class="bg-[#0a0a0a] p-6 border border-[#d4af37]/30 relative shadow-lg">
+                        <div class="absolute -top-2 left-4 bg-black px-2 text-[10px] text-[#d4af37] font-bold uppercase tracking-wider">Lore & Setting</div>
+                        <div class="text-xs text-gray-400 font-serif leading-relaxed whitespace-pre-wrap">${data.lore || "No specific setting details available."}</div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+    } catch (e) {
+        console.error(e);
+        container.innerHTML = `<div class="text-center text-red-500 mt-10">Error loading chronicle data. Check connection.</div>`;
+    }
+}
+// Export binding for nav
+window.renderChronicleTab = renderChronicleTab;
