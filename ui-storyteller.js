@@ -22,7 +22,8 @@ export const stState = {
     journal: {},   
     currentView: 'roster', 
     syncInterval: null,
-    seenHandouts: new Set() 
+    seenHandouts: new Set(),
+    dashboardActive: false // Track if we are looking at the ST Dashboard or the Creator
 };
 
 // --- INITIALIZATION ---
@@ -40,6 +41,7 @@ export function initStorytellerSystem() {
     window.disconnectChronicle = disconnectChronicle;
     window.switchStorytellerView = switchStorytellerView;
     window.renderStorytellerDashboard = renderStorytellerDashboard;
+    window.exitStorytellerDashboard = exitStorytellerDashboard; // NEW
     
     // Bestiary Actions
     window.copyStaticNpc = copyStaticNpc;
@@ -288,8 +290,8 @@ async function handleCreateChronicle() {
         stState.isStoryteller = true;
         
         window.closeChronicleModal();
-        startStorytellerSession(); // NEW: Start session but don't lock view
-        renderStorytellerDashboard(); // Default to showing dashboard
+        startStorytellerSession(); 
+        renderStorytellerDashboard(); 
         
     } catch (e) {
         console.error("Create Error:", e);
@@ -388,9 +390,9 @@ async function handleResumeChronicle(id, role) {
             stState.activeChronicleId = id;
             stState.isStoryteller = true;
             window.closeChronicleModal();
-            startStorytellerSession(); // NEW: Start background session
+            startStorytellerSession(); 
             showNotification(`Resumed ${data.name} (ST Mode)`);
-            renderStorytellerDashboard(); // Open Dashboard
+            renderStorytellerDashboard(); 
         } else {
             const playerRef = doc(db, 'chronicles', id, 'players', auth.currentUser.uid);
             await setDoc(playerRef, { status: "Connected", last_active: new Date().toISOString() }, { merge: true });
@@ -424,6 +426,7 @@ function disconnectChronicle() {
     stState.activeChronicleId = null;
     stState.playerRef = null;
     stState.isStoryteller = false;
+    stState.dashboardActive = false;
     stState.players = {};
     stState.bestiary = {};
     stState.journal = {};
@@ -438,10 +441,8 @@ function disconnectChronicle() {
     const stHud = document.getElementById('st-hud');
     if(stHud) stHud.remove();
     
-    // Reload to clear view if we are stuck in ST dashboard
-    if (document.getElementById('st-viewport')) {
-        window.location.reload(); 
-    }
+    // Restore UI if we were in dashboard
+    exitStorytellerDashboard();
 }
 
 function startPlayerSync() {
@@ -472,7 +473,7 @@ function startPlayerSync() {
 }
 
 // ==========================================================================
-// PLAYER REACTIVITY (NEW)
+// PLAYER REACTIVITY
 // ==========================================================================
 
 function activatePlayerMode() {
@@ -485,7 +486,6 @@ function activatePlayerMode() {
         const floatBtn = document.getElementById('player-combat-float');
         
         if (data && snapshot.exists() && data.turn > 0) {
-            // Combat is Active
             if (!floatBtn) {
                 const btn = document.createElement('button');
                 btn.id = 'player-combat-float';
@@ -494,20 +494,15 @@ function activatePlayerMode() {
                 btn.onclick = () => window.togglePlayerCombatView();
                 document.body.appendChild(btn);
             }
-            
-            // Sync Combat State locally for the view
             combatState.combatants = data.combatants || [];
             combatState.turn = data.turn || 1;
             combatState.isActive = true;
             
-            // If the modal is open, refresh it
             const modal = document.getElementById('player-combat-modal');
             if (modal && !modal.classList.contains('hidden')) {
                 renderPlayerCombatModal();
             }
-            
         } else {
-            // Combat Ended
             if (floatBtn) floatBtn.remove();
             combatState.isActive = false;
             const modal = document.getElementById('player-combat-modal');
@@ -542,16 +537,10 @@ function renderPlayerHandoutModal(data) {
     modal.innerHTML = `
         <div class="bg-[#111] border-2 border-[#d4af37] max-w-4xl w-full max-h-[90vh] overflow-y-auto relative p-6 shadow-[0_0_50px_rgba(212,175,55,0.3)]">
             <button onclick="document.getElementById('player-handout-modal').remove()" class="absolute top-2 right-4 text-gray-400 hover:text-white text-2xl">&times;</button>
-            
             <h2 class="text-3xl text-[#d4af37] font-cinzel font-bold text-center mb-6 uppercase tracking-widest border-b border-[#333] pb-4">${data.name}</h2>
-            
             ${data.image ? `<div class="mb-6 flex justify-center"><img src="${data.image}" class="max-h-[60vh] object-contain border border-[#333]"></div>` : ''}
-            
             ${data.desc ? `<div class="text-gray-300 font-serif text-lg leading-relaxed whitespace-pre-wrap px-4">${data.desc}</div>` : ''}
-            
-            <div class="mt-8 text-center">
-                <button onclick="document.getElementById('player-handout-modal').remove()" class="bg-[#222] border border-[#444] text-white px-6 py-2 uppercase font-bold text-sm hover:bg-[#333]">Close</button>
-            </div>
+            <div class="mt-8 text-center"><button onclick="document.getElementById('player-handout-modal').remove()" class="bg-[#222] border border-[#444] text-white px-6 py-2 uppercase font-bold text-sm hover:bg-[#333]">Close</button></div>
         </div>
     `;
 }
@@ -576,9 +565,7 @@ function togglePlayerCombatView() {
 function renderPlayerCombatModal() {
     const modal = document.getElementById('player-combat-modal');
     if (!modal) return;
-    
     const list = combatState.combatants || [];
-    
     let html = `
         <div class="bg-[#111] border border-[#8b0000] max-w-2xl w-full max-h-[80vh] flex flex-col shadow-2xl relative">
             <div class="bg-[#1a0505] p-4 border-b border-[#8b0000] flex justify-between items-center">
@@ -628,7 +615,7 @@ function renderPlayerCombatModal() {
 }
 
 // ==========================================================================
-// STORYTELLER DASHBOARD (Refactored)
+// STORYTELLER DASHBOARD (FIXED: NON-DESTRUCTIVE)
 // ==========================================================================
 
 function startStorytellerSession() {
@@ -637,21 +624,21 @@ function startStorytellerSession() {
     stState.listeners.push(onSnapshot(qRoster, (snapshot) => {
         stState.players = {};
         snapshot.forEach(doc => { stState.players[doc.id] = doc.data(); });
-        if (stState.currentView === 'roster' && document.getElementById('st-viewport')) renderRosterView();
+        if (stState.dashboardActive && stState.currentView === 'roster' && document.getElementById('st-viewport')) renderRosterView();
     }));
 
     const qBestiary = query(collection(db, 'chronicles', stState.activeChronicleId, 'bestiary'));
     stState.listeners.push(onSnapshot(qBestiary, (snapshot) => {
         stState.bestiary = {};
         snapshot.forEach(doc => { stState.bestiary[doc.id] = doc.data(); });
-        if (stState.currentView === 'bestiary' && document.getElementById('st-viewport')) renderBestiaryView();
+        if (stState.dashboardActive && stState.currentView === 'bestiary' && document.getElementById('st-viewport')) renderBestiaryView();
     }));
 
     const qJournal = query(collection(db, 'chronicles', stState.activeChronicleId, 'journal'));
     stState.listeners.push(onSnapshot(qJournal, (snapshot) => {
         stState.journal = {};
         snapshot.forEach(doc => { stState.journal[doc.id] = doc.data(); });
-        if (stState.currentView === 'journal' && document.getElementById('st-viewport')) renderStorytellerJournal(document.getElementById('st-viewport'));
+        if (stState.dashboardActive && stState.currentView === 'journal' && document.getElementById('st-viewport')) renderStorytellerJournal(document.getElementById('st-viewport'));
     }));
 
     initCombatTracker(stState.activeChronicleId);
@@ -669,6 +656,11 @@ function renderStorytellerHUD() {
         document.body.appendChild(hud);
     }
     
+    // Check if dashboard is active to toggle button text
+    const btnText = stState.dashboardActive ? '<i class="fas fa-edit mr-2"></i> Creator Mode' : '<i class="fas fa-crown mr-2"></i> Dashboard';
+    const btnAction = stState.dashboardActive ? 'window.exitStorytellerDashboard()' : 'window.renderStorytellerDashboard()';
+    const btnColor = stState.dashboardActive ? 'bg-[#222] border border-gray-600 hover:bg-[#333]' : 'bg-red-900 hover:bg-red-700';
+
     hud.innerHTML = `
         <div class="bg-[#111] border border-red-900 rounded shadow-2xl p-2 flex flex-col gap-2 w-48">
             <div class="text-[10px] text-gray-500 font-bold uppercase border-b border-[#333] pb-1 flex justify-between">
@@ -676,8 +668,8 @@ function renderStorytellerHUD() {
                 <span class="text-green-500">Live</span>
             </div>
             <div class="text-[9px] text-gray-400 font-mono truncate">${stState.activeChronicleId}</div>
-            <button onclick="window.renderStorytellerDashboard()" class="bg-red-900 hover:bg-red-700 text-white text-xs font-bold py-2 rounded uppercase transition-colors">
-                <i class="fas fa-crown mr-2"></i> Dashboard
+            <button onclick="${btnAction}" class="${btnColor} text-white text-xs font-bold py-2 rounded uppercase transition-colors">
+                ${btnText}
             </button>
             <button onclick="window.disconnectChronicle()" class="text-[10px] text-gray-500 hover:text-red-500 uppercase text-right mt-1">
                 Disconnect
@@ -687,53 +679,95 @@ function renderStorytellerHUD() {
 }
 
 function renderStorytellerDashboard() {
+    stState.dashboardActive = true;
+    
+    // Update HUD
+    renderStorytellerHUD();
+
+    // 1. Hide Standard UI (Do NOT delete it)
+    document.querySelectorAll('.step-container').forEach(el => el.classList.remove('active')); // Hide all phases
+    const nav = document.getElementById('sheet-nav');
+    if(nav) nav.style.display = 'none'; // Hide Navigation
+    
+    // 2. Locate or Create Dashboard Container
     const mainContent = document.getElementById('sheet-content');
     if (!mainContent) return;
 
-    mainContent.innerHTML = `
-        <div class="h-screen flex flex-col bg-[#050505] text-white">
-            <!-- ST Header -->
-            <div class="bg-[#1a0505] border-b border-[#500] p-4 flex justify-between items-center shadow-lg z-10">
-                <div class="flex items-center gap-4">
-                    <h2 class="text-2xl font-cinzel text-red-500 font-bold tracking-widest uppercase">
-                        <i class="fas fa-crown mr-2"></i> Storyteller Mode
-                    </h2>
-                    <span class="text-xs font-mono text-gray-500 border border-[#333] px-2 py-1 rounded bg-black">
-                        ID: <span class="text-gold select-all cursor-pointer" onclick="navigator.clipboard.writeText('${stState.activeChronicleId}')">${stState.activeChronicleId}</span>
-                    </span>
-                </div>
-                <div class="flex gap-2">
-                    <button class="bg-[#222] border border-[#444] text-gray-300 hover:text-white px-3 py-1 text-xs font-bold uppercase rounded transition-colors" onclick="window.disconnectChronicle()">
-                        <i class="fas fa-sign-out-alt mr-1"></i> Exit Chronicle
-                    </button>
-                </div>
-            </div>
+    // Check if dashboard wrapper exists inside main content
+    let dash = document.getElementById('st-dashboard-view');
+    if (!dash) {
+        dash = document.createElement('div');
+        dash.id = 'st-dashboard-view';
+        dash.className = "w-full h-screen fixed top-0 left-0 bg-[#050505] z-[100] overflow-hidden flex flex-col animate-in fade-in"; 
+        // We use fixed positioning to overlay everything cleanly
+        document.body.appendChild(dash);
+    }
+    dash.style.display = 'flex';
 
-            <!-- ST Tabs -->
-            <div class="flex bg-[#111] border-b border-[#333] px-4">
-                <button class="st-tab active px-6 py-3 text-xs font-bold uppercase tracking-wider text-[#d4af37] border-b-2 border-[#d4af37] hover:bg-[#222] transition-colors" onclick="window.switchStorytellerView('roster')">
-                    <i class="fas fa-users mr-2"></i> Roster
+    dash.innerHTML = `
+        <!-- ST Header -->
+        <div class="bg-[#1a0505] border-b border-[#500] p-4 flex justify-between items-center shadow-lg z-10 shrink-0 mt-16 md:mt-0">
+            <div class="flex items-center gap-4">
+                <h2 class="text-2xl font-cinzel text-red-500 font-bold tracking-widest uppercase">
+                    <i class="fas fa-crown mr-2"></i> Storyteller Mode
+                </h2>
+                <span class="text-xs font-mono text-gray-500 border border-[#333] px-2 py-1 rounded bg-black">
+                    ID: <span class="text-gold select-all cursor-pointer" onclick="navigator.clipboard.writeText('${stState.activeChronicleId}')">${stState.activeChronicleId}</span>
+                </span>
+            </div>
+            <div class="flex gap-2">
+                 <button class="bg-[#222] border border-[#444] text-gray-300 hover:text-white px-3 py-1 text-xs font-bold uppercase rounded transition-colors" onclick="window.exitStorytellerDashboard()">
+                    <i class="fas fa-edit mr-1"></i> Character Creator
                 </button>
-                <button class="st-tab px-6 py-3 text-xs font-bold uppercase tracking-wider text-gray-500 hover:text-white hover:bg-[#222] transition-colors" onclick="window.switchStorytellerView('combat')">
-                    <i class="fas fa-swords mr-2"></i> Combat
-                </button>
-                <button class="st-tab px-6 py-3 text-xs font-bold uppercase tracking-wider text-gray-500 hover:text-white hover:bg-[#222] transition-colors" onclick="window.switchStorytellerView('bestiary')">
-                    <i class="fas fa-dragon mr-2"></i> Bestiary
-                </button>
-                <button class="st-tab px-6 py-3 text-xs font-bold uppercase tracking-wider text-gray-500 hover:text-white hover:bg-[#222] transition-colors" onclick="window.switchStorytellerView('journal')">
-                    <i class="fas fa-book-open mr-2"></i> Journal
+                <button class="bg-[#222] border border-red-900 text-red-500 hover:text-white hover:bg-red-900 px-3 py-1 text-xs font-bold uppercase rounded transition-colors" onclick="window.disconnectChronicle()">
+                    <i class="fas fa-sign-out-alt mr-1"></i> Exit
                 </button>
             </div>
+        </div>
 
-            <!-- ST Viewport -->
-            <div id="st-viewport" class="flex-1 overflow-hidden relative bg-[url('https://www.transparenttextures.com/patterns/black-linen.png')]">
-                <!-- Views injected here -->
-            </div>
+        <!-- ST Tabs -->
+        <div class="flex bg-[#111] border-b border-[#333] px-4 shrink-0 overflow-x-auto">
+            <button class="st-tab active px-6 py-3 text-xs font-bold uppercase tracking-wider text-[#d4af37] border-b-2 border-[#d4af37] hover:bg-[#222] transition-colors whitespace-nowrap" onclick="window.switchStorytellerView('roster')">
+                <i class="fas fa-users mr-2"></i> Roster
+            </button>
+            <button class="st-tab px-6 py-3 text-xs font-bold uppercase tracking-wider text-gray-500 hover:text-white hover:bg-[#222] transition-colors whitespace-nowrap" onclick="window.switchStorytellerView('combat')">
+                <i class="fas fa-swords mr-2"></i> Combat
+            </button>
+            <button class="st-tab px-6 py-3 text-xs font-bold uppercase tracking-wider text-gray-500 hover:text-white hover:bg-[#222] transition-colors whitespace-nowrap" onclick="window.switchStorytellerView('bestiary')">
+                <i class="fas fa-dragon mr-2"></i> Bestiary
+            </button>
+            <button class="st-tab px-6 py-3 text-xs font-bold uppercase tracking-wider text-gray-500 hover:text-white hover:bg-[#222] transition-colors whitespace-nowrap" onclick="window.switchStorytellerView('journal')">
+                <i class="fas fa-book-open mr-2"></i> Journal
+            </button>
+        </div>
+
+        <!-- ST Viewport -->
+        <div id="st-viewport" class="flex-1 overflow-hidden relative bg-[url('https://www.transparenttextures.com/patterns/black-linen.png')]">
+            <!-- Views injected here -->
         </div>
     `;
     
     // Default View
-    switchStorytellerView('roster');
+    switchStorytellerView(stState.currentView || 'roster');
+}
+
+function exitStorytellerDashboard() {
+    stState.dashboardActive = false;
+    
+    // Hide Dashboard
+    const dash = document.getElementById('st-dashboard-view');
+    if(dash) dash.style.display = 'none';
+
+    // Restore Standard UI
+    const nav = document.getElementById('sheet-nav');
+    if(nav) nav.style.display = ''; // Restore default display
+    
+    // Restore Active Phase
+    const currentPhase = window.state.currentPhase || 1;
+    if(window.changeStep) window.changeStep(currentPhase);
+    
+    // Update HUD to show "Dashboard" button
+    renderStorytellerHUD();
 }
 
 function switchStorytellerView(view) {
@@ -741,8 +775,8 @@ function switchStorytellerView(view) {
     document.querySelectorAll('.st-tab').forEach(btn => {
         const isActive = btn.onclick.toString().includes(`'${view}'`);
         btn.className = isActive 
-            ? "st-tab active px-6 py-3 text-xs font-bold uppercase tracking-wider text-[#d4af37] border-b-2 border-[#d4af37] bg-[#222] transition-colors"
-            : "st-tab px-6 py-3 text-xs font-bold uppercase tracking-wider text-gray-500 hover:text-white hover:bg-[#222] transition-colors";
+            ? "st-tab active px-6 py-3 text-xs font-bold uppercase tracking-wider text-[#d4af37] border-b-2 border-[#d4af37] bg-[#222] transition-colors whitespace-nowrap"
+            : "st-tab px-6 py-3 text-xs font-bold uppercase tracking-wider text-gray-500 hover:text-white hover:bg-[#222] transition-colors whitespace-nowrap";
     });
 
     const viewport = document.getElementById('st-viewport');
@@ -764,7 +798,7 @@ function renderRosterView() {
         return;
     }
 
-    let html = `<div class="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 overflow-y-auto h-full">`;
+    let html = `<div class="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 overflow-y-auto h-full pb-20">`;
 
     players.forEach(p => {
         const health = p.live_stats?.health || [];
@@ -839,7 +873,7 @@ function renderCombatView() {
                 </div>
                 <button onclick="window.stEndCombat()" class="text-red-500 hover:text-red-300 text-xs font-bold uppercase border border-red-900/30 px-4 py-2 rounded hover:bg-red-900/10">End Combat</button>
             </div>
-            <div class="flex-1 overflow-y-auto p-4 space-y-2 bg-black/50">
+            <div class="flex-1 overflow-y-auto p-4 space-y-2 bg-black/50 pb-20">
     `;
 
     if (combatants.length === 0) {
@@ -897,7 +931,7 @@ function renderBestiaryView() {
                     `).join('')}
                 </div>
             </div>
-            <div class="flex-1 overflow-y-auto p-6 bg-[url('https://www.transparenttextures.com/patterns/black-linen.png')]">
+            <div class="flex-1 overflow-y-auto p-6 bg-[url('https://www.transparenttextures.com/patterns/black-linen.png')] pb-20">
                 <div id="bestiary-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></div>
             </div>
         </div>
@@ -918,7 +952,7 @@ function renderCustomBestiaryList() {
     
     if(customNPCs.length === 0) {
         container.innerHTML = `<div class="px-2 py-1 text-[10px] italic text-gray-600">Empty</div>`;
-        grid.innerHTML = `<div class="col-span-full text-center text-gray-500 italic mt-10">Bestiary is empty. Use "Quick NPC" -> "Save to Bestiary".</div>`;
+        grid.innerHTML = `<div class="col-span-full text-center text-gray-500 italic mt-10">Bestiary is empty. Use "Character Creator" -> "NPC" tab to build one, then "Push to Bestiary".</div>`;
     }
 
     customNPCs.forEach(entry => {
@@ -999,12 +1033,18 @@ function handleAddToCombat(entity, type) {
     if (!stState.activeChronicleId) { showNotification("No active chronicle.", "error"); return; }
     if (!entity.health) entity.health = { damage: 0, track: [0,0,0,0,0,0,0] };
     addCombatant(entity, type);
+    showNotification(`${entity.name} added to Combat`);
 }
 
 window.copyStaticNpc = function(name) {
     let found = null;
     for(const cat in BESTIARY) { if(BESTIARY[cat][name]) found = BESTIARY[cat][name]; }
-    if(found && window.openNpcCreator) { window.openNpcCreator(found.template||'mortal', found); showNotification("Template Loaded."); }
+    if(found && window.openNpcCreator) { 
+        window.openNpcCreator(found.template||'mortal', found); 
+        showNotification("Template Loaded. Use 'Save to Bestiary' to edit."); 
+        // Auto-switch back to creator view if we are deep in dashboard
+        exitStorytellerDashboard();
+    }
 };
 
 window.deleteCloudNpc = async function(id) {
@@ -1014,7 +1054,11 @@ window.deleteCloudNpc = async function(id) {
 
 window.editCloudNpc = function(id) {
     const entry = stState.bestiary[id];
-    if(entry && entry.data && window.openNpcCreator) window.openNpcCreator(entry.type, entry.data);
+    if(entry && entry.data && window.openNpcCreator) {
+        window.openNpcCreator(entry.type, entry.data);
+        exitStorytellerDashboard(); // Switch view to creator
+        showNotification("Editing NPC...");
+    }
 }
 
 window.previewStaticNpc = function(category, key) {
