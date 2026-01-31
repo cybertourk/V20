@@ -38,6 +38,7 @@ export function initStorytellerSystem() {
     window.handleCreateChronicle = handleCreateChronicle;
     window.handleJoinChronicle = handleJoinChronicle;
     window.handleResumeChronicle = handleResumeChronicle;
+    window.handleDeleteChronicle = handleDeleteChronicle; // NEW
     window.disconnectChronicle = disconnectChronicle;
     window.switchStorytellerView = switchStorytellerView;
     window.renderStorytellerDashboard = renderStorytellerDashboard;
@@ -167,12 +168,15 @@ async function renderChronicleMenu() {
                 querySnapshot.forEach((doc) => {
                     const data = doc.data();
                     html += `
-                        <div class="flex justify-between items-center bg-[#1a1a1a] p-3 border-l-2 border-red-900 hover:bg-[#222] cursor-pointer group transition-colors" onclick="window.handleResumeChronicle('${doc.id}', 'ST')">
-                            <div>
+                        <div class="flex justify-between items-center bg-[#1a1a1a] p-3 border-l-2 border-red-900 hover:bg-[#222] cursor-pointer group transition-colors relative">
+                            <div class="flex-1" onclick="window.handleResumeChronicle('${doc.id}', 'ST')">
                                 <div class="text-white font-bold text-sm font-cinzel group-hover:text-[#d4af37] transition-colors">${data.name}</div>
                                 <div class="text-[9px] text-gray-500">${data.timePeriod || "Modern Nights"}</div>
+                                <div class="text-[9px] text-gray-600 font-mono group-hover:text-white">${doc.id}</div>
                             </div>
-                            <div class="text-[9px] text-gray-600 font-mono group-hover:text-white">${doc.id}</div>
+                            <button onclick="event.stopPropagation(); window.handleDeleteChronicle('${doc.id}')" class="text-gray-600 hover:text-red-500 p-2 z-10 transition-colors" title="Delete Chronicle">
+                                <i class="fas fa-trash-alt"></i>
+                            </button>
                         </div>
                     `;
                 });
@@ -183,6 +187,26 @@ async function renderChronicleMenu() {
         } catch (e) {
             console.error("Error loading campaigns:", e);
         }
+    }
+}
+
+async function handleDeleteChronicle(id) {
+    if (!confirm("Are you sure you want to delete this Chronicle? This action CANNOT be undone and will delete all campaign data.")) return;
+    
+    try {
+        // If we are currently connected to this chronicle, disconnect first
+        if (stState.activeChronicleId === id) {
+            disconnectChronicle();
+        }
+
+        await deleteDoc(doc(db, 'chronicles', id));
+        showNotification("Chronicle Deleted.");
+        
+        // Refresh the menu
+        renderChronicleMenu();
+    } catch (e) {
+        console.error("Delete Error:", e);
+        showNotification("Failed to delete chronicle.", "error");
     }
 }
 
@@ -515,7 +539,6 @@ function disconnectChronicle() {
     
     // If currently viewing the dashboard, force refresh the view (which will revert to empty state)
     if(document.getElementById('st-viewport')) {
-       // Optional: Redirect to another tab or refresh current tab content
        if (window.renderChronicleTab) window.renderChronicleTab(); 
     }
 }
