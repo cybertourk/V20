@@ -23,8 +23,7 @@ export const stState = {
     settings: {}, // Cache for chronicle settings
     currentView: 'roster', 
     syncInterval: null,
-    seenHandouts: new Set(),
-    dashboardActive: false 
+    seenHandouts: new Set()
 };
 
 // --- INITIALIZATION ---
@@ -42,7 +41,6 @@ export function initStorytellerSystem() {
     window.disconnectChronicle = disconnectChronicle;
     window.switchStorytellerView = switchStorytellerView;
     window.renderStorytellerDashboard = renderStorytellerDashboard;
-    window.exitStorytellerDashboard = exitStorytellerDashboard;
     
     // Settings Actions
     window.stSaveSettings = stSaveSettings;
@@ -356,7 +354,12 @@ async function handleCreateChronicle() {
         
         window.closeChronicleModal();
         startStorytellerSession(); 
-        renderStorytellerDashboard(); 
+        
+        // Auto-navigate to Chronicle Tab (Step 7) to show the new dashboard
+        if(window.changeStep) {
+            window.changeStep(7);
+            showNotification("Chronicle Created - Dashboard Loaded");
+        }
         
     } catch (e) {
         console.error("Create Error:", e);
@@ -423,6 +426,7 @@ async function handleJoinChronicle() {
 
         showNotification(`Joined ${data.name}`);
         window.closeChronicleModal();
+        if(window.changeStep) window.changeStep(7); // Jump to info tab
 
     } catch (e) {
         console.error("Join Error:", e);
@@ -463,7 +467,7 @@ async function handleResumeChronicle(id, role) {
             window.closeChronicleModal();
             startStorytellerSession(); 
             showNotification(`Resumed ${data.name} (ST Mode)`);
-            renderStorytellerDashboard(); 
+            if(window.changeStep) window.changeStep(7); // Jump to Dashboard Tab
         } else {
             const playerRef = doc(db, 'chronicles', id, 'players', auth.currentUser.uid);
             await setDoc(playerRef, { status: "Connected", last_active: new Date().toISOString() }, { merge: true });
@@ -475,6 +479,7 @@ async function handleResumeChronicle(id, role) {
             activatePlayerMode();
             window.closeChronicleModal();
             showNotification(`Reconnected to ${data.name}`);
+            if(window.changeStep) window.changeStep(7); // Jump to Info Tab
         }
         
     } catch (e) {
@@ -497,7 +502,6 @@ function disconnectChronicle() {
     stState.activeChronicleId = null;
     stState.playerRef = null;
     stState.isStoryteller = false;
-    stState.dashboardActive = false;
     stState.players = {};
     stState.bestiary = {};
     stState.journal = {};
@@ -509,12 +513,11 @@ function disconnectChronicle() {
     const floatBtn = document.getElementById('player-combat-float');
     if(floatBtn) floatBtn.remove();
     
-    // Remove ST HUD
-    const stHud = document.getElementById('st-hud');
-    if(stHud) stHud.remove();
-    
-    // Restore UI if we were in dashboard
-    exitStorytellerDashboard();
+    // If currently viewing the dashboard, force refresh the view (which will revert to empty state)
+    if(document.getElementById('st-viewport')) {
+       // Optional: Redirect to another tab or refresh current tab content
+       if (window.renderChronicleTab) window.renderChronicleTab(); 
+    }
 }
 
 function startPlayerSync() {
@@ -551,7 +554,6 @@ function startPlayerSync() {
 function activatePlayerMode() {
     if (stState.isStoryteller || !stState.activeChronicleId) return;
 
-    // 1. LISTEN FOR COMBAT
     const combatRef = doc(db, 'chronicles', stState.activeChronicleId, 'combat', 'active');
     stState.listeners.push(onSnapshot(combatRef, (snapshot) => {
         const data = snapshot.data();
@@ -582,7 +584,6 @@ function activatePlayerMode() {
         }
     }));
 
-    // 2. LISTEN FOR HANDOUTS
     const journalRef = collection(db, 'chronicles', stState.activeChronicleId, 'journal');
     stState.listeners.push(onSnapshot(journalRef, (snapshot) => {
         snapshot.docChanges().forEach((change) => {
@@ -687,7 +688,7 @@ function renderPlayerCombatModal() {
 }
 
 // ==========================================================================
-// STORYTELLER DASHBOARD
+// STORYTELLER DASHBOARD (Refactored for Tab Integration)
 // ==========================================================================
 
 function startStorytellerSession() {
@@ -696,137 +697,82 @@ function startStorytellerSession() {
     stState.listeners.push(onSnapshot(qRoster, (snapshot) => {
         stState.players = {};
         snapshot.forEach(doc => { stState.players[doc.id] = doc.data(); });
-        if (stState.dashboardActive && stState.currentView === 'roster' && document.getElementById('st-viewport')) renderRosterView();
+        if (stState.currentView === 'roster' && document.getElementById('st-viewport')) renderRosterView();
     }));
 
     const qBestiary = query(collection(db, 'chronicles', stState.activeChronicleId, 'bestiary'));
     stState.listeners.push(onSnapshot(qBestiary, (snapshot) => {
         stState.bestiary = {};
         snapshot.forEach(doc => { stState.bestiary[doc.id] = doc.data(); });
-        if (stState.dashboardActive && stState.currentView === 'bestiary' && document.getElementById('st-viewport')) renderBestiaryView();
+        if (stState.currentView === 'bestiary' && document.getElementById('st-viewport')) renderBestiaryView();
     }));
 
     const qJournal = query(collection(db, 'chronicles', stState.activeChronicleId, 'journal'));
     stState.listeners.push(onSnapshot(qJournal, (snapshot) => {
         stState.journal = {};
         snapshot.forEach(doc => { stState.journal[doc.id] = doc.data(); });
-        if (stState.dashboardActive && stState.currentView === 'journal' && document.getElementById('st-viewport')) renderStorytellerJournal(document.getElementById('st-viewport'));
+        if (stState.currentView === 'journal' && document.getElementById('st-viewport')) renderStorytellerJournal(document.getElementById('st-viewport'));
     }));
 
     initCombatTracker(stState.activeChronicleId);
-
-    // 2. HUD (Persistent Widget)
-    renderStorytellerHUD();
 }
 
-function renderStorytellerHUD() {
-    let hud = document.getElementById('st-hud');
-    if (!hud) {
-        hud = document.createElement('div');
-        hud.id = 'st-hud';
-        hud.className = "fixed bottom-4 right-4 z-[9999] flex flex-col items-end gap-2 animate-in fade-in";
-        document.body.appendChild(hud);
+// Replaces the Overlay logic with a container-based render
+function renderStorytellerDashboard(container = null) {
+    // Fallback: If no container passed, try to find the standard tab container
+    if (!container) container = document.getElementById('play-mode-7');
+    if (!container) {
+        console.warn("ST Dashboard: No container found.");
+        return;
     }
-    
-    const btnText = stState.dashboardActive ? '<i class="fas fa-edit mr-2"></i> Creator Mode' : '<i class="fas fa-crown mr-2"></i> Dashboard';
-    const btnAction = stState.dashboardActive ? 'window.exitStorytellerDashboard()' : 'window.renderStorytellerDashboard()';
-    const btnColor = stState.dashboardActive ? 'bg-[#222] border border-gray-600 hover:bg-[#333]' : 'bg-red-900 hover:bg-red-700';
 
-    hud.innerHTML = `
-        <div class="bg-[#111] border border-red-900 rounded shadow-2xl p-2 flex flex-col gap-2 w-48">
-            <div class="text-[10px] text-gray-500 font-bold uppercase border-b border-[#333] pb-1 flex justify-between">
-                <span>Storyteller Mode</span>
-                <span class="text-green-500">Live</span>
-            </div>
-            <div class="text-[9px] text-gray-400 font-mono truncate">${stState.activeChronicleId}</div>
-            <button onclick="${btnAction}" class="${btnColor} text-white text-xs font-bold py-2 rounded uppercase transition-colors">
-                ${btnText}
-            </button>
-            <button onclick="window.disconnectChronicle()" class="text-[10px] text-gray-500 hover:text-red-500 uppercase text-right mt-1">
-                Disconnect
-            </button>
-        </div>
-    `;
-}
+    // Ensure tab is visible if we are just calling this function directly
+    container.style.display = 'block';
 
-function renderStorytellerDashboard() {
-    stState.dashboardActive = true;
-    renderStorytellerHUD();
-
-    document.querySelectorAll('.step-container').forEach(el => el.classList.remove('active'));
-    const nav = document.getElementById('sheet-nav');
-    if(nav) nav.style.display = 'none'; 
-    
-    const mainContent = document.getElementById('sheet-content');
-    if (!mainContent) return;
-
-    let dash = document.getElementById('st-dashboard-view');
-    if (!dash) {
-        dash = document.createElement('div');
-        dash.id = 'st-dashboard-view';
-        dash.className = "w-full h-screen fixed top-0 left-0 bg-[#050505] z-[100] overflow-hidden flex flex-col animate-in fade-in"; 
-        document.body.appendChild(dash);
-    }
-    dash.style.display = 'flex';
-
-    dash.innerHTML = `
-        <!-- ST Header -->
-        <div class="bg-[#1a0505] border-b border-[#500] p-4 flex justify-between items-center shadow-lg z-10 shrink-0 mt-16 md:mt-0">
-            <div class="flex items-center gap-4">
-                <h2 class="text-2xl font-cinzel text-red-500 font-bold tracking-widest uppercase">
-                    <i class="fas fa-crown mr-2"></i> Storyteller Mode
-                </h2>
-                <span class="text-xs font-mono text-gray-500 border border-[#333] px-2 py-1 rounded bg-black">
-                    ID: <span class="text-gold select-all cursor-pointer" onclick="navigator.clipboard.writeText('${stState.activeChronicleId}')">${stState.activeChronicleId}</span>
-                </span>
-            </div>
-            <div class="flex gap-2">
-                 <button class="bg-[#222] border border-[#444] text-gray-300 hover:text-white px-3 py-1 text-xs font-bold uppercase rounded transition-colors" onclick="window.exitStorytellerDashboard()">
-                    <i class="fas fa-edit mr-1"></i> Character Creator
-                </button>
+    container.innerHTML = `
+        <div class="flex flex-col h-full bg-[#050505]">
+            <!-- ST Header -->
+            <div class="bg-[#1a0505] border-b border-[#500] p-4 flex justify-between items-center shadow-lg z-10 shrink-0">
+                <div class="flex items-center gap-4">
+                    <h2 class="text-xl font-cinzel text-red-500 font-bold tracking-widest uppercase">
+                        <i class="fas fa-crown mr-2"></i> Storyteller Mode
+                    </h2>
+                    <span class="text-xs font-mono text-gray-500 border border-[#333] px-2 py-1 rounded bg-black">
+                        ID: <span class="text-gold select-all cursor-pointer" onclick="navigator.clipboard.writeText('${stState.activeChronicleId}')">${stState.activeChronicleId}</span>
+                    </span>
+                </div>
                 <button class="bg-[#222] border border-red-900 text-red-500 hover:text-white hover:bg-red-900 px-3 py-1 text-xs font-bold uppercase rounded transition-colors" onclick="window.disconnectChronicle()">
                     <i class="fas fa-sign-out-alt mr-1"></i> Exit
                 </button>
             </div>
-        </div>
 
-        <!-- ST Tabs -->
-        <div class="flex bg-[#111] border-b border-[#333] px-4 shrink-0 overflow-x-auto">
-            <button class="st-tab active px-6 py-3 text-xs font-bold uppercase tracking-wider text-[#d4af37] border-b-2 border-[#d4af37] hover:bg-[#222] transition-colors whitespace-nowrap" onclick="window.switchStorytellerView('roster')">
-                <i class="fas fa-users mr-2"></i> Roster
-            </button>
-            <button class="st-tab px-6 py-3 text-xs font-bold uppercase tracking-wider text-gray-500 hover:text-white hover:bg-[#222] transition-colors whitespace-nowrap" onclick="window.switchStorytellerView('combat')">
-                <i class="fas fa-swords mr-2"></i> Combat
-            </button>
-            <button class="st-tab px-6 py-3 text-xs font-bold uppercase tracking-wider text-gray-500 hover:text-white hover:bg-[#222] transition-colors whitespace-nowrap" onclick="window.switchStorytellerView('bestiary')">
-                <i class="fas fa-dragon mr-2"></i> Bestiary
-            </button>
-            <button class="st-tab px-6 py-3 text-xs font-bold uppercase tracking-wider text-gray-500 hover:text-white hover:bg-[#222] transition-colors whitespace-nowrap" onclick="window.switchStorytellerView('journal')">
-                <i class="fas fa-book-open mr-2"></i> Journal
-            </button>
-            <button class="st-tab px-6 py-3 text-xs font-bold uppercase tracking-wider text-gray-500 hover:text-white hover:bg-[#222] transition-colors whitespace-nowrap" onclick="window.switchStorytellerView('settings')">
-                <i class="fas fa-cogs mr-2"></i> Settings
-            </button>
-        </div>
+            <!-- ST Tabs -->
+            <div class="flex bg-[#111] border-b border-[#333] px-4 shrink-0 overflow-x-auto">
+                <button class="st-tab active px-6 py-3 text-xs font-bold uppercase tracking-wider text-[#d4af37] border-b-2 border-[#d4af37] hover:bg-[#222] transition-colors whitespace-nowrap" onclick="window.switchStorytellerView('roster')">
+                    <i class="fas fa-users mr-2"></i> Roster
+                </button>
+                <button class="st-tab px-6 py-3 text-xs font-bold uppercase tracking-wider text-gray-500 hover:text-white hover:bg-[#222] transition-colors whitespace-nowrap" onclick="window.switchStorytellerView('combat')">
+                    <i class="fas fa-swords mr-2"></i> Combat
+                </button>
+                <button class="st-tab px-6 py-3 text-xs font-bold uppercase tracking-wider text-gray-500 hover:text-white hover:bg-[#222] transition-colors whitespace-nowrap" onclick="window.switchStorytellerView('bestiary')">
+                    <i class="fas fa-dragon mr-2"></i> Bestiary
+                </button>
+                <button class="st-tab px-6 py-3 text-xs font-bold uppercase tracking-wider text-gray-500 hover:text-white hover:bg-[#222] transition-colors whitespace-nowrap" onclick="window.switchStorytellerView('journal')">
+                    <i class="fas fa-book-open mr-2"></i> Journal
+                </button>
+                <button class="st-tab px-6 py-3 text-xs font-bold uppercase tracking-wider text-gray-500 hover:text-white hover:bg-[#222] transition-colors whitespace-nowrap" onclick="window.switchStorytellerView('settings')">
+                    <i class="fas fa-cogs mr-2"></i> Settings
+                </button>
+            </div>
 
-        <!-- ST Viewport -->
-        <div id="st-viewport" class="flex-1 overflow-hidden relative bg-[url('https://www.transparenttextures.com/patterns/black-linen.png')]">
-            <!-- Views injected here -->
+            <!-- ST Viewport -->
+            <div id="st-viewport" class="flex-1 overflow-hidden relative bg-[url('https://www.transparenttextures.com/patterns/black-linen.png')]">
+                <!-- Views injected here -->
+            </div>
         </div>
     `;
     
     switchStorytellerView(stState.currentView || 'roster');
-}
-
-function exitStorytellerDashboard() {
-    stState.dashboardActive = false;
-    const dash = document.getElementById('st-dashboard-view');
-    if(dash) dash.style.display = 'none';
-    const nav = document.getElementById('sheet-nav');
-    if(nav) nav.style.display = '';
-    const currentPhase = window.state.currentPhase || 1;
-    if(window.changeStep) window.changeStep(currentPhase);
-    renderStorytellerHUD();
 }
 
 function switchStorytellerView(view) {
@@ -850,7 +796,6 @@ function switchStorytellerView(view) {
 async function renderSettingsView(container) {
     if(!container) return;
     
-    // Ensure we have latest data
     const docRef = doc(db, 'chronicles', stState.activeChronicleId);
     let data = stState.settings || {};
     
@@ -863,7 +808,7 @@ async function renderSettingsView(container) {
     } catch(e) { console.error(e); }
 
     container.innerHTML = `
-        <div class="p-8 max-w-4xl mx-auto pb-20 overflow-y-auto h-full">
+        <div class="p-8 max-w-4xl mx-auto pb-20 overflow-y-auto h-full custom-scrollbar">
             <h2 class="text-2xl text-[#d4af37] font-cinzel font-bold mb-6 border-b border-[#333] pb-2 uppercase tracking-wider">Chronicle Configuration</h2>
             
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
@@ -1185,7 +1130,7 @@ window.copyStaticNpc = function(name) {
     if(found && window.openNpcCreator) { 
         window.openNpcCreator(found.template||'mortal', found); 
         showNotification("Template Loaded. Use 'Save to Bestiary' to edit."); 
-        exitStorytellerDashboard();
+        // No need to exit dashboard as we are now just switching tabs
     }
 };
 
@@ -1198,7 +1143,6 @@ window.editCloudNpc = function(id) {
     const entry = stState.bestiary[id];
     if(entry && entry.data && window.openNpcCreator) {
         window.openNpcCreator(entry.type, entry.data);
-        exitStorytellerDashboard(); 
         showNotification("Editing NPC...");
     }
 }
