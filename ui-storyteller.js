@@ -145,6 +145,17 @@ async function checkStaleSession() {
         } catch(e) {
             console.error("Session Check Error:", e);
         }
+    } 
+    // 3. NEW: If Player Role, Initialize Combat Tracker Listener
+    else if (user && storedId && storedRole === 'Player') {
+        stState.activeChronicleId = storedId;
+        stState.isStoryteller = false;
+        // Re-establish player ref
+        stState.playerRef = doc(db, 'chronicles', storedId, 'players', user.uid);
+        
+        console.log("Resuming Player Session for Combat Tracker...");
+        initCombatTracker(storedId); // Start listening for combat
+        startPlayerSync();
     }
 }
 
@@ -573,6 +584,9 @@ async function handleJoinChronicle() {
         stState.isStoryteller = false;
         stState.playerRef = playerRef;
 
+        // --- NEW: Initialize Tracker for Players too ---
+        initCombatTracker(idInput);
+        
         startPlayerSync();
         // activatePlayerMode(); // Call via window if needed, or let main loop handle
 
@@ -629,6 +643,10 @@ async function handleResumeChronicle(id, role) {
             stState.activeChronicleId = id;
             stState.isStoryteller = false;
             stState.playerRef = playerRef;
+            
+            // --- NEW: Initialize Tracker for Players too ---
+            initCombatTracker(id);
+            
             startPlayerSync();
             // activatePlayerMode();
             window.closeChronicleModal();
@@ -652,6 +670,9 @@ function disconnectChronicle() {
     stState.listeners.forEach(unsub => unsub());
     stState.listeners = [];
     if (stState.syncInterval) clearInterval(stState.syncInterval);
+    
+    // Stop Combat Listener via wrapper (safely ignored if not running, or re-init with null if exposed)
+    // combat-tracker.js handles re-init by clearing unsub, so we rely on that for next session.
     
     stState.activeChronicleId = null;
     stState.playerRef = null;
