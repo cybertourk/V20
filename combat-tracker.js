@@ -3,12 +3,13 @@ import {
 } from "./firebase-config.js";
 import { stState } from "./ui-storyteller.js";
 import { showNotification } from "./ui-common.js";
+import { BESTIARY } from "./bestiary-data.js";
 
 // --- STATE ---
 export const combatState = {
     isActive: false,
-    turn: 1,
-    currentInit: 99,
+    turn: 1, // Represents the "Round" number (V20 'Turn')
+    activeCombatantId: null, // ID of the character currently acting
     combatants: [], // Array of objects
     unsub: null
 };
@@ -30,25 +31,30 @@ export function initCombatTracker(chronicleId) {
         if (snapshot.exists()) {
             const data = snapshot.data();
             combatState.isActive = true;
-            combatState.turn = data.turn || 1;
-            combatState.currentInit = data.currentInit || 99;
+            combatState.turn = data.turn || 1; // Round number
+            combatState.activeCombatantId = data.activeCombatantId || null;
             combatState.combatants = data.combatants || [];
             
-            // Sort client-side for display consistency (High to Low, Dex tie-break handled manually by ST usually)
+            // Sort: Highest Result First. (V20 Rules)
             combatState.combatants.sort((a, b) => b.init - a.init);
             
+            // Mark the active combatant in the local array for UI helpers
+            combatState.combatants.forEach(c => {
+                c.active = (c.id === combatState.activeCombatantId);
+            });
+
             // Trigger UI Refresh
             if (window.renderCombatView) window.renderCombatView();
             
             // Update Player Float if active
             if (window.togglePlayerCombatView && document.getElementById('player-combat-float')) {
-                // Refresh content if visible
                 const float = document.getElementById('player-combat-float');
-                if (float.classList.contains('expanded')) window.togglePlayerCombatView(); // Toggle off/on to refresh or separate render function
+                if (float.classList.contains('expanded')) window.togglePlayerCombatView(); 
             }
         } else {
             combatState.isActive = false;
             combatState.combatants = [];
+            combatState.activeCombatantId = null;
             if (window.renderCombatView) window.renderCombatView();
         }
     }, (error) => {
@@ -68,7 +74,7 @@ export async function startCombat() {
         const docRef = doc(db, 'chronicles', stState.activeChronicleId, 'combat', 'active');
         await setDoc(docRef, {
             turn: 1,
-            currentInit: 100, // Start high
+            activeCombatantId: null, // Will be set when combatants are added/sorted or manually next-turned
             combatants: []
         });
         showNotification("Combat Started!");
@@ -104,15 +110,13 @@ export async function addCombatant(entity, type = 'NPC') {
         name: entity.name,
         type: type, // 'Player' or 'NPC'
         init: 0,
-        health: type === 'NPC' ? (entity.health || { damage: 0 }) : null, // Players sync health separately
-        status: 'pending', // pending, acting, done
-        sourceId: type === 'NPC' ? (entity.sourceId || null) : null // Link back to bestiary doc
+        health: type === 'NPC' ? (entity.health || { damage: 0, track: [0,0,0,0,0,0,0] }) : null,
+        status: 'pending',
+        sourceId: type === 'NPC' ? (entity.sourceId || null) : null
     };
 
     try {
         const docRef = doc(db, 'chronicles', stState.activeChronicleId, 'combat', 'active');
-        // Ensure doc exists first (in case startCombat wasn't called manually)
-        // merge: true ensures we don't wipe existing
         await setDoc(docRef, { turn: combatState.turn || 1 }, { merge: true }); 
         
         await updateDoc(docRef, {
@@ -130,6 +134,13 @@ export async function removeCombatant(id) {
     
     try {
         const docRef = doc(db, 'chronicles', stState.activeChronicleId, 'combat', 'active');
+        
+        // If removing the active person, try to move to next
+        if (c.id === combatState.activeCombatantId) {
+             // Logic handled in nextTurn usually, but here we might just let it fall to null or next refresh
+             // Simplest is to just remove; ST can click Next Turn to realign.
+        }
+
         await updateDoc(docRef, {
             combatants: arrayRemove(c)
         });
@@ -145,19 +156,46 @@ export async function updateInitiative(id, newVal) {
     
     list[idx].init = parseInt(newVal) || 0;
     
-    // Sort
+    // Client-side sort to determine if active status needs shift (optional, but good for immediate feedback)
     list.sort((a, b) => b.init - a.init);
     
     await pushUpdate(list);
 }
 
 export async function nextTurn() {
+    if (combatState.combatants.length === 0) return;
+
+    // 1. Sort current list (ensure sync)
+    const sorted = [...combatState.combatants].sort((a, b) => b.init - a.init);
+    
+    // 2. Find current active index
+    let currentIdx = -1;
+    if (combatState.activeCombatantId) {
+        currentIdx = sorted.findIndex(c => c.id === combatState.activeCombatantId);
+    }
+
+    // 3. Determine next index
+    let nextIdx = currentIdx + 1;
+    let nextRound = combatState.turn;
+
+    // 4. Check for Round Wrap
+    if (nextIdx >= sorted.length) {
+        nextIdx = 0;
+        nextRound++;
+        showNotification(`Round ${nextRound} Started`);
+    } else {
+        // Just next person
+        showNotification(`Turn: ${sorted[nextIdx].name}`);
+    }
+
+    const nextId = sorted[nextIdx].id;
+
     try {
         const docRef = doc(db, 'chronicles', stState.activeChronicleId, 'combat', 'active');
         await updateDoc(docRef, {
-            turn: combatState.turn + 1
+            turn: nextRound,
+            activeCombatantId: nextId
         });
-        showNotification(`Turn ${combatState.turn + 1} Started`);
     } catch (e) { console.error(e); }
 }
 
@@ -165,11 +203,56 @@ export async function rollNPCInitiative(id) {
     const c = combatState.combatants.find(x => x.id === id);
     if (!c) return;
     
-    // Simple d10 roll for now (Phase 4 scope)
-    const roll = Math.floor(Math.random() * 10) + 1;
-    let mod = 0;
+    // 1. DETERMINE STATS
+    let dex = 2, wits = 2, celerity = 0; 
+
+    // Lookup Logic
+    let data = null;
+    if (c.sourceId && stState.bestiary && stState.bestiary[c.sourceId]) {
+        data = stState.bestiary[c.sourceId].data;
+    } else {
+        for (const cat in BESTIARY) {
+            if (BESTIARY[cat][c.name]) {
+                data = BESTIARY[cat][c.name];
+                break;
+            }
+        }
+    }
+
+    if (data) {
+        dex = data.attributes?.Dexterity || 2;
+        wits = data.attributes?.Wits || 2;
+        celerity = data.disciplines?.Celerity || 0;
+    }
+
+    // 2. WOUND PENALTY
+    let woundPen = 0;
+    if (c.health) {
+        let dmgCount = 0;
+        if (c.health.track && Array.isArray(c.health.track)) {
+            dmgCount = c.health.track.filter(x => x > 0).length;
+        } else if (c.health.damage) {
+            dmgCount = c.health.damage;
+        }
+        
+        if (dmgCount >= 7) woundPen = 99; // Incapacitated
+        else if (dmgCount === 6) woundPen = 5;
+        else if (dmgCount >= 4) woundPen = 2;
+        else if (dmgCount >= 2) woundPen = 1;
+    }
+
+    if (woundPen >= 99) {
+        showNotification(`${c.name} is Incapacitated.`);
+        return;
+    }
+
+    // 3. ROLL LOGIC
+    const rating = Math.max(0, dex + wits + celerity - woundPen);
+    const roll = Math.floor(Math.random() * 10) + 1; 
+    const total = rating + roll;
     
-    await updateInitiative(id, roll + mod);
+    await updateInitiative(id, total);
+    showNotification(`${c.name} rolled ${total}`);
 }
 
 // --- HELPER ---
