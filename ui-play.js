@@ -185,6 +185,17 @@ export function togglePlayerCombatView() {
 }
 window.togglePlayerCombatView = togglePlayerCombatView;
 
+// NEW: Safe update function that only refreshes content IF already open
+export function updatePlayerCombatView() {
+    const float = document.getElementById('player-combat-float');
+    if (!float) return;
+    
+    if (float.classList.contains('expanded')) {
+        renderPlayerCombatOverlay(float);
+    }
+}
+window.updatePlayerCombatView = updatePlayerCombatView;
+
 function showPlayerCombatFloat() {
     let float = document.getElementById('player-combat-float');
     if (!float) {
