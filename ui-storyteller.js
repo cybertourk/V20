@@ -9,7 +9,7 @@ import {
 } from "./combat-tracker.js";
 
 // IMPORT NEW JOURNAL LOGIC
-import { renderStorytellerJournal } from "./ui-journal.js";
+import { renderStorytellerJournal, updateJournalList } from "./ui-journal.js";
 
 // --- STATE ---
 export const stState = {
@@ -146,7 +146,7 @@ async function checkStaleSession() {
             console.error("Session Check Error:", e);
         }
     } 
-    // 3. NEW: If Player Role, Initialize Combat Tracker Listener
+    // 3. If Player Role, Initialize Combat Tracker Listener
     else if (user && storedId && storedRole === 'Player') {
         stState.activeChronicleId = storedId;
         stState.isStoryteller = false;
@@ -154,7 +154,7 @@ async function checkStaleSession() {
         stState.playerRef = doc(db, 'chronicles', storedId, 'players', user.uid);
         
         console.log("Resuming Player Session for Combat Tracker...");
-        initCombatTracker(storedId); // Start listening for combat
+        initCombatTracker(storedId); 
         startPlayerSync();
     }
 }
@@ -671,9 +671,6 @@ function disconnectChronicle() {
     stState.listeners = [];
     if (stState.syncInterval) clearInterval(stState.syncInterval);
     
-    // Stop Combat Listener via wrapper (safely ignored if not running, or re-init with null if exposed)
-    // combat-tracker.js handles re-init by clearing unsub, so we rely on that for next session.
-    
     stState.activeChronicleId = null;
     stState.playerRef = null;
     stState.isStoryteller = false;
@@ -751,8 +748,20 @@ function startStorytellerSession() {
     stState.listeners.push(onSnapshot(qJournal, (snapshot) => {
         stState.journal = {};
         snapshot.forEach(doc => { stState.journal[doc.id] = doc.data(); });
-        if (stState.dashboardActive && stState.currentView === 'journal' && document.getElementById('st-viewport')) {
-            if (renderStorytellerJournal) renderStorytellerJournal(document.getElementById('st-viewport'));
+        
+        // INTELLIGENT UPDATE: Check if we can perform a partial update instead of a full re-render
+        if (stState.dashboardActive && stState.currentView === 'journal') {
+            const viewport = document.getElementById('st-viewport');
+            if (viewport) {
+                // If the journal module exposes an update function, use it
+                if (updateJournalList) {
+                    updateJournalList(Object.values(stState.journal));
+                } 
+                // Fallback: Full re-render if function missing (shouldn't happen if imports work)
+                else if (renderStorytellerJournal) {
+                    renderStorytellerJournal(viewport);
+                }
+            }
         }
     }));
 
@@ -1029,7 +1038,7 @@ function renderCombatView() {
     } else {
         combatants.forEach(c => {
             const isNPC = c.type === 'NPC';
-            // NEW: Active State Highlighting
+            // Active State Highlighting
             const activeClass = c.active ? 'border-[#d4af37] bg-[#2a2a2a] shadow-[0_0_15px_rgba(212,175,55,0.2)] transform scale-[1.01]' : 'border-[#333] bg-[#1a1a1a] opacity-80';
             const activeIndicator = c.active ? `<div class="absolute left-0 top-0 bottom-0 w-1 bg-[#d4af37]"></div>` : '';
 
@@ -1166,8 +1175,10 @@ function renderNpcCard(entry, id, isCustom, container, clearFirst = false) {
 
 // --- DELEGATED JOURNAL HELPERS ---
 async function pushHandoutToPlayers(id) {
-    const entry = stState.journal[id];
-    if(!entry) return;
+    if (!id) {
+        showNotification("No ID to push. Save first.", "error");
+        return;
+    }
     try {
         await setDoc(doc(db, 'chronicles', stState.activeChronicleId, 'journal', id), { pushed: true, pushTime: Date.now() }, { merge: true });
         showNotification("Pushed to Players!");
@@ -1195,7 +1206,6 @@ window.copyStaticNpc = function(name) {
     if(found && window.openNpcCreator) { 
         window.openNpcCreator(found.template||'mortal', found); 
         showNotification("Template Loaded. Use 'Save to Bestiary' to edit."); 
-        // No need to exit dashboard as we are now just switching tabs
     }
 };
 
@@ -1209,7 +1219,7 @@ window.editCloudNpc = function(id) {
     if(entry && entry.data && window.openNpcCreator) {
         window.openNpcCreator(entry.type, entry.data);
         showNotification("Editing NPC...");
-        exitStorytellerDashboard(); // Switch back to creator to edit
+        exitStorytellerDashboard(); 
     }
 }
 
