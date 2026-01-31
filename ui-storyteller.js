@@ -38,7 +38,7 @@ export function initStorytellerSystem() {
     window.handleCreateChronicle = handleCreateChronicle;
     window.handleJoinChronicle = handleJoinChronicle;
     window.handleResumeChronicle = handleResumeChronicle;
-    window.handleDeleteChronicle = handleDeleteChronicle; // NEW
+    window.handleDeleteChronicle = handleDeleteChronicle;
     window.disconnectChronicle = disconnectChronicle;
     window.switchStorytellerView = switchStorytellerView;
     window.renderStorytellerDashboard = renderStorytellerDashboard;
@@ -194,15 +194,12 @@ async function handleDeleteChronicle(id) {
     if (!confirm("Are you sure you want to delete this Chronicle? This action CANNOT be undone and will delete all campaign data.")) return;
     
     try {
-        // If we are currently connected to this chronicle, disconnect first
         if (stState.activeChronicleId === id) {
             disconnectChronicle();
         }
 
         await deleteDoc(doc(db, 'chronicles', id));
         showNotification("Chronicle Deleted.");
-        
-        // Refresh the menu
         renderChronicleMenu();
     } catch (e) {
         console.error("Delete Error:", e);
@@ -379,7 +376,6 @@ async function handleCreateChronicle() {
         window.closeChronicleModal();
         startStorytellerSession(); 
         
-        // Auto-navigate to Chronicle Tab (Step 7) to show the new dashboard
         if(window.changeStep) {
             window.changeStep(7);
             showNotification("Chronicle Created - Dashboard Loaded");
@@ -450,7 +446,7 @@ async function handleJoinChronicle() {
 
         showNotification(`Joined ${data.name}`);
         window.closeChronicleModal();
-        if(window.changeStep) window.changeStep(7); // Jump to info tab
+        if(window.changeStep) window.changeStep(7); 
 
     } catch (e) {
         console.error("Join Error:", e);
@@ -475,7 +471,6 @@ async function handleResumeChronicle(id, role) {
         
         const data = docSnap.data();
         
-        // Update LocalStorage
         localStorage.setItem('v20_last_chronicle_id', id);
         localStorage.setItem('v20_last_chronicle_name', data.name);
         localStorage.setItem('v20_last_chronicle_role', role);
@@ -487,11 +482,11 @@ async function handleResumeChronicle(id, role) {
             }
             stState.activeChronicleId = id;
             stState.isStoryteller = true;
-            stState.settings = data; // Load settings
+            stState.settings = data;
             window.closeChronicleModal();
             startStorytellerSession(); 
             showNotification(`Resumed ${data.name} (ST Mode)`);
-            if(window.changeStep) window.changeStep(7); // Jump to Dashboard Tab
+            if(window.changeStep) window.changeStep(7);
         } else {
             const playerRef = doc(db, 'chronicles', id, 'players', auth.currentUser.uid);
             await setDoc(playerRef, { status: "Connected", last_active: new Date().toISOString() }, { merge: true });
@@ -503,7 +498,7 @@ async function handleResumeChronicle(id, role) {
             activatePlayerMode();
             window.closeChronicleModal();
             showNotification(`Reconnected to ${data.name}`);
-            if(window.changeStep) window.changeStep(7); // Jump to Info Tab
+            if(window.changeStep) window.changeStep(7);
         }
         
     } catch (e) {
@@ -526,6 +521,7 @@ function disconnectChronicle() {
     stState.activeChronicleId = null;
     stState.playerRef = null;
     stState.isStoryteller = false;
+    stState.dashboardActive = false;
     stState.players = {};
     stState.bestiary = {};
     stState.journal = {};
@@ -537,7 +533,6 @@ function disconnectChronicle() {
     const floatBtn = document.getElementById('player-combat-float');
     if(floatBtn) floatBtn.remove();
     
-    // If currently viewing the dashboard, force refresh the view (which will revert to empty state)
     if(document.getElementById('st-viewport')) {
        if (window.renderChronicleTab) window.renderChronicleTab(); 
     }
@@ -711,11 +706,10 @@ function renderPlayerCombatModal() {
 }
 
 // ==========================================================================
-// STORYTELLER DASHBOARD (Refactored for Tab Integration)
+// STORYTELLER DASHBOARD
 // ==========================================================================
 
 function startStorytellerSession() {
-    // 1. LISTENERS (Background)
     const qRoster = query(collection(db, 'chronicles', stState.activeChronicleId, 'players'));
     stState.listeners.push(onSnapshot(qRoster, (snapshot) => {
         stState.players = {};
@@ -742,18 +736,20 @@ function startStorytellerSession() {
 
 // Replaces the Overlay logic with a container-based render
 function renderStorytellerDashboard(container = null) {
-    // Fallback: If no container passed, try to find the standard tab container
     if (!container) container = document.getElementById('play-mode-7');
     if (!container) {
         console.warn("ST Dashboard: No container found.");
         return;
     }
 
-    // Ensure tab is visible if we are just calling this function directly
-    container.style.display = 'block';
+    // FIX 1: REMOVED container.style.display = 'block'; 
+    // This allows the navigation tabs to correctly hide/show the dashboard.
 
+    // FIX 2: Height Calculation
+    // We use a fixed height calculation to ensure the dashboard takes up remaining screen space
+    // without overflowing or being too small. calc(100vh - 120px) roughly accounts for standard nav bars.
     container.innerHTML = `
-        <div class="flex flex-col h-full bg-[#050505]">
+        <div class="flex flex-col w-full h-[calc(100vh-120px)] bg-[#050505]">
             <!-- ST Header -->
             <div class="bg-[#1a0505] border-b border-[#500] p-4 flex justify-between items-center shadow-lg z-10 shrink-0">
                 <div class="flex items-center gap-4">
@@ -770,7 +766,7 @@ function renderStorytellerDashboard(container = null) {
             </div>
 
             <!-- ST Tabs -->
-            <div class="flex bg-[#111] border-b border-[#333] px-4 shrink-0 overflow-x-auto">
+            <div class="flex bg-[#111] border-b border-[#333] px-4 shrink-0 overflow-x-auto no-scrollbar">
                 <button class="st-tab active px-6 py-3 text-xs font-bold uppercase tracking-wider text-[#d4af37] border-b-2 border-[#d4af37] hover:bg-[#222] transition-colors whitespace-nowrap" onclick="window.switchStorytellerView('roster')">
                     <i class="fas fa-users mr-2"></i> Roster
                 </button>
@@ -789,6 +785,7 @@ function renderStorytellerDashboard(container = null) {
             </div>
 
             <!-- ST Viewport -->
+            <!-- flex-1 allows it to take remaining space, overflow-hidden keeps scrollbar inside -->
             <div id="st-viewport" class="flex-1 overflow-hidden relative bg-[url('https://www.transparenttextures.com/patterns/black-linen.png')]">
                 <!-- Views injected here -->
             </div>
