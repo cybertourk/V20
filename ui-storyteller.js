@@ -991,10 +991,10 @@ function renderCombatView() {
             <div class="bg-[#111] border-b border-[#333] p-4 flex justify-between items-center shadow-md z-20">
                 <div class="flex items-center gap-6">
                     <div class="text-center">
-                        <div class="text-[10px] text-gray-500 uppercase font-bold tracking-widest">Turn</div>
+                        <div class="text-[10px] text-gray-500 uppercase font-bold tracking-widest">Round</div>
                         <div class="text-3xl font-black text-[#d4af37] leading-none">${turn}</div>
                     </div>
-                    <button onclick="window.stNextTurn()" class="bg-[#222] hover:bg-[#333] border border-[#444] text-white px-4 py-2 text-xs font-bold uppercase rounded flex items-center gap-2 transition-colors">
+                    <button onclick="window.stNextTurn()" class="bg-[#222] hover:bg-[#333] border border-[#444] text-white px-4 py-2 text-xs font-bold uppercase rounded flex items-center gap-2 transition-colors shadow-sm hover:shadow-[#d4af37]/20">
                         Next Turn <i class="fas fa-step-forward"></i>
                     </button>
                 </div>
@@ -1008,9 +1008,14 @@ function renderCombatView() {
     } else {
         combatants.forEach(c => {
             const isNPC = c.type === 'NPC';
+            // NEW: Active State Highlighting
+            const activeClass = c.active ? 'border-[#d4af37] bg-[#2a2a2a] shadow-[0_0_15px_rgba(212,175,55,0.2)] transform scale-[1.01]' : 'border-[#333] bg-[#1a1a1a] opacity-80';
+            const activeIndicator = c.active ? `<div class="absolute left-0 top-0 bottom-0 w-1 bg-[#d4af37]"></div>` : '';
+
             html += `
-                <div class="bg-[#1a1a1a] border border-[#333] p-2 rounded flex items-center justify-between group hover:border-[#555] transition-colors relative overflow-hidden">
-                    <div class="flex items-center gap-4 flex-1">
+                <div class="${activeClass} p-2 rounded flex items-center justify-between group hover:border-[#555] transition-all relative overflow-hidden">
+                    ${activeIndicator}
+                    <div class="flex items-center gap-4 flex-1 pl-3">
                         <div class="flex flex-col items-center w-12">
                             <input type="number" value="${c.init}" onchange="window.stUpdateInit('${c.id}', this.value)" class="w-10 bg-black border border-[#444] text-center text-lg font-bold text-[#d4af37] focus:outline-none focus:border-[#d4af37] rounded">
                             <span class="text-[8px] text-gray-600 uppercase font-bold mt-0.5">Init</span>
