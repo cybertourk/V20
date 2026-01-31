@@ -54,12 +54,23 @@ export function renderStorytellerJournal(container) {
         mode: 'storyteller',
         data: journalArray, 
         onSave: async (entry) => {
-            if (!stState.activeChronicleId) return;
+            if (!stState.activeChronicleId) {
+                console.error("ST Journal Save Error: No Active Chronicle ID");
+                return;
+            }
             try {
+                // Ensure ID is valid before using as doc key
+                if (!entry.id) entry.id = "cx_" + Date.now();
+                
                 // Save to Firestore 'journal' collection
-                await setDoc(doc(db, 'chronicles', stState.activeChronicleId, 'journal', entry.id), entry, { merge: true });
+                // Path: chronicles/{chronicleId}/journal/{entryId}
+                const docRef = doc(db, 'chronicles', stState.activeChronicleId, 'journal', entry.id);
+                await setDoc(docRef, entry, { merge: true });
                 showNotification("Journal Synced.");
-            } catch(e) { console.error(e); }
+            } catch(e) { 
+                console.error("ST Journal Save Failed:", e);
+                showNotification("Sync Failed: " + e.message, "error");
+            }
         },
         onDelete: async (id) => {
             if (!stState.activeChronicleId) return;
