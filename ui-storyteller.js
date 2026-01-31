@@ -584,11 +584,9 @@ async function handleJoinChronicle() {
         stState.isStoryteller = false;
         stState.playerRef = playerRef;
 
-        // --- NEW: Initialize Tracker for Players too ---
         initCombatTracker(idInput);
         
         startPlayerSync();
-        // activatePlayerMode(); // Call via window if needed, or let main loop handle
 
         showNotification(`Joined ${data.name}`);
         window.closeChronicleModal();
@@ -644,11 +642,9 @@ async function handleResumeChronicle(id, role) {
             stState.isStoryteller = false;
             stState.playerRef = playerRef;
             
-            // --- NEW: Initialize Tracker for Players too ---
             initCombatTracker(id);
             
             startPlayerSync();
-            // activatePlayerMode();
             window.closeChronicleModal();
             showNotification(`Reconnected to ${data.name}`);
             if(window.changeStep) window.changeStep(7);
@@ -1176,13 +1172,14 @@ function renderNpcCard(entry, id, isCustom, container, clearFirst = false) {
 // --- DELEGATED JOURNAL HELPERS ---
 async function pushHandoutToPlayers(id) {
     if (!id) {
-        showNotification("No ID to push. Save first.", "error");
+        showNotification("No ID provided to push.", "error");
         return;
     }
+    
     try {
         await setDoc(doc(db, 'chronicles', stState.activeChronicleId, 'journal', id), { pushed: true, pushTime: Date.now() }, { merge: true });
         showNotification("Pushed to Players!");
-    } catch(e) { console.error(e); }
+    } catch(e) { console.error(e); showNotification("Push Failed", "error"); }
 }
 
 async function stDeleteJournalEntry(id) {
