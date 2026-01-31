@@ -47,7 +47,6 @@ export function renderJournalTab() {
 
 export function renderStorytellerJournal(container) {
     // ST Mode Entry Point (Campaign Management)
-    // Converts the object-based Firestore data into an array for the UI
     const journalArray = Object.values(stState.journal || {});
 
     // Set Context: CLOUD
@@ -75,6 +74,23 @@ export function renderStorytellerJournal(container) {
     renderCodexView(container);
 }
 
+// NEW: Smart Update Function used by Storyteller Live Listener
+export function updateJournalList(newData) {
+    // 1. Update Context Data
+    activeContext.data = newData || [];
+    
+    // 2. Update Cache
+    codexCache = (activeContext.data || []).map(c => c.name);
+    
+    // 3. Re-render List only
+    renderCodexList();
+    
+    // 4. Note: We intentionally DO NOT re-render the Editor or Popup.
+    // This allows the user to keep typing while background updates happen.
+    // If someone else edits the SAME entry you are editing, last write wins. 
+    // Real-time collaborative editing of text fields is complex; we stick to document locking or last-write for now.
+}
+
 // ==========================================================================
 // SHARED UI SHELL
 // ==========================================================================
@@ -86,8 +102,7 @@ function renderJournalInterface(container, activeTab) {
     const activeClass = "border-b-2 border-[#d4af37] text-[#d4af37] font-bold";
     const inactiveClass = "text-gray-500 hover:text-white transition-colors";
 
-    // Only show Session Logs tab in Player Mode (STs don't track personal sessions here usually)
-    // Or we could enable it for ST notes later. For now, Player Mode gets both tabs.
+    // Only show Session Logs tab in Player Mode
     const showTabs = activeContext.mode === 'player';
 
     container.innerHTML = `
@@ -563,12 +578,14 @@ function renderCodexView(container) {
 
                 <div class="flex justify-between mt-auto pt-4 border-t border-[#333]">
                     <div class="flex gap-2">
-                        ${isST ? `<button onclick="window.stPushHandout(document.getElementById('cx-id').value)" class="bg-blue-900/40 border border-blue-500 text-blue-200 px-4 py-2 text-xs uppercase font-bold hover:text-white hover:bg-blue-800 transition-colors"><i class="fas fa-share-alt mr-1"></i> Push to Players</button>` : ''}
+                        <!-- NEW PUSH BUTTON LOGIC -->
+                        ${isST ? `<button onclick="window.handleJournalPush()" class="bg-blue-900/40 border border-blue-500 text-blue-200 px-4 py-2 text-xs uppercase font-bold hover:text-white hover:bg-blue-800 transition-colors"><i class="fas fa-share-alt mr-1"></i> Push to Players</button>` : ''}
                         <button onclick="window.deleteCodexEntry()" class="text-red-500 text-xs hover:text-red-300 uppercase font-bold transition-colors">Delete Entry</button>
                     </div>
                     <div class="flex gap-2">
                         <button onclick="document.getElementById('codex-editor').classList.add('hidden')" class="border border-[#444] text-gray-400 px-4 py-2 text-xs uppercase font-bold hover:bg-[#222] transition-colors">Cancel</button>
-                        <button onclick="window.saveCodexEntry()" class="bg-[#d4af37] text-black px-6 py-2 text-xs uppercase font-bold hover:bg-[#fcd34d] shadow-lg transition-colors">Save</button>
+                        <!-- NEW SAVE LOGIC (Optional Close) -->
+                        <button onclick="window.saveCodexEntry(true)" class="bg-[#d4af37] text-black px-6 py-2 text-xs uppercase font-bold hover:bg-[#fcd34d] shadow-lg transition-colors">Save & Close</button>
                     </div>
                 </div>
             </div>
@@ -713,10 +730,14 @@ window.editCodexEntry = function(id = null) {
     }
 }
 
-window.saveCodexEntry = async function() {
+// Updated Save Function (Returns Promise with ID)
+window.saveCodexEntry = async function(closeAfter = false) {
     const id = document.getElementById('cx-id').value;
     const name = document.getElementById('cx-name').value.trim();
-    if (!name) return showNotification("Name required");
+    if (!name) {
+        showNotification("Name required");
+        return null;
+    }
     
     const newEntry = {
         id: id || "cx_" + Date.now(),
@@ -741,8 +762,28 @@ window.saveCodexEntry = async function() {
         await activeContext.onSave(newEntry); // Cloud Save
     }
     
-    document.getElementById('codex-editor').classList.add('hidden');
-    document.getElementById('codex-empty-state').classList.remove('hidden');
+    // Update Hidden ID field if this was a new creation
+    document.getElementById('cx-id').value = newEntry.id;
+
+    if (closeAfter) {
+        document.getElementById('codex-editor').classList.add('hidden');
+        document.getElementById('codex-empty-state').classList.remove('hidden');
+    }
+    
+    return newEntry.id;
+}
+
+// NEW: Push Handler (Saves first then pushes)
+window.handleJournalPush = async function() {
+    let id = document.getElementById('cx-id').value;
+    
+    // Auto-Save if dirty or new
+    // We always save to be safe
+    id = await window.saveCodexEntry(false); // false = keep open
+    
+    if (id && window.stPushHandout) {
+        window.stPushHandout(id);
+    }
 }
 
 window.deleteCodexEntry = async function() {
