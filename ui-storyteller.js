@@ -74,8 +74,8 @@ export function initStorytellerSystem() {
         if (!stState.activeChronicleId || !stState.isStoryteller) return showNotification("Not in ST Mode", "error");
         try {
             const id = npcData.id || "npc_" + Date.now();
-            // Path: artifacts/{appId}/public/data/chronicles/{chronicleId}/bestiary/{id}
-            await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chronicles', stState.activeChronicleId, 'bestiary', id), {
+            // Path: chronicles/{chronicleId}/bestiary/{id}
+            await setDoc(doc(db, 'chronicles', stState.activeChronicleId, 'bestiary', id), {
                 name: npcData.name || "Unknown",
                 type: "Custom",
                 data: npcData
@@ -126,8 +126,8 @@ async function checkStaleSession() {
     // 2. If ST Role, Verify Ownership
     if (user && storedId && storedRole === 'ST') {
         try {
-            // Path: artifacts/{appId}/public/data/chronicles/{id}
-            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'chronicles', storedId);
+            // Path: chronicles/{id}
+            const docRef = doc(db, 'chronicles', storedId);
             const snap = await getDoc(docRef);
             
             // If doc missing OR user is not the owner
@@ -154,8 +154,8 @@ async function checkStaleSession() {
         stState.activeChronicleId = storedId;
         stState.isStoryteller = false;
         // Re-establish player ref
-        // Path: artifacts/{appId}/public/data/chronicles/{id}/players/{uid}
-        stState.playerRef = doc(db, 'artifacts', appId, 'public', 'data', 'chronicles', storedId, 'players', user.uid);
+        // Path: chronicles/{id}/players/{uid}
+        stState.playerRef = doc(db, 'chronicles', storedId, 'players', user.uid);
         
         console.log("Resuming Player Session for Combat Tracker...");
         initCombatTracker(storedId); 
@@ -257,7 +257,7 @@ async function renderChronicleMenu() {
 
             // Verify ownership/membership before showing
             if (recentRole === 'ST') {
-                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'chronicles', recentId);
+                const docRef = doc(db, 'chronicles', recentId);
                 const snap = await getDoc(docRef);
                 if (snap.exists() && snap.data().storyteller_uid === user.uid) {
                     isValid = true;
@@ -265,13 +265,13 @@ async function renderChronicleMenu() {
                 }
             } else {
                 // Player check - verify player doc exists
-                const playerRef = doc(db, 'artifacts', appId, 'public', 'data', 'chronicles', recentId, 'players', user.uid);
+                const playerRef = doc(db, 'chronicles', recentId, 'players', user.uid);
                 const snap = await getDoc(playerRef);
                 if (snap.exists()) {
                     isValid = true;
                     // Optional: Fetch chronicle name if missing
                     if (!localStorage.getItem('v20_last_chronicle_name')) {
-                        const cSnap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chronicles', recentId));
+                        const cSnap = await getDoc(doc(db, 'chronicles', recentId));
                         if(cSnap.exists()) displayName = cSnap.data().name;
                     }
                 }
@@ -310,7 +310,8 @@ async function renderChronicleMenu() {
     const listDiv = document.getElementById('st-campaign-list');
     if (listDiv) {
         try {
-            const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'chronicles'), where("storyteller_uid", "==", user.uid));
+            // Using root collection 'chronicles'
+            const q = query(collection(db, 'chronicles'), where("storyteller_uid", "==", user.uid));
             const querySnapshot = await getDocs(q);
             
             if (!querySnapshot.empty) {
@@ -348,7 +349,8 @@ async function handleDeleteChronicle(id) {
             disconnectChronicle();
         }
 
-        await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chronicles', id));
+        // Delete from root collection
+        await deleteDoc(doc(db, 'chronicles', id));
         showNotification("Chronicle Deleted.");
         renderChronicleMenu();
     } catch (e) {
@@ -394,7 +396,8 @@ function renderJoinChronicleUI() {
         const val = e.target.value.trim();
         if (val.length >= 8) { 
             try {
-                const snap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chronicles', val));
+                // Check root collection
+                const snap = await getDoc(doc(db, 'chronicles', val));
                 if (snap.exists()) {
                     const data = snap.data();
                     document.getElementById('preview-name').innerText = data.name;
@@ -435,11 +438,11 @@ function renderCreateChronicleUI() {
             <div class="space-y-4">
                 <div>
                     <label class="label-text text-gray-400">House Rules</label>
-                    <textarea id="create-rules" class="w-full bg-[#050505] border border-[#333] text-gray-300 p-2 text-xs focus:border-red-500 outline-none resize-none h-48 leading-relaxed">${data.houseRules || ''}</textarea>
+                    <textarea id="create-rules" class="w-full bg-[#050505] border border-[#333] text-gray-300 p-2 text-xs focus:border-red-500 outline-none resize-none h-48 leading-relaxed">${window.state?.settings?.houseRules || ''}</textarea>
                 </div>
                 <div>
                     <label class="label-text text-gray-400">Lore / Rumors</label>
-                    <textarea id="create-lore" class="w-full bg-[#050505] border border-[#333] text-gray-300 p-2 text-xs focus:border-red-500 outline-none resize-none h-48 leading-relaxed">${data.lore || ''}</textarea>
+                    <textarea id="create-lore" class="w-full bg-[#050505] border border-[#333] text-gray-300 p-2 text-xs focus:border-red-500 outline-none resize-none h-48 leading-relaxed">${window.state?.settings?.lore || ''}</textarea>
                 </div>
             </div>
         </div>
@@ -513,8 +516,8 @@ async function handleCreateChronicle() {
             active_scene: "Prologue"
         };
 
-        // Strict Path: artifacts/{appId}/public/data/chronicles/{id}
-        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chronicles', chronicleId), chronicleData);
+        // Strict Path: chronicles/{id}
+        await setDoc(doc(db, 'chronicles', chronicleId), chronicleData);
         
         localStorage.setItem('v20_last_chronicle_id', chronicleId);
         localStorage.setItem('v20_last_chronicle_name', name);
@@ -551,7 +554,8 @@ async function handleJoinChronicle() {
     }
 
     try {
-        const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'chronicles', idInput);
+        // Path: chronicles/{id}
+        const docRef = doc(db, 'chronicles', idInput);
         const docSnap = await getDoc(docRef);
 
         if (!docSnap.exists()) {
@@ -567,7 +571,8 @@ async function handleJoinChronicle() {
             return;
         }
 
-        const playerRef = doc(db, 'artifacts', appId, 'public', 'data', 'chronicles', idInput, 'players', user.uid);
+        // Path: chronicles/{id}/players/{uid}
+        const playerRef = doc(db, 'chronicles', idInput, 'players', user.uid);
         const charName = document.getElementById('c-name')?.value || "Unknown Kindred";
         
         await setDoc(playerRef, {
@@ -608,7 +613,7 @@ async function handleResumeChronicle(id, role) {
     if (!auth.currentUser) return;
     
     try {
-        const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'chronicles', id);
+        const docRef = doc(db, 'chronicles', id);
         const docSnap = await getDoc(docRef);
         
         if (!docSnap.exists()) {
@@ -640,7 +645,7 @@ async function handleResumeChronicle(id, role) {
             toggleStorytellerButton(true);
             window.renderStorytellerDashboard(); 
         } else {
-            const playerRef = doc(db, 'artifacts', appId, 'public', 'data', 'chronicles', id, 'players', auth.currentUser.uid);
+            const playerRef = doc(db, 'chronicles', id, 'players', auth.currentUser.uid);
             await setDoc(playerRef, { status: "Connected", last_active: new Date().toISOString() }, { merge: true });
             
             stState.activeChronicleId = id;
@@ -731,21 +736,21 @@ function startPlayerSync() {
 // ==========================================================================
 
 function startStorytellerSession() {
-    const qRoster = query(collection(db, 'artifacts', appId, 'public', 'data', 'chronicles', stState.activeChronicleId, 'players'));
+    const qRoster = query(collection(db, 'chronicles', stState.activeChronicleId, 'players'));
     stState.listeners.push(onSnapshot(qRoster, (snapshot) => {
         stState.players = {};
         snapshot.forEach(doc => { stState.players[doc.id] = doc.data(); });
         if (stState.dashboardActive && stState.currentView === 'roster' && document.getElementById('st-viewport')) renderRosterView();
     }));
 
-    const qBestiary = query(collection(db, 'artifacts', appId, 'public', 'data', 'chronicles', stState.activeChronicleId, 'bestiary'));
+    const qBestiary = query(collection(db, 'chronicles', stState.activeChronicleId, 'bestiary'));
     stState.listeners.push(onSnapshot(qBestiary, (snapshot) => {
         stState.bestiary = {};
         snapshot.forEach(doc => { stState.bestiary[doc.id] = doc.data(); });
         if (stState.dashboardActive && stState.currentView === 'bestiary' && document.getElementById('st-viewport')) renderBestiaryView();
     }));
 
-    const qJournal = query(collection(db, 'artifacts', appId, 'public', 'data', 'chronicles', stState.activeChronicleId, 'journal'));
+    const qJournal = query(collection(db, 'chronicles', stState.activeChronicleId, 'journal'));
     stState.listeners.push(onSnapshot(qJournal, (snapshot) => {
         stState.journal = {};
         snapshot.forEach(doc => { stState.journal[doc.id] = doc.data(); });
@@ -863,7 +868,7 @@ function switchStorytellerView(view) {
 async function renderSettingsView(container) {
     if(!container) return;
     
-    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'chronicles', stState.activeChronicleId);
+    const docRef = doc(db, 'chronicles', stState.activeChronicleId);
     let data = stState.settings || {};
     
     try {
@@ -932,7 +937,7 @@ async function stSaveSettings() {
     };
     
     try {
-        await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chronicles', stState.activeChronicleId), updates);
+        await updateDoc(doc(db, 'chronicles', stState.activeChronicleId), updates);
         stState.settings = { ...stState.settings, ...updates };
         showNotification("Settings Updated");
     } catch(e) {
@@ -1178,8 +1183,8 @@ async function pushHandoutToPlayers(id) {
         return;
     }
     try {
-        // Path: artifacts/{appId}/public/data/chronicles/{id}/journal/{entryId}
-        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chronicles', stState.activeChronicleId, 'journal', id), { pushed: true, pushTime: Date.now() }, { merge: true });
+        // Path: chronicles/{id}/journal/{entryId}
+        await setDoc(doc(db, 'chronicles', stState.activeChronicleId, 'journal', id), { pushed: true, pushTime: Date.now() }, { merge: true });
         showNotification("Pushed to Players!");
     } catch(e) { console.error(e); }
 }
@@ -1187,7 +1192,7 @@ async function pushHandoutToPlayers(id) {
 async function stDeleteJournalEntry(id) {
     if(!confirm("Delete this handout?")) return;
     try {
-        await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chronicles', stState.activeChronicleId, 'journal', id));
+        await deleteDoc(doc(db, 'chronicles', stState.activeChronicleId, 'journal', id));
     } catch(e) { console.error(e); }
 }
 
@@ -1211,8 +1216,8 @@ window.copyStaticNpc = function(name) {
 window.deleteCloudNpc = async function(id) {
     if(!confirm("Delete?")) return;
     try { 
-        // Path: artifacts/{appId}/public/data/chronicles/{id}/bestiary/{npcId}
-        await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chronicles', stState.activeChronicleId, 'bestiary', id)); 
+        // Path: chronicles/{id}/bestiary/{npcId}
+        await deleteDoc(doc(db, 'chronicles', stState.activeChronicleId, 'bestiary', id)); 
         showNotification("Deleted."); 
     } catch(e) {}
 };
