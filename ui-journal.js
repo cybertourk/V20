@@ -1,6 +1,8 @@
 import { showNotification } from "./ui-common.js";
-import { stState } from "./ui-storyteller.js"; 
 import { db, doc, setDoc, deleteDoc } from "./firebase-config.js";
+
+// NOTE: We avoid importing stState directly to prevent circular dependency issues.
+// We will access window.stState (set by ui-storyteller.js) instead.
 
 // Global Codex Cache for Autosuggest & Linking
 let codexCache = [];
@@ -9,7 +11,7 @@ let codexCache = [];
 // Allows switching between "Player Mode" (Local) and "Storyteller Mode" (Cloud)
 let activeContext = {
     mode: 'player', // 'player' or 'storyteller'
-    data: null,     // Reference to window.state.codex or stState.journal
+    data: null,     // Reference to window.state.codex or window.stState.journal
     onSave: null,   
     onDelete: null  
 };
@@ -45,6 +47,7 @@ export function renderJournalTab() {
 
 export function renderStorytellerJournal(container) {
     // STORYTELLER ENTRY POINT
+    const stState = window.stState || {};
     const journalArray = Object.values(stState.journal || {});
 
     // Set Context: CLOUD
@@ -52,9 +55,13 @@ export function renderStorytellerJournal(container) {
         mode: 'storyteller',
         data: journalArray, 
         onSave: async (entry) => {
-            if (!stState.activeChronicleId) return;
+            if (!stState.activeChronicleId) {
+                showNotification("No Active Chronicle", "error");
+                return;
+            }
             try {
                 // Prefix ID with 'journal_' for the 'players' collection workaround
+                // This ensures we can store >1MB of data in total by splitting docs
                 const safeId = entry.id.startsWith('journal_') ? entry.id : 'journal_' + entry.id;
                 const docRef = doc(db, 'chronicles', stState.activeChronicleId, 'players', safeId);
                 
@@ -822,7 +829,9 @@ window.handleJournalPush = async function() {
     list.innerHTML = '';
 
     // Filter players (Exclude Journal Entries from the players list)
-    const players = Object.entries(stState.players).filter(([_, p]) => !p.metadataType || p.metadataType !== 'journal');
+    // Use window.stState to ensure access
+    const stState = window.stState || {};
+    const players = Object.entries(stState.players || {}).filter(([_, p]) => !p.metadataType || p.metadataType !== 'journal');
     
     if (players.length === 0) {
         list.innerHTML = `<div class="text-[10px] text-gray-500 italic text-center py-2">No players connected.</div>`;
