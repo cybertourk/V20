@@ -9,6 +9,7 @@ import {
 } from "./combat-tracker.js";
 
 // IMPORT NEW JOURNAL LOGIC
+// We use updateJournalList to refresh the sidebar without killing the editor state
 import { renderStorytellerJournal, updateJournalList } from "./ui-journal.js";
 
 // --- STATE ---
@@ -309,10 +310,7 @@ async function renderChronicleMenu() {
     const listDiv = document.getElementById('st-campaign-list');
     if (listDiv) {
         try {
-            const q = query(
-                collection(db, 'artifacts', appId, 'public', 'data', 'chronicles'), 
-                where("storyteller_uid", "==", user.uid)
-            );
+            const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'chronicles'), where("storyteller_uid", "==", user.uid));
             const querySnapshot = await getDocs(q);
             
             if (!querySnapshot.empty) {
@@ -350,8 +348,6 @@ async function handleDeleteChronicle(id) {
             disconnectChronicle();
         }
 
-        // Warning: This only deletes the root document, not subcollections.
-        // Implementing full recursive delete is complex without a cloud function.
         await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chronicles', id));
         showNotification("Chronicle Deleted.");
         renderChronicleMenu();
@@ -439,11 +435,11 @@ function renderCreateChronicleUI() {
             <div class="space-y-4">
                 <div>
                     <label class="label-text text-gray-400">House Rules</label>
-                    <textarea id="create-rules" class="w-full bg-[#050505] border border-[#333] text-gray-300 p-2 text-xs focus:border-red-500 outline-none resize-none h-32" placeholder="e.g. No Potence/Celerity stacking, custom XP costs..."></textarea>
+                    <textarea id="create-rules" class="w-full bg-[#050505] border border-[#333] text-gray-300 p-2 text-xs focus:border-red-500 outline-none resize-none h-48 leading-relaxed">${data.houseRules || ''}</textarea>
                 </div>
                 <div>
                     <label class="label-text text-gray-400">Lore / Rumors</label>
-                    <textarea id="create-lore" class="w-full bg-[#050505] border border-[#333] text-gray-300 p-2 text-xs focus:border-red-500 outline-none resize-none h-32" placeholder="Public knowledge about the city..."></textarea>
+                    <textarea id="create-lore" class="w-full bg-[#050505] border border-[#333] text-gray-300 p-2 text-xs focus:border-red-500 outline-none resize-none h-48 leading-relaxed">${data.lore || ''}</textarea>
                 </div>
             </div>
         </div>
