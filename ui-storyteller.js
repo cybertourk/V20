@@ -160,6 +160,7 @@ async function checkStaleSession() {
         console.log("Resuming Player Session for Combat Tracker...");
         initCombatTracker(storedId); 
         startPlayerSync();
+        startPlayerListeners(storedId); // Start listening for Journal pushes
     }
 }
 
@@ -597,6 +598,7 @@ async function handleJoinChronicle() {
         initCombatTracker(idInput);
         
         startPlayerSync();
+        startPlayerListeners(idInput); // Listen for pushes
 
         showNotification(`Joined ${data.name}`);
         window.closeChronicleModal();
@@ -655,6 +657,7 @@ async function handleResumeChronicle(id, role) {
             initCombatTracker(id);
             
             startPlayerSync();
+            startPlayerListeners(id); // Listen for pushes
             window.closeChronicleModal();
             showNotification(`Reconnected to ${data.name}`);
             if(window.changeStep) window.changeStep(7);
@@ -731,6 +734,53 @@ function startPlayerSync() {
     stState.syncInterval = interval;
 }
 
+function startPlayerListeners(chronicleId) {
+    // Listen to the players collection where journals are pushed
+    const q = query(collection(db, 'chronicles', chronicleId, 'players'));
+    
+    const unsub = onSnapshot(q, (snapshot) => {
+        let updated = false;
+        snapshot.docChanges().forEach((change) => {
+            const data = change.doc.data();
+            const docId = change.doc.id;
+            
+            // Look for Journal Entries
+            if (docId.startsWith('journal_')) {
+                if (data.pushed === true) {
+                    if (change.type === 'added' || change.type === 'modified') {
+                        if (!window.state.codex) window.state.codex = [];
+                        
+                        // Construct local entry from pushed data
+                        const entry = { ...data, id: docId }; 
+                        
+                        const idx = window.state.codex.findIndex(c => c.id === docId);
+                        if (idx > -1) window.state.codex[idx] = entry;
+                        else window.state.codex.push(entry);
+                        
+                        updated = true;
+                    }
+                    if (change.type === 'removed') {
+                        if (window.state.codex) {
+                            window.state.codex = window.state.codex.filter(c => c.id !== docId);
+                            updated = true;
+                        }
+                    }
+                }
+            }
+        });
+        
+        if (updated) {
+            showNotification("Journal Updated from Chronicle");
+            const journalTab = document.getElementById('play-mode-5');
+            if (journalTab && journalTab.classList.contains('active')) {
+                if(window.renderJournalTab) window.renderJournalTab();
+            }
+        }
+    });
+    
+    stState.listeners.push(unsub);
+}
+
 // ==========================================================================
 // STORYTELLER DASHBOARD (Overlay)
 // ==========================================================================
@@ -779,8 +829,6 @@ function startStorytellerSession() {
         snapshot.forEach(doc => { stState.bestiary[doc.id] = doc.data(); });
         if (stState.dashboardActive && stState.currentView === 'bestiary' && document.getElementById('st-viewport')) renderBestiaryView();
     }));
-
-    // REMOVED: Separate Journal Listener (Use Combined Roster/Journal listener above)
 
     initCombatTracker(stState.activeChronicleId);
 }
