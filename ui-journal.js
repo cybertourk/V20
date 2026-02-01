@@ -1,5 +1,4 @@
 import { showNotification } from "./ui-common.js";
-// Imports for ST features (dynamic dependency handling)
 import { stState } from "./ui-storyteller.js"; 
 import { db, doc, setDoc, deleteDoc } from "./firebase-config.js";
 
@@ -7,12 +6,12 @@ import { db, doc, setDoc, deleteDoc } from "./firebase-config.js";
 let codexCache = [];
 
 // --- CONFIGURATION STATE ---
-// This allows the module to switch between "Personal Local Mode" and "Storyteller Cloud Mode"
+// Allows switching between "Player Mode" (Local) and "Storyteller Mode" (Cloud)
 let activeContext = {
     mode: 'player', // 'player' or 'storyteller'
-    data: null,     // Reference to the array (window.state.codex or stState.journal)
-    onSave: null,   // Callback for saving
-    onDelete: null  // Callback for deleting
+    data: null,     // Reference to window.state.codex or stState.journal
+    onSave: null,   
+    onDelete: null  
 };
 
 // ==========================================================================
@@ -20,11 +19,11 @@ let activeContext = {
 // ==========================================================================
 
 export function renderJournalTab() {
-    // Default Player Mode Entry Point (Personal Journal)
+    // PLAYER ENTRY POINT
     const container = document.getElementById('play-mode-5');
     if (!container) return;
 
-    // Default Player State Initialization
+    // Init Defaults
     if (!window.state.sessionLogs) window.state.sessionLogs = [];
     if (!window.state.codex) window.state.codex = [];
     if (!window.state.journalTab) window.state.journalTab = 'sessions';
@@ -34,7 +33,6 @@ export function renderJournalTab() {
         mode: 'player',
         data: window.state.codex,
         onSave: () => { 
-            // Local Save Trigger
             if (window.performSave) window.performSave(true); 
         },
         onDelete: () => { 
@@ -46,7 +44,7 @@ export function renderJournalTab() {
 }
 
 export function renderStorytellerJournal(container) {
-    // ST Mode Entry Point (Campaign Management)
+    // STORYTELLER ENTRY POINT
     const journalArray = Object.values(stState.journal || {});
 
     // Set Context: CLOUD
@@ -54,18 +52,18 @@ export function renderStorytellerJournal(container) {
         mode: 'storyteller',
         data: journalArray, 
         onSave: async (entry) => {
-            if (!stState.activeChronicleId) {
-                console.error("ST Journal Save Error: No Active Chronicle ID");
-                return;
-            }
+            if (!stState.activeChronicleId) return;
             try {
-                // WORKAROUND: Use 'players' collection with 'journal_' prefix to bypass strict rules
-                // Ensure ID is prefixed for storage key
+                // Prefix ID with 'journal_' for the 'players' collection workaround
                 const safeId = entry.id.startsWith('journal_') ? entry.id : 'journal_' + entry.id;
-                
-                // Store original SHORT id in the document data for cleaner UI logic, but key is prefixed
                 const docRef = doc(db, 'chronicles', stState.activeChronicleId, 'players', safeId);
-                await setDoc(docRef, { ...entry, type: 'journal', original_id: entry.id }, { merge: true });
+                
+                await setDoc(docRef, { 
+                    ...entry, 
+                    metadataType: 'journal', 
+                    original_id: entry.id 
+                }, { merge: true });
+                
                 showNotification("Journal Synced.");
             } catch(e) { 
                 console.error("ST Journal Save Failed:", e);
@@ -82,23 +80,14 @@ export function renderStorytellerJournal(container) {
         }
     };
 
-    // Storytellers default to the Codex/Handouts view
+    // STs default to Codex view
     renderCodexView(container);
 }
 
-// NEW: Smart Update Function used by Storyteller Live Listener
 export function updateJournalList(newData) {
-    // 1. Update Context Data
     activeContext.data = newData || [];
-    
-    // 2. Update Cache
     codexCache = (activeContext.data || []).map(c => c.name);
-    
-    // 3. Re-render List only
     renderCodexList();
-    
-    // 4. Note: We intentionally DO NOT re-render the Editor or Popup.
-    // This allows the user to keep typing while background updates happen.
 }
 
 // ==========================================================================
@@ -106,13 +95,11 @@ export function updateJournalList(newData) {
 // ==========================================================================
 
 function renderJournalInterface(container, activeTab) {
-    // Update Cache for autosuggest based on current context data
+    // Refresh cache
     codexCache = (activeContext.data || []).map(c => c.name);
 
     const activeClass = "border-b-2 border-[#d4af37] text-[#d4af37] font-bold";
     const inactiveClass = "text-gray-500 hover:text-white transition-colors";
-
-    // Only show Session Logs tab in Player Mode
     const showTabs = activeContext.mode === 'player';
 
     container.innerHTML = `
@@ -127,12 +114,36 @@ function renderJournalInterface(container, activeTab) {
             <!-- Main Content Area -->
             <div id="journal-main-view" class="flex-1 overflow-hidden h-full relative"></div>
             
-            <!-- Floating Autocomplete Box (Global Position) -->
+            <!-- Floating Autocomplete Box -->
             <div id="autocomplete-suggestions" class="autocomplete-box"></div>
         </div>
         
-        <!-- Shared Modals (Hidden by default) -->
+        <!-- Shared Codex Modal -->
         ${renderPopupModal()} 
+        
+        <!-- NEW: Recipient Selection Modal -->
+        <div id="recipient-modal" class="fixed inset-0 bg-black/80 z-[20000] hidden flex items-center justify-center p-4 backdrop-blur-sm">
+            <div class="bg-[#1a1a1a] border border-[#d4af37] p-6 max-w-sm w-full shadow-2xl relative">
+                <h3 class="text-lg text-gold font-cinzel font-bold mb-4 border-b border-[#333] pb-2 uppercase">Select Recipients</h3>
+                
+                <div class="mb-4">
+                    <label class="flex items-center gap-3 p-2 bg-blue-900/10 border border-blue-900/30 rounded cursor-pointer hover:bg-blue-900/20 transition-colors">
+                        <input type="checkbox" id="push-all" checked class="w-4 h-4 accent-blue-500 cursor-pointer">
+                        <span class="text-xs font-bold text-white uppercase">Broadcast to Everyone</span>
+                    </label>
+                </div>
+                
+                <div class="text-[10px] text-gray-500 font-bold uppercase mb-2">Individual Players</div>
+                <div id="recipient-list" class="space-y-1 max-h-48 overflow-y-auto mb-4 custom-scrollbar border border-[#333] bg-[#050505] p-2 rounded">
+                    <!-- Players injected here -->
+                </div>
+                
+                <div class="flex justify-between gap-2 border-t border-[#333] pt-4">
+                    <button onclick="document.getElementById('recipient-modal').classList.add('hidden')" class="text-gray-500 hover:text-white text-xs uppercase font-bold px-4 py-2 border border-transparent hover:border-[#444]">Cancel</button>
+                    <button id="confirm-push-btn" class="bg-blue-900 text-white px-6 py-2 text-xs uppercase font-bold hover:bg-blue-700 shadow-lg border border-blue-700">Push Handout</button>
+                </div>
+            </div>
+        </div>
     `;
 
     if (showTabs) {
@@ -147,7 +158,6 @@ function renderJournalInterface(container, activeTab) {
     }
 
     const mainView = document.getElementById('journal-main-view');
-    
     if (activeContext.mode === 'storyteller') {
         renderCodexView(mainView);
     } else {
@@ -208,7 +218,8 @@ function renderPopupModal() {
                                 <option value="Location">Location</option>
                                 <option value="Faction">Faction</option>
                                 <option value="Item">Item</option>
-                                <option value="Handout">Handout (ST)</option>
+                                <option value="Handout">Handout</option>
+                                <option value="Lore">Lore / Rule</option>
                             </select>
                         </div>
                         <div>
@@ -237,15 +248,13 @@ function renderPopupModal() {
 function renderSessionView(container) {
     container.innerHTML = `
         <div class="flex h-full gap-4">
-            <!-- Sidebar: History -->
             <div class="w-1/4 flex flex-col border-r border-[#333] pr-2">
                 <button onclick="window.initNewSessionLog()" class="bg-[#8b0000] hover:bg-red-700 text-white font-bold py-2 px-2 text-[10px] uppercase mb-3 flex items-center justify-center gap-1 shadow-md transition-colors">
                     <i class="fas fa-plus"></i> New Session Log
                 </button>
-                <div id="journal-history-list" class="flex-1 overflow-y-auto space-y-1 pr-1"></div>
+                <div id="journal-history-list" class="flex-1 overflow-y-auto space-y-1 pr-1 custom-scrollbar"></div>
             </div>
-            <!-- Editor Content -->
-            <div class="w-3/4 h-full overflow-y-auto pr-2 bg-[#050505] p-2" id="journal-content-area">
+            <div class="w-3/4 h-full overflow-y-auto pr-2 bg-[#050505] p-2 custom-scrollbar" id="journal-content-area">
                 <div class="flex flex-col items-center justify-center h-full text-gray-500 italic text-xs">
                     <i class="fas fa-book-open text-4xl mb-4 opacity-30"></i>
                     Select a session from the list or create a new one.
@@ -261,7 +270,6 @@ function renderJournalHistoryList() {
     if (!list) return;
     list.innerHTML = '';
     
-    // Sort by session number descending (newest first)
     const sorted = [...window.state.sessionLogs].sort((a,b) => parseInt(b.sessionNum) - parseInt(a.sessionNum));
     
     if (sorted.length === 0) {
@@ -271,7 +279,7 @@ function renderJournalHistoryList() {
 
     sorted.forEach(log => {
         const item = document.createElement('div');
-        item.className = "bg-[#111] hover:bg-[#222] p-2 cursor-pointer border-l-2 border-transparent hover:border-gold transition-colors group relative";
+        item.className = "bg-[#111] hover:bg-[#222] p-2 cursor-pointer border-l-2 border-transparent hover:border-gold transition-colors group relative mb-1";
         
         item.innerHTML = `
             <div class="text-[10px] text-white font-bold truncate pr-4">${log.title || 'Untitled Session'}</div>
@@ -534,11 +542,11 @@ function renderCodexView(container) {
                 <button onclick="window.editCodexEntry()" class="bg-[#d4af37] hover:bg-[#fcd34d] text-black font-bold py-1 px-2 text-[10px] uppercase mb-3 text-center transition-colors">
                     <i class="fas fa-plus mr-1"></i> Add Entry
                 </button>
-                <div id="codex-list" class="flex-1 overflow-y-auto space-y-1 pr-1"></div>
+                <div id="codex-list" class="flex-1 overflow-y-auto space-y-1 pr-1 custom-scrollbar"></div>
             </div>
 
             <!-- Editor / Viewer -->
-            <div class="w-3/4 h-full ${bgClass} border border-[#333] p-6 relative hidden overflow-y-auto no-scrollbar" id="codex-editor">
+            <div class="w-3/4 h-full ${bgClass} border border-[#333] p-6 relative hidden overflow-y-auto no-scrollbar custom-scrollbar" id="codex-editor">
                 <h3 class="text-xl font-cinzel text-[#d4af37] mb-6 border-b border-[#333] pb-2 uppercase tracking-widest">Entry Details</h3>
                 <input type="hidden" id="cx-id">
                 
@@ -723,7 +731,18 @@ window.editCodexEntry = function(id = null) {
     
     document.getElementById('cx-id').value = entry.id;
     document.getElementById('cx-name').value = entry.name;
-    document.getElementById('cx-type').value = entry.type;
+    
+    // FIX: TYPE SAVING BUG (Add Custom Type if missing)
+    const typeSelect = document.getElementById('cx-type');
+    const typeVal = entry.type || "NPC";
+    const options = Array.from(typeSelect.options).map(o => o.value);
+    
+    if (!options.includes(typeVal)) {
+        const newOpt = new Option(typeVal, typeVal, true, true);
+        typeSelect.add(newOpt);
+    }
+    typeSelect.value = typeVal;
+
     document.getElementById('cx-tags').value = entry.tags.join(', ');
     document.getElementById('cx-desc').value = entry.desc;
     
@@ -758,7 +777,7 @@ window.saveCodexEntry = async function(closeAfter = false) {
     const newEntry = {
         id: finalId,
         name: name,
-        type: document.getElementById('cx-type').value,
+        type: document.getElementById('cx-type').value || "NPC",
         tags: document.getElementById('cx-tags').value.split(',').map(t=>t.trim()).filter(t=>t),
         desc: document.getElementById('cx-desc').value,
         image: window.currentCodexImage || null
@@ -786,16 +805,73 @@ window.saveCodexEntry = async function(closeAfter = false) {
     return finalId;
 }
 
-// NEW: Push Handler (Saves first then pushes)
+// NEW: Push Handler (Saves first then opens Recipient Modal)
 window.handleJournalPush = async function() {
     let id = document.getElementById('cx-id').value;
     
     // Auto-Save if dirty or new (and get the valid ID back)
     id = await window.saveCodexEntry(false); // false = keep open
+    if (!id) return;
+
+    // Open Recipient Selection Modal
+    const modal = document.getElementById('recipient-modal');
+    const list = document.getElementById('recipient-list');
+    if (!modal || !list) return;
+
+    // Reset List
+    list.innerHTML = '';
+
+    // Filter players (Exclude Journal Entries from the players list)
+    const players = Object.entries(stState.players).filter(([_, p]) => !p.metadataType || p.metadataType !== 'journal');
     
-    if (id && window.stPushHandout) {
-        window.stPushHandout(id);
+    if (players.length === 0) {
+        list.innerHTML = `<div class="text-[10px] text-gray-500 italic text-center py-2">No players connected.</div>`;
+    } else {
+        players.forEach(([uid, p]) => {
+            const row = document.createElement('label');
+            row.className = "flex items-center justify-between p-2 hover:bg-[#222] rounded cursor-pointer group";
+            row.innerHTML = `
+                <div class="flex items-center gap-3">
+                    <input type="checkbox" class="recipient-checkbox w-4 h-4 accent-[#d4af37]" value="${uid}">
+                    <span class="text-xs text-gray-300 group-hover:text-white">${p.character_name || "Unknown"}</span>
+                </div>
+                <span class="text-[8px] text-gray-600 font-mono uppercase">${uid.substring(0, 8)}</span>
+            `;
+            list.appendChild(row);
+        });
     }
+
+    // Auto-deselect individual boxes if All is checked
+    const allCheck = document.getElementById('push-all');
+    allCheck.addEventListener('change', () => {
+        const boxes = document.querySelectorAll('.recipient-checkbox');
+        boxes.forEach(b => { 
+            b.disabled = allCheck.checked; 
+            if(allCheck.checked) b.checked = false; 
+        });
+    });
+
+    const pushBtn = document.getElementById('confirm-push-btn');
+    pushBtn.onclick = async () => {
+        const isAll = document.getElementById('push-all').checked;
+        const selected = Array.from(document.querySelectorAll('.recipient-checkbox:checked')).map(cb => cb.value);
+        
+        if (!isAll && selected.length === 0) {
+            showNotification("Select at least one recipient", "error");
+            return;
+        }
+
+        modal.classList.add('hidden');
+        
+        // Call ST Push Function with recipient list
+        if (window.stPushHandout) {
+            await window.stPushHandout(id, isAll ? null : selected);
+        } else {
+            console.error("stPushHandout not found on window");
+        }
+    };
+
+    modal.classList.remove('hidden');
 }
 
 window.deleteCodexEntry = async function() {
@@ -978,7 +1054,8 @@ window.viewCodex = function(id) {
     // Inject "Push" button if ST
     const pushCont = document.getElementById('st-push-container');
     if (activeContext.mode === 'storyteller' && window.stPushHandout) {
-        pushCont.innerHTML = `<button onclick="window.stPushHandout('${entry.id}')" class="text-xs bg-blue-900/40 text-blue-200 border border-blue-500 px-3 py-1 uppercase font-bold hover:text-white mr-4"><i class="fas fa-share-alt mr-1"></i> Push Handout</button>`;
+        // Use handleJournalPush to open the selector
+        pushCont.innerHTML = `<button onclick="window.handleJournalPush()" class="text-xs bg-blue-900/40 text-blue-200 border border-blue-500 px-3 py-1 uppercase font-bold hover:text-white mr-4"><i class="fas fa-share-alt mr-1"></i> Push Handout</button>`;
     } else {
         pushCont.innerHTML = '';
     }
