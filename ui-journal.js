@@ -1,7 +1,7 @@
 import { showNotification } from "./ui-common.js";
 // Imports for ST features (dynamic dependency handling)
 import { stState } from "./ui-storyteller.js"; 
-import { db, doc, setDoc, deleteDoc } from "./firebase-config.js";
+import { db, doc, setDoc, deleteDoc, appId } from "./firebase-config.js";
 
 // Global Codex Cache for Autosuggest & Linking
 let codexCache = [];
@@ -63,8 +63,8 @@ export function renderStorytellerJournal(container) {
                 if (!entry.id) entry.id = "cx_" + Date.now();
                 
                 // Save to Firestore 'journal' collection
-                // Path: chronicles/{chronicleId}/journal/{entryId}
-                const docRef = doc(db, 'chronicles', stState.activeChronicleId, 'journal', entry.id);
+                // UPDATED PATH: artifacts/{appId}/chronicles/{chronicleId}/journal/{entryId}
+                const docRef = doc(db, 'artifacts', appId, 'chronicles', stState.activeChronicleId, 'journal', entry.id);
                 await setDoc(docRef, entry, { merge: true });
                 showNotification("Journal Synced.");
             } catch(e) { 
@@ -75,7 +75,8 @@ export function renderStorytellerJournal(container) {
         onDelete: async (id) => {
             if (!stState.activeChronicleId) return;
             try {
-                await deleteDoc(doc(db, 'chronicles', stState.activeChronicleId, 'journal', id));
+                const docRef = doc(db, 'artifacts', appId, 'chronicles', stState.activeChronicleId, 'journal', id);
+                await deleteDoc(docRef);
                 showNotification("Entry Deleted.");
             } catch(e) { console.error(e); }
         }
