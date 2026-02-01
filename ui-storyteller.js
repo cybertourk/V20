@@ -28,6 +28,9 @@ export const stState = {
     dashboardActive: false
 };
 
+// Expose state globally for other modules (fixes Journal Roster visibility)
+window.stState = stState;
+
 // --- INITIALIZATION ---
 export function initStorytellerSystem() {
     console.log("Storyteller System Initializing...");
@@ -735,18 +738,31 @@ function startPlayerSync() {
 }
 
 function startPlayerListeners(chronicleId) {
-    // Listen to the players collection where journals are pushed
     const q = query(collection(db, 'chronicles', chronicleId, 'players'));
-    
     const unsub = onSnapshot(q, (snapshot) => {
         let updated = false;
         snapshot.docChanges().forEach((change) => {
             const data = change.doc.data();
             const docId = change.doc.id;
             
-            // Look for Journal Entries
-            if (docId.startsWith('journal_')) {
-                if (data.pushed === true) {
+            // Check for Journal Entries (namespaced)
+            // AND check if they are pushed
+            if (docId.startsWith('journal_') && data.pushed === true) {
+                const myId = auth.currentUser?.uid;
+                
+                // RECIPIENT LOGIC:
+                // 1. If recipients is MISSING or NULL, it's a broadcast to ALL.
+                // 2. If recipients is ARRAY, check if myId is included.
+                let isRecipient = false;
+                
+                if (!data.recipients) {
+                    isRecipient = true; // Everyone
+                } else if (Array.isArray(data.recipients)) {
+                    if (data.recipients.length === 0) isRecipient = false; // Empty array means no one
+                    else if (myId && data.recipients.includes(myId)) isRecipient = true;
+                }
+                
+                if (isRecipient) {
                     if (change.type === 'added' || change.type === 'modified') {
                         if (!window.state.codex) window.state.codex = [];
                         
@@ -771,6 +787,7 @@ function startPlayerListeners(chronicleId) {
         
         if (updated) {
             showNotification("Journal Updated from Chronicle");
+            // If the Journal tab is active, refresh it
             const journalTab = document.getElementById('play-mode-5');
             if (journalTab && journalTab.classList.contains('active')) {
                 if(window.renderJournalTab) window.renderJournalTab();
@@ -787,32 +804,27 @@ function startPlayerListeners(chronicleId) {
 
 function startStorytellerSession() {
     // 1. ROSTER + JOURNAL LISTENER (COMBINED)
-    // We repurpose the 'players' collection to store both Players and Journal Entries (with prefix 'journal_')
-    // because the provided security rules allow ST writes to any document in 'players'.
     const qRoster = query(collection(db, 'chronicles', stState.activeChronicleId, 'players'));
     
     stState.listeners.push(onSnapshot(qRoster, (snapshot) => {
         stState.players = {};
-        stState.journal = {}; // Reset local cache to rebuild from snapshot
+        stState.journal = {}; 
         
         snapshot.forEach(doc => {
             const data = doc.data();
             const id = doc.id;
             
             if (id.startsWith('journal_')) {
-                // This is a journal entry
                 stState.journal[id] = data;
             } else {
-                // This is a player
                 stState.players[id] = data;
             }
         });
 
-        // Smart UI Refresh based on active view
+        // Smart UI Refresh
         if (stState.dashboardActive) {
             if (stState.currentView === 'roster') {
-                const viewport = document.getElementById('st-viewport');
-                if (viewport) renderRosterView();
+                renderRosterView();
             }
             else if (stState.currentView === 'journal') {
                 if (updateJournalList) {
@@ -827,21 +839,16 @@ function startStorytellerSession() {
     stState.listeners.push(onSnapshot(qBestiary, (snapshot) => {
         stState.bestiary = {};
         snapshot.forEach(doc => { stState.bestiary[doc.id] = doc.data(); });
-        if (stState.dashboardActive && stState.currentView === 'bestiary' && document.getElementById('st-viewport')) renderBestiaryView();
+        if (stState.dashboardActive && stState.currentView === 'bestiary') renderBestiaryView();
     }));
 
     initCombatTracker(stState.activeChronicleId);
 }
 
-// Renders into the dedicated Overlay Div
 function renderStorytellerDashboard(container = null) {
     if (!container) container = document.getElementById('st-dashboard-view');
-    if (!container) {
-        console.warn("ST Dashboard: No container found.");
-        return;
-    }
+    if (!container) return;
 
-    // Force Visibility
     stState.dashboardActive = true;
     container.classList.remove('hidden');
     container.style.display = 'flex'; 
@@ -921,7 +928,6 @@ function switchStorytellerView(view) {
     else if (view === 'bestiary') renderBestiaryView();
     else if (view === 'journal') {
         if(renderStorytellerJournal) renderStorytellerJournal(viewport);
-        else console.warn("renderStorytellerJournal is unavailable (likely due to circular dependency).");
     }
     else if (view === 'settings') renderSettingsView(viewport);
 }
@@ -1013,8 +1019,10 @@ function renderRosterView() {
     const viewport = document.getElementById('st-viewport');
     if (!viewport || stState.currentView !== 'roster') return;
 
-    // Filter out journal entries from players list (just in case)
-    const players = Object.values(stState.players).filter(p => !p.type || p.type !== 'journal');
+    // Filter out journal entries from players list (check metadataType OR id prefix)
+    const players = Object.entries(stState.players)
+        .filter(([id, p]) => !p.metadataType || p.metadataType !== 'journal')
+        .map(([id, p]) => ({...p, id})); // Add ID back to object for referencing
     
     if (players.length === 0) {
         viewport.innerHTML = `<div class="flex flex-col items-center justify-center h-full text-gray-500"><i class="fas fa-users-slash text-4xl mb-4 opacity-50"></i><p>No players connected.</p><p class="text-xs mt-2">Share ID: <span class="text-gold font-mono font-bold">${stState.activeChronicleId}</span></p></div>`;
@@ -1027,8 +1035,7 @@ function renderRosterView() {
         const health = p.live_stats?.health || [];
         const dmgCount = health.filter(x => x > 0).length;
         const statusDot = p.status === 'Offline' ? 'bg-red-500' : 'bg-green-500';
-        const pid = Object.keys(stState.players).find(k => stState.players[k] === p);
-
+        
         html += `
             <div class="bg-[#111] border border-[#333] rounded p-4 shadow-md relative group hover:border-[#555] transition-colors">
                 <div class="absolute top-2 right-2 flex items-center gap-2">
@@ -1053,7 +1060,7 @@ function renderRosterView() {
                 </div>
 
                 <div class="mt-4 pt-2 border-t border-[#222] flex justify-end gap-2 opacity-50 group-hover:opacity-100 transition-opacity">
-                    <button class="text-[10px] uppercase font-bold text-gray-400 hover:text-white px-2 py-1 border border-[#333] rounded hover:bg-[#222]" onclick="window.stAddToCombat({id:'${pid}', name:'${p.character_name}'}, 'Player')">
+                    <button class="text-[10px] uppercase font-bold text-gray-400 hover:text-white px-2 py-1 border border-[#333] rounded hover:bg-[#222]" onclick="window.stAddToCombat({id:'${p.id}', name:'${p.character_name}'}, 'Player')">
                         <i class="fas fa-swords mr-1"></i> Combat
                     </button>
                 </div>
@@ -1240,7 +1247,7 @@ function renderNpcCard(entry, id, isCustom, container, clearFirst = false) {
 }
 
 // --- DELEGATED JOURNAL HELPERS ---
-async function pushHandoutToPlayers(id) {
+async function pushHandoutToPlayers(id, recipients = null) {
     if (!id) {
         showNotification("No ID to push. Save first.", "error");
         return;
@@ -1248,8 +1255,22 @@ async function pushHandoutToPlayers(id) {
     try {
         // USE SAFE PLAYER PATH: chronicles/{id}/players/journal_{entryId}
         const safeId = id.startsWith('journal_') ? id : 'journal_' + id;
-        await setDoc(doc(db, 'chronicles', stState.activeChronicleId, 'players', safeId), { pushed: true, pushTime: Date.now() }, { merge: true });
-        showNotification("Pushed to Players!");
+        
+        // Define data payload
+        const data = { 
+            pushed: true, 
+            pushTime: Date.now(),
+            recipients: recipients // Array of UIDs or null (for everyone)
+        };
+
+        await setDoc(doc(db, 'chronicles', stState.activeChronicleId, 'players', safeId), data, { merge: true });
+        
+        let msg = "Pushed to Players!";
+        if (recipients) {
+            msg = `Pushed to ${recipients.length} Player(s)`;
+        }
+        showNotification(msg);
+        
     } catch(e) { console.error(e); showNotification("Push failed: " + e.message, "error"); }
 }
 
