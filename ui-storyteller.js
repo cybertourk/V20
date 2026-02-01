@@ -463,9 +463,10 @@ function renderConnectedStatus() {
     if(!container) return;
 
     container.innerHTML = `
+        <button onclick="window.closeChronicleModal()" class="absolute top-2 right-3 text-gray-500 hover:text-white text-xl">&times;</button>
         <div class="text-center py-8">
             <h2 class="heading text-2xl text-green-500 mb-2">Connected</h2>
-            <p class="text-gray-400 text-xs mb-6 font-mono">${stState.activeChronicleId}</p>
+            <p class="text-gray-400 text-xs mb-6 font-mono select-all">${stState.activeChronicleId}</p>
             
             <div class="bg-[#111] p-4 border border-[#333] rounded mb-6 max-w-sm mx-auto">
                 <div class="text-xs text-gray-500 uppercase font-bold mb-2">Status</div>
@@ -475,9 +476,14 @@ function renderConnectedStatus() {
                 </div>
             </div>
 
-            <button class="border border-red-900/50 text-red-500 hover:bg-red-900/20 px-6 py-2 text-xs font-bold uppercase transition-colors" onclick="window.disconnectChronicle()">
-                Disconnect
-            </button>
+            <div class="flex justify-center gap-4">
+                <button class="border border-[#444] text-gray-400 hover:bg-[#222] px-6 py-2 text-xs font-bold uppercase transition-colors" onclick="window.closeChronicleModal()">
+                    Close
+                </button>
+                <button class="border border-red-900/50 text-red-500 hover:bg-red-900/20 px-6 py-2 text-xs font-bold uppercase transition-colors" onclick="window.disconnectChronicle()">
+                    Disconnect
+                </button>
+            </div>
         </div>
     `;
 }
