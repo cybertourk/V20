@@ -1,5 +1,5 @@
 import { 
-    db, auth, collection, doc, setDoc, getDoc, getDocs, query, where, addDoc, onSnapshot, deleteDoc, updateDoc 
+    db, auth, collection, doc, setDoc, getDoc, getDocs, query, where, addDoc, onSnapshot, deleteDoc, updateDoc, appId 
 } from "./firebase-config.js";
 import { showNotification } from "./ui-common.js";
 import { BESTIARY } from "./bestiary-data.js";
@@ -73,7 +73,8 @@ export function initStorytellerSystem() {
         if (!stState.activeChronicleId || !stState.isStoryteller) return showNotification("Not in ST Mode", "error");
         try {
             const id = npcData.id || "npc_" + Date.now();
-            await setDoc(doc(db, 'chronicles', stState.activeChronicleId, 'bestiary', id), {
+            // Path: artifacts/{appId}/public/data/chronicles/{chronicleId}/bestiary/{id}
+            await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chronicles', stState.activeChronicleId, 'bestiary', id), {
                 name: npcData.name || "Unknown",
                 type: "Custom",
                 data: npcData
@@ -124,7 +125,8 @@ async function checkStaleSession() {
     // 2. If ST Role, Verify Ownership
     if (user && storedId && storedRole === 'ST') {
         try {
-            const docRef = doc(db, 'chronicles', storedId);
+            // Path: artifacts/{appId}/public/data/chronicles/{id}
+            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'chronicles', storedId);
             const snap = await getDoc(docRef);
             
             // If doc missing OR user is not the owner
@@ -151,7 +153,8 @@ async function checkStaleSession() {
         stState.activeChronicleId = storedId;
         stState.isStoryteller = false;
         // Re-establish player ref
-        stState.playerRef = doc(db, 'chronicles', storedId, 'players', user.uid);
+        // Path: artifacts/{appId}/public/data/chronicles/{id}/players/{uid}
+        stState.playerRef = doc(db, 'artifacts', appId, 'public', 'data', 'chronicles', storedId, 'players', user.uid);
         
         console.log("Resuming Player Session for Combat Tracker...");
         initCombatTracker(storedId); 
@@ -253,7 +256,7 @@ async function renderChronicleMenu() {
 
             // Verify ownership/membership before showing
             if (recentRole === 'ST') {
-                const docRef = doc(db, 'chronicles', recentId);
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'chronicles', recentId);
                 const snap = await getDoc(docRef);
                 if (snap.exists() && snap.data().storyteller_uid === user.uid) {
                     isValid = true;
@@ -261,13 +264,13 @@ async function renderChronicleMenu() {
                 }
             } else {
                 // Player check - verify player doc exists
-                const playerRef = doc(db, 'chronicles', recentId, 'players', user.uid);
+                const playerRef = doc(db, 'artifacts', appId, 'public', 'data', 'chronicles', recentId, 'players', user.uid);
                 const snap = await getDoc(playerRef);
                 if (snap.exists()) {
                     isValid = true;
                     // Optional: Fetch chronicle name if missing
                     if (!localStorage.getItem('v20_last_chronicle_name')) {
-                        const cSnap = await getDoc(doc(db, 'chronicles', recentId));
+                        const cSnap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chronicles', recentId));
                         if(cSnap.exists()) displayName = cSnap.data().name;
                     }
                 }
@@ -306,7 +309,10 @@ async function renderChronicleMenu() {
     const listDiv = document.getElementById('st-campaign-list');
     if (listDiv) {
         try {
-            const q = query(collection(db, "chronicles"), where("storyteller_uid", "==", user.uid));
+            const q = query(
+                collection(db, 'artifacts', appId, 'public', 'data', 'chronicles'), 
+                where("storyteller_uid", "==", user.uid)
+            );
             const querySnapshot = await getDocs(q);
             
             if (!querySnapshot.empty) {
@@ -344,7 +350,9 @@ async function handleDeleteChronicle(id) {
             disconnectChronicle();
         }
 
-        await deleteDoc(doc(db, 'chronicles', id));
+        // Warning: This only deletes the root document, not subcollections.
+        // Implementing full recursive delete is complex without a cloud function.
+        await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chronicles', id));
         showNotification("Chronicle Deleted.");
         renderChronicleMenu();
     } catch (e) {
@@ -390,7 +398,7 @@ function renderJoinChronicleUI() {
         const val = e.target.value.trim();
         if (val.length >= 8) { 
             try {
-                const snap = await getDoc(doc(db, 'chronicles', val));
+                const snap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chronicles', val));
                 if (snap.exists()) {
                     const data = snap.data();
                     document.getElementById('preview-name').innerText = data.name;
@@ -509,7 +517,8 @@ async function handleCreateChronicle() {
             active_scene: "Prologue"
         };
 
-        await setDoc(doc(db, 'chronicles', chronicleId), chronicleData);
+        // Strict Path: artifacts/{appId}/public/data/chronicles/{id}
+        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chronicles', chronicleId), chronicleData);
         
         localStorage.setItem('v20_last_chronicle_id', chronicleId);
         localStorage.setItem('v20_last_chronicle_name', name);
@@ -546,7 +555,7 @@ async function handleJoinChronicle() {
     }
 
     try {
-        const docRef = doc(db, 'chronicles', idInput);
+        const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'chronicles', idInput);
         const docSnap = await getDoc(docRef);
 
         if (!docSnap.exists()) {
@@ -562,7 +571,7 @@ async function handleJoinChronicle() {
             return;
         }
 
-        const playerRef = doc(db, 'chronicles', idInput, 'players', user.uid);
+        const playerRef = doc(db, 'artifacts', appId, 'public', 'data', 'chronicles', idInput, 'players', user.uid);
         const charName = document.getElementById('c-name')?.value || "Unknown Kindred";
         
         await setDoc(playerRef, {
@@ -603,7 +612,7 @@ async function handleResumeChronicle(id, role) {
     if (!auth.currentUser) return;
     
     try {
-        const docRef = doc(db, 'chronicles', id);
+        const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'chronicles', id);
         const docSnap = await getDoc(docRef);
         
         if (!docSnap.exists()) {
@@ -635,7 +644,7 @@ async function handleResumeChronicle(id, role) {
             toggleStorytellerButton(true);
             window.renderStorytellerDashboard(); 
         } else {
-            const playerRef = doc(db, 'chronicles', id, 'players', auth.currentUser.uid);
+            const playerRef = doc(db, 'artifacts', appId, 'public', 'data', 'chronicles', id, 'players', auth.currentUser.uid);
             await setDoc(playerRef, { status: "Connected", last_active: new Date().toISOString() }, { merge: true });
             
             stState.activeChronicleId = id;
@@ -726,34 +735,31 @@ function startPlayerSync() {
 // ==========================================================================
 
 function startStorytellerSession() {
-    const qRoster = query(collection(db, 'chronicles', stState.activeChronicleId, 'players'));
+    const qRoster = query(collection(db, 'artifacts', appId, 'public', 'data', 'chronicles', stState.activeChronicleId, 'players'));
     stState.listeners.push(onSnapshot(qRoster, (snapshot) => {
         stState.players = {};
         snapshot.forEach(doc => { stState.players[doc.id] = doc.data(); });
         if (stState.dashboardActive && stState.currentView === 'roster' && document.getElementById('st-viewport')) renderRosterView();
     }));
 
-    const qBestiary = query(collection(db, 'chronicles', stState.activeChronicleId, 'bestiary'));
+    const qBestiary = query(collection(db, 'artifacts', appId, 'public', 'data', 'chronicles', stState.activeChronicleId, 'bestiary'));
     stState.listeners.push(onSnapshot(qBestiary, (snapshot) => {
         stState.bestiary = {};
         snapshot.forEach(doc => { stState.bestiary[doc.id] = doc.data(); });
         if (stState.dashboardActive && stState.currentView === 'bestiary' && document.getElementById('st-viewport')) renderBestiaryView();
     }));
 
-    const qJournal = query(collection(db, 'chronicles', stState.activeChronicleId, 'journal'));
+    const qJournal = query(collection(db, 'artifacts', appId, 'public', 'data', 'chronicles', stState.activeChronicleId, 'journal'));
     stState.listeners.push(onSnapshot(qJournal, (snapshot) => {
         stState.journal = {};
         snapshot.forEach(doc => { stState.journal[doc.id] = doc.data(); });
         
-        // INTELLIGENT UPDATE: Check if we can perform a partial update instead of a full re-render
         if (stState.dashboardActive && stState.currentView === 'journal') {
             const viewport = document.getElementById('st-viewport');
             if (viewport) {
-                // If the journal module exposes an update function, use it
                 if (updateJournalList) {
                     updateJournalList(Object.values(stState.journal));
                 } 
-                // Fallback: Full re-render if function missing (shouldn't happen if imports work)
                 else if (renderStorytellerJournal) {
                     renderStorytellerJournal(viewport);
                 }
@@ -861,7 +867,7 @@ function switchStorytellerView(view) {
 async function renderSettingsView(container) {
     if(!container) return;
     
-    const docRef = doc(db, 'chronicles', stState.activeChronicleId);
+    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'chronicles', stState.activeChronicleId);
     let data = stState.settings || {};
     
     try {
@@ -930,7 +936,7 @@ async function stSaveSettings() {
     };
     
     try {
-        await updateDoc(doc(db, 'chronicles', stState.activeChronicleId), updates);
+        await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chronicles', stState.activeChronicleId), updates);
         stState.settings = { ...stState.settings, ...updates };
         showNotification("Settings Updated");
     } catch(e) {
@@ -1172,20 +1178,20 @@ function renderNpcCard(entry, id, isCustom, container, clearFirst = false) {
 // --- DELEGATED JOURNAL HELPERS ---
 async function pushHandoutToPlayers(id) {
     if (!id) {
-        showNotification("No ID provided to push.", "error");
+        showNotification("No ID to push. Save first.", "error");
         return;
     }
-    
     try {
-        await setDoc(doc(db, 'chronicles', stState.activeChronicleId, 'journal', id), { pushed: true, pushTime: Date.now() }, { merge: true });
+        // Path: artifacts/{appId}/public/data/chronicles/{id}/journal/{entryId}
+        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chronicles', stState.activeChronicleId, 'journal', id), { pushed: true, pushTime: Date.now() }, { merge: true });
         showNotification("Pushed to Players!");
-    } catch(e) { console.error(e); showNotification("Push Failed", "error"); }
+    } catch(e) { console.error(e); }
 }
 
 async function stDeleteJournalEntry(id) {
     if(!confirm("Delete this handout?")) return;
     try {
-        await deleteDoc(doc(db, 'chronicles', stState.activeChronicleId, 'journal', id));
+        await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chronicles', stState.activeChronicleId, 'journal', id));
     } catch(e) { console.error(e); }
 }
 
@@ -1208,7 +1214,11 @@ window.copyStaticNpc = function(name) {
 
 window.deleteCloudNpc = async function(id) {
     if(!confirm("Delete?")) return;
-    try { await deleteDoc(doc(db, 'chronicles', stState.activeChronicleId, 'bestiary', id)); showNotification("Deleted."); } catch(e) {}
+    try { 
+        // Path: artifacts/{appId}/public/data/chronicles/{id}/bestiary/{npcId}
+        await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'chronicles', stState.activeChronicleId, 'bestiary', id)); 
+        showNotification("Deleted."); 
+    } catch(e) {}
 };
 
 window.editCloudNpc = function(id) {
