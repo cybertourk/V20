@@ -736,13 +736,43 @@ function startPlayerSync() {
 // ==========================================================================
 
 function startStorytellerSession() {
+    // 1. ROSTER + JOURNAL LISTENER (COMBINED)
+    // We repurpose the 'players' collection to store both Players and Journal Entries (with prefix 'journal_')
+    // because the provided security rules allow ST writes to any document in 'players'.
     const qRoster = query(collection(db, 'chronicles', stState.activeChronicleId, 'players'));
+    
     stState.listeners.push(onSnapshot(qRoster, (snapshot) => {
         stState.players = {};
-        snapshot.forEach(doc => { stState.players[doc.id] = doc.data(); });
-        if (stState.dashboardActive && stState.currentView === 'roster' && document.getElementById('st-viewport')) renderRosterView();
+        stState.journal = {}; // Reset local cache to rebuild from snapshot
+        
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            const id = doc.id;
+            
+            if (id.startsWith('journal_')) {
+                // This is a journal entry
+                stState.journal[id] = data;
+            } else {
+                // This is a player
+                stState.players[id] = data;
+            }
+        });
+
+        // Smart UI Refresh based on active view
+        if (stState.dashboardActive) {
+            if (stState.currentView === 'roster') {
+                const viewport = document.getElementById('st-viewport');
+                if (viewport) renderRosterView();
+            }
+            else if (stState.currentView === 'journal') {
+                if (updateJournalList) {
+                    updateJournalList(Object.values(stState.journal));
+                }
+            }
+        }
     }));
 
+    // 2. BESTIARY LISTENER
     const qBestiary = query(collection(db, 'chronicles', stState.activeChronicleId, 'bestiary'));
     stState.listeners.push(onSnapshot(qBestiary, (snapshot) => {
         stState.bestiary = {};
@@ -750,23 +780,7 @@ function startStorytellerSession() {
         if (stState.dashboardActive && stState.currentView === 'bestiary' && document.getElementById('st-viewport')) renderBestiaryView();
     }));
 
-    const qJournal = query(collection(db, 'chronicles', stState.activeChronicleId, 'journal'));
-    stState.listeners.push(onSnapshot(qJournal, (snapshot) => {
-        stState.journal = {};
-        snapshot.forEach(doc => { stState.journal[doc.id] = doc.data(); });
-        
-        if (stState.dashboardActive && stState.currentView === 'journal') {
-            const viewport = document.getElementById('st-viewport');
-            if (viewport) {
-                if (updateJournalList) {
-                    updateJournalList(Object.values(stState.journal));
-                } 
-                else if (renderStorytellerJournal) {
-                    renderStorytellerJournal(viewport);
-                }
-            }
-        }
-    }));
+    // REMOVED: Separate Journal Listener (Use Combined Roster/Journal listener above)
 
     initCombatTracker(stState.activeChronicleId);
 }
@@ -951,7 +965,8 @@ function renderRosterView() {
     const viewport = document.getElementById('st-viewport');
     if (!viewport || stState.currentView !== 'roster') return;
 
-    const players = Object.values(stState.players);
+    // Filter out journal entries from players list (just in case)
+    const players = Object.values(stState.players).filter(p => !p.type || p.type !== 'journal');
     
     if (players.length === 0) {
         viewport.innerHTML = `<div class="flex flex-col items-center justify-center h-full text-gray-500"><i class="fas fa-users-slash text-4xl mb-4 opacity-50"></i><p>No players connected.</p><p class="text-xs mt-2">Share ID: <span class="text-gold font-mono font-bold">${stState.activeChronicleId}</span></p></div>`;
@@ -1183,16 +1198,19 @@ async function pushHandoutToPlayers(id) {
         return;
     }
     try {
-        // Path: chronicles/{id}/journal/{entryId}
-        await setDoc(doc(db, 'chronicles', stState.activeChronicleId, 'journal', id), { pushed: true, pushTime: Date.now() }, { merge: true });
+        // USE SAFE PLAYER PATH: chronicles/{id}/players/journal_{entryId}
+        const safeId = id.startsWith('journal_') ? id : 'journal_' + id;
+        await setDoc(doc(db, 'chronicles', stState.activeChronicleId, 'players', safeId), { pushed: true, pushTime: Date.now() }, { merge: true });
         showNotification("Pushed to Players!");
-    } catch(e) { console.error(e); }
+    } catch(e) { console.error(e); showNotification("Push failed: " + e.message, "error"); }
 }
 
 async function stDeleteJournalEntry(id) {
     if(!confirm("Delete this handout?")) return;
     try {
-        await deleteDoc(doc(db, 'chronicles', stState.activeChronicleId, 'journal', id));
+        // USE SAFE PLAYER PATH
+        const safeId = id.startsWith('journal_') ? id : 'journal_' + id;
+        await deleteDoc(doc(db, 'chronicles', stState.activeChronicleId, 'players', safeId));
     } catch(e) { console.error(e); }
 }
 
