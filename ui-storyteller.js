@@ -1020,7 +1020,7 @@ async function stSaveSettings() {
     }
 }
 
-// --- VIEW 1: ROSTER (UPDATED: Compact Cards with Text Labels) ---
+// --- VIEW 1: ROSTER (UPDATED: Compact Cards with Text Labels & Logic-Based Online Status) ---
 function renderRosterView() {
     const viewport = document.getElementById('st-viewport');
     if (!viewport || stState.currentView !== 'roster') return;
@@ -1046,6 +1046,17 @@ function renderRosterView() {
         const wp = p.live_stats?.willpower || 0;
         const bp = p.live_stats?.blood || 0;
 
+        // CALCULATE ONLINE STATUS
+        // Logic: Compare last_active timestamp with current time. 
+        // Sync runs every 10s. Allow 90s buffer for lag/timeouts.
+        const now = new Date();
+        const lastActive = p.last_active ? new Date(p.last_active) : new Date(0); // Default to epoch if missing
+        const diffSeconds = (now - lastActive) / 1000;
+        const isOnline = diffSeconds < 90 && p.status !== 'Offline';
+
+        const statusColor = isOnline ? 'bg-green-500 shadow-[0_0_5px_lime]' : 'bg-red-500 opacity-50';
+        const statusTitle = isOnline ? 'Online' : `Offline (Last seen: ${lastActive.toLocaleTimeString()})`;
+
         html += `
             <div class="bg-[#1a1a1a] border border-[#333] rounded p-3 shadow-lg relative group hover:border-[#d4af37] transition-all flex flex-col justify-between aspect-square">
                 <div class="flex justify-between items-start mb-1">
@@ -1053,7 +1064,7 @@ function renderRosterView() {
                         <h3 class="font-bold text-sm text-white truncate w-full font-cinzel text-shadow" title="${p.character_name || "Unknown"}">${p.character_name || "Unknown"}</h3>
                         <div class="text-[10px] text-gray-500 truncate font-mono">${p.player_name || "Player"}</div>
                     </div>
-                    <div class="w-3 h-3 rounded-full ${p.status === 'Offline' ? 'bg-red-500' : 'bg-green-500'} shadow-[0_0_5px_lime]"></div>
+                    <div class="w-3 h-3 rounded-full ${statusColor}" title="${statusTitle}"></div>
                 </div>
 
                 <!-- Center Stats - TEXT LABELS -->
@@ -1072,12 +1083,9 @@ function renderRosterView() {
                     </div>
                 </div>
 
-                <div class="grid grid-cols-2 gap-1 mt-auto">
-                    <button class="bg-[#222] border border-[#444] text-[8px] py-1 text-gray-400 hover:text-white hover:bg-[#333] hover:border-gray-500 uppercase font-bold rounded transition-colors" onclick="window.awardXP('${p.id}')">
-                        + XP
-                    </button>
-                    <button class="bg-[#2a0a0a] border border-red-900/30 text-[8px] py-1 text-red-400 hover:text-white hover:bg-red-900 hover:border-red-500 uppercase font-bold rounded transition-colors" onclick="window.stAddToCombat({id:'${p.id}', name:'${p.character_name}'}, 'Player')">
-                        Combat
+                <div class="mt-auto">
+                    <button class="w-full bg-[#2a0a0a] border border-red-900/30 text-[10px] py-2 text-red-400 hover:text-white hover:bg-red-900 hover:border-red-500 uppercase font-bold rounded transition-colors" onclick="window.stAddToCombat({id:'${p.id}', name:'${p.character_name}'}, 'Player')">
+                        Add to Combat
                     </button>
                 </div>
             </div>
@@ -1341,16 +1349,4 @@ window.previewStaticNpc = function(category, key) {
         grid.innerHTML = '';
         renderNpcCard({ data: npc, name: key, type: npc.template }, null, false, grid);
     }
-};
-
-window.awardXP = async (playerId) => {
-    const amt = prompt("Enter XP Amount:", "1");
-    if (!amt || isNaN(amt)) return;
-    try {
-        await addDoc(collection(db, 'chronicles', stState.activeChronicleId, 'messages'), {
-            target: playerId, type: 'award_xp', amount: parseInt(amt),
-            message: "Storyteller Award", timestamp: new Date().toISOString(), read: false
-        });
-        showNotification(`Awarded ${amt} XP.`);
-    } catch (e) { showNotification("Failed to award XP", "error"); }
 };
