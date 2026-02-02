@@ -1020,7 +1020,7 @@ async function stSaveSettings() {
     }
 }
 
-// --- VIEW 1: ROSTER (UPDATED: Compact Cards) ---
+// --- VIEW 1: ROSTER (UPDATED: Compact Cards with Text Labels) ---
 function renderRosterView() {
     const viewport = document.getElementById('st-viewport');
     if (!viewport || stState.currentView !== 'roster') return;
@@ -1056,29 +1056,30 @@ function renderRosterView() {
                     <div class="w-3 h-3 rounded-full ${p.status === 'Offline' ? 'bg-red-500' : 'bg-green-500'} shadow-[0_0_5px_lime]"></div>
                 </div>
 
-                <!-- Center Stats -->
-                <div class="flex flex-col justify-center gap-1 flex-1 my-2">
-                    <!-- Health -->
-                    <div class="flex justify-between items-center bg-black/40 px-2 py-1 rounded">
-                        <i class="fas fa-heart text-red-700 text-xs"></i>
-                        <span class="${healthColor} font-bold font-mono text-xs">${healthText}</span>
+                <!-- Center Stats - TEXT LABELS -->
+                <div class="flex flex-col justify-center gap-1 flex-1 my-2 text-[10px] font-bold">
+                    <div class="flex justify-between items-center bg-black/40 px-2 py-1 rounded border border-[#222]">
+                        <span class="text-gray-500 uppercase">Health</span>
+                        <span class="${healthColor}">${healthText}</span>
                     </div>
-                    <!-- WP/Blood -->
-                    <div class="flex gap-1">
-                         <div class="flex-1 flex justify-between items-center bg-black/40 px-2 py-1 rounded">
-                            <i class="fas fa-brain text-blue-700 text-xs"></i>
-                            <span class="text-blue-300 font-bold font-mono text-xs">${wp}</span>
-                        </div>
-                         <div class="flex-1 flex justify-between items-center bg-black/40 px-2 py-1 rounded">
-                            <i class="fas fa-tint text-red-600 text-xs"></i>
-                            <span class="text-red-400 font-bold font-mono text-xs">${bp}</span>
-                        </div>
+                    <div class="flex justify-between items-center bg-black/40 px-2 py-1 rounded border border-[#222]">
+                        <span class="text-gray-500 uppercase">Willpower</span>
+                        <span class="text-blue-300">${wp}</span>
+                    </div>
+                    <div class="flex justify-between items-center bg-black/40 px-2 py-1 rounded border border-[#222]">
+                        <span class="text-gray-500 uppercase">Blood</span>
+                        <span class="text-red-400">${bp}</span>
                     </div>
                 </div>
 
-                <button class="bg-[#2a0a0a] border border-red-900/30 text-[10px] py-2 text-red-400 hover:text-white hover:bg-red-900 hover:border-red-500 uppercase font-bold rounded transition-colors w-full" onclick="window.stAddToCombat({id:'${p.id}', name:'${p.character_name}'}, 'Player')">
-                    Add to Combat
-                </button>
+                <div class="grid grid-cols-2 gap-1 mt-auto">
+                    <button class="bg-[#222] border border-[#444] text-[8px] py-1 text-gray-400 hover:text-white hover:bg-[#333] hover:border-gray-500 uppercase font-bold rounded transition-colors" onclick="window.awardXP('${p.id}')">
+                        + XP
+                    </button>
+                    <button class="bg-[#2a0a0a] border border-red-900/30 text-[8px] py-1 text-red-400 hover:text-white hover:bg-red-900 hover:border-red-500 uppercase font-bold rounded transition-colors" onclick="window.stAddToCombat({id:'${p.id}', name:'${p.character_name}'}, 'Player')">
+                        Combat
+                    </button>
+                </div>
             </div>
         `;
     });
@@ -1340,4 +1341,16 @@ window.previewStaticNpc = function(category, key) {
         grid.innerHTML = '';
         renderNpcCard({ data: npc, name: key, type: npc.template }, null, false, grid);
     }
+};
+
+window.awardXP = async (playerId) => {
+    const amt = prompt("Enter XP Amount:", "1");
+    if (!amt || isNaN(amt)) return;
+    try {
+        await addDoc(collection(db, 'chronicles', stState.activeChronicleId, 'messages'), {
+            target: playerId, type: 'award_xp', amount: parseInt(amt),
+            message: "Storyteller Award", timestamp: new Date().toISOString(), read: false
+        });
+        showNotification(`Awarded ${amt} XP.`);
+    } catch (e) { showNotification("Failed to award XP", "error"); }
 };
