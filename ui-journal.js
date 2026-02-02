@@ -87,8 +87,8 @@ export function renderStorytellerJournal(container) {
         }
     };
 
-    // STs default to Codex view
-    renderCodexView(container);
+    // STs default to Codex view, using shared shell to ensure modals exist
+    renderJournalInterface(container, 'codex');
 }
 
 export function updateJournalList(newData) {
