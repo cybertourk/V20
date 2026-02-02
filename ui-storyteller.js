@@ -1,5 +1,5 @@
 import { 
-    db, auth, collection, doc, setDoc, getDoc, getDocs, query, where, addDoc, onSnapshot, deleteDoc, updateDoc, appId, arrayUnion, arrayRemove
+    db, auth, collection, doc, setDoc, getDoc, getDocs, query, where, addDoc, onSnapshot, deleteDoc, updateDoc, appId, arrayUnion, arrayRemove, orderBy, limit
 } from "./firebase-config.js";
 import { showNotification } from "./ui-common.js";
 import { BESTIARY } from "./bestiary-data.js";
@@ -25,7 +25,8 @@ export const stState = {
     currentView: 'roster', 
     syncInterval: null,
     seenHandouts: new Set(),
-    dashboardActive: false
+    dashboardActive: false,
+    chatUnsub: null
 };
 
 // Expose state globally for other modules (fixes Journal Roster visibility)
@@ -48,6 +49,7 @@ export function initStorytellerSystem() {
     window.switchStorytellerView = switchStorytellerView;
     window.renderStorytellerDashboard = renderStorytellerDashboard;
     window.exitStorytellerDashboard = exitStorytellerDashboard;
+    window.toggleCampaignSidebar = toggleCampaignSidebar;
     
     // Settings Actions
     window.stSaveSettings = stSaveSettings;
@@ -86,6 +88,9 @@ export function initStorytellerSystem() {
             showNotification(`${npcData.name} sent to Bestiary`);
         } catch(e) { console.error(e); showNotification("Failed to push NPC", "error"); }
     };
+
+    // Chat API
+    window.sendChronicleMessage = sendChronicleMessage;
 
     // --- BIND TOP NAV BUTTON (ROBUST METHOD) ---
     bindDashboardButton();
@@ -164,6 +169,7 @@ async function checkStaleSession() {
         initCombatTracker(storedId); 
         startPlayerSync();
         startPlayerListeners(storedId); // Start listening for Journal pushes
+        startChatListener(storedId); // Start Chat
     }
 }
 
@@ -182,6 +188,12 @@ function toggleStorytellerButton(show) {
 
 // --- MODAL HANDLERS ---
 export function openChronicleModal() {
+    // If Connected and NOT ST, Toggle Sidebar instead of Modal
+    if (stState.activeChronicleId && !stState.isStoryteller) {
+        toggleCampaignSidebar();
+        return;
+    }
+
     let modal = document.getElementById('chronicle-modal');
     if (!modal) return;
     modal.classList.add('active');
@@ -196,6 +208,24 @@ export function openChronicleModal() {
 export function closeChronicleModal() {
     const modal = document.getElementById('chronicle-modal');
     if(modal) modal.classList.remove('active');
+}
+
+// --- CAMPAIGN SIDEBAR (PLAYER VIEW) ---
+function toggleCampaignSidebar() {
+    const sb = document.getElementById('campaign-sidebar');
+    if (!sb) return;
+    
+    const isOpen = sb.classList.contains('open');
+    if (isOpen) {
+        sb.classList.remove('open');
+        sb.style.right = '-320px';
+    } else {
+        sb.classList.add('open');
+        sb.style.right = '0';
+        // Auto-scroll to bottom of chat
+        const hist = document.getElementById('campaign-chat-history');
+        if(hist) hist.scrollTop = hist.scrollHeight;
+    }
 }
 
 // --- UI RENDERING (MENU) ---
@@ -459,6 +489,8 @@ function renderCreateChronicleUI() {
 }
 
 function renderConnectedStatus() {
+    // This is the fallback/ST view if they click Chronicles. 
+    // Players toggle sidebar instead.
     const container = document.getElementById('chronicle-modal-content');
     if(!container) return;
 
@@ -608,10 +640,15 @@ async function handleJoinChronicle() {
         
         startPlayerSync();
         startPlayerListeners(idInput); // Listen for pushes
+        startChatListener(idInput); // Connect to Chat
+
+        // System Log
+        sendChronicleMessage('system', `${charName} joined the chronicle.`);
 
         showNotification(`Joined ${data.name}`);
         window.closeChronicleModal();
-        if(window.changeStep) window.changeStep(7); 
+        // Toggle Sidebar automatically on first join
+        toggleCampaignSidebar();
 
     } catch (e) {
         console.error("Join Error:", e);
@@ -667,9 +704,14 @@ async function handleResumeChronicle(id, role) {
             
             startPlayerSync();
             startPlayerListeners(id); // Listen for pushes
+            startChatListener(id); // Connect to Chat
+            
+            // System Log
+            const charName = document.getElementById('c-name')?.value || "Unknown";
+            sendChronicleMessage('system', `${charName} reconnected.`);
+
             window.closeChronicleModal();
             showNotification(`Reconnected to ${data.name}`);
-            if(window.changeStep) window.changeStep(7);
         }
         
     } catch (e) {
@@ -679,6 +721,11 @@ async function handleResumeChronicle(id, role) {
 }
 
 function disconnectChronicle() {
+    if (stState.activeChronicleId) {
+        const charName = stState.isStoryteller ? "Storyteller" : (document.getElementById('c-name')?.value || "Unknown");
+        sendChronicleMessage('system', `${charName} disconnected.`);
+    }
+
     if (!stState.isStoryteller && stState.playerRef) {
         try {
             setDoc(stState.playerRef, { status: "Offline" }, { merge: true });
@@ -687,6 +734,7 @@ function disconnectChronicle() {
 
     stState.listeners.forEach(unsub => unsub());
     stState.listeners = [];
+    if (stState.chatUnsub) stState.chatUnsub();
     if (stState.syncInterval) clearInterval(stState.syncInterval);
     
     stState.activeChronicleId = null;
@@ -708,6 +756,10 @@ function disconnectChronicle() {
     const floatBtn = document.getElementById('player-combat-float');
     if(floatBtn) floatBtn.remove();
     
+    // Close sidebar
+    const sb = document.getElementById('campaign-sidebar');
+    if(sb) sb.classList.remove('open');
+
     toggleStorytellerButton(false);
     exitStorytellerDashboard();
     
@@ -849,6 +901,7 @@ function startStorytellerSession() {
     }));
 
     initCombatTracker(stState.activeChronicleId);
+    startChatListener(stState.activeChronicleId);
 }
 
 function renderStorytellerDashboard(container = null) {
@@ -895,6 +948,9 @@ function renderStorytellerDashboard(container = null) {
                 <button class="st-tab px-6 py-3 text-xs font-bold uppercase tracking-wider text-gray-500 hover:text-white hover:bg-[#222] transition-colors whitespace-nowrap" onclick="window.switchStorytellerView('journal')">
                     <i class="fas fa-book-open mr-2"></i> Journal
                 </button>
+                <button class="st-tab px-6 py-3 text-xs font-bold uppercase tracking-wider text-gray-500 hover:text-white hover:bg-[#222] transition-colors whitespace-nowrap" onclick="window.switchStorytellerView('chat')">
+                    <i class="fas fa-comments mr-2"></i> Chat / Log
+                </button>
                 <button class="st-tab px-6 py-3 text-xs font-bold uppercase tracking-wider text-gray-500 hover:text-white hover:bg-[#222] transition-colors whitespace-nowrap" onclick="window.switchStorytellerView('settings')">
                     <i class="fas fa-cogs mr-2"></i> Settings
                 </button>
@@ -935,6 +991,7 @@ function switchStorytellerView(view) {
     else if (view === 'journal') {
         if(renderStorytellerJournal) renderStorytellerJournal(viewport);
     }
+    else if (view === 'chat') renderChatView(viewport);
     else if (view === 'settings') renderSettingsView(viewport);
 }
 
@@ -1268,6 +1325,158 @@ function renderNpcCard(entry, id, isCustom, container, clearFirst = false) {
     `;
     card.onclick = () => { if(window.openNpcSheet) window.openNpcSheet(npc); };
     container.appendChild(card);
+}
+
+// ==========================================================================
+// CHAT / LOGGING SYSTEM (NEW)
+// ==========================================================================
+
+function startChatListener(chronicleId) {
+    if (stState.chatUnsub) stState.chatUnsub();
+    
+    // Wire up inputs if sidebar exists (Player Mode)
+    const sendBtn = document.getElementById('campaign-chat-send');
+    const input = document.getElementById('campaign-chat-input');
+    
+    const sendHandler = () => {
+        const txt = input.value.trim();
+        if (txt) {
+            sendChronicleMessage('chat', txt);
+            input.value = '';
+        }
+    };
+
+    if (sendBtn) sendBtn.onclick = sendHandler;
+    if (input) input.onkeydown = (e) => { if(e.key === 'Enter') sendHandler(); };
+
+    // Query messages (Limit to 50 recent)
+    const q = query(
+        collection(db, 'chronicles', chronicleId, 'messages'), 
+        orderBy('timestamp', 'desc'), 
+        limit(50)
+    );
+
+    stState.chatUnsub = onSnapshot(q, (snapshot) => {
+        const messages = [];
+        snapshot.forEach(doc => messages.push({ id: doc.id, ...doc.data() }));
+        messages.reverse(); // Show oldest first (top to bottom)
+        
+        // Render to Player Sidebar
+        const pContainer = document.getElementById('campaign-chat-history');
+        if (pContainer) renderMessageList(pContainer, messages);
+
+        // Render to ST Dashboard (if active)
+        if (stState.dashboardActive && stState.currentView === 'chat') {
+            const stContainer = document.getElementById('st-chat-history');
+            if (stContainer) renderMessageList(stContainer, messages);
+        }
+    });
+}
+
+function renderMessageList(container, messages) {
+    container.innerHTML = '';
+    
+    if (messages.length === 0) {
+        container.innerHTML = `<div class="text-center text-gray-600 text-xs italic mt-4">Chronicle initialized. No messages yet.</div>`;
+        return;
+    }
+
+    messages.forEach(msg => {
+        const div = document.createElement('div');
+        div.className = "mb-2 text-xs";
+        
+        const time = msg.timestamp ? new Date(msg.timestamp.seconds * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '';
+        
+        if (msg.type === 'system') {
+            div.innerHTML = `<div class="text-gray-500 italic text-center text-[10px] border-b border-[#333] leading-tight pb-1 mb-1"><span class="mr-2">${time}</span>${msg.content}</div>`;
+        } else if (msg.type === 'roll') {
+            div.innerHTML = `
+                <div class="bg-[#111] border border-[#333] p-2 rounded relative">
+                    <div class="flex justify-between items-baseline mb-1">
+                        <span class="font-bold text-[#d4af37]">${msg.sender}</span>
+                        <span class="text-[9px] text-gray-600">${time}</span>
+                    </div>
+                    <div class="text-gray-300 font-mono">${msg.content}</div>
+                    ${msg.details ? `<div class="text-[10px] text-gray-500 mt-1 pt-1 border-t border-[#222]">Pool: ${msg.details.pool} (Diff ${msg.details.diff})</div>` : ''}
+                </div>
+            `;
+        } else {
+            // Chat
+            const isSelf = msg.senderId === auth.currentUser?.uid;
+            div.innerHTML = `
+                <div class="${isSelf ? 'text-right' : 'text-left'}">
+                    <div class="text-[10px] text-gray-500 font-bold mb-0.5">${msg.sender} <span class="font-normal opacity-50 text-[9px] ml-1">${time}</span></div>
+                    <div class="inline-block px-3 py-1.5 rounded ${isSelf ? 'bg-[#2a2a2a] text-gray-200' : 'bg-[#1a1a1a] text-gray-300 border border-[#333]'}">${msg.content}</div>
+                </div>
+            `;
+        }
+        container.appendChild(div);
+    });
+    
+    container.scrollTop = container.scrollHeight;
+}
+
+// EXPORTED API
+async function sendChronicleMessage(type, content, details = null) {
+    if (!stState.activeChronicleId) return;
+    
+    let senderName = "Unknown";
+    if (stState.isStoryteller) {
+        senderName = "Storyteller";
+    } else {
+        senderName = document.getElementById('c-name')?.value || "Player";
+    }
+
+    try {
+        await addDoc(collection(db, 'chronicles', stState.activeChronicleId, 'messages'), {
+            type: type,
+            content: content,
+            sender: senderName,
+            senderId: auth.currentUser.uid,
+            details: details,
+            timestamp: new Date() // Firestore will convert or use serverTimestamp if imported
+        });
+    } catch(e) {
+        console.error("Chat Error:", e);
+    }
+}
+
+// --- ST CHAT VIEW ---
+function renderChatView(container) {
+    container.innerHTML = `
+        <div class="flex flex-col h-full relative">
+            <!-- Messages -->
+            <div id="st-chat-history" class="flex-1 overflow-y-auto p-4 space-y-3 font-serif bg-[#080808]">
+                <div class="text-center text-gray-600 text-xs italic mt-4">Loading history...</div>
+            </div>
+            
+            <!-- Input -->
+            <div class="p-4 bg-[#111] border-t border-[#333]">
+                <div class="flex gap-2">
+                    <input type="text" id="st-chat-input" placeholder="Broadcast message..." class="flex-1 bg-[#050505] border border-[#333] text-white p-3 text-sm focus:border-[#d4af37] outline-none">
+                    <button id="st-chat-send" class="bg-[#d4af37] text-black font-bold uppercase px-6 py-2 hover:bg-[#fcd34d]">Send</button>
+                </div>
+            </div>
+        </div>
+    `;
+
+    // Bind ST Inputs
+    const sendBtn = document.getElementById('st-chat-send');
+    const input = document.getElementById('st-chat-input');
+    
+    const sendHandler = () => {
+        const txt = input.value.trim();
+        if (txt) {
+            sendChronicleMessage('chat', txt);
+            input.value = '';
+        }
+    };
+
+    if(sendBtn) sendBtn.onclick = sendHandler;
+    if(input) input.onkeydown = (e) => { if(e.key === 'Enter') sendHandler(); };
+
+    // Force refresh list immediately if data exists
+    startChatListener(stState.activeChronicleId);
 }
 
 // --- DELEGATED JOURNAL HELPERS ---
