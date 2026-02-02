@@ -1,5 +1,5 @@
 import { 
-    db, auth, collection, doc, setDoc, getDoc, getDocs, query, where, addDoc, onSnapshot, deleteDoc, updateDoc, appId, arrayUnion, arrayRemove
+    db, auth, collection, doc, setDoc, getDoc, getDocs, query, where, addDoc, onSnapshot, deleteDoc, updateDoc, appId 
 } from "./firebase-config.js";
 import { showNotification } from "./ui-common.js";
 import { BESTIARY } from "./bestiary-data.js";
@@ -1020,7 +1020,7 @@ async function stSaveSettings() {
     }
 }
 
-// --- VIEW 1: ROSTER (UPDATED: Compact Cards) ---
+// --- VIEW 1: ROSTER ---
 function renderRosterView() {
     const viewport = document.getElementById('st-viewport');
     if (!viewport || stState.currentView !== 'roster') return;
@@ -1035,50 +1035,39 @@ function renderRosterView() {
         return;
     }
 
-    // COMPACT GRID LAYOUT
-    let html = `<div class="p-6 grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 overflow-y-auto h-full pb-20 custom-scrollbar">`;
+    let html = `<div class="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 overflow-y-auto h-full pb-20">`;
 
     players.forEach(p => {
         const health = p.live_stats?.health || [];
         const dmgCount = health.filter(x => x > 0).length;
-        const healthText = dmgCount >= 7 ? "INC" : (7 - dmgCount);
-        const healthColor = dmgCount >= 7 ? "text-red-600 font-black animate-pulse" : (dmgCount > 3 ? "text-red-400" : "text-green-400");
-        const wp = p.live_stats?.willpower || 0;
-        const bp = p.live_stats?.blood || 0;
-
+        const statusDot = p.status === 'Offline' ? 'bg-red-500' : 'bg-green-500';
+        
         html += `
-            <div class="bg-[#1a1a1a] border border-[#333] rounded p-2 shadow-lg relative group hover:border-[#d4af37] transition-all flex flex-col justify-between min-h-[90px]">
-                <div class="flex justify-between items-start mb-1">
-                    <div class="overflow-hidden mr-1">
-                        <h3 class="font-bold text-xs text-white truncate w-full font-cinzel text-shadow" title="${p.character_name || "Unknown"}">${p.character_name || "Unknown"}</h3>
-                        <div class="text-[9px] text-gray-500 truncate font-mono">${p.player_name || "Player"}</div>
-                    </div>
-                    <div class="w-2 h-2 rounded-full ${p.status === 'Offline' ? 'bg-red-500' : 'bg-green-500'} shadow-[0_0_5px_lime]"></div>
+            <div class="bg-[#111] border border-[#333] rounded p-4 shadow-md relative group hover:border-[#555] transition-colors">
+                <div class="absolute top-2 right-2 flex items-center gap-2">
+                    <span class="text-[10px] uppercase text-gray-600 font-bold">${p.status || 'Unknown'}</span>
+                    <span class="w-2 h-2 rounded-full ${statusDot}"></span>
                 </div>
-
-                <div class="flex justify-between items-center bg-black/40 p-1 rounded border border-[#222] mb-2 font-mono text-[9px]">
-                    <div class="flex items-center gap-1" title="Health">
-                        <i class="fas fa-heart text-red-700"></i>
-                        <span class="${healthColor} font-bold">${healthText}</span>
+                <h3 class="text-lg text-[#d4af37] font-bold font-cinzel truncate pr-16">${p.character_name || "Unknown"}</h3>
+                
+                <div class="grid grid-cols-3 gap-2 mt-4 text-center">
+                    <div class="bg-black/30 p-2 rounded border border-[#222]">
+                        <div class="text-[9px] uppercase text-gray-500 font-bold mb-1">Health</div>
+                        <div class="text-lg font-bold ${dmgCount > 3 ? 'text-red-500' : 'text-green-500'}">${7 - dmgCount}/7</div>
                     </div>
-                    <div class="h-3 w-px bg-[#333]"></div>
-                    <div class="flex items-center gap-1" title="Willpower">
-                        <i class="fas fa-brain text-blue-700"></i>
-                        <span class="text-blue-300 font-bold">${wp}</span>
+                    <div class="bg-black/30 p-2 rounded border border-[#222]">
+                        <div class="text-[9px] uppercase text-gray-500 font-bold mb-1">WP</div>
+                        <div class="text-lg font-bold text-blue-400">${p.live_stats?.willpower || 0}</div>
                     </div>
-                    <div class="h-3 w-px bg-[#333]"></div>
-                    <div class="flex items-center gap-1" title="Blood">
-                        <i class="fas fa-tint text-red-600"></i>
-                        <span class="text-red-400 font-bold">${bp}</span>
+                    <div class="bg-black/30 p-2 rounded border border-[#222]">
+                        <div class="text-[9px] uppercase text-gray-500 font-bold mb-1">Blood</div>
+                        <div class="text-lg font-bold text-red-500">${p.live_stats?.blood || 0}</div>
                     </div>
                 </div>
 
-                <div class="grid grid-cols-2 gap-1 mt-auto">
-                    <button class="bg-[#222] border border-[#444] text-[8px] py-1 text-gray-400 hover:text-white hover:bg-[#333] hover:border-gray-500 uppercase font-bold rounded transition-colors" onclick="window.awardXP('${p.id}')">
-                        + XP
-                    </button>
-                    <button class="bg-[#2a0a0a] border border-red-900/30 text-[8px] py-1 text-red-400 hover:text-white hover:bg-red-900 hover:border-red-500 uppercase font-bold rounded transition-colors" onclick="window.stAddToCombat({id:'${p.id}', name:'${p.character_name}'}, 'Player')">
-                        Combat
+                <div class="mt-4 pt-2 border-t border-[#222] flex justify-end gap-2 opacity-50 group-hover:opacity-100 transition-opacity">
+                    <button class="text-[10px] uppercase font-bold text-gray-400 hover:text-white px-2 py-1 border border-[#333] rounded hover:bg-[#222]" onclick="window.stAddToCombat({id:'${p.id}', name:'${p.character_name}'}, 'Player')">
+                        <i class="fas fa-swords mr-1"></i> Combat
                     </button>
                 </div>
             </div>
@@ -1342,16 +1331,4 @@ window.previewStaticNpc = function(category, key) {
         grid.innerHTML = '';
         renderNpcCard({ data: npc, name: key, type: npc.template }, null, false, grid);
     }
-};
-
-window.awardXP = async (playerId) => {
-    const amt = prompt("Enter XP Amount:", "1");
-    if (!amt || isNaN(amt)) return;
-    try {
-        await addDoc(collection(db, 'chronicles', stState.activeChronicleId, 'messages'), {
-            target: playerId, type: 'award_xp', amount: parseInt(amt),
-            message: "Storyteller Award", timestamp: new Date().toISOString(), read: false
-        });
-        showNotification(`Awarded ${amt} XP.`);
-    } catch (e) { showNotification("Failed to award XP", "error"); }
 };
