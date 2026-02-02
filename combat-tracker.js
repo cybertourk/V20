@@ -86,6 +86,8 @@ export async function startCombat() {
             activeCombatantId: null, // Will be set when combatants are added/sorted or manually next-turned
             combatants: []
         });
+        
+        if(window.sendChronicleMessage) window.sendChronicleMessage('system', "Combat Started!");
         showNotification("Combat Started!");
     } catch (e) {
         console.error(e);
@@ -99,6 +101,8 @@ export async function endCombat() {
         const docRef = doc(db, 'chronicles', stState.activeChronicleId, 'combat', 'active');
         // We delete the doc to signal Inactive state
         await deleteDoc(docRef); 
+        
+        if(window.sendChronicleMessage) window.sendChronicleMessage('system', "Combat Ended.");
         showNotification("Combat Ended.");
     } catch (e) {
         console.error(e);
@@ -192,6 +196,7 @@ export async function nextTurn() {
         nextIdx = 0;
         nextRound++;
         showNotification(`Round ${nextRound} Started`);
+        if(window.sendChronicleMessage) window.sendChronicleMessage('system', `Round ${nextRound} Started`);
     } else {
         // Just next person
         showNotification(`Turn: ${sorted[nextIdx].name}`);
@@ -262,6 +267,7 @@ export async function rollNPCInitiative(id) {
     
     await updateInitiative(id, total);
     showNotification(`${c.name} rolled ${total}`);
+    if(window.sendChronicleMessage) window.sendChronicleMessage('roll', `${c.name} rolled Initiative: ${total}`, { pool: "Initiative", diff: 0, successes: total, dice: 1 });
 }
 
 // --- HELPER ---
