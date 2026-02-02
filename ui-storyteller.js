@@ -1035,8 +1035,8 @@ function renderRosterView() {
         return;
     }
 
-    // COMPACT GRID LAYOUT
-    let html = `<div class="p-6 grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 overflow-y-auto h-full pb-20 custom-scrollbar">`;
+    // COMPACT GRID LAYOUT - SQUARES
+    let html = `<div class="p-6 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 overflow-y-auto h-full pb-20 custom-scrollbar">`;
 
     players.forEach(p => {
         const health = p.live_stats?.health || [];
@@ -1047,40 +1047,38 @@ function renderRosterView() {
         const bp = p.live_stats?.blood || 0;
 
         html += `
-            <div class="bg-[#1a1a1a] border border-[#333] rounded p-2 shadow-lg relative group hover:border-[#d4af37] transition-all flex flex-col justify-between min-h-[90px]">
+            <div class="bg-[#1a1a1a] border border-[#333] rounded p-3 shadow-lg relative group hover:border-[#d4af37] transition-all flex flex-col justify-between aspect-square">
                 <div class="flex justify-between items-start mb-1">
                     <div class="overflow-hidden mr-1">
-                        <h3 class="font-bold text-xs text-white truncate w-full font-cinzel text-shadow" title="${p.character_name || "Unknown"}">${p.character_name || "Unknown"}</h3>
-                        <div class="text-[9px] text-gray-500 truncate font-mono">${p.player_name || "Player"}</div>
+                        <h3 class="font-bold text-sm text-white truncate w-full font-cinzel text-shadow" title="${p.character_name || "Unknown"}">${p.character_name || "Unknown"}</h3>
+                        <div class="text-[10px] text-gray-500 truncate font-mono">${p.player_name || "Player"}</div>
                     </div>
-                    <div class="w-2 h-2 rounded-full ${p.status === 'Offline' ? 'bg-red-500' : 'bg-green-500'} shadow-[0_0_5px_lime]"></div>
+                    <div class="w-3 h-3 rounded-full ${p.status === 'Offline' ? 'bg-red-500' : 'bg-green-500'} shadow-[0_0_5px_lime]"></div>
                 </div>
 
-                <div class="flex justify-between items-center bg-black/40 p-1 rounded border border-[#222] mb-2 font-mono text-[9px]">
-                    <div class="flex items-center gap-1" title="Health">
-                        <i class="fas fa-heart text-red-700"></i>
-                        <span class="${healthColor} font-bold">${healthText}</span>
+                <!-- Center Stats -->
+                <div class="flex flex-col justify-center gap-1 flex-1 my-2">
+                    <!-- Health -->
+                    <div class="flex justify-between items-center bg-black/40 px-2 py-1 rounded">
+                        <i class="fas fa-heart text-red-700 text-xs"></i>
+                        <span class="${healthColor} font-bold font-mono text-xs">${healthText}</span>
                     </div>
-                    <div class="h-3 w-px bg-[#333]"></div>
-                    <div class="flex items-center gap-1" title="Willpower">
-                        <i class="fas fa-brain text-blue-700"></i>
-                        <span class="text-blue-300 font-bold">${wp}</span>
-                    </div>
-                    <div class="h-3 w-px bg-[#333]"></div>
-                    <div class="flex items-center gap-1" title="Blood">
-                        <i class="fas fa-tint text-red-600"></i>
-                        <span class="text-red-400 font-bold">${bp}</span>
+                    <!-- WP/Blood -->
+                    <div class="flex gap-1">
+                         <div class="flex-1 flex justify-between items-center bg-black/40 px-2 py-1 rounded">
+                            <i class="fas fa-brain text-blue-700 text-xs"></i>
+                            <span class="text-blue-300 font-bold font-mono text-xs">${wp}</span>
+                        </div>
+                         <div class="flex-1 flex justify-between items-center bg-black/40 px-2 py-1 rounded">
+                            <i class="fas fa-tint text-red-600 text-xs"></i>
+                            <span class="text-red-400 font-bold font-mono text-xs">${bp}</span>
+                        </div>
                     </div>
                 </div>
 
-                <div class="grid grid-cols-2 gap-1 mt-auto">
-                    <button class="bg-[#222] border border-[#444] text-[8px] py-1 text-gray-400 hover:text-white hover:bg-[#333] hover:border-gray-500 uppercase font-bold rounded transition-colors" onclick="window.awardXP('${p.id}')">
-                        + XP
-                    </button>
-                    <button class="bg-[#2a0a0a] border border-red-900/30 text-[8px] py-1 text-red-400 hover:text-white hover:bg-red-900 hover:border-red-500 uppercase font-bold rounded transition-colors" onclick="window.stAddToCombat({id:'${p.id}', name:'${p.character_name}'}, 'Player')">
-                        Combat
-                    </button>
-                </div>
+                <button class="bg-[#2a0a0a] border border-red-900/30 text-[10px] py-2 text-red-400 hover:text-white hover:bg-red-900 hover:border-red-500 uppercase font-bold rounded transition-colors w-full" onclick="window.stAddToCombat({id:'${p.id}', name:'${p.character_name}'}, 'Player')">
+                    Add to Combat
+                </button>
             </div>
         `;
     });
@@ -1342,16 +1340,4 @@ window.previewStaticNpc = function(category, key) {
         grid.innerHTML = '';
         renderNpcCard({ data: npc, name: key, type: npc.template }, null, false, grid);
     }
-};
-
-window.awardXP = async (playerId) => {
-    const amt = prompt("Enter XP Amount:", "1");
-    if (!amt || isNaN(amt)) return;
-    try {
-        await addDoc(collection(db, 'chronicles', stState.activeChronicleId, 'messages'), {
-            target: playerId, type: 'award_xp', amount: parseInt(amt),
-            message: "Storyteller Award", timestamp: new Date().toISOString(), read: false
-        });
-        showNotification(`Awarded ${amt} XP.`);
-    } catch (e) { showNotification("Failed to award XP", "error"); }
 };
