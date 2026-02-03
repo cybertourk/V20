@@ -169,7 +169,7 @@ async function checkStaleSession() {
         initCombatTracker(storedId); 
         startPlayerSync();
         startPlayerListeners(storedId); // Start listening for Journal pushes
-        startChatListener(storedId); // Start Chat
+        startChatListener(storedId); // Connect to Chat
     }
 }
 
@@ -851,6 +851,13 @@ function startPlayerListeners(chronicleId) {
                 if(window.renderJournalTab) window.renderJournalTab();
             }
         }
+    }, (error) => {
+        if (error.code === 'permission-denied') {
+            console.warn("Journal Listener: Access Denied. You may have been removed from the Chronicle.");
+            // Optional: Disconnect automatically?
+        } else {
+            console.error("Journal Listener Error:", error);
+        }
     });
     
     stState.listeners.push(unsub);
@@ -890,6 +897,12 @@ function startStorytellerSession() {
                 }
             }
         }
+    }, (error) => {
+        console.error("Roster Listener Error:", error);
+        if (error.code === 'permission-denied') {
+            showNotification("ST Access Revoked", "error");
+            exitStorytellerDashboard();
+        }
     }));
 
     // 2. BESTIARY LISTENER
@@ -898,6 +911,8 @@ function startStorytellerSession() {
         stState.bestiary = {};
         snapshot.forEach(doc => { stState.bestiary[doc.id] = doc.data(); });
         if (stState.dashboardActive && stState.currentView === 'bestiary') renderBestiaryView();
+    }, (error) => {
+        console.error("Bestiary Listener Error:", error);
     }));
 
     initCombatTracker(stState.activeChronicleId);
@@ -1370,6 +1385,12 @@ function startChatListener(chronicleId) {
             const stContainer = document.getElementById('st-chat-history');
             if (stContainer) renderMessageList(stContainer, messages);
         }
+    }, (error) => {
+        if (error.code === 'permission-denied') {
+            console.warn("Chat Listener: Access Denied. You may be disconnected.");
+        } else {
+            console.error("Chat Listener Error:", error);
+        }
     });
 }
 
@@ -1437,7 +1458,9 @@ async function sendChronicleMessage(type, content, details = null) {
             timestamp: new Date() // Firestore will convert or use serverTimestamp if imported
         });
     } catch(e) {
-        console.error("Chat Error:", e);
+        console.error("Chat Error:", e.message);
+        // Suppress alert for system messages to avoid spam if disconnected
+        if (type !== 'system') showNotification("Failed to send message: " + e.message, "error");
     }
 }
 
