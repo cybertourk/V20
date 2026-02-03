@@ -1,7 +1,6 @@
 import { 
     db, doc, setDoc, onSnapshot, updateDoc, arrayUnion, arrayRemove, deleteField, deleteDoc
 } from "./firebase-config.js";
-import { stState } from "./ui-storyteller.js";
 import { showNotification } from "./ui-common.js";
 import { BESTIARY } from "./bestiary-data.js";
 
@@ -78,7 +77,8 @@ export function initCombatTracker(chronicleId) {
 // --- ACTIONS ---
 
 export async function startCombat() {
-    if (!stState.activeChronicleId) return;
+    const stState = window.stState;
+    if (!stState || !stState.activeChronicleId) return;
     try {
         const docRef = doc(db, 'chronicles', stState.activeChronicleId, 'combat', 'active');
         await setDoc(docRef, {
@@ -96,7 +96,10 @@ export async function startCombat() {
 }
 
 export async function endCombat() {
+    const stState = window.stState;
     if (!confirm("End Combat? This clears the tracker.")) return;
+    if (!stState || !stState.activeChronicleId) return;
+
     try {
         const docRef = doc(db, 'chronicles', stState.activeChronicleId, 'combat', 'active');
         // We delete the doc to signal Inactive state
@@ -110,7 +113,8 @@ export async function endCombat() {
 }
 
 export async function addCombatant(entity, type = 'NPC') {
-    if (!stState.activeChronicleId) return;
+    const stState = window.stState;
+    if (!stState || !stState.activeChronicleId) return;
     
     // Check if already exists
     if (combatState.combatants.some(c => c.id === entity.id)) {
@@ -142,18 +146,14 @@ export async function addCombatant(entity, type = 'NPC') {
 }
 
 export async function removeCombatant(id) {
+    const stState = window.stState;
+    if (!stState || !stState.activeChronicleId) return;
+
     const c = combatState.combatants.find(x => x.id === id);
     if (!c) return;
     
     try {
         const docRef = doc(db, 'chronicles', stState.activeChronicleId, 'combat', 'active');
-        
-        // If removing the active person, try to move to next
-        if (c.id === combatState.activeCombatantId) {
-             // Logic handled in nextTurn usually, but here we might just let it fall to null or next refresh
-             // Simplest is to just remove; ST can click Next Turn to realign.
-        }
-
         await updateDoc(docRef, {
             combatants: arrayRemove(c)
         });
@@ -163,6 +163,9 @@ export async function removeCombatant(id) {
 }
 
 export async function updateInitiative(id, newVal) {
+    const stState = window.stState;
+    if (!stState || !stState.activeChronicleId) return;
+
     const list = [...combatState.combatants];
     const idx = list.findIndex(c => c.id === id);
     if (idx === -1) return;
@@ -176,6 +179,9 @@ export async function updateInitiative(id, newVal) {
 }
 
 export async function nextTurn() {
+    const stState = window.stState;
+    if (!stState || !stState.activeChronicleId) return;
+
     if (combatState.combatants.length === 0) return;
 
     // 1. Sort current list (ensure sync)
@@ -214,6 +220,7 @@ export async function nextTurn() {
 }
 
 export async function rollNPCInitiative(id) {
+    const stState = window.stState;
     const c = combatState.combatants.find(x => x.id === id);
     if (!c) return;
     
@@ -272,6 +279,8 @@ export async function rollNPCInitiative(id) {
 
 // --- HELPER ---
 async function pushUpdate(newList) {
+    const stState = window.stState;
+    if (!stState || !stState.activeChronicleId) return;
     try {
         const docRef = doc(db, 'chronicles', stState.activeChronicleId, 'combat', 'active');
         await updateDoc(docRef, { combatants: newList });
