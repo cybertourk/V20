@@ -267,7 +267,9 @@ export function applyPlayModeUI() {
         if (['save-filename', 'char-select', 'roll-diff', 'use-specialty', 'c-path-name', 'c-path-name-create', 'c-bearing-name', 'c-bearing-value', 'custom-weakness-input', 'xp-points-input', 'blood-per-turn-input', 'custom-dice-input', 'spend-willpower', 'c-xp-total', 'frenzy-diff', 'rotschreck-diff', 'play-merit-notes', 'dmg-input-val', 'tray-use-armor',
         // Journal Inputs Exemption
         'log-sess-num', 'log-date', 'log-game-date', 'log-title', 'log-effects', 'log-scene1', 'log-scene2', 'log-scene3', 'log-scene-outcome', 'log-xp-gain',
-        'log-obj', 'log-clues', 'log-secrets', 'log-downtime'
+        'log-obj', 'log-clues', 'log-secrets', 'log-downtime',
+        // CHAT EXEMPTIONS
+        'chronicle-chat-input'
         ].includes(el.id) || el.classList.contains('merit-flaw-desc') || el.closest('#active-log-form')) {
             el.disabled = false;
             return;
@@ -1238,9 +1240,9 @@ export function updateRitualsPlayView() {
 }
 window.updateRitualsPlayView = updateRitualsPlayView;
 
-// --- NEW FUNCTION: RENDER CHRONICLE TAB ---
+// --- NEW FUNCTION: RENDER CHRONICLE TAB (UPDATED WITH CHAT) ---
 export async function renderChronicleTab() {
-    const container = document.getElementById('play-mode-7');
+    const container = document.getElementById('play-mode-chronicle');
     if (!container) return;
 
     // Check if player has joined a chronicle (stored in localStorage)
@@ -1251,13 +1253,13 @@ export async function renderChronicleTab() {
             <div class="h-full flex flex-col items-center justify-center text-gray-500">
                 <i class="fas fa-book-dead text-4xl mb-4 opacity-50"></i>
                 <p>Not connected to a Chronicle.</p>
-                <p class="text-xs mt-2">Join a game via the "Chronicles" menu to view Lore & House Rules.</p>
+                <p class="text-xs mt-2">Join a game via the "Chronicles" menu to access chat & lore.</p>
             </div>`;
         return;
     }
 
     // Loading state
-    container.innerHTML = `<div class="flex flex-col items-center justify-center h-full text-gold"><i class="fas fa-circle-notch fa-spin text-2xl mb-2"></i><span class="text-xs uppercase tracking-widest">Accessing Archives...</span></div>`;
+    container.innerHTML = `<div class="flex flex-col items-center justify-center h-full text-gold"><i class="fas fa-circle-notch fa-spin text-2xl mb-2"></i><span class="text-xs uppercase tracking-widest">Connecting to Chronicle...</span></div>`;
 
     try {
         const docRef = doc(db, 'chronicles', chronicleId);
@@ -1270,39 +1272,80 @@ export async function renderChronicleTab() {
 
         const data = snap.data();
 
+        // SPLIT LAYOUT: Chat Left (60%), Info Right (40%)
         container.innerHTML = `
-            <div class="max-w-4xl mx-auto space-y-8 animate-in fade-in pb-10">
-                <!-- Header -->
-                <div class="border-b border-[#af0000] pb-4 text-center mt-6">
-                    <h2 class="text-3xl font-cinzel text-[#af0000] font-bold tracking-widest uppercase">${data.name || "Untitled Chronicle"}</h2>
-                    <div class="text-xs text-gold font-serif italic mt-1 uppercase tracking-widest">${data.timePeriod || "Modern Nights"}</div>
+            <div class="flex h-full gap-6">
+                <!-- LEFT: CHAT & LOG -->
+                <div class="w-3/5 flex flex-col bg-[#0a0a0a] border border-[#333] shadow-lg">
+                    <div class="bg-[#111] p-3 border-b border-[#333] flex justify-between items-center mb-2">
+                        <div class="flex items-center gap-2">
+                            <i class="fas fa-comments text-[#d4af37]"></i>
+                            <h3 class="text-[#d4af37] font-cinzel font-bold text-sm uppercase tracking-widest">Chronicle Chat</h3>
+                        </div>
+                        <div class="text-[9px] text-gray-500 font-mono">ID: <span class="text-white">${chronicleId}</span></div>
+                    </div>
+                    <div class="flex-1 overflow-y-auto space-y-3 p-4 bg-[url('https://www.transparenttextures.com/patterns/black-linen.png')] custom-scrollbar" id="chronicle-chat-history">
+                        <div class="text-center text-gray-500 italic text-xs mt-10">Connecting...</div>
+                    </div>
+                    <div class="mt-auto border-t border-[#333] p-3 bg-[#111] flex gap-2">
+                        <input type="text" id="chronicle-chat-input" class="flex-1 bg-[#050505] border border-[#333] text-white p-2 text-sm outline-none focus:border-[#d4af37]" placeholder="Send a message...">
+                        <button id="chronicle-chat-send" class="bg-[#d4af37] text-black font-bold uppercase px-4 py-2 hover:bg-[#fcd34d] transition-colors text-xs">Send</button>
+                    </div>
                 </div>
 
-                <!-- Synopsis -->
-                <div class="bg-[#111] p-6 border border-[#333] relative group hover:border-[#af0000] transition-colors">
-                    <div class="absolute -top-2 left-4 bg-black px-2 text-[10px] text-gray-500 font-bold uppercase tracking-wider group-hover:text-[#af0000] transition-colors">Synopsis</div>
-                    <div class="text-sm text-gray-300 font-serif leading-relaxed whitespace-pre-wrap">${data.synopsis || "No synopsis provided."}</div>
-                </div>
+                <!-- RIGHT: CHRONICLE INFO -->
+                <div class="w-2/5 overflow-y-auto custom-scrollbar pr-2 space-y-6">
+                    <!-- Header -->
+                    <div class="border-b border-[#af0000] pb-2 text-center">
+                        <h2 class="text-2xl font-cinzel text-[#af0000] font-bold tracking-widest uppercase">${data.name || "Untitled"}</h2>
+                        <div class="text-[10px] text-gold font-serif italic uppercase tracking-widest">${data.timePeriod || "Modern Nights"}</div>
+                    </div>
 
-                <!-- Two Column Layout -->
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <!-- Synopsis -->
+                    <div class="bg-[#111] p-4 border border-[#333] relative group hover:border-[#af0000] transition-colors">
+                        <div class="absolute -top-2 left-4 bg-black px-2 text-[9px] text-gray-500 font-bold uppercase tracking-wider group-hover:text-[#af0000] transition-colors">Synopsis</div>
+                        <div class="text-xs text-gray-300 font-serif leading-relaxed whitespace-pre-wrap">${data.synopsis || "No synopsis provided."}</div>
+                    </div>
+
                     <!-- House Rules -->
-                    <div class="bg-[#1a0505] p-6 border border-red-900/30 relative shadow-lg">
-                        <div class="absolute -top-2 left-4 bg-black px-2 text-[10px] text-red-500 font-bold uppercase tracking-wider">House Rules</div>
+                    <div class="bg-[#1a0505] p-4 border border-red-900/30 relative shadow-lg">
+                        <div class="absolute -top-2 left-4 bg-black px-2 text-[9px] text-red-500 font-bold uppercase tracking-wider">House Rules</div>
                         <div class="text-xs text-gray-400 font-serif leading-relaxed whitespace-pre-wrap">${data.houseRules || "Standard V20 Rules apply."}</div>
                     </div>
 
                     <!-- Lore / Setting -->
-                    <div class="bg-[#0a0a0a] p-6 border border-[#d4af37]/30 relative shadow-lg">
-                        <div class="absolute -top-2 left-4 bg-black px-2 text-[10px] text-[#d4af37] font-bold uppercase tracking-wider">Lore & Setting</div>
+                    <div class="bg-[#0a0a0a] p-4 border border-[#d4af37]/30 relative shadow-lg">
+                        <div class="absolute -top-2 left-4 bg-black px-2 text-[9px] text-[#d4af37] font-bold uppercase tracking-wider">Lore & Setting</div>
                         <div class="text-xs text-gray-400 font-serif leading-relaxed whitespace-pre-wrap">${data.lore || "No specific setting details available."}</div>
                     </div>
                 </div>
             </div>
         `;
 
+        // --- BIND EVENTS ---
+        const sendBtn = document.getElementById('chronicle-chat-send');
+        const input = document.getElementById('chronicle-chat-input');
+        
+        const sendHandler = () => {
+            const txt = input.value.trim();
+            if (txt && window.sendChronicleMessage) {
+                window.sendChronicleMessage('chat', txt);
+                input.value = '';
+            }
+        };
+        
+        if(sendBtn) sendBtn.onclick = sendHandler;
+        if(input) input.onkeydown = (e) => { if(e.key === 'Enter') sendHandler(); };
+
+        // --- TRIGGER LISTENER VIA UI-STORYTELLER ---
+        if (window.startChatListener) {
+            window.startChatListener(chronicleId);
+        } else {
+            console.warn("startChatListener not found. Ensure ui-storyteller.js is loaded.");
+        }
+
     } catch (e) {
-        console.error(e);
+        console.error("Chronicle Render Error:", e);
         container.innerHTML = `<div class="text-center text-red-500 mt-10">Error loading chronicle data. Check connection.</div>`;
     }
 }
