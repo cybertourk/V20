@@ -1345,4 +1345,34 @@ setTimeout(() => {
         if (window.state.isPlayMode) {
             // Play Mode: Hide all play containers first
             document.querySelectorAll('div[id^="play-mode-"]').forEach(el => {
-                el.classList.
+                el.classList.add('hidden');
+                el.classList.remove('active');
+            });
+            
+            // Show Target
+            // Check for numeric steps OR special strings
+            let targetId = `play-mode-${stepId}`;
+            
+            // Special handling for nav bar interactions that might pass non-numeric
+            // Although standard nav passes numbers 1-7.
+            // Chronicle tab is separate and handled by its own button logic in ui-storyteller.js
+            
+            const target = document.getElementById(targetId);
+            if (target) {
+                target.classList.remove('hidden');
+                target.classList.add('active');
+            }
+            
+            // Important: Hide Edit Mode Phases
+            document.querySelectorAll('div[id^="phase-"]').forEach(el => {
+                el.classList.add('hidden');
+                el.classList.remove('active');
+            });
+            
+            window.state.currentPhase = stepId;
+        } else {
+            // Edit Mode: Use original logic
+            if (originalChangeStep) originalChangeStep(stepId);
+        }
+    };
+}, 1000);
