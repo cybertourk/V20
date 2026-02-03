@@ -49,7 +49,6 @@ export function initStorytellerSystem() {
     window.switchStorytellerView = switchStorytellerView;
     window.renderStorytellerDashboard = renderStorytellerDashboard;
     window.exitStorytellerDashboard = exitStorytellerDashboard;
-    window.toggleCampaignSidebar = toggleCampaignSidebar;
     
     // Settings Actions
     window.stSaveSettings = stSaveSettings;
@@ -98,6 +97,9 @@ export function initStorytellerSystem() {
         document.addEventListener('DOMContentLoaded', bindDashboardButton);
     }
 
+    // NEW: Inject Chronicle Tab into Navigation
+    setTimeout(injectChronicleNav, 500);
+
     // Check for stale session data on load
     setTimeout(checkStaleSession, 1000);
 }
@@ -111,6 +113,84 @@ function bindDashboardButton() {
             window.renderStorytellerDashboard();
         };
         console.log("ST Dashboard Button Bound");
+    }
+}
+
+// --- NEW: CHRONICLE NAVIGATION INJECTION ---
+function injectChronicleNav() {
+    const nav = document.getElementById('sheet-nav');
+    // Check if nav exists and button doesn't already exist
+    if (!nav || document.getElementById('nav-chronicle')) return;
+    
+    const btn = document.createElement('div');
+    btn.id = 'nav-chronicle';
+    btn.className = 'nav-item';
+    btn.innerHTML = `<i class="fas fa-comments text-[#d4af37]"></i><span>Chronicle</span>`;
+    
+    btn.onclick = () => {
+        // Switch to Play Mode if not active
+        if (!window.state.isPlayMode) {
+            window.togglePlayMode();
+        }
+        
+        // Hide all Play Mode step containers
+        document.querySelectorAll('.step-container').forEach(el => el.classList.remove('active'));
+        
+        // Show Chronicle Tab
+        const tab = document.getElementById('play-mode-chronicle');
+        if(tab) {
+            tab.classList.remove('hidden');
+            tab.classList.add('active');
+            renderPlayerChronicleTab(tab);
+        }
+        
+        // Update Nav State
+        document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+        btn.classList.add('active');
+    };
+    
+    nav.appendChild(btn);
+}
+
+// --- NEW: RENDER PLAYER CHRONICLE TAB ---
+function renderPlayerChronicleTab(container) {
+    // Render layout only if empty
+    if (!container.innerHTML.trim()) {
+        container.innerHTML = `
+            <div class="flex flex-col h-full bg-[#080808] border border-[#333] shadow-lg p-4">
+                <div class="bg-[#111] p-3 border-b border-[#333] flex justify-between items-center mb-2">
+                    <h3 class="text-[#d4af37] font-cinzel font-bold text-sm uppercase tracking-widest">Chronicle Communications</h3>
+                    <div class="text-[10px] text-gray-500 font-mono">ID: <span class="text-white">${stState.activeChronicleId || "Disconnected"}</span></div>
+                </div>
+                <div class="flex-1 overflow-y-auto space-y-3 p-4 bg-[url('https://www.transparenttextures.com/patterns/black-linen.png')]" id="chronicle-chat-history">
+                    <div class="text-center text-gray-500 italic text-xs mt-10">Connecting to Chronicle Chat...</div>
+                </div>
+                <div class="mt-4 border-t border-[#333] pt-4 flex gap-2">
+                    <input type="text" id="chronicle-chat-input" class="flex-1 bg-[#111] border border-[#333] text-white p-3 text-sm outline-none focus:border-[#d4af37]" placeholder="Send a message to the chronicle...">
+                    <button id="chronicle-chat-send" class="bg-[#d4af37] text-black font-bold uppercase px-6 py-2 hover:bg-[#fcd34d] transition-colors">Send</button>
+                </div>
+            </div>
+        `;
+        
+        // Re-bind events for the newly injected elements
+        const sendBtn = document.getElementById('chronicle-chat-send');
+        const input = document.getElementById('chronicle-chat-input');
+        
+        const sendHandler = () => {
+            const txt = input.value.trim();
+            if (txt) {
+                sendChronicleMessage('chat', txt);
+                input.value = '';
+            }
+        };
+        
+        if(sendBtn) sendBtn.onclick = sendHandler;
+        if(input) input.onkeydown = (e) => { if(e.key === 'Enter') sendHandler(); };
+    }
+    
+    // Trigger update if connected
+    if (stState.activeChronicleId) {
+         startChatListener(stState.activeChronicleId);
     }
 }
 
@@ -188,12 +268,7 @@ function toggleStorytellerButton(show) {
 
 // --- MODAL HANDLERS ---
 export function openChronicleModal() {
-    // If Connected and NOT ST, Toggle Sidebar instead of Modal
-    if (stState.activeChronicleId && !stState.isStoryteller) {
-        toggleCampaignSidebar();
-        return;
-    }
-
+    // REVERTED: No longer toggles sidebar. Always opens modal for connection management.
     let modal = document.getElementById('chronicle-modal');
     if (!modal) return;
     modal.classList.add('active');
@@ -208,34 +283,6 @@ export function openChronicleModal() {
 export function closeChronicleModal() {
     const modal = document.getElementById('chronicle-modal');
     if(modal) modal.classList.remove('active');
-}
-
-// --- CAMPAIGN SIDEBAR (PLAYER VIEW) ---
-function toggleCampaignSidebar() {
-    const sb = document.getElementById('campaign-sidebar');
-    if (!sb) return;
-    
-    const isOpen = sb.classList.contains('open');
-    if (isOpen) {
-        // Closing
-        sb.classList.remove('open');
-        sb.style.right = '-320px';
-        // Add hidden back after transition to prevent interaction/rendering issues
-        setTimeout(() => {
-            sb.classList.add('hidden');
-        }, 300);
-    } else {
-        // Opening
-        sb.classList.remove('hidden'); // Ensure it's visible before sliding
-        // Small delay to allow browser to register display:flex before adding transition class
-        setTimeout(() => {
-            sb.classList.add('open');
-            sb.style.right = '0';
-            // Auto-scroll to bottom of chat
-            const hist = document.getElementById('campaign-chat-history');
-            if(hist) hist.scrollTop = hist.scrollHeight;
-        }, 10);
-    }
 }
 
 // --- UI RENDERING (MENU) ---
@@ -500,7 +547,6 @@ function renderCreateChronicleUI() {
 
 function renderConnectedStatus() {
     // This is the fallback/ST view if they click Chronicles. 
-    // Players toggle sidebar instead.
     const container = document.getElementById('chronicle-modal-content');
     if(!container) return;
 
@@ -655,10 +701,8 @@ async function handleJoinChronicle() {
         // System Log
         sendChronicleMessage('system', `${charName} joined the chronicle.`);
 
-        showNotification(`Joined ${data.name}`);
+        showNotification(`Joined ${data.name}. Check the Chronicle tab.`);
         window.closeChronicleModal();
-        // Toggle Sidebar automatically on first join
-        toggleCampaignSidebar();
 
     } catch (e) {
         console.error("Join Error:", e);
@@ -766,12 +810,13 @@ function disconnectChronicle() {
     const floatBtn = document.getElementById('player-combat-float');
     if(floatBtn) floatBtn.remove();
     
-    // Close sidebar
-    const sb = document.getElementById('campaign-sidebar');
-    if(sb) {
-        sb.classList.remove('open');
-        setTimeout(() => sb.classList.add('hidden'), 300);
-    }
+    // Hide Chronicle Tab if visible
+    const tab = document.getElementById('play-mode-chronicle');
+    if(tab) tab.classList.add('hidden');
+    
+    // Deactivate nav button
+    const navBtn = document.getElementById('nav-chronicle');
+    if(navBtn) navBtn.classList.remove('active');
 
     toggleStorytellerButton(false);
     exitStorytellerDashboard();
@@ -1363,8 +1408,8 @@ function startChatListener(chronicleId) {
     if (stState.chatUnsub) stState.chatUnsub();
     
     // Wire up inputs if sidebar exists (Player Mode)
-    const sendBtn = document.getElementById('campaign-chat-send');
-    const input = document.getElementById('campaign-chat-input');
+    const sendBtn = document.getElementById('chronicle-chat-send');
+    const input = document.getElementById('chronicle-chat-input');
     
     const sendHandler = () => {
         const txt = input.value.trim();
@@ -1390,7 +1435,7 @@ function startChatListener(chronicleId) {
         messages.reverse(); // Show oldest first (top to bottom)
         
         // Render to Player Sidebar
-        const pContainer = document.getElementById('campaign-chat-history');
+        const pContainer = document.getElementById('chronicle-chat-history');
         if (pContainer) renderMessageList(pContainer, messages);
 
         // Render to ST Dashboard (if active)
