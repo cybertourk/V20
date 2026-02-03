@@ -1,4 +1,3 @@
-
 import { 
     ATTRIBUTES, ABILITIES, VIRTUES, 
     GEN_LIMITS, HEALTH_STATES, SPECIALTY_EXAMPLES, 
@@ -14,11 +13,14 @@ import {
     renderDots, renderBoxes, showNotification, setSafeText, renderSocialProfile 
 } from "./ui-common.js";
 
-// --- NEW IMPORT FOR PRINT SHEET SYNC ---
+// --- IMPORT FOR PRINT SHEET SYNC ---
 import { renderPrintSheet } from "./ui-print.js";
 
 
-// --- CLAN MECHANICS UI HELPER ---
+// ==========================================================================
+// 1. CLAN MECHANICS & WEAKNESS UI
+// ==========================================================================
+
 function updateClanMechanicsUI() {
     const clan = window.state.textFields['c-clan'] || document.getElementById('c-clan')?.value || "None";
     
@@ -1410,128 +1412,3 @@ export function setDots(name, type, val, min, max = 5) {
     }
 }
 window.setDots = setDots;
-
-export function rollPool() {
-    // --- SPECIAL ROLL INTERCEPTION: INITIATIVE ---
-    const initiativeItem = window.state.activePool.find(p => p.name.includes("Initiative"));
-    
-    if (initiativeItem) {
-        let mod = initiativeItem.val;
-        if (mod === 0 && initiativeItem.name.includes("(")) {
-            const match = initiativeItem.name.match(/[+(]\s*\+?\s*(\d+)/);
-            if (match) mod = parseInt(match[1]);
-        }
-        
-        const die = Math.floor(Math.random() * 10) + 1;
-        const total = die + mod;
-        
-        const tray = document.getElementById('roll-results');
-        const row = document.createElement('div');
-        row.className = 'bg-black/60 p-2 border border-[#333] text-[10px] mb-2 animate-in fade-in slide-in-from-right-4 duration-300';
-        
-        row.innerHTML = `
-            <div class="flex justify-between border-b border-[#444] pb-1 mb-1">
-                <span class="text-[#d4af37] font-bold uppercase">Initiative Roll</span>
-                <span class="text-white font-black text-sm">${total}</span>
-            </div>
-            <div class="tracking-widest flex flex-wrap justify-center py-2 items-center gap-2">
-                <span class="text-gray-400 font-bold bg-black/50 px-2 py-1 rounded">1d10 <span class="text-white">(${die})</span></span>
-                <span class="text-gray-500 font-black">+</span>
-                <span class="text-[#d4af37] font-bold">${mod}</span>
-                <span class="text-gray-500 font-black">=</span>
-                <span class="text-[#4ade80] font-black text-lg border border-[#d4af37] px-3 py-1 rounded bg-[#d4af37]/10">${total}</span>
-            </div>
-        `;
-        tray.insertBefore(row, tray.firstChild);
-
-        if (window.sendChronicleMessage && window.stState && window.stState.activeChronicleId) {
-            let msgContent = `Initiative Roll: <span class="text-[#4ade80] font-bold">${total}</span> <span class="opacity-50 text-[10px]">(1d10[${die}] + ${mod})</span>`;
-            window.sendChronicleMessage('roll', msgContent, { pool: "Initiative", successes: total });
-        }
-        return; 
-    }
-
-    const spendWP = document.getElementById('spend-willpower')?.checked;
-    let autoSuccesses = 0;
-    if (spendWP) {
-        if ((window.state.status.tempWillpower || 0) > 0) {
-             window.state.status.tempWillpower--;
-             autoSuccesses = 1;
-             if(window.updatePools) window.updatePools(); 
-             document.getElementById('spend-willpower').checked = false; 
-        } else {
-            showNotification("Not enough Willpower!");
-            document.getElementById('spend-willpower').checked = false;
-            return; 
-        }
-    }
-
-    const custom = parseInt(document.getElementById('custom-dice-input')?.value) || 0;
-    let poolSize = window.state.activePool.reduce((a,b) => a + b.val, 0) + custom;
-    
-    // Clan Modifiers
-    const clan = window.state.textFields['c-clan'] || "None";
-    const lightToggle = document.getElementById('setite-light-toggle');
-    if (clan === "Followers of Set" && lightToggle && lightToggle.checked) poolSize -= 1;
-
-    const soilDaysInput = document.getElementById('tzimisce-soil-days');
-    if (clan === "Tzimisce" && soilDaysInput) {
-        const daysAway = parseInt(soilDaysInput.value) || 0;
-        if (daysAway > 0) {
-            for(let i=0; i<daysAway; i++) poolSize = Math.floor(poolSize / 2);
-            if(poolSize < 1) poolSize = 1;
-        }
-    }
-
-    if (poolSize <= 0 && autoSuccesses === 0) return;
-    
-    const diff = parseInt(document.getElementById('roll-diff').value) || 6;
-    const isSpec = document.getElementById('use-specialty').checked;
-    
-    let results = [], ones = 0, rawSuccesses = 0;
-    for(let i=0; i<poolSize; i++) {
-        const die = Math.floor(Math.random() * 10) + 1;
-        results.push(die);
-        if (die === 1) ones++;
-        if (die >= diff) { 
-            if (isSpec && die === 10) rawSuccesses += 2; 
-            else rawSuccesses += 1; 
-        }
-    }
-    
-    let net = Math.max(0, rawSuccesses - ones);
-    net += autoSuccesses;
-
-    let outcome = "", outcomeClass = "";
-    if (rawSuccesses === 0 && autoSuccesses === 0 && ones > 0) { outcome = "BOTCH"; outcomeClass = "dice-botch"; } 
-    else if (net <= 0) { outcome = "FAILURE"; outcomeClass = "text-gray-400"; } 
-    else { outcome = `${net} SUCCESS${net > 1 ? 'ES' : ''}`; outcomeClass = "dice-success"; }
-    
-    const tray = document.getElementById('roll-results');
-    const row = document.createElement('div');
-    row.className = 'bg-black/60 p-2 border border-[#333] text-[10px] mb-2 animate-in fade-in slide-in-from-right-4 duration-300';
-    
-    const diceRender = results.sort((a,b)=>b-a).map(d => {
-        let c = 'text-gray-500';
-        if (d === 1) c = 'text-[#ff0000] font-bold';
-        else if (d >= diff) { 
-            c = 'text-[#d4af37] font-bold'; 
-            if (d === 10 && isSpec) c = 'text-[#4ade80] font-black'; 
-        }
-        return `<span class="${c} text-3xl mx-1">${d}</span>`;
-    }).join(' ');
-
-    row.innerHTML = `<div class="flex justify-between border-b border-[#444] pb-1 mb-1"><span class="text-gray-400">Diff ${diff}${isSpec ? '*' : ''}</span><span class="${outcomeClass} font-black text-sm">${outcome}</span></div><div class="tracking-widest flex flex-wrap justify-center py-2">${diceRender}</div>`;
-    tray.insertBefore(row, tray.firstChild);
-
-    if (window.sendChronicleMessage && window.stState && window.stState.activeChronicleId) {
-        const poolNames = window.state.activePool.map(i=>i.name).join('+') || "Custom Pool";
-        const rawRolls = results.map(r => r).join(', ');
-        let msgContent = `<span class="${outcomeClass} font-bold">${outcome}</span> on ${poolNames} (Diff ${diff}) <span class="opacity-50 text-[10px]">(${rawRolls})</span>`;
-        if (autoSuccesses > 0) msgContent += ` <span class="text-blue-400 font-bold">[WP Spent]</span>`;
-        window.sendChronicleMessage('roll', msgContent, { pool: poolNames, successes: net });
-    }
-}
-window.rollPool = rollPool;
-
-// ... (Remainder of file logic - rollCombat, rollInitiative, etc - remains unchanged)
