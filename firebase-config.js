@@ -1,4 +1,5 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+
+import { initializeApp } from "firebase/app";
 import { 
     getAuth, 
     signInAnonymously, 
@@ -10,24 +11,26 @@ import {
     signOut,
     createUserWithEmailAndPassword,
     signInWithEmailAndPassword
-} from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+} from "firebase/auth";
 import { 
     getFirestore, 
     doc, 
     setDoc, 
     getDoc, 
     addDoc,
-    updateDoc,    // NEW
+    updateDoc,
     deleteDoc,
-    deleteField,  // NEW
-    arrayUnion,   // NEW
-    arrayRemove,  // NEW
+    deleteField,
+    arrayUnion,
+    arrayRemove,
     onSnapshot,
     collection, 
     getDocs, 
     query, 
-    where 
-} from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    where,
+    orderBy,
+    limit
+} from "firebase/firestore";
 
 // FIREBASE CONFIGURATION
 const firebaseConfig = {
@@ -56,26 +59,28 @@ export {
     signInAnonymously, 
     onAuthStateChanged, 
     signInWithCustomToken, 
-    signInWithRedirect,
-    getRedirectResult,
-    signOut,
-    googleProvider,
-    createUserWithEmailAndPassword,
-    signInWithEmailAndPassword,
+    signInWithRedirect, 
+    getRedirectResult, 
+    signOut, 
+    googleProvider, 
+    createUserWithEmailAndPassword, 
+    signInWithEmailAndPassword, 
     
     // FIRESTORE FUNCTIONS
     doc, 
     setDoc, 
-    getDoc,
-    addDoc,
-    updateDoc,    // Exported
-    deleteDoc,
-    deleteField,  // Exported
-    arrayUnion,   // Exported
-    arrayRemove,  // Exported
-    onSnapshot,
+    getDoc, 
+    addDoc, 
+    updateDoc,    
+    deleteDoc, 
+    deleteField,  
+    arrayUnion,   
+    arrayRemove,  
+    onSnapshot, 
     collection, 
     getDocs, 
     query, 
-    where
+    where,
+    orderBy,
+    limit
 };
