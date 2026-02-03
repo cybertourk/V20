@@ -73,6 +73,9 @@ export function initStorytellerSystem() {
     window.stPushHandout = pushHandoutToPlayers;
     window.stDeleteJournalEntry = stDeleteJournalEntry;
     
+    // EXPOSE CHAT LISTENER FOR UI-PLAY.JS
+    window.startChatListener = startChatListener;
+
     // GLOBAL PUSH API
     window.stPushNpc = async (npcData) => {
         if (!stState.activeChronicleId || !stState.isStoryteller) return showNotification("Not in ST Mode", "error");
@@ -141,7 +144,11 @@ function injectChronicleNav() {
         if(tab) {
             tab.classList.remove('hidden');
             tab.classList.add('active');
-            renderPlayerChronicleTab(tab);
+            
+            // DELEGATE RENDER TO UI-PLAY.JS
+            if (window.renderChronicleTab) {
+                window.renderChronicleTab();
+            }
         }
         
         // Update Nav State
@@ -150,48 +157,6 @@ function injectChronicleNav() {
     };
     
     nav.appendChild(btn);
-}
-
-// --- NEW: RENDER PLAYER CHRONICLE TAB ---
-function renderPlayerChronicleTab(container) {
-    // Render layout only if empty
-    if (!container.innerHTML.trim()) {
-        container.innerHTML = `
-            <div class="flex flex-col h-full bg-[#080808] border border-[#333] shadow-lg p-4">
-                <div class="bg-[#111] p-3 border-b border-[#333] flex justify-between items-center mb-2">
-                    <h3 class="text-[#d4af37] font-cinzel font-bold text-sm uppercase tracking-widest">Chronicle Communications</h3>
-                    <div class="text-[10px] text-gray-500 font-mono">ID: <span class="text-white">${stState.activeChronicleId || "Disconnected"}</span></div>
-                </div>
-                <div class="flex-1 overflow-y-auto space-y-3 p-4 bg-[url('https://www.transparenttextures.com/patterns/black-linen.png')]" id="chronicle-chat-history">
-                    <div class="text-center text-gray-500 italic text-xs mt-10">Connecting to Chronicle Chat...</div>
-                </div>
-                <div class="mt-4 border-t border-[#333] pt-4 flex gap-2">
-                    <input type="text" id="chronicle-chat-input" class="flex-1 bg-[#111] border border-[#333] text-white p-3 text-sm outline-none focus:border-[#d4af37]" placeholder="Send a message to the chronicle...">
-                    <button id="chronicle-chat-send" class="bg-[#d4af37] text-black font-bold uppercase px-6 py-2 hover:bg-[#fcd34d] transition-colors">Send</button>
-                </div>
-            </div>
-        `;
-        
-        // Re-bind events for the newly injected elements
-        const sendBtn = document.getElementById('chronicle-chat-send');
-        const input = document.getElementById('chronicle-chat-input');
-        
-        const sendHandler = () => {
-            const txt = input.value.trim();
-            if (txt) {
-                sendChronicleMessage('chat', txt);
-                input.value = '';
-            }
-        };
-        
-        if(sendBtn) sendBtn.onclick = sendHandler;
-        if(input) input.onkeydown = (e) => { if(e.key === 'Enter') sendHandler(); };
-    }
-    
-    // Trigger update if connected
-    if (stState.activeChronicleId) {
-         startChatListener(stState.activeChronicleId);
-    }
 }
 
 // --- SESSION HYGIENE ---
