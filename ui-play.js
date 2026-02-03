@@ -16,9 +16,8 @@ import {
 
 import { openNpcCreator, openNpcSheet } from "./npc-creator.js";
 
-// NEW IMPORTS FOR CHRONICLE TAB & COMBAT TRACKER
+// FIREBASE IMPORTS
 import { db, doc, getDoc } from "./firebase-config.js";
-import { stState } from "./ui-storyteller.js"; 
 import { combatState } from "./combat-tracker.js";
 
 // --- WINDOW BINDINGS ---
@@ -160,10 +159,11 @@ function injectBloodInfo() {
     }
 }
 
-// --- COMBAT INTEGRATION FOR PLAYERS (NEW ADDITION) ---
+// --- COMBAT INTEGRATION FOR PLAYERS ---
 function checkCombatStatus() {
-    // If connected to a chronicle, we check the global combat state
-    if (stState.activeChronicleId && combatState.isActive) {
+    // Rely on WINDOW.stState to avoid circular dependency
+    const stState = window.stState;
+    if (stState && stState.activeChronicleId && combatState.isActive) {
         // Show floating combat indicator
         showPlayerCombatFloat();
     }
@@ -185,7 +185,6 @@ export function togglePlayerCombatView() {
 }
 window.togglePlayerCombatView = togglePlayerCombatView;
 
-// NEW: Safe update function that only refreshes content IF already open
 export function updatePlayerCombatView() {
     const float = document.getElementById('player-combat-float');
     if (!float) return;
@@ -237,38 +236,31 @@ function renderPlayerCombatOverlay(container) {
 }
 
 
-// --- PLAY MODE LOGIC (REFACTORED) ---
+// --- PLAY MODE LOGIC ---
 
-// 1. Apply UI State based on window.state.isPlayMode (Idempotent)
 export function applyPlayModeUI() {
     const isPlay = window.state.isPlayMode;
     document.body.classList.toggle('play-mode', isPlay);
     
-    // Update Button Text
     const pBtnText = document.getElementById('play-btn-text');
     if(pBtnText) pBtnText.innerText = isPlay ? "Edit" : "Play";
     
-    // Toggle Walkthrough/Phase Info Button Visibility
     const guideBtn = document.getElementById('phase-info-btn');
     if(guideBtn) {
         if(isPlay) guideBtn.classList.add('hidden');
         else guideBtn.classList.remove('hidden');
     }
 
-    // Toggle Dice Button Visibility
     const diceBtn = document.getElementById('dice-toggle-btn');
     if (diceBtn) {
         if (isPlay) diceBtn.classList.remove('hidden');
         else diceBtn.classList.add('hidden');
     }
     
-    // Disable Inputs
     document.querySelectorAll('input, select, textarea').forEach(el => {
         if (['save-filename', 'char-select', 'roll-diff', 'use-specialty', 'c-path-name', 'c-path-name-create', 'c-bearing-name', 'c-bearing-value', 'custom-weakness-input', 'xp-points-input', 'blood-per-turn-input', 'custom-dice-input', 'spend-willpower', 'c-xp-total', 'frenzy-diff', 'rotschreck-diff', 'play-merit-notes', 'dmg-input-val', 'tray-use-armor',
-        // Journal Inputs Exemption
         'log-sess-num', 'log-date', 'log-game-date', 'log-title', 'log-effects', 'log-scene1', 'log-scene2', 'log-scene3', 'log-scene-outcome', 'log-xp-gain',
         'log-obj', 'log-clues', 'log-secrets', 'log-downtime',
-        // CHAT EXEMPTIONS
         'chronicle-chat-input'
         ].includes(el.id) || el.classList.contains('merit-flaw-desc') || el.closest('#active-log-form')) {
             el.disabled = false;
@@ -278,31 +270,23 @@ export function applyPlayModeUI() {
     });
 
     const playSheet = document.getElementById('play-mode-sheet');
-    
-    // FIX: Only target the specific Edit Mode phases to hide
     const editPhases = document.querySelectorAll('div[id^="phase-"]');
 
     if (isPlay) {
-        // HIDE Edit Containers specifically
         editPhases.forEach(el => {
             el.classList.add('hidden');
             el.classList.remove('active');
         });
 
-        // SHOW Play Sheet Container
         if (playSheet) {
             playSheet.classList.remove('hidden');
             playSheet.style.display = 'block'; 
         }
         
-        // Ensure Play Mode Containers are NOT hidden
-        // (Fixes the issue where querySelectorAll('.step-container') hid everything)
         document.querySelectorAll('div[id^="play-mode-"]').forEach(el => {
             el.classList.remove('hidden');
-            // We don't add active yet, changeStep does that
         });
 
-        // Render Play Components
         renderPlayModeHeader();
         renderPlayModeAttributes();
         renderPlayModeAbilities();
@@ -317,7 +301,6 @@ export function applyPlayModeUI() {
         renderDetailedDisciplines();
         updateRitualsPlayView();
         
-        // Check for active combat (NEW)
         checkCombatStatus();
         
         setTimeout(() => {
@@ -442,13 +425,11 @@ export function applyPlayModeUI() {
         }
         
     } else {
-        // EXIT Play Mode
         if (playSheet) {
             playSheet.classList.add('hidden');
             playSheet.style.display = 'none'; 
         }
         
-        // Restore visibility of edit phases (they will be hidden/shown by changeStep, but remove the forced hidden)
         editPhases.forEach(el => el.classList.remove('hidden'));
 
         const current = window.state.currentPhase || 1;
@@ -462,9 +443,8 @@ export function applyPlayModeUI() {
 }
 window.applyPlayModeUI = applyPlayModeUI;
 
-// 2. Toggle Mode (Action)
+// 2. Toggle Mode
 export function togglePlayMode() {
-    // Sync Text Fields to State before switching
     const safeVal = (id) => {
         const el = document.getElementById(id);
         if (el) return el.value;
@@ -491,10 +471,8 @@ export function togglePlayMode() {
         window.state.textFields['c-gen'] = "13";
     }
 
-    // Toggle Mode State
     window.state.isPlayMode = !window.state.isPlayMode;
     
-    // Handle Cross-Module Toggles
     if (window.state.isPlayMode) {
         if (window.state.freebieMode && window.toggleFreebieMode) window.toggleFreebieMode();
         if (window.state.xpMode && window.toggleXpMode) window.toggleXpMode();
@@ -505,7 +483,7 @@ export function togglePlayMode() {
 window.togglePlayMode = togglePlayMode;
 
 
-// --- RENDER HELPERS (Unchanged logic, just ensure existence) ---
+// --- RENDER HELPERS ---
 
 function renderPlayModeHeader() {
     const row = document.getElementById('play-concept-row');
@@ -1337,11 +1315,11 @@ export async function renderChronicleTab() {
         if(sendBtn) sendBtn.onclick = sendHandler;
         if(input) input.onkeydown = (e) => { if(e.key === 'Enter') sendHandler(); };
 
-        // --- TRIGGER LISTENER VIA UI-STORYTELLER ---
+        // --- TRIGGER LISTENER VIA WINDOW BINDING (SAFE) ---
         if (window.startChatListener) {
             window.startChatListener(chronicleId);
         } else {
-            console.warn("startChatListener not found. Ensure ui-storyteller.js is loaded.");
+            console.warn("startChatListener not found on window object.");
         }
 
     } catch (e) {
