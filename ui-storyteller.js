@@ -217,14 +217,24 @@ function toggleCampaignSidebar() {
     
     const isOpen = sb.classList.contains('open');
     if (isOpen) {
+        // Closing
         sb.classList.remove('open');
         sb.style.right = '-320px';
+        // Add hidden back after transition to prevent interaction/rendering issues
+        setTimeout(() => {
+            sb.classList.add('hidden');
+        }, 300);
     } else {
-        sb.classList.add('open');
-        sb.style.right = '0';
-        // Auto-scroll to bottom of chat
-        const hist = document.getElementById('campaign-chat-history');
-        if(hist) hist.scrollTop = hist.scrollHeight;
+        // Opening
+        sb.classList.remove('hidden'); // Ensure it's visible before sliding
+        // Small delay to allow browser to register display:flex before adding transition class
+        setTimeout(() => {
+            sb.classList.add('open');
+            sb.style.right = '0';
+            // Auto-scroll to bottom of chat
+            const hist = document.getElementById('campaign-chat-history');
+            if(hist) hist.scrollTop = hist.scrollHeight;
+        }, 10);
     }
 }
 
@@ -758,7 +768,10 @@ function disconnectChronicle() {
     
     // Close sidebar
     const sb = document.getElementById('campaign-sidebar');
-    if(sb) sb.classList.remove('open');
+    if(sb) {
+        sb.classList.remove('open');
+        setTimeout(() => sb.classList.add('hidden'), 300);
+    }
 
     toggleStorytellerButton(false);
     exitStorytellerDashboard();
