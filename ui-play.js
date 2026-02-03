@@ -1218,15 +1218,10 @@ export function updateRitualsPlayView() {
 }
 window.updateRitualsPlayView = updateRitualsPlayView;
 
-// --- NEW FUNCTION: RENDER CHRONICLE TAB (UPDATED WITH CHAT & SAFEGUARDS) ---
+// --- NEW FUNCTION: RENDER CHRONICLE TAB (UPDATED WITH CHAT) ---
 export async function renderChronicleTab() {
     const container = document.getElementById('play-mode-chronicle');
     if (!container) return;
-
-    // FORCE VISIBILITY (Override changeStep hiding)
-    container.style.display = 'block';
-    container.classList.remove('hidden');
-    container.classList.add('active');
 
     // Check if player has joined a chronicle (stored in localStorage)
     const chronicleId = localStorage.getItem('v20_last_chronicle_id');
@@ -1248,7 +1243,12 @@ export async function renderChronicleTab() {
         const docRef = doc(db, 'chronicles', chronicleId);
         const snap = await getDoc(docRef);
 
-        const data = snap.exists() ? snap.data() : { name: "Unknown", synopsis: "Data Unavailable" };
+        if (!snap.exists()) {
+            container.innerHTML = `<div class="text-center text-red-500 mt-10">Chronicle Not Found.</div>`;
+            return;
+        }
+
+        const data = snap.data();
 
         // SPLIT LAYOUT: Chat Left (60%), Info Right (40%)
         container.innerHTML = `
@@ -1324,55 +1324,8 @@ export async function renderChronicleTab() {
 
     } catch (e) {
         console.error("Chronicle Render Error:", e);
-        // Fallback render so chat might still work if it's just meta-data failing
-        container.innerHTML = `<div class="h-full flex flex-col">
-            <div class="text-center text-red-500 mt-4 mb-4">Error loading chronicle metadata. Chat might still work.</div>
-            <div id="chronicle-chat-history" class="flex-1 bg-[#111] p-4"></div>
-            <div class="p-2"><input id="chronicle-chat-input" class="w-full bg-[#333] p-2 text-white"><button id="chronicle-chat-send">Send</button></div>
-        </div>`;
+        container.innerHTML = `<div class="text-center text-red-500 mt-10">Error loading chronicle data. Check connection.</div>`;
     }
 }
 // Export binding for nav
 window.renderChronicleTab = renderChronicleTab;
-
-// --- CRITICAL FIX: OVERRIDE CHANGESTEP FOR PLAY MODE ---
-// Prevents standard navigation from hiding the Chronicle tab
-// Delayed execution ensures this overrides ui-nav.js
-setTimeout(() => {
-    const originalChangeStep = window.changeStep; 
-
-    window.changeStep = function(stepId) {
-        if (window.state.isPlayMode) {
-            // Play Mode: Hide all play containers first
-            document.querySelectorAll('div[id^="play-mode-"]').forEach(el => {
-                el.classList.add('hidden');
-                el.classList.remove('active');
-            });
-            
-            // Show Target
-            // Check for numeric steps OR special strings
-            let targetId = `play-mode-${stepId}`;
-            
-            // Special handling for nav bar interactions that might pass non-numeric
-            // Although standard nav passes numbers 1-7.
-            // Chronicle tab is separate and handled by its own button logic in ui-storyteller.js
-            
-            const target = document.getElementById(targetId);
-            if (target) {
-                target.classList.remove('hidden');
-                target.classList.add('active');
-            }
-            
-            // Important: Hide Edit Mode Phases
-            document.querySelectorAll('div[id^="phase-"]').forEach(el => {
-                el.classList.add('hidden');
-                el.classList.remove('active');
-            });
-            
-            window.state.currentPhase = stepId;
-        } else {
-            // Edit Mode: Use original logic
-            if (originalChangeStep) originalChangeStep(stepId);
-        }
-    };
-}, 1000);
