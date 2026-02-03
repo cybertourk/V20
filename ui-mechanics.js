@@ -517,6 +517,18 @@ export function rollPool() {
         `;
         
         tray.insertBefore(row, tray.firstChild);
+
+        // --- HOOK: SEND TO CHRONICLE IF CONNECTED ---
+        if (window.sendChronicleMessage && window.stState && window.stState.activeChronicleId) {
+            let msgContent = `Initiative Roll: <span class="text-[#4ade80] font-bold">${total}</span> <span class="opacity-50 text-[10px]">(1d10[${die}] + ${mod})</span>`;
+            window.sendChronicleMessage('roll', msgContent, {
+                pool: "Initiative",
+                diff: 0,
+                successes: total,
+                dice: 1
+            });
+        }
+
         return; // EXIT FUNCTION: Skip standard success counting
     }
 
@@ -623,6 +635,27 @@ export function rollPool() {
 
     row.innerHTML = `<div class="flex justify-between border-b border-[#444] pb-1 mb-1"><span class="text-gray-400">Diff ${diff}${isSpec ? '*' : ''}</span><span class="${outcomeClass} font-black text-sm">${outcome}</span></div><div class="tracking-widest flex flex-wrap justify-center py-2">${diceRender}</div>${extras}`;
     tray.insertBefore(row, tray.firstChild);
+
+    // --- HOOK: SEND TO CHRONICLE IF CONNECTED ---
+    if (window.sendChronicleMessage && window.stState && window.stState.activeChronicleId) {
+        const poolNames = window.state.activePool.map(i=>i.name).join('+');
+        const rawRolls = results.map(r => r).join(', ');
+        
+        let headerColorClass = "";
+        if (net > 0) headerColorClass = "text-[#d4af37]";
+        else if (ones > rawSuccesses && rawSuccesses === 0) headerColorClass = "text-red-600";
+        else headerColorClass = "text-gray-400";
+
+        let msgContent = `<span class="${headerColorClass} font-bold">${outcome}</span> <span class="opacity-50 text-[10px]">(${rawRolls})</span>`;
+        if (autoSuccesses > 0) msgContent += ` <span class="text-blue-400 font-bold">[WP Spent]</span>`;
+        
+        window.sendChronicleMessage('roll', msgContent, {
+            pool: poolNames,
+            diff: diff,
+            successes: net,
+            dice: poolSize
+        });
+    }
 }
 window.rollPool = rollPool;
 
