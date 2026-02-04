@@ -14,8 +14,8 @@ import {
     renderRow, rollCombat, rollFrenzy, rollRotschreck, rollDiscipline, rollInitiative, toggleStat
 } from "./ui-mechanics.js";
 
-// FIREBASE IMPORTS
-import { db, doc, getDoc, collection, getDocs, query } from "./firebase-config.js";
+// FIREBASE IMPORTS (Added auth for ID checks)
+import { db, doc, getDoc, collection, getDocs, query, auth } from "./firebase-config.js";
 import { combatState } from "./combat-tracker.js";
 
 // --- INFO MODAL HANDLERS ---
@@ -1344,39 +1344,35 @@ function renderChronicleInfoView(container, data) {
     `;
 }
 
-// --- SUB-VIEW: CHAT ---
+// --- SUB-VIEW: CHAT (UPDATED FOR WHISPERS) ---
 async function renderChronicleChatView(container, chronicleId) {
-    // Fetch players for the dropdown
+    // 1. Fetch Players for Dropdown (Async)
     let players = [];
     let stUID = null;
     
     try {
-        // Fetch players collection
         const q = query(collection(db, 'chronicles', chronicleId, 'players'));
         const snap = await getDocs(q);
-        
         snap.forEach(doc => {
             const data = doc.data();
-            // Filter journal metadata entries
-            if (data.character_name) {
+            if (!doc.id.startsWith('journal_')) {
                 players.push({ id: doc.id, ...data });
             }
         });
-
-        // Fetch chronicle doc to get ST UID
+        
         const cSnap = await getDoc(doc(db, 'chronicles', chronicleId));
         if (cSnap.exists()) {
             stUID = cSnap.data().storyteller_uid;
         }
-    } catch(e) { console.error("Roster fetch failed", e); }
+    } catch(e) { console.error("Player fetch error", e); }
 
     let options = '<option value="">Everyone (Public)</option>';
     if (stUID) options += `<option value="${stUID}">Storyteller (Private)</option>`;
     
     players.forEach(p => {
-        // Don't list self
-        // Note: auth.currentUser might be needed here but importing it causes circular issues sometimes. 
-        // We'll rely on global `window.state.meta.uid` if available or just list everyone.
+        // Exclude self if auth is ready
+        if (auth.currentUser && p.id === auth.currentUser.uid) return;
+        
         options += `<option value="${p.id}">${p.character_name} (${p.player_name || 'Player'})</option>`;
     });
 
@@ -1395,6 +1391,7 @@ async function renderChronicleChatView(container, chronicleId) {
             </div>
             
             <div class="mt-auto border-t border-[#333] p-3 bg-[#111] space-y-2 shrink-0">
+                <!-- Recipient Dropdown -->
                 <div class="flex items-center gap-2">
                     <label class="text-[9px] text-gray-500 font-bold uppercase">To:</label>
                     <select id="chronicle-chat-target" class="flex-1 bg-[#050505] border border-[#333] text-gray-300 text-xs p-1 outline-none focus:border-[#d4af37]">
@@ -1423,7 +1420,6 @@ async function renderChronicleChatView(container, chronicleId) {
                 opts.recipientId = targetId;
                 opts.isWhisper = true;
             }
-            
             window.sendChronicleMessage('chat', txt, null, opts);
             input.value = '';
         }
@@ -1438,3 +1434,11 @@ async function renderChronicleChatView(container, chronicleId) {
         console.warn("startChatListener not found on window object.");
     }
 }
+
+// --- UPDATED RENDER MESSAGE LIST WITH DATE & VISUALS (Duplicated from ST to ensure Players see same format) ---
+// Note: This overrides the one in ui-storyteller if loaded later, but since ui-storyteller loads before ui-play usually, we define it here too or ensure ui-storyteller handles it.
+// Actually, ui-play doesn't define renderMessageList globally; it's local scope usually, but startChatListener calls it.
+// Wait, startChatListener is defined in ui-storyteller.js and attached to window.
+// So ui-play uses window.startChatListener which uses the renderMessageList defined in ui-storyteller.js.
+// Therefore, we don't need to redefine renderMessageList here unless we want to override it.
+// The privacy logic resides in ui-storyteller.js renderMessageList.
