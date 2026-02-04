@@ -14,11 +14,8 @@ import {
     renderRow, rollCombat, rollFrenzy, rollRotschreck, rollDiscipline, rollInitiative, toggleStat
 } from "./ui-mechanics.js";
 
-// REMOVED IMPORT of npc-creator.js to fix Circular Dependency. 
-// We will access window.openNpcCreator instead.
-
 // FIREBASE IMPORTS
-import { db, doc, getDoc } from "./firebase-config.js";
+import { db, doc, getDoc, collection, getDocs, query } from "./firebase-config.js";
 import { combatState } from "./combat-tracker.js";
 
 // --- INFO MODAL HANDLERS ---
@@ -1348,7 +1345,41 @@ function renderChronicleInfoView(container, data) {
 }
 
 // --- SUB-VIEW: CHAT ---
-function renderChronicleChatView(container, chronicleId) {
+async function renderChronicleChatView(container, chronicleId) {
+    // Fetch players for the dropdown
+    let players = [];
+    let stUID = null;
+    
+    try {
+        // Fetch players collection
+        const q = query(collection(db, 'chronicles', chronicleId, 'players'));
+        const snap = await getDocs(q);
+        
+        snap.forEach(doc => {
+            const data = doc.data();
+            // Filter journal metadata entries
+            if (data.character_name) {
+                players.push({ id: doc.id, ...data });
+            }
+        });
+
+        // Fetch chronicle doc to get ST UID
+        const cSnap = await getDoc(doc(db, 'chronicles', chronicleId));
+        if (cSnap.exists()) {
+            stUID = cSnap.data().storyteller_uid;
+        }
+    } catch(e) { console.error("Roster fetch failed", e); }
+
+    let options = '<option value="">Everyone (Public)</option>';
+    if (stUID) options += `<option value="${stUID}">Storyteller (Private)</option>`;
+    
+    players.forEach(p => {
+        // Don't list self
+        // Note: auth.currentUser might be needed here but importing it causes circular issues sometimes. 
+        // We'll rely on global `window.state.meta.uid` if available or just list everyone.
+        options += `<option value="${p.id}">${p.character_name} (${p.player_name || 'Player'})</option>`;
+    });
+
     container.innerHTML = `
         <div class="flex flex-col h-full bg-[#0a0a0a] border border-[#333] shadow-lg relative">
             <div class="bg-[#111] p-3 border-b border-[#333] flex justify-between items-center shrink-0">
@@ -1363,20 +1394,37 @@ function renderChronicleChatView(container, chronicleId) {
                 <div class="text-center text-gray-500 italic text-xs mt-10">Connecting...</div>
             </div>
             
-            <div class="mt-auto border-t border-[#333] p-3 bg-[#111] flex gap-2 shrink-0">
-                <input type="text" id="chronicle-chat-input" class="flex-1 bg-[#050505] border border-[#333] text-white p-2 text-sm outline-none focus:border-[#d4af37]" placeholder="Send a message...">
-                <button id="chronicle-chat-send" class="bg-[#d4af37] text-black font-bold uppercase px-4 py-2 hover:bg-[#fcd34d] transition-colors text-xs">Send</button>
+            <div class="mt-auto border-t border-[#333] p-3 bg-[#111] space-y-2 shrink-0">
+                <div class="flex items-center gap-2">
+                    <label class="text-[9px] text-gray-500 font-bold uppercase">To:</label>
+                    <select id="chronicle-chat-target" class="flex-1 bg-[#050505] border border-[#333] text-gray-300 text-xs p-1 outline-none focus:border-[#d4af37]">
+                        ${options}
+                    </select>
+                </div>
+                
+                <div class="flex gap-2">
+                    <input type="text" id="chronicle-chat-input" class="flex-1 bg-[#050505] border border-[#333] text-white p-2 text-sm outline-none focus:border-[#d4af37]" placeholder="Send a message...">
+                    <button id="chronicle-chat-send" class="bg-[#d4af37] text-black font-bold uppercase px-4 py-2 hover:bg-[#fcd34d] transition-colors text-xs">Send</button>
+                </div>
             </div>
         </div>
     `;
 
     const sendBtn = document.getElementById('chronicle-chat-send');
     const input = document.getElementById('chronicle-chat-input');
+    const targetSelect = document.getElementById('chronicle-chat-target');
     
     const sendHandler = () => {
         const txt = input.value.trim();
         if (txt && window.sendChronicleMessage) {
-            window.sendChronicleMessage('chat', txt);
+            const targetId = targetSelect.value;
+            const opts = {};
+            if (targetId) {
+                opts.recipientId = targetId;
+                opts.isWhisper = true;
+            }
+            
+            window.sendChronicleMessage('chat', txt, null, opts);
             input.value = '';
         }
     };
