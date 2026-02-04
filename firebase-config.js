@@ -1,4 +1,3 @@
-
 import { initializeApp } from "firebase/app";
 import { 
     getAuth, 
@@ -29,7 +28,8 @@ import {
     query, 
     where,
     orderBy,
-    limit
+    limit,
+    writeBatch
 } from "firebase/firestore";
 
 // FIREBASE CONFIGURATION
@@ -82,5 +82,6 @@ export {
     query, 
     where,
     orderBy,
-    limit
+    limit,
+    writeBatch
 };
