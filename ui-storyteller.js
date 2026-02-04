@@ -100,9 +100,6 @@ export function initStorytellerSystem() {
         document.addEventListener('DOMContentLoaded', bindDashboardButton);
     }
 
-    // NEW: Inject Chronicle Tab into Navigation
-    setTimeout(injectChronicleNav, 500);
-
     // Check for stale session data on load
     setTimeout(checkStaleSession, 1000);
 }
@@ -117,70 +114,6 @@ function bindDashboardButton() {
         };
         console.log("ST Dashboard Button Bound");
     }
-}
-
-// --- NEW: CHRONICLE NAVIGATION INJECTION ---
-function injectChronicleNav() {
-    const nav = document.getElementById('sheet-nav');
-    // Check if nav exists and button doesn't already exist
-    if (!nav || document.getElementById('nav-chronicle')) return;
-    
-    // CRITICAL FIX: Ensure the view container exists
-    let tab = document.getElementById('play-mode-chronicle');
-    if (!tab) {
-        tab = document.createElement('div');
-        tab.id = 'play-mode-chronicle';
-        // Add classes consistent with other play views (full height, hidden by default)
-        tab.className = 'hidden h-full overflow-hidden'; 
-        const sheetContainer = document.getElementById('play-mode-sheet');
-        if (sheetContainer) {
-            sheetContainer.appendChild(tab);
-        } else {
-            console.warn("Could not find 'play-mode-sheet' to inject Chronicle tab.");
-        }
-    }
-    
-    const btn = document.createElement('div');
-    btn.id = 'nav-chronicle';
-    btn.className = 'nav-item';
-    btn.innerHTML = `<i class="fas fa-comments text-[#d4af37]"></i><span>Chronicle</span>`;
-    
-    btn.onclick = () => {
-        // Switch to Play Mode if not active
-        if (!window.state.isPlayMode) {
-            if(window.togglePlayMode) window.togglePlayMode();
-        }
-        
-        // Hide all Play Mode views (IDs starting with play-mode-)
-        // EXCLUDING 'play-mode-sheet' itself
-        const sheet = document.getElementById('play-mode-sheet');
-        if(sheet) {
-            Array.from(sheet.children).forEach(child => {
-                if(child.id && child.id.startsWith('play-mode-')) {
-                    child.classList.add('hidden');
-                }
-            });
-        }
-        
-        // Show Chronicle Tab
-        const target = document.getElementById('play-mode-chronicle');
-        if(target) {
-            target.classList.remove('hidden');
-            
-            // DELEGATE RENDER TO UI-PLAY.JS
-            if (window.renderChronicleTab) {
-                window.renderChronicleTab();
-            } else {
-                console.error("renderChronicleTab missing from global window scope.");
-            }
-        }
-        
-        // Update Nav State
-        document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-        btn.classList.add('active');
-    };
-    
-    nav.appendChild(btn);
 }
 
 // --- SESSION HYGIENE ---
