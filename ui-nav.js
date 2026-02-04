@@ -107,11 +107,12 @@ export function changeStep(s, updateGlobalState = true) {
 
         // CHRONICLE TAB (Step 7) - PLAYER ONLY
         if (s === 7) { 
-            let pm7 = document.getElementById('play-mode-7');
+            // FIX: Use 'play-mode-chronicle' ID to match ui-play.js expectation
+            let pm7 = document.getElementById('play-mode-chronicle');
             if (!pm7) {
                 pm7 = document.createElement('div');
-                pm7.id = 'play-mode-7';
-                pm7.className = 'step-container p-4 hidden h-full overflow-y-auto';
+                pm7.id = 'play-mode-chronicle';
+                pm7.className = 'step-container p-4 hidden h-full overflow-y-auto min-h-[600px]';
                 document.getElementById('play-mode-sheet').appendChild(pm7);
             }
             renderChronicleTab();
@@ -123,12 +124,16 @@ export function changeStep(s, updateGlobalState = true) {
     }
 
     // Activate Target Container
-    const target = document.getElementById(prefix + s);
+    let targetId = prefix + s;
+    // FIX: Map Step 7 to the correct ID in Play Mode
+    if (window.state.isPlayMode && s === 7) targetId = 'play-mode-chronicle';
+
+    const target = document.getElementById(targetId);
     if (target) { 
         target.classList.add('active'); 
         window.state.currentPhase = s; 
     } else {
-        console.warn(`Target container ${prefix + s} not found. Defaulting to 1.`);
+        console.warn(`Target container ${targetId} not found. Defaulting to 1.`);
         const def = document.getElementById(prefix + '1');
         if(def) { def.classList.add('active'); window.state.currentPhase = 1; }
     }
