@@ -1237,10 +1237,13 @@ function ensureChronicleTabContainer() {
     }
     
     if (container) {
-        if (!container.classList.contains('min-h-[75vh]')) {
-            container.classList.add('w-full', 'min-h-[75vh]');
-        }
-        container.classList.remove('h-full');
+        // Enforce fixed height for internal scrolling
+        // Remove potentially conflicting generic classes
+        container.classList.remove('h-full', 'min-h-[75vh]', 'overflow-y-auto'); 
+        // Add constraint classes
+        container.classList.add('w-full', 'overflow-hidden');
+        // Approx height: Viewport - Header (90/120) - Footer/Padding
+        container.style.height = 'calc(100vh - 140px)'; 
     }
 }
 
@@ -1287,6 +1290,7 @@ export async function renderChronicleTab() {
         const inactiveClass = "text-gray-500 hover:text-white transition-colors";
 
         // TABBED SHELL STRUCTURE
+        // CRITICAL: Flex layout with full height to contain children
         container.innerHTML = `
             <div class="flex flex-col h-full relative">
                 <!-- TABS HEADER -->
@@ -1300,7 +1304,8 @@ export async function renderChronicleTab() {
                 </div>
 
                 <!-- CONTENT AREA -->
-                <div id="chronicle-content-area" class="flex-1 overflow-hidden relative">
+                <!-- flex-1 ensures it fills remaining vertical space. overflow-hidden ensures inner scrollbar works -->
+                <div id="chronicle-content-area" class="flex-1 overflow-hidden relative h-full">
                     <!-- Views injected here -->
                 </div>
             </div>
@@ -1334,8 +1339,9 @@ window.renderChronicleTab = renderChronicleTab;
 
 // --- SUB-VIEW: INFO ---
 function renderChronicleInfoView(container, data) {
+    // Ensures scrollbar appears here
     container.innerHTML = `
-        <div class="overflow-y-auto h-full custom-scrollbar pr-2 space-y-6">
+        <div class="overflow-y-auto h-full custom-scrollbar pr-2 space-y-6 pb-20">
             <!-- Header -->
             <div class="border-b border-[#af0000] pb-4 text-center">
                 <h2 class="text-3xl font-cinzel text-[#af0000] font-bold tracking-widest uppercase text-shadow-md">${data.name || "Untitled"}</h2>
@@ -1367,10 +1373,7 @@ function renderChronicleInfoView(container, data) {
 
 // --- SUB-VIEW: CHAT ---
 function renderChronicleChatView(container, chronicleId) {
-    // FIX: Ensure container has explicit height constraint via max-h or flex parent 
-    // container is #chronicle-content-area which has flex-1 overflow-hidden.
-    // The child needs h-full to fill that space.
-    
+    // Explicit flex container filling height
     container.innerHTML = `
         <div class="flex flex-col h-full bg-[#0a0a0a] border border-[#333] shadow-lg relative">
             <div class="bg-[#111] p-3 border-b border-[#333] flex justify-between items-center shrink-0">
@@ -1381,9 +1384,9 @@ function renderChronicleChatView(container, chronicleId) {
                 <div class="text-[9px] text-gray-500 font-mono">ID: <span class="text-white">${chronicleId}</span></div>
             </div>
             
-            <!-- Chat History: Using Flex-1 and Overflow-Y to contain scrolling -->
-            <!-- CRITICAL: 'flex-1' ensures it takes available space, 'overflow-y-auto' enables scrollbar -->
-            <div class="flex-1 overflow-y-auto space-y-3 p-4 bg-[url('https://www.transparenttextures.com/patterns/black-linen.png')] custom-scrollbar" id="chronicle-chat-history">
+            <!-- Chat History -->
+            <!-- min-h-0 is CRITICAL for nested flex scrolling in some browsers -->
+            <div class="flex-1 overflow-y-auto min-h-0 space-y-3 p-4 bg-[url('https://www.transparenttextures.com/patterns/black-linen.png')] custom-scrollbar" id="chronicle-chat-history">
                 <div class="text-center text-gray-500 italic text-xs mt-10">Connecting...</div>
             </div>
             
