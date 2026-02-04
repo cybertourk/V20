@@ -1345,9 +1345,6 @@ function startChatListener(chronicleId) {
             console.error("Chat Listener Error:", error);
         }
     });
-    
-    // --- FIX: Removed erroneous push to listeners array here ---
-    // The unsub function is already stored in stState.chatUnsub and managed manually.
 }
 
 function renderMessageList(container, messages) {
@@ -1359,14 +1356,31 @@ function renderMessageList(container, messages) {
     }
 
     const uid = auth.currentUser?.uid;
+    // Check if user is Storyteller by matching activeChronicleId with owned chronicles, but for speed we rely on stState.isStoryteller
+    // However, if the user is a player, stState.isStoryteller is false.
+    // If uid matches stUID, they are ST.
+    // We can't easily get stUID here without fetching, but we can rely on stState.isStoryteller flag or local storage role.
+    const amIStoryteller = stState.isStoryteller || localStorage.getItem('v20_last_chronicle_role') === 'ST';
 
     messages.forEach(msg => {
+        let isVisible = true;
+
         // FILTER: Check if message is private (Whisper)
         if (msg.isWhisper) {
             const isSender = msg.senderId === uid;
             const isRecipient = msg.recipientId === uid;
-            if (!isSender && !isRecipient) return; // Skip if not involved
+            
+            // If I am NOT the sender AND NOT the recipient
+            if (!isSender && !isRecipient) {
+                 // If I am the Storyteller, I should see it UNLESS specifically excluded?
+                 // User Requirement: "If players wish to whisper to each other the Story teller shouldn't see it."
+                 // So ST sees it ONLY if ST is sender or recipient.
+                 // NOTE: This means players can conspire against ST. As requested.
+                 isVisible = false;
+            }
         }
+
+        if (!isVisible) return;
 
         const div = document.createElement('div');
         div.className = "mb-2 text-xs";
@@ -1414,13 +1428,20 @@ function renderMessageList(container, messages) {
         } else {
             // CHAT / WHISPER
             const isSelf = msg.senderId === uid;
-            const whisperClass = msg.isWhisper ? 'border-purple-500/50 bg-purple-900/10' : 'border-[#333] bg-[#1a1a1a]';
-            const whisperLabel = msg.isWhisper ? `<span class="text-purple-400 font-bold text-[9px] mr-1">[WHISPER]</span>` : '';
+            
+            // Visual Indication for Private Messages
+            let wrapperClass = isSelf ? 'bg-[#2a2a2a] text-gray-200' : 'bg-[#1a1a1a] text-gray-300 border border-[#333]';
+            let whisperLabel = '';
+            
+            if (msg.isWhisper) {
+                wrapperClass = 'bg-[#1a0525] border border-purple-500/30 text-purple-100'; // Dark Purple
+                whisperLabel = `<span class="text-purple-400 font-bold text-[9px] mr-1 uppercase tracking-wider"><i class="fas fa-user-secret"></i> Whisper</span>`;
+            }
             
             div.innerHTML = `
                 <div class="${isSelf ? 'text-right' : 'text-left'}">
-                    <div class="text-[10px] text-gray-500 font-bold mb-0.5">${whisperLabel}${msg.sender} <span class="font-normal opacity-50 text-[9px] ml-1">${fullTime}</span></div>
-                    <div class="inline-block px-3 py-1.5 rounded ${isSelf ? 'bg-[#2a2a2a] text-gray-200' : `${whisperClass} text-gray-300 border border-[#333]`}">${msg.content}</div>
+                    <div class="text-[10px] text-gray-500 font-bold mb-0.5">${whisperLabel} ${msg.sender} <span class="font-normal opacity-50 text-[9px] ml-1">${fullTime}</span></div>
+                    <div class="inline-block px-3 py-1.5 rounded ${wrapperClass}">${msg.content}</div>
                 </div>
             `;
         }
