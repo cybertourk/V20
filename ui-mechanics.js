@@ -13,7 +13,6 @@ import {
     renderDots, renderBoxes, showNotification, setSafeText, renderSocialProfile 
 } from "./ui-common.js";
 
-// --- IMPORT FOR PRINT SHEET SYNC ---
 import { renderPrintSheet } from "./ui-print.js";
 
 
@@ -528,7 +527,8 @@ export function rollPool() {
                 pool: "Initiative",
                 diff: 0,
                 successes: total,
-                dice: 1
+                dice: 1,
+                results: [die] // Added for consistency
             });
         }
 
@@ -649,6 +649,7 @@ export function rollPool() {
         else if (ones > rawSuccesses && rawSuccesses === 0) headerColorClass = "text-red-600";
         else headerColorClass = "text-gray-400";
 
+        // HTML fallback for old clients, but we send raw results now
         let msgContent = `<span class="${headerColorClass} font-bold">${outcome}</span> <span class="opacity-50 text-[10px]">(${rawRolls})</span>`;
         if (autoSuccesses > 0) msgContent += ` <span class="text-blue-400 font-bold">[WP Spent]</span>`;
         
@@ -656,7 +657,9 @@ export function rollPool() {
             pool: poolNames,
             diff: diff,
             successes: net,
-            dice: poolSize
+            dice: poolSize,
+            results: results, // ADDED: ARRAY OF RESULTS
+            isSpec: isSpec    // ADDED: SPECIALTY FLAG
         });
     }
 }
