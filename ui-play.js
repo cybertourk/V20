@@ -1220,11 +1220,15 @@ window.updateRitualsPlayView = updateRitualsPlayView;
 
 // --- NEW FUNCTION: RENDER CHRONICLE TAB (UPDATED WITH CHAT) ---
 export async function renderChronicleTab() {
-    const container = document.getElementById('play-mode-chronicle');
+    // FIX: Target the correct tab container ID (play-mode-5)
+    let container = document.getElementById('play-mode-5');
+    // Fallback if the ID was changed in HTML
+    if (!container) container = document.getElementById('play-mode-chronicle');
+    
     if (!container) return;
 
     // Check if player has joined a chronicle (stored in localStorage)
-    const chronicleId = localStorage.getItem('v20_last_chronicle_id');
+    const chronicleId = localStorage.getItem('v20_last_chronicle_id') || (window.stState && window.stState.activeChronicleId);
     
     if (!chronicleId) {
         container.innerHTML = `
