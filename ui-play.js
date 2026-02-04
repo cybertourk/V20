@@ -1229,16 +1229,28 @@ window.updateRitualsPlayView = updateRitualsPlayView;
 // Ensures the Chronicle tab container exists so renderChronicleTab() has a target
 function ensureChronicleTabContainer() {
     let container = document.getElementById('play-mode-chronicle');
+    
+    // Create if missing
     if (!container) {
-        // Only try to create if parent exists
         const parent = document.getElementById('play-mode-sheet');
         if (parent) {
             container = document.createElement('div');
             container.id = 'play-mode-chronicle';
-            // CRITICAL FIX: Use min-h-screen or large vh to force container open if parent has no height
-            container.className = 'hidden w-full min-h-[75vh]';
             parent.appendChild(container);
         }
+    }
+    
+    // FORCE LAYOUT FIX (Addressing the 0-height issue)
+    if (container) {
+        // We preserve 'hidden' if it's there, but ensure layout classes are robust
+        // If it was created by storyteller.js it might be 'hidden h-full overflow-hidden'
+        // We want 'w-full min-h-[75vh]'
+        
+        if (!container.classList.contains('min-h-[75vh]')) {
+            container.classList.add('w-full', 'min-h-[75vh]');
+        }
+        // Remove h-full to avoid conflict if parent is 0 height
+        container.classList.remove('h-full');
     }
 }
 
