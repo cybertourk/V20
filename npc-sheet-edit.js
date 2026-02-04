@@ -462,7 +462,7 @@ export function renderEditorModal() {
             
             const t = typeSelect.value;
             let item = null;
-            if (t === 'Weapon') item = [...(WEAPONS||[]), ...(RANGED_WEAPONS||[])].find(x => x.name === w.name);
+            if (t === 'Weapon') item = [...(WEAPONS||[]), ...(RANGED_WEAPONS||[])].find(x => x.name === name); // Fixed: w.name -> name
             else if (t === 'Armor') item = (ARMOR||[]).find(x => x.name === name);
             else if (t === 'Vehicle') item = (V20_VEHICLES_LIST||[]).find(x => x.name === name);
 
@@ -783,7 +783,7 @@ export function renderMeritsFlaws() {
         `<div class="flex justify-between text-[9px] text-gray-300 bg-black/50 p-1 rounded"><span>${k}</span><span>${v} pts <i class="fas fa-times text-red-500 ml-2 cursor-pointer remove-item-btn" data-type="merits" data-key="${k}"></i></span></div>`
     ).join('');
     fList.innerHTML = Object.entries(ctx.activeNpc.flaws).map(([k,v]) => 
-        `<div class="flex justify-between text-[9px] text-red-300 bg-black/50 p-1 rounded"><span>${k}</span><span>${v} pts <i class="fas fa-times text-red-500 ml-2 cursor-pointer remove-item-btn" data-type="flaws" data-key="${k}"></i></span></div>`
+        `<div class="flex justify-between text-[9px] text-red-300 bg-black/50 p-1 rounded"><span>${k}</span><span>${v} pts <i class="fas fa-times text-red-500 ml-2 cursor-pointer remove-item-btn" data-type="flaws" data-key="${k}"></i></span></di790791792788789785786787772773774775776777778779780781782783784769770771764765766767768761762763$0v>`
     ).join('');
     bindRemoveBtns();
 }
@@ -816,8 +816,12 @@ function bindRemoveBtns() {
 }
 
 function renderPrioButtons(cat, group) {
+    // CRITICAL FIX: Animal Templates (and others) return NULL for priorities.
+    // If we try to map null, it crashes. We must check first.
+    if (!ctx.currentTemplate.getPriorities) return '';
     const vals = ctx.currentTemplate.getPriorities()[cat];
-    if (!vals) return '';
+    if (!vals) return ''; // Safely return empty string if no priority array exists for this template
+
     return vals.map(v => `<button class="npc-prio-btn w-6 h-6 rounded-full border border-gray-600 text-[9px] font-bold text-gray-400 hover:text-white hover:border-[#d4af37] transition-all" data-cat="${cat}" data-group="${group}" data-val="${v}">${v}</button>`).join('');
 }
 
