@@ -9,7 +9,6 @@ import {
 } from "./combat-tracker.js";
 
 // IMPORT NEW JOURNAL LOGIC
-// We use updateJournalList to refresh the sidebar without killing the editor state
 import { renderStorytellerJournal, updateJournalList } from "./ui-journal.js";
 
 // --- STATE ---
@@ -27,18 +26,18 @@ export const stState = {
     seenHandouts: new Set(),
     dashboardActive: false,
     chatUnsub: null,
-    chatHistory: [], // Local cache for export
-    whisperTarget: null // NEW: Target for private messages
+    chatHistory: [], 
+    whisperTarget: null 
 };
 
-// Expose state globally for other modules (fixes Journal Roster visibility)
+// Expose state globally
 window.stState = stState;
 
 // --- INITIALIZATION ---
 export function initStorytellerSystem() {
     console.log("Storyteller System Initializing...");
     
-    // Window bindings - EXPOSE THESE FIRST
+    // Window bindings
     window.openChronicleModal = openChronicleModal;
     window.closeChronicleModal = closeChronicleModal;
     window.renderJoinChronicleUI = renderJoinChronicleUI;
@@ -79,14 +78,13 @@ export function initStorytellerSystem() {
     window.startChatListener = startChatListener;
     window.stClearChat = stClearChat;
     window.stExportChat = stExportChat;
-    window.stSetWhisperTarget = stSetWhisperTarget; // NEW
+    window.stSetWhisperTarget = stSetWhisperTarget;
 
     // GLOBAL PUSH API
     window.stPushNpc = async (npcData) => {
         if (!stState.activeChronicleId || !stState.isStoryteller) return showNotification("Not in ST Mode", "error");
         try {
             const id = npcData.id || "npc_" + Date.now();
-            // Path: chronicles/{chronicleId}/bestiary/{id}
             await setDoc(doc(db, 'chronicles', stState.activeChronicleId, 'bestiary', id), {
                 name: npcData.name || "Unknown",
                 type: "Custom",
@@ -99,13 +97,11 @@ export function initStorytellerSystem() {
     // Chat API
     window.sendChronicleMessage = sendChronicleMessage;
 
-    // --- BIND TOP NAV BUTTON (ROBUST METHOD) ---
     bindDashboardButton();
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', bindDashboardButton);
     }
 
-    // Check for stale session data on load
     setTimeout(checkStaleSession, 1000);
 }
 
@@ -114,10 +110,8 @@ function bindDashboardButton() {
     if (btn) {
         btn.onclick = (e) => {
             e.preventDefault();
-            console.log("ST Dashboard Button Clicked");
             window.renderStorytellerDashboard();
         };
-        console.log("ST Dashboard Button Bound");
     }
 }
 
@@ -127,9 +121,7 @@ async function checkStaleSession() {
     const storedId = localStorage.getItem('v20_last_chronicle_id');
     const storedRole = localStorage.getItem('v20_last_chronicle_role');
 
-    // 1. If Guest (no user), they cannot have an active Cloud Session
     if (!user && storedId) {
-        console.log("Guest User: Clearing stale Chronicle data.");
         disconnectChronicle(); 
         localStorage.removeItem('v20_last_chronicle_id');
         localStorage.removeItem('v20_last_chronicle_name');
@@ -138,45 +130,36 @@ async function checkStaleSession() {
         return;
     }
 
-    // 2. If ST Role, Verify Ownership
     if (user && storedId && storedRole === 'ST') {
         try {
-            // Path: chronicles/{id}
             const docRef = doc(db, 'chronicles', storedId);
             const snap = await getDoc(docRef);
             
-            // If doc missing OR user is not the owner
             if (!snap.exists() || snap.data().storyteller_uid !== user.uid) {
-                console.warn("Session Mismatch: Clearing unauthorized ST data.");
                 disconnectChronicle();
                 localStorage.removeItem('v20_last_chronicle_id');
                 localStorage.removeItem('v20_last_chronicle_name');
                 localStorage.removeItem('v20_last_chronicle_role');
                 toggleStorytellerButton(false);
             } else {
-                // Valid Session: Enable Button
                 stState.activeChronicleId = storedId;
                 stState.isStoryteller = true;
-                startStorytellerSession(); // Start listeners in background
+                startStorytellerSession(); 
                 toggleStorytellerButton(true);
             }
         } catch(e) {
             console.error("Session Check Error:", e);
         }
     } 
-    // 3. If Player Role, Initialize Combat Tracker Listener
     else if (user && storedId && storedRole === 'Player') {
         stState.activeChronicleId = storedId;
         stState.isStoryteller = false;
-        // Re-establish player ref
-        // Path: chronicles/{id}/players/{uid}
         stState.playerRef = doc(db, 'chronicles', storedId, 'players', user.uid);
         
-        console.log("Resuming Player Session for Combat Tracker...");
         initCombatTracker(storedId); 
         startPlayerSync();
-        startPlayerListeners(storedId); // Start listening for Journal pushes
-        startChatListener(storedId); // Connect to Chat
+        startPlayerListeners(storedId); 
+        startChatListener(storedId); 
     }
 }
 
@@ -195,7 +178,6 @@ function toggleStorytellerButton(show) {
 
 // --- MODAL HANDLERS ---
 export function openChronicleModal() {
-    // REVERTED: No longer toggles sidebar. Always opens modal for connection management.
     let modal = document.getElementById('chronicle-modal');
     if (!modal) return;
     modal.classList.add('active');
@@ -227,7 +209,6 @@ async function renderChronicleMenu() {
         <div id="st-campaign-list" class="mb-6 hidden"></div>
         
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <!-- JOIN CARD -->
             <div class="bg-[#111] p-6 border border-[#333] hover:border-[#d4af37] transition-all cursor-pointer group relative overflow-hidden" 
                  onclick="${user ? 'window.renderJoinChronicleUI()' : ''}"
                  style="${!user ? 'opacity:0.5; pointer-events:none;' : ''}">
@@ -242,7 +223,6 @@ async function renderChronicleMenu() {
                 </p>
             </div>
 
-            <!-- CREATE CARD -->
             <div class="bg-[#1a0505] p-6 border border-[#333] hover:border-red-600 transition-all cursor-pointer group relative overflow-hidden" 
                  onclick="${user ? 'window.renderCreateChronicleUI()' : ''}"
                  style="${!user ? 'opacity:0.5; pointer-events:none;' : ''}">
@@ -264,7 +244,6 @@ async function renderChronicleMenu() {
 
     if (!user) return;
 
-    // --- SECURE RESUME CHECK ---
     const recentId = localStorage.getItem('v20_last_chronicle_id');
     const recentRole = localStorage.getItem('v20_last_chronicle_role'); 
     
@@ -273,7 +252,6 @@ async function renderChronicleMenu() {
             let isValid = false;
             let displayName = localStorage.getItem('v20_last_chronicle_name') || recentId;
 
-            // Verify ownership/membership before showing
             if (recentRole === 'ST') {
                 const docRef = doc(db, 'chronicles', recentId);
                 const snap = await getDoc(docRef);
@@ -282,12 +260,10 @@ async function renderChronicleMenu() {
                     displayName = snap.data().name;
                 }
             } else {
-                // Player check - verify player doc exists
                 const playerRef = doc(db, 'chronicles', recentId, 'players', user.uid);
                 const snap = await getDoc(playerRef);
                 if (snap.exists()) {
                     isValid = true;
-                    // Optional: Fetch chronicle name if missing
                     if (!localStorage.getItem('v20_last_chronicle_name')) {
                         const cSnap = await getDoc(doc(db, 'chronicles', recentId));
                         if(cSnap.exists()) displayName = cSnap.data().name;
@@ -313,8 +289,6 @@ async function renderChronicleMenu() {
                 const rBlock = document.getElementById('st-resume-block');
                 if(rBlock) rBlock.innerHTML = resumeHtml;
             } else {
-                // Invalid or mismatch (e.g. Guest ID on User Account) -> Clear It
-                console.log("Clearing stale chronicle data.");
                 localStorage.removeItem('v20_last_chronicle_id');
                 localStorage.removeItem('v20_last_chronicle_name');
                 localStorage.removeItem('v20_last_chronicle_role');
@@ -324,11 +298,9 @@ async function renderChronicleMenu() {
         }
     }
 
-    // --- ASYNC LOAD OWNED CAMPAIGNS ---
     const listDiv = document.getElementById('st-campaign-list');
     if (listDiv) {
         try {
-            // Using root collection 'chronicles'
             const q = query(collection(db, 'chronicles'), where("storyteller_uid", "==", user.uid));
             const querySnapshot = await getDocs(q);
             
@@ -361,13 +333,10 @@ async function renderChronicleMenu() {
 
 async function handleDeleteChronicle(id) {
     if (!confirm("Are you sure you want to delete this Chronicle? This action CANNOT be undone and will delete all campaign data.")) return;
-    
     try {
         if (stState.activeChronicleId === id) {
             disconnectChronicle();
         }
-
-        // Delete from root collection
         await deleteDoc(doc(db, 'chronicles', id));
         showNotification("Chronicle Deleted.");
         renderChronicleMenu();
@@ -414,7 +383,6 @@ function renderJoinChronicleUI() {
         const val = e.target.value.trim();
         if (val.length >= 8) { 
             try {
-                // Check root collection
                 const snap = await getDoc(doc(db, 'chronicles', val));
                 if (snap.exists()) {
                     const data = snap.data();
@@ -473,7 +441,6 @@ function renderCreateChronicleUI() {
 }
 
 function renderConnectedStatus() {
-    // This is the fallback/ST view if they click Chronicles. 
     const container = document.getElementById('chronicle-modal-content');
     if(!container) return;
 
@@ -541,7 +508,6 @@ async function handleCreateChronicle() {
             active_scene: "Prologue"
         };
 
-        // Strict Path: chronicles/{id}
         await setDoc(doc(db, 'chronicles', chronicleId), chronicleData);
         
         localStorage.setItem('v20_last_chronicle_id', chronicleId);
@@ -579,7 +545,6 @@ async function handleJoinChronicle() {
     }
 
     try {
-        // Path: chronicles/{id}
         const docRef = doc(db, 'chronicles', idInput);
         const docSnap = await getDoc(docRef);
 
@@ -596,7 +561,6 @@ async function handleJoinChronicle() {
             return;
         }
 
-        // Path: chronicles/{id}/players/{uid}
         const playerRef = doc(db, 'chronicles', idInput, 'players', user.uid);
         const charName = document.getElementById('c-name')?.value || "Unknown Kindred";
         
@@ -622,10 +586,9 @@ async function handleJoinChronicle() {
         initCombatTracker(idInput);
         
         startPlayerSync();
-        startPlayerListeners(idInput); // Listen for pushes
-        startChatListener(idInput); // Connect to Chat
+        startPlayerListeners(idInput); 
+        startChatListener(idInput); 
 
-        // System Log
         sendChronicleMessage('system', `${charName} joined the chronicle.`);
 
         showNotification(`Joined ${data.name}. Check the Chronicle tab.`);
@@ -684,10 +647,9 @@ async function handleResumeChronicle(id, role) {
             initCombatTracker(id);
             
             startPlayerSync();
-            startPlayerListeners(id); // Listen for pushes
-            startChatListener(id); // Connect to Chat
+            startPlayerListeners(id); 
+            startChatListener(id); 
             
-            // System Log
             const charName = document.getElementById('c-name')?.value || "Unknown";
             sendChronicleMessage('system', `${charName} reconnected.`);
 
@@ -738,11 +700,9 @@ function disconnectChronicle() {
     const floatBtn = document.getElementById('player-combat-float');
     if(floatBtn) floatBtn.remove();
     
-    // Hide Chronicle Tab if visible
     const tab = document.getElementById('play-mode-chronicle');
     if(tab) tab.classList.add('hidden');
     
-    // Deactivate nav button
     const navBtn = document.getElementById('nav-chronicle');
     if(navBtn) navBtn.classList.remove('active');
 
@@ -785,38 +745,38 @@ function startPlayerListeners(chronicleId) {
     const q = query(collection(db, 'chronicles', chronicleId, 'players'));
     const unsub = onSnapshot(q, (snapshot) => {
         let updated = false;
+        
+        // Sync Players for Roster/Whisper
+        stState.players = {};
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            if (!doc.id.startsWith('journal_')) {
+                stState.players[doc.id] = data;
+            }
+        });
+
         snapshot.docChanges().forEach((change) => {
             const data = change.doc.data();
             const docId = change.doc.id;
             
-            // Check for Journal Entries (namespaced)
-            // AND check if they are pushed
             if (docId.startsWith('journal_') && data.pushed === true) {
                 const myId = auth.currentUser?.uid;
-                
-                // RECIPIENT LOGIC:
-                // 1. If recipients is MISSING or NULL, it's a broadcast to ALL.
-                // 2. If recipients is ARRAY, check if myId is included.
                 let isRecipient = false;
                 
                 if (!data.recipients) {
-                    isRecipient = true; // Everyone
+                    isRecipient = true; 
                 } else if (Array.isArray(data.recipients)) {
-                    if (data.recipients.length === 0) isRecipient = false; // Empty array means no one
+                    if (data.recipients.length === 0) isRecipient = false; 
                     else if (myId && data.recipients.includes(myId)) isRecipient = true;
                 }
                 
                 if (isRecipient) {
                     if (change.type === 'added' || change.type === 'modified') {
                         if (!window.state.codex) window.state.codex = [];
-                        
-                        // Construct local entry from pushed data
                         const entry = { ...data, id: docId }; 
-                        
                         const idx = window.state.codex.findIndex(c => c.id === docId);
                         if (idx > -1) window.state.codex[idx] = entry;
                         else window.state.codex.push(entry);
-                        
                         updated = true;
                     }
                     if (change.type === 'removed') {
@@ -831,7 +791,6 @@ function startPlayerListeners(chronicleId) {
         
         if (updated) {
             showNotification("Journal Updated from Chronicle");
-            // If the Journal tab is active, refresh it
             const journalTab = document.getElementById('play-mode-5');
             if (journalTab && journalTab.classList.contains('active')) {
                 if(window.renderJournalTab) window.renderJournalTab();
@@ -839,8 +798,7 @@ function startPlayerListeners(chronicleId) {
         }
     }, (error) => {
         if (error.code === 'permission-denied') {
-            console.warn("Journal Listener: Access Denied. You may have been removed from the Chronicle.");
-            // Optional: Disconnect automatically?
+            console.warn("Journal Listener: Access Denied.");
         } else {
             console.error("Journal Listener Error:", error);
         }
@@ -854,7 +812,6 @@ function startPlayerListeners(chronicleId) {
 // ==========================================================================
 
 function startStorytellerSession() {
-    // 1. ROSTER + JOURNAL LISTENER (COMBINED)
     const qRoster = query(collection(db, 'chronicles', stState.activeChronicleId, 'players'));
     
     stState.listeners.push(onSnapshot(qRoster, (snapshot) => {
@@ -872,7 +829,6 @@ function startStorytellerSession() {
             }
         });
 
-        // Smart UI Refresh
         if (stState.dashboardActive) {
             if (stState.currentView === 'roster') {
                 renderRosterView();
@@ -891,7 +847,6 @@ function startStorytellerSession() {
         }
     }));
 
-    // 2. BESTIARY LISTENER
     const qBestiary = query(collection(db, 'chronicles', stState.activeChronicleId, 'bestiary'));
     stState.listeners.push(onSnapshot(qBestiary, (snapshot) => {
         stState.bestiary = {};
@@ -1083,17 +1038,15 @@ function renderRosterView() {
     const viewport = document.getElementById('st-viewport');
     if (!viewport || stState.currentView !== 'roster') return;
 
-    // Filter out journal entries from players list (check metadataType OR id prefix)
     const players = Object.entries(stState.players)
         .filter(([id, p]) => !p.metadataType || p.metadataType !== 'journal')
-        .map(([id, p]) => ({...p, id})); // Add ID back to object for referencing
+        .map(([id, p]) => ({...p, id})); 
     
     if (players.length === 0) {
         viewport.innerHTML = `<div class="flex flex-col items-center justify-center h-full text-gray-500"><i class="fas fa-users-slash text-4xl mb-4 opacity-50"></i><p>No players connected.</p><p class="text-xs mt-2">Share ID: <span class="text-gold font-mono font-bold">${stState.activeChronicleId}</span></p></div>`;
         return;
     }
 
-    // COMPACT GRID LAYOUT - SQUARES
     let html = `<div class="p-6 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 overflow-y-auto h-full pb-20 custom-scrollbar">`;
 
     players.forEach(p => {
@@ -1104,11 +1057,8 @@ function renderRosterView() {
         const wp = p.live_stats?.willpower || 0;
         const bp = p.live_stats?.blood || 0;
 
-        // CALCULATE ONLINE STATUS
-        // Logic: Compare last_active timestamp with current time. 
-        // Sync runs every 10s. Allow 90s buffer for lag/timeouts.
         const now = new Date();
-        const lastActive = p.last_active ? new Date(p.last_active) : new Date(0); // Default to epoch if missing
+        const lastActive = p.last_active ? new Date(p.last_active) : new Date(0); 
         const diffSeconds = (now - lastActive) / 1000;
         const isOnline = diffSeconds < 90 && p.status !== 'Offline';
 
@@ -1125,7 +1075,6 @@ function renderRosterView() {
                     <div class="w-3 h-3 rounded-full ${statusColor}" title="${statusTitle}"></div>
                 </div>
 
-                <!-- Center Stats - TEXT LABELS -->
                 <div class="flex flex-col justify-center gap-1 flex-1 my-2 text-[10px] font-bold">
                     <div class="flex justify-between items-center bg-black/40 px-2 py-1 rounded border border-[#222]">
                         <span class="text-gray-500 uppercase">Health</span>
@@ -1153,18 +1102,20 @@ function renderRosterView() {
     viewport.innerHTML = html;
 }
 
-// NEW: Set Whisper Target
+// NEW: Set Whisper Target via Roster Click (Legacy support, but also updates select)
 function stSetWhisperTarget(id, name) {
-    stState.whisperTarget = { id, name };
-    showNotification(`Whispering to ${name}`);
+    // If the view isn't chat, switch to chat
     window.switchStorytellerView('chat');
     
-    // Auto-fill input prefix if needed, or just set context
-    const input = document.getElementById('st-chat-input');
-    if (input) {
-        input.placeholder = `Whisper to ${name}...`;
-        input.focus();
-    }
+    // Defer slightly to ensure chat view is rendered
+    setTimeout(() => {
+        const select = document.getElementById('st-chat-target');
+        if (select) {
+            select.value = id;
+            // Visual feedback
+            showNotification(`Whispering to ${name}`);
+        }
+    }, 100);
 }
 
 // --- VIEW 2: COMBAT ---
@@ -1207,7 +1158,6 @@ function renderCombatView() {
     } else {
         combatants.forEach(c => {
             const isNPC = c.type === 'NPC';
-            // Active State Highlighting
             const activeClass = c.active ? 'border-[#d4af37] bg-[#2a2a2a] shadow-[0_0_15px_rgba(212,175,55,0.2)] transform scale-[1.01]' : 'border-[#333] bg-[#1a1a1a] opacity-80';
             const activeIndicator = c.active ? `<div class="absolute left-0 top-0 bottom-0 w-1 bg-[#d4af37]"></div>` : '';
 
@@ -1343,7 +1293,7 @@ function renderNpcCard(entry, id, isCustom, container, clearFirst = false) {
 }
 
 // ==========================================================================
-// CHAT / LOGGING SYSTEM (UPDATED WITH DATE & VISUAL DICE)
+// CHAT / LOGGING SYSTEM
 // ==========================================================================
 
 function startChatListener(chronicleId) {
@@ -1553,10 +1503,10 @@ async function stSendEvent() {
     sendChronicleMessage('event', txt);
     input.value = '';
 }
-window.stSendEvent = stSendEvent; // Bind for usage
+window.stSendEvent = stSendEvent; 
 
 // EXPORTED API
-async function sendChronicleMessage(type, content, details = null) {
+async function sendChronicleMessage(type, content, details = null, options = {}) {
     if (!stState.activeChronicleId) return;
     
     let senderName = "Unknown";
@@ -1566,20 +1516,9 @@ async function sendChronicleMessage(type, content, details = null) {
         senderName = document.getElementById('c-name')?.value || "Player";
     }
 
-    // WHISPER LOGIC
-    let isWhisper = false;
-    let recipientId = null;
-
-    if (stState.whisperTarget && type === 'chat') {
-        isWhisper = true;
-        recipientId = stState.whisperTarget.id;
-        // Reset whisper target after sending? Optional. Let's keep it sticky for now or clear it.
-        // For simplicity, let's keep it one-off or require manual clear. 
-        // Actually, let's clear it to avoid accidents.
-        stState.whisperTarget = null;
-        const input = document.getElementById('st-chat-input');
-        if (input) input.placeholder = "Broadcast message...";
-    }
+    // WHISPER LOGIC: Check options first
+    let isWhisper = options.isWhisper || false;
+    let recipientId = options.recipientId || null;
 
     try {
         await addDoc(collection(db, 'chronicles', stState.activeChronicleId, 'messages'), {
@@ -1600,15 +1539,21 @@ async function sendChronicleMessage(type, content, details = null) {
 
 // --- UPDATED ST CHAT VIEW WITH TOOLBAR ---
 function renderChatView(container) {
+    let playerOptions = '<option value="">Everyone (Public)</option>';
+    // Build options from stState.players
+    Object.values(stState.players).forEach(p => {
+        // Filter journal metadata entries if they exist in the players map
+        if (p.character_name) {
+            playerOptions += `<option value="${p.id}">${p.character_name} (${p.player_name || 'Player'})</option>`;
+        }
+    });
+
     container.innerHTML = `
         <div class="flex flex-col h-full relative">
             <!-- TOOLBAR (NEW) -->
             <div class="bg-[#1a1a1a] border-b border-[#333] p-2 flex justify-between items-center">
                 <div class="text-[10px] text-gray-500 uppercase font-bold tracking-widest flex items-center gap-2">
                     <i class="fas fa-history"></i> History
-                    <button onclick="window.stSendEvent()" class="text-[#d4af37] hover:text-white border border-[#d4af37]/50 px-2 py-0.5 rounded text-[9px] uppercase ml-4" title="Send text in input as Big Gold Event">
-                        <i class="fas fa-bullhorn"></i> Announce
-                    </button>
                 </div>
                 <div class="flex gap-2">
                     <button onclick="window.stExportChat()" class="text-xs bg-[#222] hover:bg-[#333] text-gray-300 border border-[#444] px-3 py-1 rounded uppercase font-bold transition-colors" title="Download Log">
@@ -1625,13 +1570,26 @@ function renderChatView(container) {
                 <div class="text-center text-gray-600 text-xs italic mt-4">Loading history...</div>
             </div>
             
-            <!-- Input -->
-            <div class="p-4 bg-[#111] border-t border-[#333]">
-                <div class="flex gap-2">
-                    <input type="text" id="st-chat-input" placeholder="Broadcast message..." class="flex-1 bg-[#050505] border border-[#333] text-white p-3 text-sm focus:border-[#d4af37] outline-none">
-                    <button id="st-chat-send" class="bg-[#d4af37] text-black font-bold uppercase px-6 py-2 hover:bg-[#fcd34d]">Send</button>
+            <!-- Input Area -->
+            <div class="p-4 bg-[#111] border-t border-[#333] space-y-2">
+                <!-- Whisper Target Selector -->
+                <div class="flex items-center gap-2">
+                    <label class="text-[9px] text-gray-500 font-bold uppercase">To:</label>
+                    <select id="st-chat-target" class="flex-1 bg-[#050505] border border-[#333] text-gray-300 text-xs p-1 outline-none focus:border-[#d4af37]">
+                        ${playerOptions}
+                    </select>
                 </div>
-                <div id="whisper-indicator" class="text-[9px] text-purple-400 mt-1 hidden"></div>
+
+                <!-- Message Input -->
+                <div class="flex gap-2">
+                    <input type="text" id="st-chat-input" placeholder="Enter message..." class="flex-1 bg-[#050505] border border-[#333] text-white p-3 text-sm focus:border-[#d4af37] outline-none">
+                    <button id="st-chat-send" class="bg-[#d4af37] text-black font-bold uppercase px-6 py-2 hover:bg-[#fcd34d]">Send</button>
+                    
+                    <!-- Announce Button Moved Here -->
+                    <button onclick="window.stSendEvent()" class="bg-[#222] border border-[#d4af37] text-[#d4af37] font-bold px-3 py-2 text-xs uppercase hover:bg-[#333] hover:text-white transition-colors" title="Send as Major Event Announcement">
+                        <i class="fas fa-bullhorn"></i>
+                    </button>
+                </div>
             </div>
         </div>
     `;
@@ -1639,28 +1597,20 @@ function renderChatView(container) {
     // Bind ST Inputs
     const sendBtn = document.getElementById('st-chat-send');
     const input = document.getElementById('st-chat-input');
+    const targetSelect = document.getElementById('st-chat-target');
     
-    // WHISPER UI LOGIC
-    if (stState.whisperTarget) {
-        input.placeholder = `Whisper to ${stState.whisperTarget.name}...`;
-        const ind = document.getElementById('whisper-indicator');
-        if(ind) {
-            ind.innerText = `Whispering to ${stState.whisperTarget.name} (Click Roster to cancel)`;
-            ind.classList.remove('hidden');
-        }
-    }
-
     const sendHandler = () => {
         const txt = input.value.trim();
         if (txt) {
-            sendChronicleMessage('chat', txt);
-            input.value = '';
-            // Clear whisper after send?
-            if (stState.whisperTarget) {
-                stState.whisperTarget = null;
-                input.placeholder = "Broadcast message...";
-                document.getElementById('whisper-indicator').classList.add('hidden');
+            const targetId = targetSelect.value;
+            const options = {};
+            if (targetId) {
+                options.recipientId = targetId;
+                options.isWhisper = true;
             }
+            
+            sendChronicleMessage('chat', txt, null, options);
+            input.value = '';
         }
     };
 
