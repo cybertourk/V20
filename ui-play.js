@@ -1224,10 +1224,12 @@ window.updateRitualsPlayView = updateRitualsPlayView;
 
 // --- NEW FUNCTION: RENDER CHRONICLE TAB (UPDATED WITH CHAT) ---
 export async function renderChronicleTab() {
-    // FIX: Target the correct tab container ID (play-mode-5)
-    let container = document.getElementById('play-mode-5');
-    // Fallback if the ID was changed in HTML
-    if (!container) container = document.getElementById('play-mode-chronicle');
+    // FIX: TARGET 'play-mode-chronicle' FIRST
+    // This is the container injected by ui-storyteller.js
+    let container = document.getElementById('play-mode-chronicle');
+    
+    // Only fall back to slot 5 if the specific container isn't found
+    if (!container) container = document.getElementById('play-mode-5');
     
     if (!container) return;
 
