@@ -301,6 +301,10 @@ export function applyPlayModeUI() {
         renderDetailedDisciplines();
         updateRitualsPlayView();
         
+        // AUTO-RENDER CHRONICLE & NPC TABS
+        renderChronicleTab();
+        renderNpcTab();
+        
         checkCombatStatus();
         
         setTimeout(() => {
