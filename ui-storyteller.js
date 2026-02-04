@@ -27,7 +27,8 @@ export const stState = {
     seenHandouts: new Set(),
     dashboardActive: false,
     chatUnsub: null,
-    chatHistory: [] // Local cache for export
+    chatHistory: [], // Local cache for export
+    whisperTarget: null // NEW: Target for private messages
 };
 
 // Expose state globally for other modules (fixes Journal Roster visibility)
@@ -78,6 +79,7 @@ export function initStorytellerSystem() {
     window.startChatListener = startChatListener;
     window.stClearChat = stClearChat;
     window.stExportChat = stExportChat;
+    window.stSetWhisperTarget = stSetWhisperTarget; // NEW
 
     // GLOBAL PUSH API
     window.stPushNpc = async (npcData) => {
@@ -1076,7 +1078,7 @@ async function stSaveSettings() {
     }
 }
 
-// --- VIEW 1: ROSTER (UPDATED: Compact Cards with Text Labels & Logic-Based Online Status) ---
+// --- VIEW 1: ROSTER (UPDATED: Click to Whisper) ---
 function renderRosterView() {
     const viewport = document.getElementById('st-viewport');
     if (!viewport || stState.currentView !== 'roster') return;
@@ -1116,8 +1118,8 @@ function renderRosterView() {
         html += `
             <div class="bg-[#1a1a1a] border border-[#333] rounded p-3 shadow-lg relative group hover:border-[#d4af37] transition-all flex flex-col justify-between aspect-square">
                 <div class="flex justify-between items-start mb-1">
-                    <div class="overflow-hidden mr-1">
-                        <h3 class="font-bold text-sm text-white truncate w-full font-cinzel text-shadow" title="${p.character_name || "Unknown"}">${p.character_name || "Unknown"}</h3>
+                    <div class="overflow-hidden mr-1 cursor-pointer" onclick="window.stSetWhisperTarget('${p.id}', '${p.character_name}')" title="Click to Whisper">
+                        <h3 class="font-bold text-sm text-white truncate w-full font-cinzel text-shadow hover:text-[#d4af37] transition-colors">${p.character_name || "Unknown"}</h3>
                         <div class="text-[10px] text-gray-500 truncate font-mono">${p.player_name || "Player"}</div>
                     </div>
                     <div class="w-3 h-3 rounded-full ${statusColor}" title="${statusTitle}"></div>
@@ -1149,6 +1151,20 @@ function renderRosterView() {
     });
     html += `</div>`;
     viewport.innerHTML = html;
+}
+
+// NEW: Set Whisper Target
+function stSetWhisperTarget(id, name) {
+    stState.whisperTarget = { id, name };
+    showNotification(`Whispering to ${name}`);
+    window.switchStorytellerView('chat');
+    
+    // Auto-fill input prefix if needed, or just set context
+    const input = document.getElementById('st-chat-input');
+    if (input) {
+        input.placeholder = `Whisper to ${name}...`;
+        input.focus();
+    }
 }
 
 // --- VIEW 2: COMBAT ---
@@ -1327,7 +1343,7 @@ function renderNpcCard(entry, id, isCustom, container, clearFirst = false) {
 }
 
 // ==========================================================================
-// CHAT / LOGGING SYSTEM (UPDATED)
+// CHAT / LOGGING SYSTEM (UPDATED WITH DATE & VISUAL DICE)
 // ==========================================================================
 
 function startChatListener(chronicleId) {
@@ -1389,32 +1405,69 @@ function renderMessageList(container, messages) {
         return;
     }
 
+    const uid = auth.currentUser?.uid;
+
     messages.forEach(msg => {
+        // FILTER: Check if message is private (Whisper)
+        if (msg.isWhisper) {
+            const isSender = msg.senderId === uid;
+            const isRecipient = msg.recipientId === uid;
+            if (!isSender && !isRecipient) return; // Skip if not involved
+        }
+
         const div = document.createElement('div');
         div.className = "mb-2 text-xs";
         
-        const time = msg.timestamp ? new Date(msg.timestamp.seconds * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '';
+        // DATE FORMATTING
+        const dateObj = msg.timestamp ? new Date(msg.timestamp.seconds * 1000) : new Date();
+        const dateStr = dateObj.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+        const timeStr = dateObj.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+        const fullTime = `${dateStr} ${timeStr}`;
         
-        if (msg.type === 'system') {
-            div.innerHTML = `<div class="text-gray-500 italic text-center text-[10px] border-b border-[#333] leading-tight pb-1 mb-1"><span class="mr-2">${time}</span>${msg.content}</div>`;
-        } else if (msg.type === 'roll') {
+        if (msg.type === 'event') {
+            // NARRATIVE BEAT (BIG GOLD TEXT)
             div.innerHTML = `
-                <div class="bg-[#111] border border-[#333] p-2 rounded relative">
+                <div class="my-4 text-center border-t border-b border-[#d4af37]/30 py-2 bg-black/40">
+                    <div class="text-[#d4af37] font-cinzel font-bold text-lg uppercase tracking-widest text-shadow">${msg.content}</div>
+                    <div class="text-[9px] text-gray-600 font-mono mt-1">${fullTime}</div>
+                </div>
+            `;
+        } else if (msg.type === 'system') {
+            div.innerHTML = `<div class="text-gray-500 italic text-center text-[10px] border-b border-[#333] leading-tight pb-1 mb-1"><span class="mr-2">${fullTime}</span>${msg.content}</div>`;
+        } else if (msg.type === 'roll') {
+            // VISUAL DICE RENDERING
+            let diceHTML = '';
+            if (msg.details && msg.details.results) {
+                diceHTML = msg.details.results.map(d => {
+                    let color = 'text-gray-500 border-gray-700';
+                    if (d >= (msg.details.diff || 6)) color = 'text-[#d4af37] border-[#d4af37] font-bold';
+                    if (d === 10 && msg.details.isSpec) color = 'text-[#4ade80] border-[#4ade80] font-black shadow-[0_0_5px_lime]';
+                    if (d === 1) color = 'text-red-600 border-red-900 font-bold';
+                    return `<span class="inline-flex items-center justify-center w-5 h-5 border ${color} bg-black/50 rounded text-[10px] mx-0.5">${d}</span>`;
+                }).join('');
+            }
+
+            div.innerHTML = `
+                <div class="bg-[#111] border border-[#333] p-2 rounded relative group hover:border-[#555] transition-colors">
                     <div class="flex justify-between items-baseline mb-1">
                         <span class="font-bold text-[#d4af37]">${msg.sender}</span>
-                        <span class="text-[9px] text-gray-600">${time}</span>
+                        <span class="text-[9px] text-gray-600">${fullTime}</span>
                     </div>
-                    <div class="text-gray-300 font-mono">${msg.content}</div>
-                    ${msg.details ? `<div class="text-[10px] text-gray-500 mt-1 pt-1 border-t border-[#222]">Pool: ${msg.details.pool} (Diff ${msg.details.diff})</div>` : ''}
+                    <div class="text-gray-300 font-mono mb-1">${msg.content}</div>
+                    ${diceHTML ? `<div class="flex flex-wrap mt-1 py-1 border-t border-[#222] bg-black/20 justify-center">${diceHTML}</div>` : ''}
+                    ${msg.details ? `<div class="text-[9px] text-gray-500 mt-1 text-center">Pool: ${msg.details.pool} (Diff ${msg.details.diff})</div>` : ''}
                 </div>
             `;
         } else {
-            // Chat
-            const isSelf = msg.senderId === auth.currentUser?.uid;
+            // CHAT / WHISPER
+            const isSelf = msg.senderId === uid;
+            const whisperClass = msg.isWhisper ? 'border-purple-500/50 bg-purple-900/10' : 'border-[#333] bg-[#1a1a1a]';
+            const whisperLabel = msg.isWhisper ? `<span class="text-purple-400 font-bold text-[9px] mr-1">[WHISPER]</span>` : '';
+            
             div.innerHTML = `
                 <div class="${isSelf ? 'text-right' : 'text-left'}">
-                    <div class="text-[10px] text-gray-500 font-bold mb-0.5">${msg.sender} <span class="font-normal opacity-50 text-[9px] ml-1">${time}</span></div>
-                    <div class="inline-block px-3 py-1.5 rounded ${isSelf ? 'bg-[#2a2a2a] text-gray-200' : 'bg-[#1a1a1a] text-gray-300 border border-[#333]'}">${msg.content}</div>
+                    <div class="text-[10px] text-gray-500 font-bold mb-0.5">${whisperLabel}${msg.sender} <span class="font-normal opacity-50 text-[9px] ml-1">${fullTime}</span></div>
+                    <div class="inline-block px-3 py-1.5 rounded ${isSelf ? 'bg-[#2a2a2a] text-gray-200' : `${whisperClass} text-gray-300 border border-[#333]`}">${msg.content}</div>
                 </div>
             `;
         }
@@ -1438,11 +1491,14 @@ async function stExportChat() {
     stState.chatHistory.forEach(msg => {
         const time = msg.timestamp ? new Date(msg.timestamp.seconds * 1000).toLocaleString() : 'Unknown';
         if (msg.type === 'system') {
-            textContent += `[${time}] SYSTEM: ${msg.content.replace(/<[^>]*>/g, '')}\n`; // Strip HTML
+            textContent += `[${time}] SYSTEM: ${msg.content.replace(/<[^>]*>/g, '')}\n`; 
+        } else if (msg.type === 'event') {
+            textContent += `[${time}] EVENT: ${msg.content}\n`;
         } else if (msg.type === 'roll') {
             textContent += `[${time}] ${msg.sender} ROLLED: ${msg.content.replace(/<[^>]*>/g, '')} (Pool: ${msg.details?.pool || '?'})\n`;
         } else {
-            textContent += `[${time}] ${msg.sender}: ${msg.content}\n`;
+            const whisperTag = msg.isWhisper ? "[WHISPER] " : "";
+            textContent += `[${time}] ${whisperTag}${msg.sender}: ${msg.content}\n`;
         }
     });
 
@@ -1487,6 +1543,18 @@ async function stClearChat() {
     }
 }
 
+// 3. New Event Message (Announcement)
+async function stSendEvent() {
+    const input = document.getElementById('st-chat-input');
+    if(!input) return;
+    const txt = input.value.trim();
+    if(!txt) return;
+    
+    sendChronicleMessage('event', txt);
+    input.value = '';
+}
+window.stSendEvent = stSendEvent; // Bind for usage
+
 // EXPORTED API
 async function sendChronicleMessage(type, content, details = null) {
     if (!stState.activeChronicleId) return;
@@ -1498,6 +1566,21 @@ async function sendChronicleMessage(type, content, details = null) {
         senderName = document.getElementById('c-name')?.value || "Player";
     }
 
+    // WHISPER LOGIC
+    let isWhisper = false;
+    let recipientId = null;
+
+    if (stState.whisperTarget && type === 'chat') {
+        isWhisper = true;
+        recipientId = stState.whisperTarget.id;
+        // Reset whisper target after sending? Optional. Let's keep it sticky for now or clear it.
+        // For simplicity, let's keep it one-off or require manual clear. 
+        // Actually, let's clear it to avoid accidents.
+        stState.whisperTarget = null;
+        const input = document.getElementById('st-chat-input');
+        if (input) input.placeholder = "Broadcast message...";
+    }
+
     try {
         await addDoc(collection(db, 'chronicles', stState.activeChronicleId, 'messages'), {
             type: type,
@@ -1505,11 +1588,12 @@ async function sendChronicleMessage(type, content, details = null) {
             sender: senderName,
             senderId: auth.currentUser.uid,
             details: details,
-            timestamp: new Date() // Firestore will convert or use serverTimestamp if imported
+            timestamp: new Date(),
+            isWhisper: isWhisper,
+            recipientId: recipientId
         });
     } catch(e) {
         console.error("Chat Error:", e.message);
-        // Suppress alert for system messages to avoid spam if disconnected
         if (type !== 'system') showNotification("Failed to send message: " + e.message, "error");
     }
 }
@@ -1520,8 +1604,11 @@ function renderChatView(container) {
         <div class="flex flex-col h-full relative">
             <!-- TOOLBAR (NEW) -->
             <div class="bg-[#1a1a1a] border-b border-[#333] p-2 flex justify-between items-center">
-                <div class="text-[10px] text-gray-500 uppercase font-bold tracking-widest">
-                    <i class="fas fa-history mr-1"></i> History
+                <div class="text-[10px] text-gray-500 uppercase font-bold tracking-widest flex items-center gap-2">
+                    <i class="fas fa-history"></i> History
+                    <button onclick="window.stSendEvent()" class="text-[#d4af37] hover:text-white border border-[#d4af37]/50 px-2 py-0.5 rounded text-[9px] uppercase ml-4" title="Send text in input as Big Gold Event">
+                        <i class="fas fa-bullhorn"></i> Announce
+                    </button>
                 </div>
                 <div class="flex gap-2">
                     <button onclick="window.stExportChat()" class="text-xs bg-[#222] hover:bg-[#333] text-gray-300 border border-[#444] px-3 py-1 rounded uppercase font-bold transition-colors" title="Download Log">
@@ -1544,6 +1631,7 @@ function renderChatView(container) {
                     <input type="text" id="st-chat-input" placeholder="Broadcast message..." class="flex-1 bg-[#050505] border border-[#333] text-white p-3 text-sm focus:border-[#d4af37] outline-none">
                     <button id="st-chat-send" class="bg-[#d4af37] text-black font-bold uppercase px-6 py-2 hover:bg-[#fcd34d]">Send</button>
                 </div>
+                <div id="whisper-indicator" class="text-[9px] text-purple-400 mt-1 hidden"></div>
             </div>
         </div>
     `;
@@ -1552,11 +1640,27 @@ function renderChatView(container) {
     const sendBtn = document.getElementById('st-chat-send');
     const input = document.getElementById('st-chat-input');
     
+    // WHISPER UI LOGIC
+    if (stState.whisperTarget) {
+        input.placeholder = `Whisper to ${stState.whisperTarget.name}...`;
+        const ind = document.getElementById('whisper-indicator');
+        if(ind) {
+            ind.innerText = `Whispering to ${stState.whisperTarget.name} (Click Roster to cancel)`;
+            ind.classList.remove('hidden');
+        }
+    }
+
     const sendHandler = () => {
         const txt = input.value.trim();
         if (txt) {
             sendChronicleMessage('chat', txt);
             input.value = '';
+            // Clear whisper after send?
+            if (stState.whisperTarget) {
+                stState.whisperTarget = null;
+                input.placeholder = "Broadcast message...";
+                document.getElementById('whisper-indicator').classList.add('hidden');
+            }
         }
     };
 
