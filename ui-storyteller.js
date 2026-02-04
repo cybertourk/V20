@@ -125,6 +125,21 @@ function injectChronicleNav() {
     // Check if nav exists and button doesn't already exist
     if (!nav || document.getElementById('nav-chronicle')) return;
     
+    // CRITICAL FIX: Ensure the view container exists
+    let tab = document.getElementById('play-mode-chronicle');
+    if (!tab) {
+        tab = document.createElement('div');
+        tab.id = 'play-mode-chronicle';
+        // Add classes consistent with other play views (full height, hidden by default)
+        tab.className = 'hidden h-full overflow-hidden'; 
+        const sheetContainer = document.getElementById('play-mode-sheet');
+        if (sheetContainer) {
+            sheetContainer.appendChild(tab);
+        } else {
+            console.warn("Could not find 'play-mode-sheet' to inject Chronicle tab.");
+        }
+    }
+    
     const btn = document.createElement('div');
     btn.id = 'nav-chronicle';
     btn.className = 'nav-item';
@@ -133,21 +148,30 @@ function injectChronicleNav() {
     btn.onclick = () => {
         // Switch to Play Mode if not active
         if (!window.state.isPlayMode) {
-            window.togglePlayMode();
+            if(window.togglePlayMode) window.togglePlayMode();
         }
         
-        // Hide all Play Mode step containers
-        document.querySelectorAll('.step-container').forEach(el => el.classList.remove('active'));
+        // Hide all Play Mode views (IDs starting with play-mode-)
+        // EXCLUDING 'play-mode-sheet' itself
+        const sheet = document.getElementById('play-mode-sheet');
+        if(sheet) {
+            Array.from(sheet.children).forEach(child => {
+                if(child.id && child.id.startsWith('play-mode-')) {
+                    child.classList.add('hidden');
+                }
+            });
+        }
         
         // Show Chronicle Tab
-        const tab = document.getElementById('play-mode-chronicle');
-        if(tab) {
-            tab.classList.remove('hidden');
-            tab.classList.add('active');
+        const target = document.getElementById('play-mode-chronicle');
+        if(target) {
+            target.classList.remove('hidden');
             
             // DELEGATE RENDER TO UI-PLAY.JS
             if (window.renderChronicleTab) {
                 window.renderChronicleTab();
+            } else {
+                console.error("renderChronicleTab missing from global window scope.");
             }
         }
         
