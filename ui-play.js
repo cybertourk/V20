@@ -301,8 +301,9 @@ export function applyPlayModeUI() {
         renderDetailedDisciplines();
         updateRitualsPlayView();
         
-        // AUTO-RENDER TABS
-        // Ensures the 7th tab content is ready when clicked
+        // AUTO-RENDER CHRONICLE & NPC TABS
+        // Note: renderNpcTab targets 'play-mode-6' (Tab 6: NPCs)
+        // renderChronicleTab targets 'play-mode-chronicle' (Tab 7: Chronicle)
         ensureChronicleTabContainer();
         renderChronicleTab();
         renderNpcTab();
