@@ -302,8 +302,6 @@ export function applyPlayModeUI() {
         updateRitualsPlayView();
         
         // AUTO-RENDER CHRONICLE & NPC TABS
-        // Note: renderNpcTab targets 'play-mode-6' (Tab 6: NPCs)
-        // renderChronicleTab targets 'play-mode-chronicle' (Tab 7: Chronicle)
         ensureChronicleTabContainer();
         renderChronicleTab();
         renderNpcTab();
@@ -1226,11 +1224,9 @@ export function updateRitualsPlayView() {
 window.updateRitualsPlayView = updateRitualsPlayView;
 
 // --- AUTO-CREATION HELPER ---
-// Ensures the Chronicle tab container exists so renderChronicleTab() has a target
 function ensureChronicleTabContainer() {
     let container = document.getElementById('play-mode-chronicle');
     
-    // Create if missing
     if (!container) {
         const parent = document.getElementById('play-mode-sheet');
         if (parent) {
@@ -1240,31 +1236,24 @@ function ensureChronicleTabContainer() {
         }
     }
     
-    // FORCE LAYOUT FIX (Addressing the 0-height issue)
     if (container) {
-        // We preserve 'hidden' if it's there, but ensure layout classes are robust
-        // If it was created by storyteller.js it might be 'hidden h-full overflow-hidden'
-        // We want 'w-full min-h-[75vh]'
-        
         if (!container.classList.contains('min-h-[75vh]')) {
             container.classList.add('w-full', 'min-h-[75vh]');
         }
-        // Remove h-full to avoid conflict if parent is 0 height
         container.classList.remove('h-full');
     }
 }
 
-// --- NEW FUNCTION: RENDER CHRONICLE TAB (UPDATED WITH CHAT) ---
+// --- NEW FUNCTION: RENDER CHRONICLE TAB (WITH SUB-TABS) ---
 export async function renderChronicleTab() {
     // 1. Ensure Container Exists
     ensureChronicleTabContainer();
     
     // 2. Target Container
     let container = document.getElementById('play-mode-chronicle');
-    
     if (!container) return;
 
-    // Check if player has joined a chronicle (stored in localStorage)
+    // Check if player has joined a chronicle
     const chronicleId = localStorage.getItem('v20_last_chronicle_id') || (window.stState && window.stState.activeChronicleId);
     
     if (!chronicleId) {
@@ -1277,7 +1266,10 @@ export async function renderChronicleTab() {
         return;
     }
 
-    // Loading state
+    // Default State if missing
+    if (!window.state.chronicleSubTab) window.state.chronicleSubTab = 'info';
+
+    // Show Loading
     container.innerHTML = `<div class="flex flex-col items-center justify-center h-full text-gold"><i class="fas fa-circle-notch fa-spin text-2xl mb-2"></i><span class="text-xs uppercase tracking-widest">Connecting to Chronicle...</span></div>`;
 
     try {
@@ -1290,77 +1282,47 @@ export async function renderChronicleTab() {
         }
 
         const data = snap.data();
+        const currentTab = window.state.chronicleSubTab;
+        const activeClass = "border-b-2 border-[#d4af37] text-[#d4af37] font-bold";
+        const inactiveClass = "text-gray-500 hover:text-white transition-colors";
 
-        // SPLIT LAYOUT: Chat Left (60%), Info Right (40%)
+        // TABBED SHELL STRUCTURE
         container.innerHTML = `
-            <div class="flex h-full gap-6">
-                <!-- LEFT: CHAT & LOG -->
-                <div class="w-3/5 flex flex-col bg-[#0a0a0a] border border-[#333] shadow-lg">
-                    <div class="bg-[#111] p-3 border-b border-[#333] flex justify-between items-center mb-2">
-                        <div class="flex items-center gap-2">
-                            <i class="fas fa-comments text-[#d4af37]"></i>
-                            <h3 class="text-[#d4af37] font-cinzel font-bold text-sm uppercase tracking-widest">Chronicle Chat</h3>
-                        </div>
-                        <div class="text-[9px] text-gray-500 font-mono">ID: <span class="text-white">${chronicleId}</span></div>
-                    </div>
-                    <div class="flex-1 overflow-y-auto space-y-3 p-4 bg-[url('https://www.transparenttextures.com/patterns/black-linen.png')] custom-scrollbar" id="chronicle-chat-history">
-                        <div class="text-center text-gray-500 italic text-xs mt-10">Connecting...</div>
-                    </div>
-                    <div class="mt-auto border-t border-[#333] p-3 bg-[#111] flex gap-2">
-                        <input type="text" id="chronicle-chat-input" class="flex-1 bg-[#050505] border border-[#333] text-white p-2 text-sm outline-none focus:border-[#d4af37]" placeholder="Send a message...">
-                        <button id="chronicle-chat-send" class="bg-[#d4af37] text-black font-bold uppercase px-4 py-2 hover:bg-[#fcd34d] transition-colors text-xs">Send</button>
-                    </div>
+            <div class="flex flex-col h-full relative">
+                <!-- TABS HEADER -->
+                <div class="flex gap-6 border-b border-[#333] pb-2 mb-4 px-2 shrink-0">
+                    <button id="tab-chron-info" class="text-xs uppercase tracking-wider px-2 pb-1 ${currentTab==='info'?activeClass:inactiveClass}">
+                        <i class="fas fa-info-circle mr-2"></i>Info & Lore
+                    </button>
+                    <button id="tab-chron-chat" class="text-xs uppercase tracking-wider px-2 pb-1 ${currentTab==='chat'?activeClass:inactiveClass}">
+                        <i class="fas fa-comments mr-2"></i>Chat / Log
+                    </button>
                 </div>
 
-                <!-- RIGHT: CHRONICLE INFO -->
-                <div class="w-2/5 overflow-y-auto custom-scrollbar pr-2 space-y-6">
-                    <!-- Header -->
-                    <div class="border-b border-[#af0000] pb-2 text-center">
-                        <h2 class="text-2xl font-cinzel text-[#af0000] font-bold tracking-widest uppercase">${data.name || "Untitled"}</h2>
-                        <div class="text-[10px] text-gold font-serif italic uppercase tracking-widest">${data.timePeriod || "Modern Nights"}</div>
-                    </div>
-
-                    <!-- Synopsis -->
-                    <div class="bg-[#111] p-4 border border-[#333] relative group hover:border-[#af0000] transition-colors">
-                        <div class="absolute -top-2 left-4 bg-black px-2 text-[9px] text-gray-500 font-bold uppercase tracking-wider group-hover:text-[#af0000] transition-colors">Synopsis</div>
-                        <div class="text-xs text-gray-300 font-serif leading-relaxed whitespace-pre-wrap">${data.synopsis || "No synopsis provided."}</div>
-                    </div>
-
-                    <!-- House Rules -->
-                    <div class="bg-[#1a0505] p-4 border border-red-900/30 relative shadow-lg">
-                        <div class="absolute -top-2 left-4 bg-black px-2 text-[9px] text-red-500 font-bold uppercase tracking-wider">House Rules</div>
-                        <div class="text-xs text-gray-400 font-serif leading-relaxed whitespace-pre-wrap">${data.houseRules || "Standard V20 Rules apply."}</div>
-                    </div>
-
-                    <!-- Lore / Setting -->
-                    <div class="bg-[#0a0a0a] p-4 border border-[#d4af37]/30 relative shadow-lg">
-                        <div class="absolute -top-2 left-4 bg-black px-2 text-[9px] text-[#d4af37] font-bold uppercase tracking-wider">Lore & Setting</div>
-                        <div class="text-xs text-gray-400 font-serif leading-relaxed whitespace-pre-wrap">${data.lore || "No specific setting details available."}</div>
-                    </div>
+                <!-- CONTENT AREA -->
+                <div id="chronicle-content-area" class="flex-1 overflow-hidden relative">
+                    <!-- Views injected here -->
                 </div>
             </div>
         `;
 
-        // --- BIND EVENTS ---
-        const sendBtn = document.getElementById('chronicle-chat-send');
-        const input = document.getElementById('chronicle-chat-input');
-        
-        const sendHandler = () => {
-            const txt = input.value.trim();
-            if (txt && window.sendChronicleMessage) {
-                window.sendChronicleMessage('chat', txt);
-                input.value = '';
-            }
+        // BIND TAB CLICKS
+        document.getElementById('tab-chron-info').onclick = () => {
+            window.state.chronicleSubTab = 'info';
+            renderChronicleTab(); // Re-render to switch view
         };
-        
-        if(sendBtn) sendBtn.onclick = sendHandler;
-        if(input) input.onkeydown = (e) => { if(e.key === 'Enter') sendHandler(); };
+        document.getElementById('tab-chron-chat').onclick = () => {
+            window.state.chronicleSubTab = 'chat';
+            renderChronicleTab();
+        };
 
-        // --- TRIGGER LISTENER VIA WINDOW BINDING (SAFE) ---
-        if (window.startChatListener) {
-            window.startChatListener(chronicleId);
+        const contentArea = document.getElementById('chronicle-content-area');
+
+        // RENDER SUB-VIEW
+        if (currentTab === 'info') {
+            renderChronicleInfoView(contentArea, data);
         } else {
-            console.warn("startChatListener not found on window object.");
+            renderChronicleChatView(contentArea, chronicleId);
         }
 
     } catch (e) {
@@ -1368,5 +1330,90 @@ export async function renderChronicleTab() {
         container.innerHTML = `<div class="text-center text-red-500 mt-10">Error loading chronicle data. Check connection.</div>`;
     }
 }
-// Export binding for nav
 window.renderChronicleTab = renderChronicleTab;
+
+// --- SUB-VIEW: INFO ---
+function renderChronicleInfoView(container, data) {
+    container.innerHTML = `
+        <div class="overflow-y-auto h-full custom-scrollbar pr-2 space-y-6">
+            <!-- Header -->
+            <div class="border-b border-[#af0000] pb-4 text-center">
+                <h2 class="text-3xl font-cinzel text-[#af0000] font-bold tracking-widest uppercase text-shadow-md">${data.name || "Untitled"}</h2>
+                <div class="text-xs text-gold font-serif italic uppercase tracking-widest mt-1">${data.timePeriod || "Modern Nights"}</div>
+            </div>
+
+            <!-- Synopsis -->
+            <div class="bg-[#111] p-6 border border-[#333] relative group hover:border-[#af0000] transition-colors shadow-lg">
+                <div class="absolute -top-2 left-4 bg-black px-2 text-[10px] text-gray-500 font-bold uppercase tracking-wider group-hover:text-[#af0000] transition-colors">Synopsis</div>
+                <div class="text-sm text-gray-300 font-serif leading-relaxed whitespace-pre-wrap">${data.synopsis || "No synopsis provided."}</div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- House Rules -->
+                <div class="bg-[#1a0505] p-4 border border-red-900/30 relative shadow-lg h-fit">
+                    <div class="absolute -top-2 left-4 bg-black px-2 text-[10px] text-red-500 font-bold uppercase tracking-wider">House Rules</div>
+                    <div class="text-xs text-gray-400 font-serif leading-relaxed whitespace-pre-wrap max-h-96 overflow-y-auto custom-scrollbar">${data.houseRules || "Standard V20 Rules apply."}</div>
+                </div>
+
+                <!-- Lore / Setting -->
+                <div class="bg-[#0a0a0a] p-4 border border-[#d4af37]/30 relative shadow-lg h-fit">
+                    <div class="absolute -top-2 left-4 bg-black px-2 text-[10px] text-[#d4af37] font-bold uppercase tracking-wider">Lore & Setting</div>
+                    <div class="text-xs text-gray-400 font-serif leading-relaxed whitespace-pre-wrap max-h-96 overflow-y-auto custom-scrollbar">${data.lore || "No specific setting details available."}</div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// --- SUB-VIEW: CHAT ---
+function renderChronicleChatView(container, chronicleId) {
+    // FIX: Ensure container has explicit height constraint via max-h or flex parent 
+    // container is #chronicle-content-area which has flex-1 overflow-hidden.
+    // The child needs h-full to fill that space.
+    
+    container.innerHTML = `
+        <div class="flex flex-col h-full bg-[#0a0a0a] border border-[#333] shadow-lg relative">
+            <div class="bg-[#111] p-3 border-b border-[#333] flex justify-between items-center shrink-0">
+                <div class="flex items-center gap-2">
+                    <i class="fas fa-comments text-[#d4af37]"></i>
+                    <h3 class="text-[#d4af37] font-cinzel font-bold text-sm uppercase tracking-widest">Chronicle Chat</h3>
+                </div>
+                <div class="text-[9px] text-gray-500 font-mono">ID: <span class="text-white">${chronicleId}</span></div>
+            </div>
+            
+            <!-- Chat History: Using Flex-1 and Overflow-Y to contain scrolling -->
+            <!-- CRITICAL: 'flex-1' ensures it takes available space, 'overflow-y-auto' enables scrollbar -->
+            <div class="flex-1 overflow-y-auto space-y-3 p-4 bg-[url('https://www.transparenttextures.com/patterns/black-linen.png')] custom-scrollbar" id="chronicle-chat-history">
+                <div class="text-center text-gray-500 italic text-xs mt-10">Connecting...</div>
+            </div>
+            
+            <!-- Input Area: Fixed height (shrink-0) -->
+            <div class="mt-auto border-t border-[#333] p-3 bg-[#111] flex gap-2 shrink-0">
+                <input type="text" id="chronicle-chat-input" class="flex-1 bg-[#050505] border border-[#333] text-white p-2 text-sm outline-none focus:border-[#d4af37]" placeholder="Send a message...">
+                <button id="chronicle-chat-send" class="bg-[#d4af37] text-black font-bold uppercase px-4 py-2 hover:bg-[#fcd34d] transition-colors text-xs">Send</button>
+            </div>
+        </div>
+    `;
+
+    // Re-bind chat input handlers
+    const sendBtn = document.getElementById('chronicle-chat-send');
+    const input = document.getElementById('chronicle-chat-input');
+    
+    const sendHandler = () => {
+        const txt = input.value.trim();
+        if (txt && window.sendChronicleMessage) {
+            window.sendChronicleMessage('chat', txt);
+            input.value = '';
+        }
+    };
+    
+    if(sendBtn) sendBtn.onclick = sendHandler;
+    if(input) input.onkeydown = (e) => { if(e.key === 'Enter') sendHandler(); };
+
+    // Trigger the global listener which updates 'chronicle-chat-history'
+    if (window.startChatListener) {
+        window.startChatListener(chronicleId);
+    } else {
+        console.warn("startChatListener not found on window object.");
+    }
+}
