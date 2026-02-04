@@ -1,1649 +1,1392 @@
 import { 
-    db, auth, collection, doc, setDoc, getDoc, getDocs, query, where, addDoc, onSnapshot, deleteDoc, updateDoc, appId, arrayUnion, arrayRemove, orderBy, limit, writeBatch
-} from "./firebase-config.js";
-import { showNotification } from "./ui-common.js";
-import { BESTIARY } from "./bestiary-data.js";
+    ATTRIBUTES, ABILITIES, VIRTUES, BACKGROUNDS, 
+    CLAN_WEAKNESSES, VIT,
+    ARCHETYPE_RULES
+} from "./data.js";
+
+import { DISCIPLINES_DATA } from "./disciplines-data.js";
+
 import { 
-    initCombatTracker, combatState, startCombat, endCombat, nextTurn, 
-    addCombatant, removeCombatant, updateInitiative, rollNPCInitiative 
-} from "./combat-tracker.js";
+    renderDots, setSafeText, showNotification 
+} from "./ui-common.js";
 
-// IMPORT NEW JOURNAL LOGIC
-// We use updateJournalList to refresh the sidebar without killing the editor state
-import { renderStorytellerJournal, updateJournalList } from "./ui-journal.js";
+import { 
+    renderRow, rollCombat, rollFrenzy, rollRotschreck, rollDiscipline, rollInitiative, toggleStat
+} from "./ui-mechanics.js";
 
-// --- STATE ---
-export const stState = {
-    activeChronicleId: null,
-    isStoryteller: false,
-    playerRef: null,
-    listeners: [], 
-    players: {},   
-    bestiary: {},  
-    journal: {},
-    settings: {}, 
-    currentView: 'roster', 
-    syncInterval: null,
-    seenHandouts: new Set(),
-    dashboardActive: false,
-    chatUnsub: null,
-    chatHistory: [] // Local cache for export
-};
+// REMOVED IMPORT of npc-creator.js to fix Circular Dependency. 
+// We will access window.openNpcCreator instead.
 
-// Expose state globally for other modules (fixes Journal Roster visibility)
-window.stState = stState;
+// FIREBASE IMPORTS
+import { db, doc, getDoc } from "./firebase-config.js";
+import { combatState } from "./combat-tracker.js";
 
-// --- INITIALIZATION ---
-export function initStorytellerSystem() {
-    console.log("Storyteller System Initializing...");
+// --- INFO MODAL HANDLERS ---
+
+export function showWillpowerInfo(e) {
+    if(e) e.stopPropagation();
     
-    // Window bindings - EXPOSE THESE FIRST
-    window.openChronicleModal = openChronicleModal;
-    window.closeChronicleModal = closeChronicleModal;
-    window.renderJoinChronicleUI = renderJoinChronicleUI;
-    window.renderCreateChronicleUI = renderCreateChronicleUI;
-    window.handleCreateChronicle = handleCreateChronicle;
-    window.handleJoinChronicle = handleJoinChronicle;
-    window.handleResumeChronicle = handleResumeChronicle;
-    window.handleDeleteChronicle = handleDeleteChronicle;
-    window.disconnectChronicle = disconnectChronicle;
-    window.switchStorytellerView = switchStorytellerView;
-    window.renderStorytellerDashboard = renderStorytellerDashboard;
-    window.exitStorytellerDashboard = exitStorytellerDashboard;
+    const nature = window.state.textFields['c-nature'] || document.getElementById('c-nature')?.value || "None";
     
-    // Settings Actions
-    window.stSaveSettings = stSaveSettings;
-
-    // Bestiary Actions
-    window.copyStaticNpc = copyStaticNpc;
-    window.deleteCloudNpc = deleteCloudNpc;
-    window.editCloudNpc = editCloudNpc;
-    window.previewStaticNpc = previewStaticNpc;
-    
-    // Combat Bindings
-    window.stStartCombat = startCombat;
-    window.stEndCombat = endCombat;
-    window.stNextTurn = nextTurn;
-    window.stUpdateInit = (id, val) => updateInitiative(id, val);
-    window.stRemoveCombatant = removeCombatant;
-    window.stRollInit = rollNPCInitiative;
-    window.stAddToCombat = handleAddToCombat;
-    window.renderCombatView = renderCombatView;
-
-    // Journal Bindings
-    window.stPushHandout = pushHandoutToPlayers;
-    window.stDeleteJournalEntry = stDeleteJournalEntry;
-    
-    // Chat Bindings
-    window.startChatListener = startChatListener;
-    window.stClearChat = stClearChat;
-    window.stExportChat = stExportChat;
-
-    // GLOBAL PUSH API
-    window.stPushNpc = async (npcData) => {
-        if (!stState.activeChronicleId || !stState.isStoryteller) return showNotification("Not in ST Mode", "error");
-        try {
-            const id = npcData.id || "npc_" + Date.now();
-            // Path: chronicles/{chronicleId}/bestiary/{id}
-            await setDoc(doc(db, 'chronicles', stState.activeChronicleId, 'bestiary', id), {
-                name: npcData.name || "Unknown",
-                type: "Custom",
-                data: npcData
-            });
-            showNotification(`${npcData.name} sent to Bestiary`);
-        } catch(e) { console.error(e); showNotification("Failed to push NPC", "error"); }
-    };
-
-    // Chat API
-    window.sendChronicleMessage = sendChronicleMessage;
-
-    // --- BIND TOP NAV BUTTON (ROBUST METHOD) ---
-    bindDashboardButton();
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', bindDashboardButton);
+    let rule = "Standard rules apply. See V20 Core Rules p. 267.";
+    if (ARCHETYPE_RULES && ARCHETYPE_RULES[nature]) {
+        rule = ARCHETYPE_RULES[nature];
     }
-
-    // Check for stale session data on load
-    setTimeout(checkStaleSession, 1000);
-}
-
-function bindDashboardButton() {
-    const btn = document.getElementById('st-dashboard-btn');
-    if (btn) {
-        btn.onclick = (e) => {
-            e.preventDefault();
-            console.log("ST Dashboard Button Clicked");
-            window.renderStorytellerDashboard();
-        };
-        console.log("ST Dashboard Button Bound");
-    }
-}
-
-// --- SESSION HYGIENE ---
-async function checkStaleSession() {
-    const user = auth.currentUser;
-    const storedId = localStorage.getItem('v20_last_chronicle_id');
-    const storedRole = localStorage.getItem('v20_last_chronicle_role');
-
-    // 1. If Guest (no user), they cannot have an active Cloud Session
-    if (!user && storedId) {
-        console.log("Guest User: Clearing stale Chronicle data.");
-        disconnectChronicle(); 
-        localStorage.removeItem('v20_last_chronicle_id');
-        localStorage.removeItem('v20_last_chronicle_name');
-        localStorage.removeItem('v20_last_chronicle_role');
-        toggleStorytellerButton(false);
-        return;
-    }
-
-    // 2. If ST Role, Verify Ownership
-    if (user && storedId && storedRole === 'ST') {
-        try {
-            // Path: chronicles/{id}
-            const docRef = doc(db, 'chronicles', storedId);
-            const snap = await getDoc(docRef);
-            
-            // If doc missing OR user is not the owner
-            if (!snap.exists() || snap.data().storyteller_uid !== user.uid) {
-                console.warn("Session Mismatch: Clearing unauthorized ST data.");
-                disconnectChronicle();
-                localStorage.removeItem('v20_last_chronicle_id');
-                localStorage.removeItem('v20_last_chronicle_name');
-                localStorage.removeItem('v20_last_chronicle_role');
-                toggleStorytellerButton(false);
-            } else {
-                // Valid Session: Enable Button
-                stState.activeChronicleId = storedId;
-                stState.isStoryteller = true;
-                startStorytellerSession(); // Start listeners in background
-                toggleStorytellerButton(true);
-            }
-        } catch(e) {
-            console.error("Session Check Error:", e);
+    
+    const modal = document.getElementById('willpower-info-modal');
+    if (modal) {
+        const ruleContainer = document.getElementById('wp-nature-rule');
+        if (ruleContainer) {
+            ruleContainer.innerHTML = `
+                <div class="text-[10px] font-bold text-blue-300 uppercase mb-1">Nature: ${nature}</div>
+                <div class="text-xs text-white italic">"${rule}"</div>
+            `;
         }
-    } 
-    // 3. If Player Role, Initialize Combat Tracker Listener
-    else if (user && storedId && storedRole === 'Player') {
-        stState.activeChronicleId = storedId;
-        stState.isStoryteller = false;
-        // Re-establish player ref
-        // Path: chronicles/{id}/players/{uid}
-        stState.playerRef = doc(db, 'chronicles', storedId, 'players', user.uid);
+        modal.classList.add('active');
+    }
+}
+window.showWillpowerInfo = showWillpowerInfo; 
+
+export function showHumanityInfo(e) {
+    if(e) e.stopPropagation();
+    const modal = document.getElementById('humanity-info-modal');
+    if (modal) modal.classList.add('active');
+}
+window.showHumanityInfo = showHumanityInfo;
+
+export function showBloodInfo(e) {
+    if(e) e.stopPropagation();
+    const modal = document.getElementById('blood-info-modal');
+    if (modal) modal.classList.add('active');
+}
+window.showBloodInfo = showBloodInfo;
+
+export function setupHunting() {
+    window.clearPool();
+    
+    const per = window.state.dots.attr['Perception'] || 1;
+    const str = window.state.dots.abil['Streetwise'] || 0;
+    
+    window.toggleStat('Perception', per, 'attribute');
+    if (str > 0) window.toggleStat('Streetwise', str, 'ability');
+    
+    const diffInput = document.getElementById('roll-diff');
+    if(diffInput) diffInput.value = 6;
+    
+    showNotification("Hunting Pool Loaded (Per + Streetwise).");
+}
+window.setupHunting = setupHunting;
+
+
+// --- INJECTION HELPERS ---
+
+function injectWillpowerInfo() {
+    const sections = document.querySelectorAll('#play-mode-sheet .section-title');
+    let wpTitleEl = null;
+    
+    sections.forEach(el => {
+        if (el.parentNode.querySelector('#willpower-dots-play')) {
+            wpTitleEl = el;
+        }
+    });
+
+    if (wpTitleEl) {
+        wpTitleEl.style.display = 'flex';
+        wpTitleEl.style.justifyContent = 'center';
+        wpTitleEl.style.alignItems = 'center';
+        wpTitleEl.style.gap = '8px';
         
-        console.log("Resuming Player Session for Combat Tracker...");
-        initCombatTracker(storedId); 
-        startPlayerSync();
-        startPlayerListeners(storedId); // Start listening for Journal pushes
-        startChatListener(storedId); // Connect to Chat
+        wpTitleEl.innerHTML = `
+            <button onclick="window.toggleStat('Willpower', window.state.status.willpower, 'willpower')" class="hover:text-white text-[#d4af37] transition-colors uppercase font-bold flex items-center gap-2" title="Roll Willpower">
+                Willpower <i class="fas fa-dice-d20 text-[10px]"></i>
+            </button> 
+            <i class="fas fa-info-circle text-[10px] text-gray-500 hover:text-white cursor-pointer transition-colors" title="Regaining Willpower" onclick="window.showWillpowerInfo(event)"></i>
+        `;
     }
 }
 
-function toggleStorytellerButton(show) {
-    const btn = document.getElementById('st-dashboard-btn');
-    if (btn) {
-        if (show) {
-            btn.classList.remove('hidden');
-            btn.classList.add('flex');
-        } else {
-            btn.classList.add('hidden');
-            btn.classList.remove('flex');
-        }
-    }
-}
-
-// --- MODAL HANDLERS ---
-export function openChronicleModal() {
-    // REVERTED: No longer toggles sidebar. Always opens modal for connection management.
-    let modal = document.getElementById('chronicle-modal');
-    if (!modal) return;
-    modal.classList.add('active');
+function injectHumanityInfo() {
+    const sections = document.querySelectorAll('#play-mode-sheet .section-title');
+    let humTitleEl = null;
     
-    if (stState.activeChronicleId) {
-        renderConnectedStatus();
+    sections.forEach(el => {
+        if (el.parentNode.querySelector('#humanity-dots-play') || el.parentNode.querySelector('#c-path-name')) {
+            humTitleEl = el;
+        }
+    });
+
+    if (humTitleEl) {
+        humTitleEl.style.display = 'flex';
+        humTitleEl.style.justifyContent = 'center';
+        humTitleEl.style.alignItems = 'center';
+        humTitleEl.style.gap = '8px';
+        
+        humTitleEl.innerHTML = `
+            <button onclick="window.toggleStat('Humanity', window.state.status.humanity, 'humanity')" class="hover:text-white text-[#d4af37] transition-colors uppercase font-bold flex items-center gap-2" title="Roll Humanity">
+                Humanity / Path <i class="fas fa-dice-d20 text-[10px]"></i>
+            </button>
+            <i class="fas fa-info-circle text-[10px] text-gray-500 hover:text-white cursor-pointer transition-colors" title="Hierarchy of Sins" onclick="window.showHumanityInfo(event)"></i>
+        `;
+    }
+}
+
+function injectBloodInfo() {
+    const sections = document.querySelectorAll('#play-mode-sheet .section-title');
+    let bloodTitleEl = null;
+    
+    sections.forEach(el => {
+        if (el.parentNode.querySelector('#blood-boxes-play')) {
+            bloodTitleEl = el;
+        }
+    });
+
+    if (bloodTitleEl) {
+        bloodTitleEl.style.display = 'flex';
+        bloodTitleEl.style.justifyContent = 'center';
+        bloodTitleEl.style.alignItems = 'center';
+        bloodTitleEl.style.gap = '8px';
+        
+        bloodTitleEl.innerHTML = `
+            <span>Blood Pool</span>
+            <button onclick="window.setupHunting()" class="bg-[#8b0000] hover:bg-red-700 text-white text-[9px] font-bold px-2 py-0.5 rounded border border-[#d4af37]/50 flex items-center gap-1 shadow-sm uppercase tracking-wider transition-all" title="Roll Hunting Pool">
+                <i class="fas fa-tint"></i> Hunt
+            </button>
+            <i class="fas fa-info-circle text-[10px] text-gray-500 hover:text-white cursor-pointer transition-colors" title="Feeding Rules" onclick="window.showBloodInfo(event)"></i>
+        `;
+    }
+}
+
+// --- COMBAT INTEGRATION FOR PLAYERS ---
+function checkCombatStatus() {
+    // Rely on WINDOW.stState to avoid circular dependency
+    const stState = window.stState;
+    if (stState && stState.activeChronicleId && combatState.isActive) {
+        // Show floating combat indicator
+        showPlayerCombatFloat();
+    }
+}
+
+export function togglePlayerCombatView() {
+    const float = document.getElementById('player-combat-float');
+    if (!float) return;
+    
+    const isExpanded = float.classList.contains('expanded');
+    
+    if (isExpanded) {
+        float.classList.remove('expanded');
+        float.innerHTML = `<i class="fas fa-swords text-2xl"></i>`;
     } else {
-        renderChronicleMenu();
+        float.classList.add('expanded');
+        renderPlayerCombatOverlay(float);
     }
 }
+window.togglePlayerCombatView = togglePlayerCombatView;
 
-export function closeChronicleModal() {
-    const modal = document.getElementById('chronicle-modal');
-    if(modal) modal.classList.remove('active');
+export function updatePlayerCombatView() {
+    const float = document.getElementById('player-combat-float');
+    if (!float) return;
+    
+    if (float.classList.contains('expanded')) {
+        renderPlayerCombatOverlay(float);
+    }
+}
+window.updatePlayerCombatView = updatePlayerCombatView;
+
+function showPlayerCombatFloat() {
+    let float = document.getElementById('player-combat-float');
+    if (!float) {
+        float = document.createElement('button');
+        float.id = 'player-combat-float';
+        float.className = 'fixed top-20 right-4 z-50 bg-[#8b0000] text-white w-12 h-12 rounded-full shadow-[0_0_15px_red] border-2 border-[#d4af37] flex items-center justify-center transition-all animate-pulse hover:scale-110';
+        float.onclick = togglePlayerCombatView;
+        float.innerHTML = `<i class="fas fa-swords text-2xl"></i>`;
+        document.body.appendChild(float);
+    }
+    float.style.display = 'flex';
 }
 
-// --- UI RENDERING (MENU) ---
-async function renderChronicleMenu() {
-    const container = document.getElementById('chronicle-modal-content');
-    if(!container) return;
-
-    const user = auth.currentUser;
-    const authWarning = !user ? `<div class="bg-red-900/20 border border-red-500/50 p-2 mb-4 text-xs text-red-300 text-center">You must be logged in to use Chronicle features.</div>` : '';
-
+function renderPlayerCombatOverlay(container) {
+    const turn = combatState.turn;
+    const combatants = combatState.combatants || [];
+    
     container.innerHTML = `
-        <h2 class="heading text-xl text-[#d4af37] mb-4 border-b border-[#333] pb-2">Chronicles</h2>
-        ${authWarning}
-        <div id="st-resume-block"></div>
-        <div id="st-campaign-list" class="mb-6 hidden"></div>
-        
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <!-- JOIN CARD -->
-            <div class="bg-[#111] p-6 border border-[#333] hover:border-[#d4af37] transition-all cursor-pointer group relative overflow-hidden" 
-                 onclick="${user ? 'window.renderJoinChronicleUI()' : ''}"
-                 style="${!user ? 'opacity:0.5; pointer-events:none;' : ''}">
-                <div class="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition-opacity">
-                    <i class="fas fa-users text-6xl text-[#d4af37]"></i>
-                </div>
-                <h3 class="text-white font-cinzel font-bold uppercase mb-2 text-lg group-hover:text-[#d4af37] transition-colors">
-                    Join Chronicle
-                </h3>
-                <p class="text-xs text-gray-400 leading-relaxed">
-                    Connect to an existing story as a <strong>Player</strong>.
-                </p>
+        <div class="absolute top-0 right-0 w-64 bg-[#1a0505] border border-red-500 rounded p-4 shadow-xl text-left cursor-default" onclick="event.stopPropagation()">
+            <div class="flex justify-between items-center mb-2 border-b border-red-900 pb-1">
+                <h3 class="text-red-500 font-bold font-cinzel">Combat - Round ${turn}</h3>
+                <button class="text-gray-500 hover:text-white" onclick="window.togglePlayerCombatView()">&times;</button>
             </div>
-
-            <!-- CREATE CARD -->
-            <div class="bg-[#1a0505] p-6 border border-[#333] hover:border-red-600 transition-all cursor-pointer group relative overflow-hidden" 
-                 onclick="${user ? 'window.renderCreateChronicleUI()' : ''}"
-                 style="${!user ? 'opacity:0.5; pointer-events:none;' : ''}">
-                <div class="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition-opacity">
-                    <i class="fas fa-book-dead text-6xl text-red-600"></i>
-                </div>
-                <h3 class="text-white font-cinzel font-bold uppercase mb-2 text-lg group-hover:text-red-500 transition-colors">
-                    New Chronicle
-                </h3>
-                <p class="text-xs text-gray-400 leading-relaxed">
-                    Initialize a new story as <strong>Storyteller</strong>.
-                </p>
+            <div class="space-y-1 max-h-60 overflow-y-auto custom-scrollbar">
+                ${combatants.length === 0 ? '<div class="text-gray-500 italic text-[10px]">Waiting for combatants...</div>' : ''}
+                ${combatants.map(c => `
+                    <div class="flex justify-between text-xs items-center p-1 rounded ${c.active ? 'bg-[#d4af37]/20 border border-[#d4af37]/50' : 'opacity-80'} ${c.status === 'done' ? 'opacity-30 line-through' : ''}">
+                        <div class="flex items-center gap-2 overflow-hidden">
+                            ${c.active ? '<i class="fas fa-caret-right text-[#d4af37]"></i>' : ''}
+                            <span class="text-[#d4af37] font-bold w-6 text-center">${c.init}</span>
+                            <span class="text-gray-300 truncate w-32 ${c.active ? 'text-white font-bold' : ''}">${c.name}</span>
+                        </div>
+                        <span class="text-[8px] text-gray-500 uppercase">${c.type}</span>
+                    </div>
+                `).join('')}
             </div>
-        </div>
-        <div class="mt-8 border-t border-[#333] pt-4 text-center">
-            <button class="text-gray-500 hover:text-white text-xs uppercase font-bold tracking-widest" onclick="window.closeChronicleModal()">Close</button>
         </div>
     `;
+}
 
-    if (!user) return;
 
-    // --- SECURE RESUME CHECK ---
-    const recentId = localStorage.getItem('v20_last_chronicle_id');
-    const recentRole = localStorage.getItem('v20_last_chronicle_role'); 
+// --- PLAY MODE LOGIC ---
+
+export function applyPlayModeUI() {
+    const isPlay = window.state.isPlayMode;
+    document.body.classList.toggle('play-mode', isPlay);
     
-    if (recentId) {
-        try {
-            let isValid = false;
-            let displayName = localStorage.getItem('v20_last_chronicle_name') || recentId;
-
-            // Verify ownership/membership before showing
-            if (recentRole === 'ST') {
-                const docRef = doc(db, 'chronicles', recentId);
-                const snap = await getDoc(docRef);
-                if (snap.exists() && snap.data().storyteller_uid === user.uid) {
-                    isValid = true;
-                    displayName = snap.data().name;
-                }
-            } else {
-                // Player check - verify player doc exists
-                const playerRef = doc(db, 'chronicles', recentId, 'players', user.uid);
-                const snap = await getDoc(playerRef);
-                if (snap.exists()) {
-                    isValid = true;
-                    // Optional: Fetch chronicle name if missing
-                    if (!localStorage.getItem('v20_last_chronicle_name')) {
-                        const cSnap = await getDoc(doc(db, 'chronicles', recentId));
-                        if(cSnap.exists()) displayName = cSnap.data().name;
-                    }
-                }
-            }
-
-            if (isValid) {
-                const btnColor = recentRole === 'ST' ? 'text-red-500 border-red-900 hover:bg-red-900/20' : 'text-blue-400 border-blue-900 hover:bg-blue-900/20';
-                const roleLabel = recentRole === 'ST' ? 'Storyteller' : 'Player';
-                const resumeHtml = `
-                    <div class="mb-6 p-4 bg-[#111] border border-[#333] flex justify-between items-center animate-in fade-in">
-                        <div>
-                            <div class="text-[10px] text-gray-500 uppercase font-bold">Resume Last Session</div>
-                            <div class="text-white font-bold font-cinzel text-lg">${displayName}</div>
-                            <div class="text-[9px] text-gray-400">${roleLabel}</div>
-                        </div>
-                        <button onclick="window.handleResumeChronicle('${recentId}', '${recentRole}')" class="px-4 py-2 border rounded uppercase font-bold text-xs ${btnColor}">
-                            Resume <i class="fas fa-arrow-right ml-1"></i>
-                        </button>
-                    </div>
-                `;
-                const rBlock = document.getElementById('st-resume-block');
-                if(rBlock) rBlock.innerHTML = resumeHtml;
-            } else {
-                // Invalid or mismatch (e.g. Guest ID on User Account) -> Clear It
-                console.log("Clearing stale chronicle data.");
-                localStorage.removeItem('v20_last_chronicle_id');
-                localStorage.removeItem('v20_last_chronicle_name');
-                localStorage.removeItem('v20_last_chronicle_role');
-            }
-        } catch (e) {
-            console.error("Resume check failed:", e);
-        }
+    const pBtnText = document.getElementById('play-btn-text');
+    if(pBtnText) pBtnText.innerText = isPlay ? "Edit" : "Play";
+    
+    const guideBtn = document.getElementById('phase-info-btn');
+    if(guideBtn) {
+        if(isPlay) guideBtn.classList.add('hidden');
+        else guideBtn.classList.remove('hidden');
     }
 
-    // --- ASYNC LOAD OWNED CAMPAIGNS ---
-    const listDiv = document.getElementById('st-campaign-list');
-    if (listDiv) {
-        try {
-            // Using root collection 'chronicles'
-            const q = query(collection(db, 'chronicles'), where("storyteller_uid", "==", user.uid));
-            const querySnapshot = await getDocs(q);
+    const diceBtn = document.getElementById('dice-toggle-btn');
+    if (diceBtn) {
+        if (isPlay) diceBtn.classList.remove('hidden');
+        else diceBtn.classList.add('hidden');
+    }
+    
+    document.querySelectorAll('input, select, textarea').forEach(el => {
+        if (['save-filename', 'char-select', 'roll-diff', 'use-specialty', 'c-path-name', 'c-path-name-create', 'c-bearing-name', 'c-bearing-value', 'custom-weakness-input', 'xp-points-input', 'blood-per-turn-input', 'custom-dice-input', 'spend-willpower', 'c-xp-total', 'frenzy-diff', 'rotschreck-diff', 'play-merit-notes', 'dmg-input-val', 'tray-use-armor',
+        'log-sess-num', 'log-date', 'log-game-date', 'log-title', 'log-effects', 'log-scene1', 'log-scene2', 'log-scene3', 'log-scene-outcome', 'log-xp-gain',
+        'log-obj', 'log-clues', 'log-secrets', 'log-downtime',
+        'chronicle-chat-input'
+        ].includes(el.id) || el.classList.contains('merit-flaw-desc') || el.closest('#active-log-form')) {
+            el.disabled = false;
+            return;
+        }
+        el.disabled = isPlay;
+    });
+
+    const playSheet = document.getElementById('play-mode-sheet');
+    const editPhases = document.querySelectorAll('div[id^="phase-"]');
+
+    if (isPlay) {
+        editPhases.forEach(el => {
+            el.classList.add('hidden');
+            el.classList.remove('active');
+        });
+
+        if (playSheet) {
+            playSheet.classList.remove('hidden');
+            playSheet.style.display = 'block'; 
+        }
+        
+        document.querySelectorAll('div[id^="play-mode-"]').forEach(el => {
+            el.classList.remove('hidden');
+        });
+
+        renderPlayModeHeader();
+        renderPlayModeAttributes();
+        renderPlayModeAbilities();
+        renderPlayModeAdvantages();
+        renderPlayModeSocial();
+        renderPlayModeBloodBonds();
+        renderPlayModeMeritsFlaws();
+        renderPlayModeOtherTraits();
+        renderPlayModeCombat();
+        
+        renderMovementSection();
+        renderDetailedDisciplines();
+        updateRitualsPlayView();
+        
+        // AUTO-RENDER CHRONICLE & NPC TABS
+        ensureChronicleTabContainer();
+        renderChronicleTab();
+        renderNpcTab();
+        
+        checkCombatStatus();
+        
+        setTimeout(() => {
+            injectWillpowerInfo();
+            injectHumanityInfo();
+            injectBloodInfo(); 
+        }, 50);
+
+        let carried = []; let owned = []; 
+        if(window.state.inventory) { 
+            window.state.inventory.forEach(i => { 
+                const str = `${i.displayName || i.name} ${i.type === 'Armor' ? `(R:${i.stats.rating} P:${i.stats.penalty})` : ''}`; 
+                if(i.status === 'carried') carried.push(str); else owned.push(str); 
+            }); 
+        }
+        setSafeText('play-gear-carried', carried.join(', ')); 
+        setSafeText('play-gear-owned', owned.join(', '));
+        
+        const bioDescEl = document.getElementById('play-bio-desc');
+        if(bioDescEl) {
+            bioDescEl.innerText = document.getElementById('bio-desc')?.value || "";
+        }
+        
+        const bioHistoryEl = document.getElementById('play-history');
+        if(bioHistoryEl) {
+            bioHistoryEl.innerText = document.getElementById('char-history')?.value || "";
             
-            if (!querySnapshot.empty) {
-                let html = `<h4 class="text-[10px] text-gray-500 uppercase font-bold mb-2">My Campaigns</h4><div class="grid grid-cols-1 gap-2 max-h-40 overflow-y-auto pr-2 custom-scrollbar">`;
-                querySnapshot.forEach((doc) => {
-                    const data = doc.data();
-                    html += `
-                        <div class="flex justify-between items-center bg-[#1a1a1a] p-3 border-l-2 border-red-900 hover:bg-[#222] cursor-pointer group transition-colors relative">
-                            <div class="flex-1" onclick="window.handleResumeChronicle('${doc.id}', 'ST')">
-                                <div class="text-white font-bold text-sm font-cinzel group-hover:text-[#d4af37] transition-colors">${data.name}</div>
-                                <div class="text-[9px] text-gray-500">${data.timePeriod || "Modern Nights"}</div>
-                                <div class="text-[9px] text-gray-600 font-mono group-hover:text-white">${doc.id}</div>
+            if (window.state.characterImage) {
+                const histContainer = bioHistoryEl.closest('.sheet-section');
+                
+                if (histContainer && histContainer.parentNode) {
+                    let portraitContainer = document.getElementById('play-mode-portrait-container');
+                    
+                    if (!portraitContainer) {
+                        portraitContainer = document.createElement('div');
+                        portraitContainer.id = 'play-mode-portrait-container';
+                        portraitContainer.className = 'sheet-section mt-4';
+                        portraitContainer.innerHTML = `<div class="section-title">Portrait</div>`;
+                        
+                        const innerBox = document.createElement('div');
+                        innerBox.className = "w-full flex justify-center mt-2 bg-[#111] p-4 border border-[#333]";
+                        innerBox.innerHTML = `
+                            <div class="w-80 h-80 max-w-full border-2 border-[#af0000] rounded-lg shadow-lg overflow-hidden bg-black bg-cover bg-center bg-no-repeat transition-transform hover:scale-105 duration-300"
+                                 style="background-image: url('${window.state.characterImage}'); box-shadow: 0 0 15px rgba(175, 0, 0, 0.3);">
                             </div>
-                            <button onclick="event.stopPropagation(); window.handleDeleteChronicle('${doc.id}')" class="text-gray-600 hover:text-red-500 p-2 z-10 transition-colors" title="Delete Chronicle">
-                                <i class="fas fa-trash-alt"></i>
-                            </button>
-                        </div>
-                    `;
-                });
-                html += `</div>`;
-                listDiv.innerHTML = html;
-                listDiv.classList.remove('hidden');
-            }
-        } catch (e) {
-            console.error("Error loading campaigns:", e);
-        }
-    }
-}
-
-async function handleDeleteChronicle(id) {
-    if (!confirm("Are you sure you want to delete this Chronicle? This action CANNOT be undone and will delete all campaign data.")) return;
-    
-    try {
-        if (stState.activeChronicleId === id) {
-            disconnectChronicle();
-        }
-
-        // Delete from root collection
-        await deleteDoc(doc(db, 'chronicles', id));
-        showNotification("Chronicle Deleted.");
-        renderChronicleMenu();
-    } catch (e) {
-        console.error("Delete Error:", e);
-        showNotification("Failed to delete chronicle.", "error");
-    }
-}
-
-function renderJoinChronicleUI() {
-    const container = document.getElementById('chronicle-modal-content');
-    if(!container) return;
-
-    container.innerHTML = `
-        <h2 class="heading text-xl text-[#d4af37] mb-4 border-b border-[#333] pb-2">Join Chronicle</h2>
-        <div class="space-y-4 max-w-md mx-auto">
-            <div>
-                <label class="label-text text-gray-400">Chronicle ID (Ask your ST)</label>
-                <input type="text" id="join-id" class="w-full bg-[#050505] border border-[#333] text-white p-3 text-sm focus:border-[#d4af37] outline-none font-mono text-center tracking-widest uppercase" placeholder="XXXX-XXXX">
-            </div>
-            
-            <div id="join-preview" class="hidden bg-[#111] p-4 border border-[#d4af37] text-center space-y-2">
-                <div class="text-[#d4af37] font-cinzel font-bold text-lg" id="preview-name"></div>
-                <div class="text-[10px] text-gray-400 uppercase tracking-widest" id="preview-time"></div>
-                <div class="text-xs text-gray-300 italic font-serif" id="preview-synopsis"></div>
-            </div>
-
-            <div>
-                <label class="label-text text-gray-400">Passcode (Optional)</label>
-                <input type="password" id="join-pass" class="w-full bg-[#050505] border border-[#333] text-white p-3 text-sm focus:border-[#d4af37] outline-none text-center" placeholder="******">
-            </div>
-            
-            <div id="join-error" class="text-red-500 text-xs font-bold text-center hidden"></div>
-
-            <div class="flex gap-4 mt-6">
-                <button class="flex-1 border border-[#333] text-gray-400 py-2 text-xs font-bold uppercase hover:bg-[#222]" onclick="window.openChronicleModal()">Back</button>
-                <button class="flex-1 bg-[#d4af37] text-black py-2 text-xs font-bold uppercase hover:bg-[#fcd34d] shadow-lg" onclick="window.handleJoinChronicle()">Connect</button>
-            </div>
-        </div>
-    `;
-
-    const input = document.getElementById('join-id');
-    input.addEventListener('input', async (e) => {
-        const val = e.target.value.trim();
-        if (val.length >= 8) { 
-            try {
-                // Check root collection
-                const snap = await getDoc(doc(db, 'chronicles', val));
-                if (snap.exists()) {
-                    const data = snap.data();
-                    document.getElementById('preview-name').innerText = data.name;
-                    document.getElementById('preview-time').innerText = data.timePeriod || "Modern Nights";
-                    document.getElementById('preview-synopsis').innerText = data.synopsis ? `"${data.synopsis.substring(0, 100)}..."` : "";
-                    document.getElementById('join-preview').classList.remove('hidden');
+                        `;
+                        portraitContainer.appendChild(innerBox);
+                        histContainer.parentNode.insertBefore(portraitContainer, histContainer.nextSibling);
+                    } else {
+                        const imgDiv = portraitContainer.querySelector('.bg-cover');
+                        if(imgDiv) imgDiv.style.backgroundImage = `url('${window.state.characterImage}')`;
+                        portraitContainer.style.display = 'block';
+                    }
                 }
-            } catch(e) {}
+            } else {
+                const portraitContainer = document.getElementById('play-mode-portrait-container');
+                if (portraitContainer) portraitContainer.style.display = 'none';
+            }
         }
+        
+        renderPlayModeDerangements();
+        
+        if(document.getElementById('play-languages')) document.getElementById('play-languages').innerText = document.getElementById('bio-languages')?.value || "";
+        if(document.getElementById('play-goals-st')) document.getElementById('play-goals-st').innerText = document.getElementById('bio-goals-st')?.value || "";
+        if(document.getElementById('play-goals-lt')) document.getElementById('play-goals-lt').innerText = document.getElementById('bio-goals-lt')?.value || "";
+        
+        const feedSrc = document.getElementById('inv-feeding-grounds'); 
+        if (feedSrc) setSafeText('play-feeding-grounds', feedSrc.value);
+        
+        if(document.getElementById('armor-rating-play')) { 
+            let totalA = 0; let totalP = 0; let names = []; 
+            if(window.state.inventory) { 
+                window.state.inventory.filter(i => i.type === 'Armor' && i.status === 'carried').forEach(a => { 
+                    totalA += parseInt(a.stats?.rating)||0; totalP += parseInt(a.stats?.penalty)||0; names.push(a.displayName || a.name); 
+                }); 
+            } 
+            setSafeText('armor-rating-play', totalA); 
+            setSafeText('armor-penalty-play', totalP); 
+            setSafeText('armor-desc-play', names.join(', ')); 
+        }
+        
+        if (document.getElementById('play-vehicles')) { 
+            const pv = document.getElementById('play-vehicles'); 
+            pv.innerHTML = ''; 
+            if (window.state.inventory) { 
+                window.state.inventory.filter(i => i.type === 'Vehicle').forEach(v => { 
+                    let display = v.displayName || v.name; 
+                    pv.innerHTML += `<div class="mb-2 border-b border-[#333] pb-1"><div class="font-bold text-white uppercase text-[10px]">${display}</div><div class="text-[9px] text-gray-400">Safe:${v.stats.safe} | Max:${v.stats.max} | Man:${v.stats.man}</div></div>`; 
+                }); 
+            } 
+        }
+        
+        if (document.getElementById('play-havens-list')) { 
+            const ph = document.getElementById('play-havens-list'); 
+            ph.innerHTML = ''; 
+            if (window.state.havens) {
+                window.state.havens.forEach(h => { 
+                    ph.innerHTML += `<div class="border-l-2 border-gold pl-4 mb-4"><div class="flex justify-between"><div><div class="font-bold text-white uppercase text-[10px]">${h.name}</div><div class="text-[9px] text-gold italic">${h.loc}</div></div></div><div class="text-xs text-gray-400 mt-1">${h.desc}</div></div>`; 
+                }); 
+            }
+        }
+        
+        renderPlayModeWeakness();
+        renderPlayModeBeast();
+        renderPlayModeXp();
+        
+        const bptInput = document.getElementById('blood-per-turn-input');
+        if (bptInput) {
+            const savedBPT = window.state.status.blood_per_turn || 1;
+            bptInput.value = savedBPT;
+            bptInput.onchange = (e) => {
+                window.state.status.blood_per_turn = parseInt(e.target.value) || 1;
+            };
+        }
+
+        if(window.changeStep) window.changeStep(1); 
+        
+        if (!localStorage.getItem('v20_play_tutorial_complete')) {
+            setTimeout(() => {
+                if (window.startTutorial) window.startTutorial('play');
+            }, 1000);
+        }
+        
+    } else {
+        if (playSheet) {
+            playSheet.classList.add('hidden');
+            playSheet.style.display = 'none'; 
+        }
+        
+        editPhases.forEach(el => el.classList.remove('hidden'));
+
+        const current = window.state.currentPhase || 1;
+        const currentPhaseEl = document.getElementById(`phase-${current}`);
+        if (currentPhaseEl) {
+            currentPhaseEl.classList.remove('hidden');
+            currentPhaseEl.classList.add('active');
+        }
+        if(window.changeStep) window.changeStep(window.state.furthestPhase || 1);
+    }
+}
+window.applyPlayModeUI = applyPlayModeUI;
+
+// 2. Toggle Mode
+export function togglePlayMode() {
+    const safeVal = (id) => {
+        const el = document.getElementById(id);
+        if (el) return el.value;
+        return window.state.textFields[id] || "";
+    };
+
+    const fieldsToSync = [
+        'c-name', 'c-nature', 'c-demeanor', 'c-clan', 'c-gen', 
+        'c-player', 'c-concept', 'c-sire', 'c-chronicle', 
+        'c-path-name', 'c-path-rating', 'c-xp-total', 'c-freebie-total'
+    ];
+
+    fieldsToSync.forEach(id => {
+        window.state.textFields[id] = safeVal(id);
     });
-}
 
-function renderCreateChronicleUI() {
-    const container = document.getElementById('chronicle-modal-content');
-    if(!container) return;
+    const wEl = document.getElementById('c-clan-weakness');
+    if (wEl) window.state.textFields['c-clan-weakness'] = wEl.value;
 
-    container.innerHTML = `
-        <h2 class="heading text-xl text-red-500 mb-4 border-b border-[#333] pb-2">Initialize Chronicle</h2>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
-            <div class="space-y-4">
-                <div>
-                    <label class="label-text text-gray-400">Chronicle Name</label>
-                    <input type="text" id="create-name" class="w-full bg-[#050505] border border-[#333] text-white p-2 text-sm focus:border-red-500 outline-none font-bold" placeholder="e.g. Los Angeles by Night">
-                </div>
-                <div>
-                    <label class="label-text text-gray-400">Time Period / Setting</label>
-                    <input type="text" id="create-time" class="w-full bg-[#050505] border border-[#333] text-white p-2 text-sm focus:border-red-500 outline-none" placeholder="e.g. 1990s, Dark Ages, Modern">
-                </div>
-                <div>
-                    <label class="label-text text-gray-400">Passcode (Optional)</label>
-                    <input type="text" id="create-pass" class="w-full bg-[#050505] border border-[#333] text-white p-2 text-sm focus:border-red-500 outline-none" placeholder="Leave blank for open game">
-                </div>
-                <div>
-                    <label class="label-text text-gray-400">Synopsis / Briefing</label>
-                    <textarea id="create-synopsis" class="w-full bg-[#050505] border border-[#333] text-gray-300 p-2 text-xs focus:border-red-500 outline-none resize-none h-32" placeholder="The elevator pitch for your players..."></textarea>
-                </div>
-            </div>
-            <div class="space-y-4">
-                <div>
-                    <label class="label-text text-gray-400">House Rules</label>
-                    <textarea id="create-rules" class="w-full bg-[#050505] border border-[#333] text-gray-300 p-2 text-xs focus:border-red-500 outline-none resize-none h-48 leading-relaxed">${window.state?.settings?.houseRules || ''}</textarea>
-                </div>
-                <div>
-                    <label class="label-text text-gray-400">Lore / Rumors</label>
-                    <textarea id="create-lore" class="w-full bg-[#050505] border border-[#333] text-gray-300 p-2 text-xs focus:border-red-500 outline-none resize-none h-48 leading-relaxed">${window.state?.settings?.lore || ''}</textarea>
-                </div>
-            </div>
-        </div>
-        <div id="create-error" class="text-red-500 text-xs font-bold text-center hidden mt-2"></div>
-        <div class="flex gap-4 mt-6 border-t border-[#333] pt-4">
-            <button class="flex-1 border border-[#333] text-gray-400 py-2 text-xs font-bold uppercase hover:bg-[#222]" onclick="window.openChronicleModal()">Back</button>
-            <button class="flex-1 bg-red-900 text-white py-2 text-xs font-bold uppercase hover:bg-red-700 shadow-lg" onclick="window.handleCreateChronicle()">Initialize System</button>
-        </div>
-    `;
-}
-
-function renderConnectedStatus() {
-    // This is the fallback/ST view if they click Chronicles. 
-    const container = document.getElementById('chronicle-modal-content');
-    if(!container) return;
-
-    container.innerHTML = `
-        <button onclick="window.closeChronicleModal()" class="absolute top-2 right-3 text-gray-500 hover:text-white text-xl">&times;</button>
-        <div class="text-center py-8">
-            <h2 class="heading text-2xl text-green-500 mb-2">Connected</h2>
-            <p class="text-gray-400 text-xs mb-6 font-mono select-all">${stState.activeChronicleId}</p>
-            
-            <div class="bg-[#111] p-4 border border-[#333] rounded mb-6 max-w-sm mx-auto">
-                <div class="text-xs text-gray-500 uppercase font-bold mb-2">Status</div>
-                <div class="flex justify-center items-center gap-2">
-                    <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-                    <span class="text-white font-bold">Live Sync Active</span>
-                </div>
-            </div>
-
-            <div class="flex justify-center gap-4">
-                <button class="border border-[#444] text-gray-400 hover:bg-[#222] px-6 py-2 text-xs font-bold uppercase transition-colors" onclick="window.closeChronicleModal()">
-                    Close
-                </button>
-                <button class="border border-red-900/50 text-red-500 hover:bg-red-900/20 px-6 py-2 text-xs font-bold uppercase transition-colors" onclick="window.disconnectChronicle()">
-                    Disconnect
-                </button>
-            </div>
-        </div>
-    `;
-}
-
-// --- FIREBASE LOGIC ---
-
-async function handleCreateChronicle() {
-    const user = auth.currentUser;
-    if(!user) return;
-
-    const name = document.getElementById('create-name').value.trim();
-    const time = document.getElementById('create-time').value.trim();
-    const pass = document.getElementById('create-pass').value.trim();
-    const synopsis = document.getElementById('create-synopsis').value.trim();
-    const rules = document.getElementById('create-rules').value.trim();
-    const lore = document.getElementById('create-lore').value.trim();
-    
-    const err = document.getElementById('create-error');
-
-    if (!name) {
-        err.innerText = "Chronicle Name is required.";
-        err.classList.remove('hidden');
-        return;
+    let gen = parseInt(window.state.textFields['c-gen']);
+    if (isNaN(gen) || gen < 3 || gen > 15) {
+        console.warn("Invalid Generation detected (" + gen + "), defaulting to 13");
+        gen = 13;
+        window.state.textFields['c-gen'] = "13";
     }
 
-    try {
-        const safeName = name.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().substring(0, 10);
-        const suffix = Math.floor(1000 + Math.random() * 9000);
-        const chronicleId = `${safeName}-${suffix}`;
+    window.state.isPlayMode = !window.state.isPlayMode;
+    
+    if (window.state.isPlayMode) {
+        if (window.state.freebieMode && window.toggleFreebieMode) window.toggleFreebieMode();
+        if (window.state.xpMode && window.toggleXpMode) window.toggleXpMode();
+    }
+    
+    applyPlayModeUI();
+}
+window.togglePlayMode = togglePlayMode;
 
-        const chronicleData = {
-            name: name,
-            storyteller_uid: user.uid,
-            passcode: pass,
-            timePeriod: time,
-            synopsis: synopsis,
-            houseRules: rules,
-            lore: lore,
-            created_at: new Date().toISOString(),
-            active_scene: "Prologue"
+
+// --- RENDER HELPERS ---
+
+function renderPlayModeHeader() {
+    const row = document.getElementById('play-concept-row');
+    if (row) {
+        const getVal = (id) => document.getElementById(id)?.value || '';
+        row.innerHTML = `
+            <div><span class="label-text">Name:</span> <span class="text-white font-bold">${getVal('c-name')}</span></div>
+            <div><span class="label-text">Player:</span> <span class="text-white font-bold">${getVal('c-player')}</span></div>
+            <div><span class="label-text">Chronicle:</span> <span class="text-white font-bold">${getVal('c-chronicle')}</span></div>
+            <div><span class="label-text">Nature:</span> <span class="text-white font-bold">${getVal('c-nature')}</span></div>
+            <div><span class="label-text">Demeanor:</span> <span class="text-white font-bold">${getVal('c-demeanor')}</span></div>
+            <div><span class="label-text">Concept:</span> <span class="text-white font-bold">${getVal('c-concept')}</span></div>
+            <div><span class="label-text">Clan:</span> <span class="text-white font-bold">${getVal('c-clan')}</span></div>
+            <div><span class="label-text">Generation:</span> <span class="text-white font-bold">${getVal('c-gen')}</span></div>
+            <div><span class="label-text">Sire:</span> <span class="text-white font-bold">${getVal('c-sire')}</span></div>
+        `;
+    }
+}
+
+function renderPlayModeAttributes() {
+    const ra = document.getElementById('play-row-attr'); 
+    if (ra) {
+        ra.innerHTML = '';
+        Object.entries(ATTRIBUTES).forEach(([c,l]) => { 
+            const s = document.createElement('div'); 
+            s.className='sheet-section !mt-0'; 
+            s.innerHTML=`<div class="column-title">${c}</div>`; 
+            ra.appendChild(s); 
+            l.forEach(a=>renderRow(s,a,'attr',1)); 
+        });
+    }
+}
+
+function renderPlayModeAbilities() {
+    const rb = document.getElementById('play-row-abil'); 
+    if (rb) {
+        rb.innerHTML = '';
+        Object.entries(ABILITIES).forEach(([c,l]) => { 
+            const s = document.createElement('div'); 
+            s.className='sheet-section !mt-0'; 
+            s.innerHTML=`<div class="column-title">${c}</div>`; 
+            rb.appendChild(s);
+            l.forEach(a=>renderRow(s,a,'abil',0)); 
+        });
+    }
+}
+
+function renderPlayModeAdvantages() {
+    const rc = document.getElementById('play-row-adv'); 
+    if (rc) {
+        rc.innerHTML = '';
+        
+        const ds = document.createElement('div'); 
+        ds.className='sheet-section !mt-0'; 
+        ds.innerHTML='<div class="column-title">Disciplines</div>';
+        rc.appendChild(ds);
+        
+        Object.entries(window.state.dots.disc).forEach(([n,v]) => { 
+            if(v > 0) {
+                const row = document.createElement('div');
+                row.className = 'flex items-center justify-between w-full py-1';
+                row.innerHTML = `
+                    <span class="trait-label font-bold uppercase text-[11px] whitespace-nowrap text-gray-400 cursor-default">${n}</span>
+                    <div class="dot-row flex-shrink-0 pointer-events-none">${renderDots(v, 5)}</div>
+                `;
+                ds.appendChild(row);
+            } 
+        }); 
+        
+        const bs = document.createElement('div'); bs.className='sheet-section !mt-0'; bs.innerHTML='<div class="column-title">Backgrounds</div>';
+        rc.appendChild(bs);
+        Object.entries(window.state.dots.back).forEach(([n,v]) => { if(v>0) renderRow(bs,n,'back',0); }); 
+        
+        const vs = document.createElement('div'); vs.className='sheet-section !mt-0'; vs.innerHTML='<div class="column-title">Virtues</div>';
+        rc.appendChild(vs);
+        VIRTUES.forEach(v => renderRow(vs, v, 'virt', 1)); 
+    }
+}
+
+function renderPlayModeSocial() {
+    const pg = document.getElementById('play-social-grid'); 
+    if(pg) {
+        pg.innerHTML = ''; 
+        BACKGROUNDS.forEach(s => { 
+            const dots = window.state.dots.back[s] || 0; 
+            const safeId = 'desc-' + s.toLowerCase().replace(/[^a-z0-9]/g, '-'); 
+            const el = document.getElementById(safeId); 
+            const txt = el ? el.value : ""; 
+            if(dots || txt) {
+                pg.innerHTML += `<div class="border-l-2 border-[#333] pl-4 mb-4"><div class="flex justify-between items-center"><label class="label-text text-gold">${s}</label><div class="text-[8px] font-bold text-white">${renderDots(dots,5)}</div></div><div class="text-xs text-gray-200 mt-1">${txt || "No description."}</div></div>`;
+            }
+        });
+    }
+}
+
+function renderPlayModeBloodBonds() {
+    const pb = document.getElementById('play-blood-bonds'); 
+    if(pb) {
+        pb.innerHTML = ''; 
+        const clan = window.state.textFields['c-clan'] || "None";
+        const isTremere = clan === "Tremere";
+
+        if (isTremere) {
+            pb.innerHTML += `<div class="text-[#a855f7] text-[9px] font-bold mb-2 uppercase border-b border-[#a855f7]/30 pb-1 italic"><i class="fas fa-flask mr-1"></i> Weakness: 1st Drink = 2 Steps</div>`;
+        }
+
+        if(window.state.bloodBonds) {
+            window.state.bloodBonds.forEach(b => { 
+                let label = "";
+                if (b.type === 'Bond') {
+                    let r = parseInt(b.rating) || 0;
+                    if (isTremere) {
+                        if (r === 1) label = `<span class="text-[#a855f7]">Step 2</span> (1 Drink)`;
+                        else if (r >= 2) label = `<span class="text-[#a855f7] font-black">Full Bond</span>`; 
+                        else label = `Step ${r}`;
+                    } else {
+                        if (r >= 3) label = 'Full Bond';
+                        else label = `Drink ${r}`;
+                    }
+                } else {
+                    label = `Vinculum ${b.rating}`;
+                }
+                pb.innerHTML += `<div class="flex justify-between border-b border-[#222] py-1 text-xs"><span>${b.name}</span><span class="text-gold font-bold">${label}</span></div>`; 
+            });
+        }
+    }
+}
+
+function renderPlayModeMeritsFlaws() {
+    const mf = document.getElementById('merit-flaw-rows-play'); 
+    if(mf) {
+        mf.innerHTML = ''; 
+        
+        const renderMFRow = (item, type, index) => {
+            const row = document.createElement('div');
+            row.className = "flex flex-col border-b border-[#222] py-2 mb-1";
+            const valueColor = type === 'Merit' ? 'text-red-400' : 'text-green-400'; 
+            
+            row.innerHTML = `
+                <div class="flex justify-between text-xs mb-1">
+                    <span class="font-bold text-white">${item.name}</span>
+                    <span class="text-[10px] ${valueColor} font-bold">${item.val} pts</span>
+                </div>
+                <textarea class="merit-flaw-desc bg-transparent border-none text-[10px] text-gray-400 w-full italic focus:text-white focus:not-italic resize-none overflow-hidden" 
+                        placeholder="Description / Note..." rows="1" style="min-height: 20px;">${item.desc || ''}</textarea>
+            `;
+            
+            const input = row.querySelector('textarea');
+            const resize = () => { input.style.height = 'auto'; input.style.height = (input.scrollHeight) + 'px'; };
+            requestAnimationFrame(resize);
+            input.oninput = resize;
+            input.onblur = (e) => {
+                const arr = type === 'Merit' ? window.state.merits : window.state.flaws;
+                if(arr[index]) arr[index].desc = e.target.value;
+            };
+            mf.appendChild(row);
         };
 
-        // Strict Path: chronicles/{id}
-        await setDoc(doc(db, 'chronicles', chronicleId), chronicleData);
+        if(window.state.merits) window.state.merits.forEach((m, i) => renderMFRow(m, 'Merit', i));
+        if(window.state.flaws) window.state.flaws.forEach((f, i) => renderMFRow(f, 'Flaw', i));
         
-        localStorage.setItem('v20_last_chronicle_id', chronicleId);
-        localStorage.setItem('v20_last_chronicle_name', name);
-        localStorage.setItem('v20_last_chronicle_role', 'ST');
-
-        stState.activeChronicleId = chronicleId;
-        stState.isStoryteller = true;
-        stState.settings = chronicleData;
-        
-        window.closeChronicleModal();
-        startStorytellerSession(); 
-        toggleStorytellerButton(true);
-        window.renderStorytellerDashboard(); 
-        
-    } catch (e) {
-        console.error("Create Error:", e);
-        err.innerText = "Error creating chronicle: " + e.message;
-        err.classList.remove('hidden');
+        if (!window.state.merits?.length && !window.state.flaws?.length) {
+            mf.innerHTML = '<div class="text-[10px] text-gray-600 italic text-center">No Merits or Flaws selected.</div>';
+        }
     }
 }
 
-async function handleJoinChronicle() {
-    const user = auth.currentUser;
-    if(!user) return;
-
-    const idInput = document.getElementById('join-id').value.trim();
-    const passInput = document.getElementById('join-pass').value.trim();
-    const err = document.getElementById('join-error');
-
-    if (!idInput) {
-        err.innerText = "Chronicle ID is required.";
-        err.classList.remove('hidden');
-        return;
-    }
-
-    try {
-        // Path: chronicles/{id}
-        const docRef = doc(db, 'chronicles', idInput);
-        const docSnap = await getDoc(docRef);
-
-        if (!docSnap.exists()) {
-            err.innerText = "Chronicle not found.";
-            err.classList.remove('hidden');
-            return;
-        }
-
-        const data = docSnap.data();
-        if (data.passcode && data.passcode !== passInput) {
-            err.innerText = "Incorrect Passcode.";
-            err.classList.remove('hidden');
-            return;
-        }
-
-        // Path: chronicles/{id}/players/{uid}
-        const playerRef = doc(db, 'chronicles', idInput, 'players', user.uid);
-        const charName = document.getElementById('c-name')?.value || "Unknown Kindred";
+function renderPlayModeOtherTraits() {
+    const ot = document.getElementById('other-traits-rows-play'); 
+    if(ot) {
+        ot.innerHTML = ''; 
+        Object.entries(window.state.dots.other).forEach(([n,v]) => { if(v>0) renderRow(ot, n, 'other', 0); });
         
-        await setDoc(playerRef, {
-            character_name: charName,
-            status: "Connected",
-            last_active: new Date().toISOString(),
-            live_stats: {
-                health: window.state.status.health_states || [],
-                willpower: window.state.status.tempWillpower || 0,
-                blood: window.state.status.blood || 0
-            }
-        }, { merge: true });
-
-        localStorage.setItem('v20_last_chronicle_id', idInput);
-        localStorage.setItem('v20_last_chronicle_name', data.name);
-        localStorage.setItem('v20_last_chronicle_role', 'Player');
-
-        stState.activeChronicleId = idInput;
-        stState.isStoryteller = false;
-        stState.playerRef = playerRef;
-
-        initCombatTracker(idInput);
-        
-        startPlayerSync();
-        startPlayerListeners(idInput); // Listen for pushes
-        startChatListener(idInput); // Connect to Chat
-
-        // System Log
-        sendChronicleMessage('system', `${charName} joined the chronicle.`);
-
-        showNotification(`Joined ${data.name}. Check the Chronicle tab.`);
-        window.closeChronicleModal();
-
-    } catch (e) {
-        console.error("Join Error:", e);
-        err.innerText = "Connection failed: " + e.message;
-        err.classList.remove('hidden');
+        const plv = document.getElementById('play-vitals-list'); 
+        if(plv) {
+            plv.innerHTML = ''; 
+            VIT.forEach(v => { 
+                const val = document.getElementById('bio-' + v)?.value; 
+                if(val) plv.innerHTML += `<div class="flex justify-between border-b border-[#222] py-1 font-bold"><span class="text-gray-400">${v.replace('-',' ')}:</span> <span>${val}</span></div>`; 
+            });
+        }
     }
 }
 
-async function handleResumeChronicle(id, role) {
-    if (!auth.currentUser) return;
-    
-    try {
-        const docRef = doc(db, 'chronicles', id);
-        const docSnap = await getDoc(docRef);
+function renderPlayModeCombat() {
+    const cp = document.getElementById('combat-rows-play'); 
+    if(cp) {
+        cp.innerHTML = ''; 
         
-        if (!docSnap.exists()) {
-            showNotification("Chronicle no longer exists.", "error");
-            localStorage.removeItem('v20_last_chronicle_id');
-            renderChronicleMenu();
-            return;
-        }
+        // Initiative
+        const dexVal = window.state.dots.attr['Dexterity'] || 1;
+        const witsVal = window.state.dots.attr['Wits'] || 1;
+        const initRating = dexVal + witsVal;
         
-        const data = docSnap.data();
+        const initRow = document.createElement('tr');
+        initRow.className = 'bg-[#222] border-b border-[#444]';
+        initRow.innerHTML = `
+            <td colspan="6" class="p-2 text-center">
+                <button class="bg-[#d97706] hover:bg-[#b45309] text-white text-[10px] font-bold py-1 px-6 rounded uppercase tracking-wider flex items-center justify-center mx-auto gap-2 transition-all" onclick="window.rollInitiative(${initRating})">
+                    <i class="fas fa-bolt text-yellow-200"></i> Roll Initiative (Rating: ${initRating})
+                </button>
+            </td>
+        `;
+        cp.appendChild(initRow);
+
+        const standards = [
+            {n:'Bite', diff:6, dmg:'Str+1(A)', attr:'Dexterity', abil:'Brawl'},
+            {n:'Block', diff:6, dmg:'None (R)', attr:'Dexterity', abil:'Brawl'},
+            {n:'Claw', diff:6, dmg:'Str+1(A)', attr:'Dexterity', abil:'Brawl'},
+            {n:'Clinch', diff:6, dmg:'Str(C)', attr:'Strength', abil:'Brawl'},
+            {n:'Disarm', diff:7, dmg:'Special', attr:'Dexterity', abil:'Melee'},
+            {n:'Dodge', diff:6, dmg:'None (R)', attr:'Dexterity', abil:'Athletics'},
+            {n:'Hold', diff:6, dmg:'None (C)', attr:'Strength', abil:'Brawl'},
+            {n:'Kick', diff:7, dmg:'Str+1', attr:'Dexterity', abil:'Brawl'},
+            {n:'Parry', diff:6, dmg:'None (R)', attr:'Dexterity', abil:'Melee'},
+            {n:'Strike', diff:6, dmg:'Str', attr:'Dexterity', abil:'Brawl'},
+            {n:'Sweep', diff:7, dmg:'Str(K)', attr:'Dexterity', abil:'Brawl'},
+            {n:'Tackle', diff:7, dmg:'Str+1(K)', attr:'Strength', abil:'Brawl'},
+            {n:'Weapon Strike', diff:6, dmg:'Weapon', attr:'Dexterity', abil:'Melee'},
+            {n:'Auto Fire', diff:8, dmg:'Special', attr:'Dexterity', abil:'Firearms'},
+            {n:'Multi Shot', diff:6, dmg:'Weapon', attr:'Dexterity', abil:'Firearms'},
+            {n:'Strafing', diff:8, dmg:'Special', attr:'Dexterity', abil:'Firearms'},
+            {n:'3-Rnd Burst', diff:7, dmg:'Weapon', attr:'Dexterity', abil:'Firearms'},
+            {n:'Two Weapons', diff:7, dmg:'Weapon', attr:'Dexterity', abil:'Firearms'}
+        ];
         
-        localStorage.setItem('v20_last_chronicle_id', id);
-        localStorage.setItem('v20_last_chronicle_name', data.name);
-        localStorage.setItem('v20_last_chronicle_role', role);
-
-        if (role === 'ST') {
-            if (data.storyteller_uid !== auth.currentUser.uid) {
-                showNotification("Permission Denied: You are not the Storyteller.", "error");
-                localStorage.removeItem('v20_last_chronicle_id');
-                return;
-            }
-            stState.activeChronicleId = id;
-            stState.isStoryteller = true;
-            stState.settings = data;
-            
-            window.closeChronicleModal();
-            startStorytellerSession(); 
-            showNotification(`Resumed ${data.name} (ST Mode)`);
-            toggleStorytellerButton(true);
-            window.renderStorytellerDashboard(); 
-        } else {
-            const playerRef = doc(db, 'chronicles', id, 'players', auth.currentUser.uid);
-            await setDoc(playerRef, { status: "Connected", last_active: new Date().toISOString() }, { merge: true });
-            
-            stState.activeChronicleId = id;
-            stState.isStoryteller = false;
-            stState.playerRef = playerRef;
-            
-            initCombatTracker(id);
-            
-            startPlayerSync();
-            startPlayerListeners(id); // Listen for pushes
-            startChatListener(id); // Connect to Chat
-            
-            // System Log
-            const charName = document.getElementById('c-name')?.value || "Unknown";
-            sendChronicleMessage('system', `${charName} reconnected.`);
-
-            window.closeChronicleModal();
-            showNotification(`Reconnected to ${data.name}`);
-        }
-        
-    } catch (e) {
-        console.error("Resume Error:", e);
-        showNotification("Failed to resume.", "error");
-    }
-}
-
-function disconnectChronicle() {
-    if (stState.activeChronicleId) {
-        const charName = stState.isStoryteller ? "Storyteller" : (document.getElementById('c-name')?.value || "Unknown");
-        sendChronicleMessage('system', `${charName} disconnected.`);
-    }
-
-    if (!stState.isStoryteller && stState.playerRef) {
-        try {
-            setDoc(stState.playerRef, { status: "Offline" }, { merge: true });
-        } catch(e) { console.warn(e); }
-    }
-
-    stState.listeners.forEach(unsub => unsub());
-    stState.listeners = [];
-    if (stState.chatUnsub) stState.chatUnsub();
-    if (stState.syncInterval) clearInterval(stState.syncInterval);
-    
-    stState.activeChronicleId = null;
-    stState.playerRef = null;
-    stState.isStoryteller = false;
-    stState.dashboardActive = false;
-    stState.players = {};
-    stState.bestiary = {};
-    stState.journal = {};
-    stState.settings = {};
-    stState.seenHandouts = new Set();
-    stState.chatHistory = [];
-
-    showNotification("Disconnected from Chronicle.");
-    
-    localStorage.removeItem('v20_last_chronicle_id');
-    localStorage.removeItem('v20_last_chronicle_name');
-    localStorage.removeItem('v20_last_chronicle_role');
-
-    const floatBtn = document.getElementById('player-combat-float');
-    if(floatBtn) floatBtn.remove();
-    
-    // Hide Chronicle Tab if visible
-    const tab = document.getElementById('play-mode-chronicle');
-    if(tab) tab.classList.add('hidden');
-    
-    // Deactivate nav button
-    const navBtn = document.getElementById('nav-chronicle');
-    if(navBtn) navBtn.classList.remove('active');
-
-    toggleStorytellerButton(false);
-    exitStorytellerDashboard();
-    
-    if (window.state && window.state.currentPhase === 7) {
-        if(window.changeStep) window.changeStep(1);
-    }
-}
-
-function startPlayerSync() {
-    if (stState.isStoryteller) return;
-
-    const interval = setInterval(async () => {
-        if (!stState.activeChronicleId || !stState.playerRef) {
-            clearInterval(interval);
-            return;
-        }
-        
-        try {
-            await setDoc(stState.playerRef, {
-                character_name: document.getElementById('c-name')?.value || "Unknown",
-                live_stats: {
-                    health: window.state.status.health_states || [],
-                    willpower: window.state.status.tempWillpower || 0,
-                    blood: window.state.status.blood || 0
-                },
-                last_active: new Date().toISOString()
-            }, { merge: true });
-        } catch(e) {
-            console.warn("Sync error:", e);
-        }
-    }, 10000);
-    
-    stState.syncInterval = interval;
-}
-
-function startPlayerListeners(chronicleId) {
-    const q = query(collection(db, 'chronicles', chronicleId, 'players'));
-    const unsub = onSnapshot(q, (snapshot) => {
-        let updated = false;
-        snapshot.docChanges().forEach((change) => {
-            const data = change.doc.data();
-            const docId = change.doc.id;
-            
-            // Check for Journal Entries (namespaced)
-            // AND check if they are pushed
-            if (docId.startsWith('journal_') && data.pushed === true) {
-                const myId = auth.currentUser?.uid;
-                
-                // RECIPIENT LOGIC:
-                // 1. If recipients is MISSING or NULL, it's a broadcast to ALL.
-                // 2. If recipients is ARRAY, check if myId is included.
-                let isRecipient = false;
-                
-                if (!data.recipients) {
-                    isRecipient = true; // Everyone
-                } else if (Array.isArray(data.recipients)) {
-                    if (data.recipients.length === 0) isRecipient = false; // Empty array means no one
-                    else if (myId && data.recipients.includes(myId)) isRecipient = true;
-                }
-                
-                if (isRecipient) {
-                    if (change.type === 'added' || change.type === 'modified') {
-                        if (!window.state.codex) window.state.codex = [];
-                        
-                        // Construct local entry from pushed data
-                        const entry = { ...data, id: docId }; 
-                        
-                        const idx = window.state.codex.findIndex(c => c.id === docId);
-                        if (idx > -1) window.state.codex[idx] = entry;
-                        else window.state.codex.push(entry);
-                        
-                        updated = true;
-                    }
-                    if (change.type === 'removed') {
-                        if (window.state.codex) {
-                            window.state.codex = window.state.codex.filter(c => c.id !== docId);
-                            updated = true;
-                        }
-                    }
-                }
-            }
-        });
-        
-        if (updated) {
-            showNotification("Journal Updated from Chronicle");
-            // If the Journal tab is active, refresh it
-            const journalTab = document.getElementById('play-mode-5');
-            if (journalTab && journalTab.classList.contains('active')) {
-                if(window.renderJournalTab) window.renderJournalTab();
-            }
-        }
-    }, (error) => {
-        if (error.code === 'permission-denied') {
-            console.warn("Journal Listener: Access Denied. You may have been removed from the Chronicle.");
-            // Optional: Disconnect automatically?
-        } else {
-            console.error("Journal Listener Error:", error);
-        }
-    });
-    
-    stState.listeners.push(unsub);
-}
-
-// ==========================================================================
-// STORYTELLER DASHBOARD (Overlay)
-// ==========================================================================
-
-function startStorytellerSession() {
-    // 1. ROSTER + JOURNAL LISTENER (COMBINED)
-    const qRoster = query(collection(db, 'chronicles', stState.activeChronicleId, 'players'));
-    
-    stState.listeners.push(onSnapshot(qRoster, (snapshot) => {
-        stState.players = {};
-        stState.journal = {}; 
-        
-        snapshot.forEach(doc => {
-            const data = doc.data();
-            const id = doc.id;
-            
-            if (id.startsWith('journal_')) {
-                stState.journal[id] = data;
-            } else {
-                stState.players[id] = data;
-            }
+         standards.forEach(s => { 
+            const r = document.createElement('tr'); 
+            r.className='border-b border-[#222] text-[10px] text-gray-500 hover:bg-[#1a1a1a]'; 
+            r.innerHTML = `
+                <td class="p-2 font-bold text-white flex items-center gap-2">
+                    <button class="bg-[#8b0000] hover:bg-red-600 text-white rounded px-1.5 py-0.5 text-[9px] font-bold" onclick="window.rollCombat('${s.n}', ${s.diff}, '${s.attr}', '${s.abil}')" title="Roll ${s.n}">
+                        <i class="fas fa-dice-d10"></i>
+                    </button>
+                    ${s.n}
+                </td>
+                <td class="p-2">${s.diff}</td>
+                <td class="p-2">${s.dmg}</td>
+                <td class="p-2 text-center">-</td>
+                <td class="p-2 text-center">-</td>
+                <td class="p-2 text-center">-</td>
+            `; 
+            cp.appendChild(r); 
         });
 
-        // Smart UI Refresh
-        if (stState.dashboardActive) {
-            if (stState.currentView === 'roster') {
-                renderRosterView();
-            }
-            else if (stState.currentView === 'journal') {
-                if (updateJournalList) {
-                    updateJournalList(Object.values(stState.journal));
-                }
-            }
+        // Inventory Weapons
+        const firearms = ['Pistol', 'Revolver', 'Rifle', 'SMG', 'Shotgun', 'Crossbow'];
+        if(window.state.inventory) { 
+            window.state.inventory.filter(i => i.type === 'Weapon' && i.status === 'carried').forEach(w => { 
+                let display = w.displayName || w.name;
+                const isFirearm = firearms.some(f => (w.name && w.name.includes(f)) || (w.baseType && w.baseType.includes(f)));
+                const ability = isFirearm ? 'Firearms' : 'Melee';
+                const r = document.createElement('tr'); 
+                r.className='border-b border-[#222] text-[10px] hover:bg-[#1a1a1a]'; 
+                r.innerHTML = `
+                    <td class="p-2 font-bold text-gold flex items-center gap-2">
+                         <button class="bg-[#8b0000] hover:bg-red-600 text-white rounded px-1.5 py-0.5 text-[9px] font-bold" onclick="window.rollCombat('${display}', ${w.stats.diff}, 'Dexterity', '${ability}')" title="Roll ${display}">
+                            <i class="fas fa-dice-d10"></i>
+                        </button>
+                        ${display}
+                    </td>
+                    <td class="p-2 text-white">${w.stats.diff}</td>
+                    <td class="p-2 text-white">${w.stats.dmg}</td>
+                    <td class="p-2 text-center">${w.stats.range}</td>
+                    <td class="p-2 text-center">${w.stats.rate}</td>
+                    <td class="p-2 text-center">${w.stats.clip}</td>
+                `; 
+                cp.appendChild(r); 
+            }); 
         }
-    }, (error) => {
-        console.error("Roster Listener Error:", error);
-        if (error.code === 'permission-denied') {
-            showNotification("ST Access Revoked", "error");
-            exitStorytellerDashboard();
-        }
-    }));
-
-    // 2. BESTIARY LISTENER
-    const qBestiary = query(collection(db, 'chronicles', stState.activeChronicleId, 'bestiary'));
-    stState.listeners.push(onSnapshot(qBestiary, (snapshot) => {
-        stState.bestiary = {};
-        snapshot.forEach(doc => { stState.bestiary[doc.id] = doc.data(); });
-        if (stState.dashboardActive && stState.currentView === 'bestiary') renderBestiaryView();
-    }, (error) => {
-        console.error("Bestiary Listener Error:", error);
-    }));
-
-    initCombatTracker(stState.activeChronicleId);
-    startChatListener(stState.activeChronicleId);
-}
-
-function renderStorytellerDashboard(container = null) {
-    if (!container) container = document.getElementById('st-dashboard-view');
-    if (!container) return;
-
-    stState.dashboardActive = true;
-    container.classList.remove('hidden');
-    container.style.display = 'flex'; 
-
-    container.innerHTML = `
-        <div class="flex flex-col w-full h-full bg-[#050505] pt-16">
-            <!-- ST Header -->
-            <div class="bg-[#1a0505] border-b border-[#500] p-4 flex justify-between items-center shadow-lg z-10 shrink-0">
-                <div class="flex items-center gap-4">
-                    <h2 class="text-xl font-cinzel text-red-500 font-bold tracking-widest uppercase">
-                        <i class="fas fa-crown mr-2"></i> Storyteller Mode
-                    </h2>
-                    <span class="text-xs font-mono text-gray-500 border border-[#333] px-2 py-1 rounded bg-black">
-                        ID: <span class="text-gold select-all cursor-pointer" onclick="navigator.clipboard.writeText('${stState.activeChronicleId}')">${stState.activeChronicleId}</span>
-                    </span>
-                </div>
-                <div class="flex gap-2">
-                    <button class="bg-[#222] border border-[#444] text-gray-300 hover:text-white px-3 py-1 text-xs font-bold uppercase rounded transition-colors" onclick="window.exitStorytellerDashboard()">
-                        <i class="fas fa-arrow-left mr-1"></i> Character Creator
-                    </button>
-                    <button class="bg-[#222] border border-red-900 text-red-500 hover:text-white hover:bg-red-900 px-3 py-1 text-xs font-bold uppercase rounded transition-colors" onclick="window.disconnectChronicle()">
-                        <i class="fas fa-sign-out-alt mr-1"></i> Disconnect
-                    </button>
-                </div>
-            </div>
-
-            <!-- ST Tabs -->
-            <div class="flex bg-[#111] border-b border-[#333] px-4 shrink-0 overflow-x-auto no-scrollbar">
-                <button class="st-tab active px-6 py-3 text-xs font-bold uppercase tracking-wider text-[#d4af37] border-b-2 border-[#d4af37] hover:bg-[#222] transition-colors whitespace-nowrap" onclick="window.switchStorytellerView('roster')">
-                    <i class="fas fa-users mr-2"></i> Roster
-                </button>
-                <button class="st-tab px-6 py-3 text-xs font-bold uppercase tracking-wider text-gray-500 hover:text-white hover:bg-[#222] transition-colors whitespace-nowrap" onclick="window.switchStorytellerView('combat')">
-                    <i class="fas fa-swords mr-2"></i> Combat
-                </button>
-                <button class="st-tab px-6 py-3 text-xs font-bold uppercase tracking-wider text-gray-500 hover:text-white hover:bg-[#222] transition-colors whitespace-nowrap" onclick="window.switchStorytellerView('bestiary')">
-                    <i class="fas fa-dragon mr-2"></i> Bestiary
-                </button>
-                <button class="st-tab px-6 py-3 text-xs font-bold uppercase tracking-wider text-gray-500 hover:text-white hover:bg-[#222] transition-colors whitespace-nowrap" onclick="window.switchStorytellerView('journal')">
-                    <i class="fas fa-book-open mr-2"></i> Journal
-                </button>
-                <button class="st-tab px-6 py-3 text-xs font-bold uppercase tracking-wider text-gray-500 hover:text-white hover:bg-[#222] transition-colors whitespace-nowrap" onclick="window.switchStorytellerView('chat')">
-                    <i class="fas fa-comments mr-2"></i> Chat / Log
-                </button>
-                <button class="st-tab px-6 py-3 text-xs font-bold uppercase tracking-wider text-gray-500 hover:text-white hover:bg-[#222] transition-colors whitespace-nowrap" onclick="window.switchStorytellerView('settings')">
-                    <i class="fas fa-cogs mr-2"></i> Settings
-                </button>
-            </div>
-
-            <!-- ST Viewport -->
-            <div id="st-viewport" class="flex-1 overflow-hidden relative bg-[url('https://www.transparenttextures.com/patterns/black-linen.png')]">
-                <!-- Views injected here -->
-            </div>
-        </div>
-    `;
-    
-    switchStorytellerView(stState.currentView || 'roster');
-}
-
-function exitStorytellerDashboard() {
-    stState.dashboardActive = false;
-    const dash = document.getElementById('st-dashboard-view');
-    if(dash) {
-        dash.style.display = 'none';
-        dash.classList.add('hidden');
     }
 }
 
-function switchStorytellerView(view) {
-    stState.currentView = view;
-    document.querySelectorAll('.st-tab').forEach(btn => {
-        const isActive = btn.onclick.toString().includes(`'${view}'`);
-        btn.className = isActive 
-            ? "st-tab active px-6 py-3 text-xs font-bold uppercase tracking-wider text-[#d4af37] border-b-2 border-[#d4af37] bg-[#222] transition-colors whitespace-nowrap"
-            : "st-tab px-6 py-3 text-xs font-bold uppercase tracking-wider text-gray-500 hover:text-white hover:bg-[#222] transition-colors whitespace-nowrap";
-    });
-
-    const viewport = document.getElementById('st-viewport');
-    if (view === 'roster') renderRosterView();
-    else if (view === 'combat') renderCombatView();
-    else if (view === 'bestiary') renderBestiaryView();
-    else if (view === 'journal') {
-        if(renderStorytellerJournal) renderStorytellerJournal(viewport);
-    }
-    else if (view === 'chat') renderChatView(viewport);
-    else if (view === 'settings') renderSettingsView(viewport);
-}
-
-// --- NEW SETTINGS VIEW ---
-async function renderSettingsView(container) {
-    if(!container) return;
-    
-    const docRef = doc(db, 'chronicles', stState.activeChronicleId);
-    let data = stState.settings || {};
-    
-    try {
-        const snap = await getDoc(docRef);
-        if(snap.exists()) {
-            data = snap.data();
-            stState.settings = data;
-        }
-    } catch(e) { console.error(e); }
-
-    container.innerHTML = `
-        <div class="p-8 max-w-4xl mx-auto pb-20 overflow-y-auto h-full custom-scrollbar">
-            <h2 class="text-2xl text-[#d4af37] font-cinzel font-bold mb-6 border-b border-[#333] pb-2 uppercase tracking-wider">Chronicle Configuration</h2>
+function renderPlayModeDerangements() {
+    if(document.getElementById('play-derangements')) { 
+        const pd = document.getElementById('play-derangements'); 
+        const clan = window.state.textFields['c-clan'] || "None";
+        const isMalk = clan === "Malkavian";
+        
+        let contentHtml = window.state.derangements.length > 0 
+            ? window.state.derangements.map((d, i) => {
+                if (isMalk && i === 0) return `<div class="text-[#a855f7] font-bold"><i class="fas fa-lock text-[8px] mr-1"></i>${d} (Incurable)</div>`;
+                return `<div>• ${d}</div>`;
+            }).join('') 
+            : '<span class="text-gray-500 italic">None</span>';
             
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                <div>
-                    <label class="label-text text-gray-400">Chronicle Name</label>
-                    <input type="text" id="st-set-name" class="w-full bg-[#111] border border-[#333] text-white p-3 text-sm focus:border-[#d4af37] outline-none" value="${data.name || ''}">
-                </div>
-                <div>
-                    <label class="label-text text-gray-400">Time Period / Setting</label>
-                    <input type="text" id="st-set-time" class="w-full bg-[#111] border border-[#333] text-white p-3 text-sm focus:border-[#d4af37] outline-none" value="${data.timePeriod || ''}">
-                </div>
-            </div>
-
-            <div class="mb-6">
-                <label class="label-text text-gray-400">Passcode (Leave empty for open access)</label>
-                <input type="text" id="st-set-pass" class="w-full bg-[#111] border border-[#333] text-white p-3 text-sm focus:border-[#d4af37] outline-none" value="${data.passcode || ''}">
-            </div>
-
-            <div class="mb-6">
-                <label class="label-text text-gray-400">Synopsis / Briefing (Public)</label>
-                <textarea id="st-set-synopsis" class="w-full bg-[#111] border border-[#333] text-gray-300 p-3 text-xs focus:border-[#d4af37] outline-none resize-none h-32 leading-relaxed">${data.synopsis || ''}</textarea>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                <div>
-                    <label class="label-text text-gray-400">House Rules</label>
-                    <textarea id="st-set-rules" class="w-full bg-[#1a0505] border border-red-900/30 text-gray-300 p-3 text-xs focus:border-red-500 outline-none resize-none h-48 leading-relaxed">${data.houseRules || ''}</textarea>
-                </div>
-                <div>
-                    <label class="label-text text-gray-400">Lore / Setting Details</label>
-                    <textarea id="st-set-lore" class="w-full bg-[#0a0a0a] border border-[#d4af37]/30 text-gray-300 p-3 text-xs focus:border-[#d4af37] outline-none resize-none h-48 leading-relaxed">${data.lore || ''}</textarea>
-                </div>
-            </div>
-
-            <div class="text-right">
-                <button onclick="window.stSaveSettings()" class="bg-[#d4af37] text-black font-bold px-8 py-3 rounded uppercase hover:bg-[#fcd34d] shadow-lg tracking-widest transition-transform hover:scale-105">
-                    Save Changes
-                </button>
-            </div>
-        </div>
-    `;
-}
-
-async function stSaveSettings() {
-    if(!stState.activeChronicleId) return;
-    
-    const updates = {
-        name: document.getElementById('st-set-name').value,
-        timePeriod: document.getElementById('st-set-time').value,
-        passcode: document.getElementById('st-set-pass').value,
-        synopsis: document.getElementById('st-set-synopsis').value,
-        houseRules: document.getElementById('st-set-rules').value,
-        lore: document.getElementById('st-set-lore').value
-    };
-    
-    try {
-        await updateDoc(doc(db, 'chronicles', stState.activeChronicleId), updates);
-        stState.settings = { ...stState.settings, ...updates };
-        showNotification("Settings Updated");
-    } catch(e) {
-        console.error(e);
-        showNotification("Update Failed", "error");
-    }
-}
-
-// --- VIEW 1: ROSTER (UPDATED: Compact Cards with Text Labels & Logic-Based Online Status) ---
-function renderRosterView() {
-    const viewport = document.getElementById('st-viewport');
-    if (!viewport || stState.currentView !== 'roster') return;
-
-    // Filter out journal entries from players list (check metadataType OR id prefix)
-    const players = Object.entries(stState.players)
-        .filter(([id, p]) => !p.metadataType || p.metadataType !== 'journal')
-        .map(([id, p]) => ({...p, id})); // Add ID back to object for referencing
-    
-    if (players.length === 0) {
-        viewport.innerHTML = `<div class="flex flex-col items-center justify-center h-full text-gray-500"><i class="fas fa-users-slash text-4xl mb-4 opacity-50"></i><p>No players connected.</p><p class="text-xs mt-2">Share ID: <span class="text-gold font-mono font-bold">${stState.activeChronicleId}</span></p></div>`;
-        return;
-    }
-
-    // COMPACT GRID LAYOUT - SQUARES
-    let html = `<div class="p-6 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 overflow-y-auto h-full pb-20 custom-scrollbar">`;
-
-    players.forEach(p => {
-        const health = p.live_stats?.health || [];
-        const dmgCount = health.filter(x => x > 0).length;
-        const healthText = dmgCount >= 7 ? "INC" : (7 - dmgCount);
-        const healthColor = dmgCount >= 7 ? "text-red-600 font-black animate-pulse" : (dmgCount > 3 ? "text-red-400" : "text-green-400");
-        const wp = p.live_stats?.willpower || 0;
-        const bp = p.live_stats?.blood || 0;
-
-        // CALCULATE ONLINE STATUS
-        // Logic: Compare last_active timestamp with current time. 
-        // Sync runs every 10s. Allow 90s buffer for lag/timeouts.
-        const now = new Date();
-        const lastActive = p.last_active ? new Date(p.last_active) : new Date(0); // Default to epoch if missing
-        const diffSeconds = (now - lastActive) / 1000;
-        const isOnline = diffSeconds < 90 && p.status !== 'Offline';
-
-        const statusColor = isOnline ? 'bg-green-500 shadow-[0_0_5px_lime]' : 'bg-red-500 opacity-50';
-        const statusTitle = isOnline ? 'Online' : `Offline (Last seen: ${lastActive.toLocaleTimeString()})`;
-
-        html += `
-            <div class="bg-[#1a1a1a] border border-[#333] rounded p-3 shadow-lg relative group hover:border-[#d4af37] transition-all flex flex-col justify-between aspect-square">
-                <div class="flex justify-between items-start mb-1">
-                    <div class="overflow-hidden mr-1">
-                        <h3 class="font-bold text-sm text-white truncate w-full font-cinzel text-shadow" title="${p.character_name || "Unknown"}">${p.character_name || "Unknown"}</h3>
-                        <div class="text-[10px] text-gray-500 truncate font-mono">${p.player_name || "Player"}</div>
-                    </div>
-                    <div class="w-3 h-3 rounded-full ${statusColor}" title="${statusTitle}"></div>
-                </div>
-
-                <!-- Center Stats - TEXT LABELS -->
-                <div class="flex flex-col justify-center gap-1 flex-1 my-2 text-[10px] font-bold">
-                    <div class="flex justify-between items-center bg-black/40 px-2 py-1 rounded border border-[#222]">
-                        <span class="text-gray-500 uppercase">Health</span>
-                        <span class="${healthColor}">${healthText}</span>
-                    </div>
-                    <div class="flex justify-between items-center bg-black/40 px-2 py-1 rounded border border-[#222]">
-                        <span class="text-gray-500 uppercase">Willpower</span>
-                        <span class="text-blue-300">${wp}</span>
-                    </div>
-                    <div class="flex justify-between items-center bg-black/40 px-2 py-1 rounded border border-[#222]">
-                        <span class="text-gray-500 uppercase">Blood</span>
-                        <span class="text-red-400">${bp}</span>
-                    </div>
-                </div>
-
-                <div class="mt-auto">
-                    <button class="w-full bg-[#2a0a0a] border border-red-900/30 text-[10px] py-2 text-red-400 hover:text-white hover:bg-red-900 hover:border-red-500 uppercase font-bold rounded transition-colors" onclick="window.stAddToCombat({id:'${p.id}', name:'${p.character_name}'}, 'Player')">
-                        Add to Combat
+        if (isMalk) {
+            contentHtml += `
+                <div class="mt-2 pt-2 border-t border-[#333] flex items-center justify-between">
+                    <span class="text-[9px] text-[#a855f7] uppercase font-bold">Weakness</span>
+                    <button onclick="window.suppressDerangement()" class="bg-[#a855f7] hover:bg-[#c084fc] text-white text-[9px] font-bold px-2 py-1 rounded flex items-center gap-1">
+                        <i class="fas fa-power-off"></i> Suppress (1 WP)
                     </button>
-                </div>
-            </div>
-        `;
-    });
-    html += `</div>`;
-    viewport.innerHTML = html;
-}
-
-// --- VIEW 2: COMBAT ---
-function renderCombatView() {
-    const viewport = document.getElementById('st-viewport');
-    if (!viewport || stState.currentView !== 'combat') return;
-
-    const { isActive, turn, combatants } = combatState;
-
-    if (!isActive) {
-        viewport.innerHTML = `
-            <div class="flex flex-col items-center justify-center h-full text-gray-500">
-                <i class="fas fa-peace text-6xl mb-6 opacity-30"></i>
-                <h3 class="text-xl font-bold text-gray-400 mb-2">No Active Combat</h3>
-                <button onclick="window.stStartCombat()" class="bg-[#8b0000] hover:bg-red-700 text-white font-bold py-3 px-8 uppercase tracking-widest shadow-lg rounded transition-transform hover:scale-105">Start Encounter</button>
-            </div>
-        `;
-        return;
-    }
-
-    let html = `
-        <div class="flex flex-col h-full">
-            <div class="bg-[#111] border-b border-[#333] p-4 flex justify-between items-center shadow-md z-20">
-                <div class="flex items-center gap-6">
-                    <div class="text-center">
-                        <div class="text-[10px] text-gray-500 uppercase font-bold tracking-widest">Round</div>
-                        <div class="text-3xl font-black text-[#d4af37] leading-none">${turn}</div>
-                    </div>
-                    <button onclick="window.stNextTurn()" class="bg-[#222] hover:bg-[#333] border border-[#444] text-white px-4 py-2 text-xs font-bold uppercase rounded flex items-center gap-2 transition-colors shadow-sm hover:shadow-[#d4af37]/20">
-                        Next Turn <i class="fas fa-step-forward"></i>
-                    </button>
-                </div>
-                <button onclick="window.stEndCombat()" class="text-red-500 hover:text-red-300 text-xs font-bold uppercase border border-red-900/30 px-4 py-2 rounded hover:bg-red-900/10">End Combat</button>
-            </div>
-            <div class="flex-1 overflow-y-auto p-4 space-y-2 bg-black/50 pb-20">
-    `;
-
-    if (combatants.length === 0) {
-        html += `<div class="text-center text-gray-500 italic mt-10">Waiting for combatants...</div>`;
-    } else {
-        combatants.forEach(c => {
-            const isNPC = c.type === 'NPC';
-            // Active State Highlighting
-            const activeClass = c.active ? 'border-[#d4af37] bg-[#2a2a2a] shadow-[0_0_15px_rgba(212,175,55,0.2)] transform scale-[1.01]' : 'border-[#333] bg-[#1a1a1a] opacity-80';
-            const activeIndicator = c.active ? `<div class="absolute left-0 top-0 bottom-0 w-1 bg-[#d4af37]"></div>` : '';
-
-            html += `
-                <div class="${activeClass} p-2 rounded flex items-center justify-between group hover:border-[#555] transition-all relative overflow-hidden">
-                    ${activeIndicator}
-                    <div class="flex items-center gap-4 flex-1 pl-3">
-                        <div class="flex flex-col items-center w-12">
-                            <input type="number" value="${c.init}" onchange="window.stUpdateInit('${c.id}', this.value)" class="w-10 bg-black border border-[#444] text-center text-lg font-bold text-[#d4af37] focus:outline-none focus:border-[#d4af37] rounded">
-                            <span class="text-[8px] text-gray-600 uppercase font-bold mt-0.5">Init</span>
-                        </div>
-                        <div class="flex flex-col">
-                            <span class="text-white font-bold text-sm ${c.status === 'done' ? 'line-through opacity-50' : ''}">${c.name}</span>
-                            <span class="text-[9px] text-gray-500 uppercase">${c.type}</span>
-                        </div>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        ${isNPC ? `<button onclick="window.stRollInit('${c.id}')" class="text-gray-500 hover:text-white" title="Roll Initiative"><i class="fas fa-dice-d10"></i></button>` : ''}
-                        <button onclick="window.stRemoveCombatant('${c.id}')" class="text-red-900 hover:text-red-500 px-2 transition-colors"><i class="fas fa-times"></i></button>
-                    </div>
                 </div>
             `;
-        });
+        }
+        pd.innerHTML = contentHtml; 
     }
-    html += `</div></div>`;
-    viewport.innerHTML = html;
 }
 
-// --- VIEW 3: BESTIARY ---
-function renderBestiaryView() {
-    const viewport = document.getElementById('st-viewport');
-    if (!viewport || stState.currentView !== 'bestiary') return;
+function renderPlayModeWeakness() {
+    const weaknessCont = document.getElementById('weakness-play-container');
+    if (weaknessCont) {
+        weaknessCont.innerHTML = '';
+        const clan = window.state.textFields['c-clan'] || document.getElementById('c-clan')?.value || "None";
+        const weaknessText = CLAN_WEAKNESSES[clan] || "Select a Clan to see weakness.";
+        const customNote = window.state.textFields['custom-weakness'] || "";
+        
+        weaknessCont.innerHTML = `
+            <div class="section-title">Weakness</div>
+            <div class="bg-[#111] p-3 border border-[#333] h-full flex flex-col mt-2">
+                <div class="text-[11px] text-gray-300 italic mb-3 leading-snug flex-1">${weaknessText}</div>
+                <div class="text-[9px] font-bold text-gray-500 mb-1 uppercase">Specifics / Notes</div>
+                <textarea id="custom-weakness-input" class="w-full h-16 bg-black border border-[#444] text-[10px] text-white p-2 focus:border-gold outline-none resize-none" placeholder="e.g. 'Only Brunettes'">${customNote}</textarea>
+            </div>
+        `;
+        const ta = document.getElementById('custom-weakness-input');
+        if(ta) {
+            ta.addEventListener('blur', (e) => {
+                if(!window.state.textFields) window.state.textFields = {};
+                window.state.textFields['custom-weakness'] = e.target.value;
+            });
+        }
+    }
+}
 
-    let html = `
-        <div class="flex h-full">
-            <div class="w-64 bg-[#080808] border-r border-[#333] flex flex-col">
-                <div class="p-3 border-b border-[#333]">
-                    <input type="text" id="bestiary-search" placeholder="Search..." class="w-full bg-[#111] border border-[#333] text-xs p-2 text-white outline-none focus:border-[#d4af37]">
+function renderPlayModeBeast() {
+    let weaknessCont = document.getElementById('weakness-play-container');
+    if (weaknessCont && weaknessCont.parentNode) {
+        let beastCont = document.getElementById('beast-play-container');
+        if (!beastCont) {
+            beastCont = document.createElement('div');
+            beastCont.id = 'beast-play-container';
+            beastCont.className = 'sheet-section';
+            weaknessCont.parentNode.insertBefore(beastCont, weaknessCont);
+        }
+        
+        beastCont.innerHTML = `
+            <div class="section-title">The Beast</div>
+            <div class="bg-[#111] p-3 border border-[#333] mt-2 space-y-4">
+                <!-- Frenzy -->
+                <div>
+                    <div class="flex justify-between items-center text-[10px] uppercase font-bold text-gray-400 mb-1">
+                        <span>Frenzy Check</span>
+                        <input type="number" id="frenzy-diff" placeholder="Diff (Auto)" class="w-16 bg-black border border-[#444] text-center text-white p-1 text-[10px]">
+                    </div>
+                    <button onclick="window.rollFrenzy()" class="w-full bg-[#8b0000] hover:bg-red-700 text-white font-bold py-1 text-[10px] uppercase transition-colors flex items-center justify-center">
+                        <i class="fas fa-bolt mr-1"></i> Check Frenzy
+                    </button>
                 </div>
-                <div class="flex-1 overflow-y-auto p-2" id="bestiary-categories">
-                    <div class="text-[10px] font-bold text-gray-500 uppercase mb-1">Custom</div>
-                    <div id="cat-custom" class="space-y-1 mb-4"></div>
-                    
-                    <div class="text-[10px] font-bold text-gray-500 uppercase mb-1">Core Rulebook</div>
-                    ${Object.keys(BESTIARY).map(cat => `
-                        <div class="cursor-pointer hover:bg-[#222] px-2 py-1 text-xs text-gray-300 flex justify-between group" onclick="document.getElementById('cat-group-${cat}').classList.toggle('hidden')">
-                            <span>${cat}</span><i class="fas fa-chevron-down text-[8px] text-gray-600"></i>
-                        </div>
-                        <div id="cat-group-${cat}" class="hidden pl-2 border-l border-[#222] ml-1">
-                            ${Object.keys(BESTIARY[cat]).map(key => `<div class="cursor-pointer hover:text-[#d4af37] px-2 py-1 text-[10px] text-gray-500" onclick="window.previewStaticNpc('${cat}', '${key}')">${key}</div>`).join('')}
-                        </div>
-                    `).join('')}
+                <!-- Rötschreck -->
+                <div class="border-t border-[#333] pt-2">
+                    <div class="flex justify-between items-center text-[10px] uppercase font-bold text-gray-400 mb-1">
+                        <span>Rötschreck (Fire/Sun)</span>
+                        <input type="number" id="rotschreck-diff" placeholder="Diff (6)" value="6" class="w-16 bg-black border border-[#444] text-center text-white p-1 text-[10px]">
+                    </div>
+                    <button onclick="window.rollRotschreck()" class="w-full bg-[#d97706] hover:bg-orange-600 text-white font-bold py-1 text-[10px] uppercase transition-colors flex items-center justify-center">
+                        <i class="fas fa-fire mr-1"></i> Check Fear
+                    </button>
                 </div>
             </div>
-            <div class="flex-1 overflow-y-auto p-6 bg-[url('https://www.transparenttextures.com/patterns/black-linen.png')] pb-20">
-                <div id="bestiary-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></div>
+        `;
+    }
+}
+
+function renderPlayModeXp() {
+    const xpCont = document.getElementById('experience-play-container');
+    if (xpCont) {
+        xpCont.innerHTML = '';
+        const xpVal = document.getElementById('c-xp-total')?.value || 0;
+        const log = window.state.xpLog || [];
+        const spent = log.reduce((a,b)=>a+b.cost,0);
+        
+        xpCont.innerHTML = `
+            <div class="section-title mt-6">Experience</div>
+            <div class="bg-[#111] p-2 border border-[#333] mt-2">
+                <div class="flex justify-between text-[10px] mb-1"><span>Earned:</span> <span class="text-purple-400 font-bold">${xpVal}</span></div>
+                <div class="flex justify-between text-[10px] mb-1"><span>Spent:</span> <span class="text-gray-400 font-bold">${spent}</span></div>
+                <div class="flex justify-between text-[10px] border-t border-[#333] pt-1 mt-1"><span>Remain:</span> <span class="text-white font-bold">${xpVal - spent}</span></div>
+            </div>
+        `;
+    }
+}
+
+function renderMovementSection() {
+    if (!window.state.isPlayMode) return;
+    const pm2 = document.getElementById('play-mode-2');
+    if (!pm2) return;
+
+    let moveSection = document.getElementById('play-movement-section');
+    if (!moveSection) {
+        moveSection = document.createElement('div');
+        moveSection.id = 'play-movement-section';
+        moveSection.className = 'sheet-section mt-6';
+        
+        const combatSection = pm2.querySelector('.sheet-section:last-child');
+        if(combatSection && combatSection.parentNode === pm2) pm2.insertBefore(moveSection, combatSection);
+        else pm2.appendChild(moveSection);
+    }
+    
+    const dex = window.state.dots.attr['Dexterity'] || 1;
+    const dmgBoxes = (window.state.status.health_states || []).filter(x => x > 0).length;
+    
+    let w = 7;
+    let j = 12 + dex;
+    let r = 20 + (3 * dex);
+    let note = "Normal Movement";
+    let noteColor = "text-gray-500";
+    
+    if (dmgBoxes === 4) { 
+        r = 0; 
+        note = "Wounded: Cannot Run"; 
+        noteColor = "text-orange-400";
+    } else if (dmgBoxes === 5) {
+        j = 0; r = 0;
+        if(w > 3) w = 3;
+        note = "Mauled: Max 3 yds/turn";
+        noteColor = "text-red-400";
+    } else if (dmgBoxes === 6) {
+        w = 1; j = 0; r = 0;
+        note = "Crippled: Crawl 1 yd/turn";
+        noteColor = "text-red-600 font-bold";
+    } else if (dmgBoxes >= 7) {
+        w = 0; j = 0; r = 0;
+        note = "Incapacitated: Immobile";
+        noteColor = "text-red-700 font-black";
+    }
+
+    moveSection.innerHTML = `
+        <div class="section-title">Movement (Yards/Turn)</div>
+        <div class="grid grid-cols-3 gap-4 text-center mt-2">
+            <div>
+                <div class="text-[10px] uppercase font-bold text-gray-400">Walk</div>
+                <div class="text-xl font-bold text-white">${w > 0 ? w : '-'} <span class="text-[9px] text-gray-500 font-normal">yds</span></div>
+            </div>
+            <div>
+                <div class="text-[10px] uppercase font-bold text-gray-400">Jog</div>
+                <div class="text-xl font-bold text-gold">${j > 0 ? j : '-'} <span class="text-[9px] text-gray-500 font-normal">yds</span></div>
+            </div>
+            <div>
+                <div class="text-[10px] uppercase font-bold text-gray-400">Run</div>
+                <div class="text-xl font-bold text-red-500">${r > 0 ? r : '-'} <span class="text-[9px] text-gray-500 font-normal">yds</span></div>
             </div>
         </div>
+        <div class="text-[10px] text-center mt-2 border-t border-[#333] pt-1 ${noteColor} font-bold uppercase">${note}</div>
     `;
-    viewport.innerHTML = html;
-    renderCustomBestiaryList();
 }
+window.renderMovementSection = renderMovementSection;
 
-function renderCustomBestiaryList() {
-    const container = document.getElementById('cat-custom');
-    const grid = document.getElementById('bestiary-grid');
-    if (!container || !grid) return;
+function renderDetailedDisciplines() {
+    const pm2 = document.getElementById('play-mode-2');
+    if (!pm2) return;
 
-    container.innerHTML = '';
-    grid.innerHTML = ''; 
-
-    const customNPCs = Object.values(stState.bestiary);
-    
-    if(customNPCs.length === 0) {
-        container.innerHTML = `<div class="px-2 py-1 text-[10px] italic text-gray-600">Empty</div>`;
-        grid.innerHTML = `<div class="col-span-full text-center text-gray-500 italic mt-10">Bestiary is empty. Use "Character Creator" -> "NPC" tab to build one, then "Push to Bestiary".</div>`;
+    let container = document.getElementById('detailed-disciplines-list');
+    if (!container) {
+        const section = document.createElement('div');
+        section.className = 'sheet-section !mt-0 mb-8';
+        section.innerHTML = '<div class="section-title">Disciplines & Powers</div>';
+        
+        container = document.createElement('div');
+        container.id = 'detailed-disciplines-list';
+        container.className = 'grid grid-cols-1 md:grid-cols-2 gap-6 mt-4';
+        
+        section.appendChild(container);
+        pm2.insertBefore(section, pm2.firstChild);
     }
 
-    customNPCs.forEach(entry => {
-        const id = Object.keys(stState.bestiary).find(key => stState.bestiary[key] === entry);
-        
-        const item = document.createElement('div');
-        item.className = "cursor-pointer hover:text-blue-300 px-2 py-1 text-[11px] text-blue-500 truncate";
-        item.innerText = entry.name;
-        item.onclick = () => renderNpcCard(entry, id, true, grid, true);
-        container.appendChild(item);
+    container.innerHTML = '';
+    const safeData = typeof DISCIPLINES_DATA !== 'undefined' ? DISCIPLINES_DATA : {};
+    const learned = Object.entries(window.state.dots.disc).filter(([name, val]) => val > 0);
 
-        renderNpcCard(entry, id, true, grid);
+    if (learned.length === 0) {
+        container.innerHTML = '<div class="col-span-1 md:col-span-2 text-gray-500 italic text-xs text-center py-4">No Disciplines learned.</div>';
+        return;
+    }
+
+    learned.forEach(([name, val]) => {
+        const cleanName = name.trim();
+        let data = safeData[cleanName];
+        if (!data) {
+             const key = Object.keys(safeData).find(k => k.toLowerCase() === cleanName.toLowerCase());
+             if(key) data = safeData[key];
+        }
+
+        const discBlock = document.createElement('div');
+        discBlock.className = 'bg-black/40 border border-[#333] p-3 rounded flex flex-col h-fit';
+        
+        discBlock.innerHTML = `
+            <div class="flex justify-between items-center border-b border-[#555] pb-2 mb-2">
+                <h3 class="text-base text-[#d4af37] font-cinzel font-bold uppercase tracking-widest truncate mr-2">${name}</h3>
+                <div class="text-white font-bold text-xs bg-[#8b0000] px-2 py-0.5 rounded flex-shrink-0">${val} Dots</div>
+            </div>
+        `;
+
+        if (data) {
+            const listContainer = document.createElement('div');
+            listContainer.className = "space-y-1";
+
+            for (let i = 1; i <= val; i++) {
+                const power = data[i];
+                if (power) {
+                    const pDiv = document.createElement('div');
+                    pDiv.className = 'border border-[#333] bg-[#111] rounded overflow-hidden';
+                    
+                    const pHeader = document.createElement('div');
+                    pHeader.className = "flex justify-between items-center p-2 cursor-pointer hover:bg-[#222] transition-colors";
+                    
+                    let rollHtml = '';
+                    if (power.roll) {
+                         const poolStr = JSON.stringify(power.roll.pool).replace(/"/g, "'");
+                         rollHtml = `<button onclick="event.stopPropagation(); window.rollDiscipline('${power.name}', ${poolStr}, ${power.roll.defaultDiff})" class="bg-[#333] border border-gray-600 text-gray-300 hover:text-white hover:border-[#d4af37] text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-wider transition-all shadow-sm hover:shadow-gold flex-shrink-0 ml-2"><i class="fas fa-dice-d20"></i></button>`;
+                    }
+
+                    pHeader.innerHTML = `
+                        <div class="flex items-center gap-2 overflow-hidden">
+                            <i class="fas fa-chevron-right text-[9px] text-gray-500 transition-transform duration-200 chevron"></i>
+                            <div class="font-bold text-white text-xs truncate">
+                                <span class="text-[#8b0000] text-[10px] mr-1">●${i}</span> ${power.name}
+                            </div>
+                        </div>
+                        ${rollHtml}
+                    `;
+
+                    const pDetails = document.createElement('div');
+                    pDetails.className = "hidden p-2 border-t border-[#333] bg-black/50 text-[10px]";
+                    pDetails.innerHTML = `
+                        <div class="text-gray-300 italic leading-snug mb-2">${power.desc}</div>
+                        <div class="text-gray-500 font-mono"><span class="text-[#d4af37] font-bold">System:</span> ${power.system}</div>
+                    `;
+
+                    pHeader.onclick = () => {
+                        const isHidden = pDetails.classList.contains('hidden');
+                        if (isHidden) {
+                            pDetails.classList.remove('hidden');
+                            pHeader.querySelector('.chevron').classList.add('rotate-90');
+                            pHeader.querySelector('.chevron').classList.replace('text-gray-500', 'text-gold');
+                        } else {
+                            pDetails.classList.add('hidden');
+                            pHeader.querySelector('.chevron').classList.remove('rotate-90');
+                            pHeader.querySelector('.chevron').classList.replace('text-gold', 'text-gray-500');
+                        }
+                    };
+
+                    pDiv.appendChild(pHeader);
+                    pDiv.appendChild(pDetails);
+                    listContainer.appendChild(pDiv);
+                }
+            }
+            discBlock.appendChild(listContainer);
+        } else {
+            discBlock.innerHTML += `<div class="text-xs text-gray-500 italic">Detailed data not available.</div>`;
+        }
+        
+        container.appendChild(discBlock);
     });
 }
 
-function renderNpcCard(entry, id, isCustom, container, clearFirst = false) {
-    if (clearFirst) container.innerHTML = '';
+export function renderNpcTab() {
+    const container = document.getElementById('play-mode-6');
+    if (!container) return;
     
-    const npc = entry.data || entry;
-    const name = entry.name || npc.name;
-    const type = entry.type || npc.template || "Mortal";
-    const phys = (npc.attributes?.Strength||1) + (npc.attributes?.Dexterity||1) + (npc.attributes?.Stamina||1);
-    
-    const card = document.createElement('div');
-    card.className = "bg-[#111] border border-[#333] p-3 rounded shadow-lg hover:border-[#555] transition-all group relative flex flex-col";
-    
-    let actionsHtml = '';
-    if (isCustom) {
-        actionsHtml = `
-            <button onclick="event.stopPropagation(); window.deleteCloudNpc('${id}')" class="text-red-900 hover:text-red-500 p-1" title="Delete"><i class="fas fa-trash"></i></button>
-            <button class="bg-[#222] hover:bg-[#333] text-gray-300 px-2 py-1 text-[9px] font-bold uppercase rounded border border-[#444]" onclick='event.stopPropagation(); window.editCloudNpc("${id}")'>Edit</button>
-        `;
-    } else {
-        actionsHtml = `<button class="bg-blue-900/30 hover:bg-blue-900/50 text-blue-200 px-2 py-1 text-[9px] font-bold uppercase rounded border border-blue-800" onclick='event.stopPropagation(); window.copyStaticNpc("${name}")'>Copy</button>`;
+    const retainers = window.state.retainers || [];
+
+    let html = `
+        <div class="max-w-3xl mx-auto">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-serif text-red-500">NPCs & Retainers</h2>
+                <button onclick="window.openNpcCreator('ghoul')" class="bg-red-900 hover:bg-red-800 text-white px-4 py-2 rounded text-sm flex items-center gap-2">
+                    <span>+</span> Add NPC
+                </button>
+            </div>
+    `;
+
+    if (retainers.length === 0) {
+        html += `
+            <div class="text-center p-8 border border-dashed border-gray-700 rounded bg-gray-900/50">
+                <p class="text-gray-400 mb-4">You have no recorded NPCs or Retainers.</p>
+                <button onclick="window.openNpcCreator('ghoul')" class="text-red-400 hover:text-red-300 underline">Add one now</button>
+            </div>
+        </div>`;
+        container.innerHTML = html;
+        return;
     }
 
-    card.innerHTML = `
-        <div class="flex justify-between items-start mb-2">
-            <div class="overflow-hidden">
-                <div class="text-[#d4af37] font-bold text-sm truncate" title="${name}">${name}</div>
-                <div class="text-[9px] text-gray-500 uppercase tracking-wider">${type}</div>
+    html += `<div class="grid grid-cols-1 gap-4">`;
+
+    retainers.forEach((npc, index) => {
+        const name = npc.name || "Unnamed";
+        
+        let displayType = "Unknown";
+        if (npc.template === 'animal') {
+            displayType = npc.ghouled ? "Ghouled Animal" : "Animal";
+            if (npc.species) displayType += ` (${npc.species})`;
+        } else if (npc.template === 'mortal') {
+            displayType = "Mortal";
+        } else {
+            displayType = npc.type || "Ghoul";
+        }
+        
+        const concept = npc.concept || "";
+        
+        html += `
+            <div class="bg-gray-900 border border-gray-700 rounded p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 hover:border-red-900/50 transition-colors">
+                <div class="flex-grow">
+                    <h3 class="text-xl font-bold text-gray-200">${name} <span class="text-xs text-gray-500 font-normal ml-2 uppercase tracking-wider border border-gray-700 px-1 rounded">${displayType}</span></h3>
+                    <div class="text-sm text-gray-400 mt-1 flex flex-wrap gap-4">
+                        <span>Concept: <span class="text-gray-300">${concept || 'N/A'}</span></span>
+                    </div>
+                </div>
+                
+                <div class="flex items-center gap-2 w-full md:w-auto mt-2 md:mt-0">
+                    <button onclick="window.viewNpc(${index})" 
+                        class="flex-1 md:flex-none bg-blue-900/40 hover:bg-blue-900/60 text-blue-200 border border-blue-800 px-3 py-1 rounded text-sm font-bold">
+                        <i class="fas fa-eye mr-1"></i> View Sheet
+                    </button>
+                    <button onclick="window.editNpc(${index})" 
+                        class="flex-1 md:flex-none bg-yellow-900/40 hover:bg-yellow-900/60 text-yellow-200 border border-yellow-700 px-3 py-1 rounded text-sm font-bold">
+                        <i class="fas fa-edit mr-1"></i> Edit
+                    </button>
+                    <button onclick="window.deleteNpc(${index})" 
+                        class="flex-1 md:flex-none bg-red-900/20 hover:bg-red-900/50 text-red-500 border border-red-900/30 px-3 py-1 rounded text-sm" title="Delete">
+                        &times;
+                    </button>
+                </div>
             </div>
-            ${isCustom ? `<i class="fas fa-cloud text-[10px] text-blue-500"></i>` : `<i class="fas fa-book text-[10px] text-gray-600"></i>`}
-        </div>
-        <div class="grid grid-cols-3 gap-1 text-[8px] text-gray-400 mb-3 bg-black/30 p-1 rounded">
-            <div class="text-center"><div class="font-bold text-gray-300">${phys}</div><div>Phys</div></div>
-            <div class="text-center"><div class="font-bold text-gray-300">${Object.keys(npc.disciplines||{}).length}</div><div>Disc</div></div>
-            <div class="text-center"><div class="font-bold text-gray-300">${npc.willpower||1}</div><div>Will</div></div>
-        </div>
-        <div class="flex justify-between items-center border-t border-[#222] pt-2 mt-auto">
-            <div class="flex gap-1">${actionsHtml}</div>
-            <button class="bg-[#8b0000] hover:bg-red-700 text-white px-3 py-1 text-[9px] font-bold uppercase rounded shadow-md" onclick="event.stopPropagation(); window.stAddToCombat({id:'${id||name}', name:'${name}', health:${isCustom?'null':'{damage:0}'}, sourceId:'${id}'}, 'NPC')">Spawn</button>
-        </div>
-    `;
-    card.onclick = () => { if(window.openNpcSheet) window.openNpcSheet(npc); };
-    container.appendChild(card);
+        `;
+    });
+
+    html += `</div></div>`;
+    container.innerHTML = html;
+}
+window.renderNpcTab = renderNpcTab; 
+window.renderRetainersTab = renderNpcTab; 
+
+window.editNpc = function(index) {
+    if (window.state.retainers && window.state.retainers[index]) {
+        const npc = window.state.retainers[index];
+        const type = npc.template || 'ghoul';
+        if(window.openNpcCreator) window.openNpcCreator(type, npc, index);
+    }
+};
+window.editRetainer = window.editNpc;
+
+window.viewNpc = function(index) {
+    if (window.state.retainers && window.state.retainers[index]) {
+        const npc = window.state.retainers[index];
+        if(window.openNpcSheet) window.openNpcSheet(npc, index);
+        else console.error("openNpcSheet not found on window object.");
+    }
 }
 
-// ==========================================================================
-// CHAT / LOGGING SYSTEM (UPDATED)
-// ==========================================================================
+window.deleteNpc = function(index) {
+    if(confirm("Permanently release this NPC? This cannot be undone.")) {
+        if(window.state.retainers) {
+            window.state.retainers.splice(index, 1);
+            renderNpcTab();
+            if(window.performSave) window.performSave(true); 
+        }
+    }
+};
+window.deleteRetainer = window.deleteNpc;
 
-function startChatListener(chronicleId) {
-    if (stState.chatUnsub) stState.chatUnsub();
+export function updateRitualsPlayView() {
+    const playCont = document.getElementById('rituals-list-play');
+    if (!playCont) return;
     
-    // Wire up inputs if sidebar exists (Player Mode)
+    if (!window.state.rituals || window.state.rituals.length === 0) {
+        playCont.innerHTML = '<span class="text-gray-500 italic">No Rituals learned.</span>';
+        return;
+    }
+
+    const byLevel = {};
+    window.state.rituals.forEach(r => {
+        if (!byLevel[r.level]) byLevel[r.level] = [];
+        byLevel[r.level].push(r.name);
+    });
+
+    let html = '<div class="flex flex-col gap-4 mt-2">';
+    
+    Object.keys(byLevel).sort((a,b) => a-b).forEach(lvl => {
+        if (lvl > 0) {
+            html += `
+            <div class="bg-black/30 border border-[#333] rounded p-2">
+                <div class="text-[#d4af37] font-bold text-[10px] uppercase border-b border-[#333] pb-1 mb-1">
+                    Level ${lvl} Rituals
+                </div>
+                <div class="space-y-1">`;
+                
+            byLevel[lvl].forEach(name => {
+                let rData = null;
+                if (window.RITUALS_DATA) {
+                    if (window.RITUALS_DATA.Thaumaturgy && window.RITUALS_DATA.Thaumaturgy[lvl] && window.RITUALS_DATA.Thaumaturgy[lvl][name]) {
+                        rData = window.RITUALS_DATA.Thaumaturgy[lvl][name];
+                    } else if (window.RITUALS_DATA.Necromancy && window.RITUALS_DATA.Necromancy[lvl] && window.RITUALS_DATA.Necromancy[lvl][name]) {
+                        rData = window.RITUALS_DATA.Necromancy[lvl][name];
+                    }
+                }
+
+                if (rData) {
+                    const diff = Math.min(9, 3 + parseInt(lvl));
+                    const uid = `rit-${name.replace(/[^a-zA-Z0-9]/g, '')}`;
+
+                    html += `
+                    <div class="border border-[#333] bg-[#111] rounded overflow-hidden mb-1">
+                        <div class="flex justify-between items-center p-1.5 cursor-pointer hover:bg-[#222] transition-colors" onclick="document.getElementById('${uid}').classList.toggle('hidden');">
+                            <div class="flex items-center gap-2 overflow-hidden">
+                                <i class="fas fa-chevron-right text-[8px] text-gray-500"></i>
+                                <div class="font-bold text-gray-300 text-[10px] truncate">${name}</div>
+                            </div>
+                            <button onclick="event.stopPropagation(); window.rollDiscipline('${name.replace(/'/g, "\\'")}', ['Intelligence', 'Occult'], ${diff})" class="bg-[#333] border border-gray-600 text-gray-400 hover:text-white hover:border-[#d4af37] text-[8px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider transition-all" title="Roll Int+Occult (Diff ${diff})">
+                                <i class="fas fa-dice-d20"></i>
+                            </button>
+                        </div>
+                        <div id="${uid}" class="hidden p-2 border-t border-[#333] bg-black/50 text-[10px]">
+                            <div class="text-gray-400 italic leading-snug mb-1">${rData.desc || "No description."}</div>
+                            <div class="text-gray-500 font-mono"><span class="text-[#d4af37] font-bold">System:</span> ${rData.system || "See rulebook."}</div>
+                        </div>
+                    </div>`;
+
+                } else {
+                    html += `<div class="text-xs text-gray-400 ml-2 flex items-start py-1"><span class="text-gold mr-1">•</span> ${name}</div>`;
+                }
+            });
+            
+            html += `</div></div>`;
+        }
+    });
+    html += '</div>';
+    
+    playCont.innerHTML = html;
+    playCont.className = "";
+}
+window.updateRitualsPlayView = updateRitualsPlayView;
+
+// --- AUTO-CREATION HELPER ---
+function ensureChronicleTabContainer() {
+    let container = document.getElementById('play-mode-chronicle');
+    
+    if (!container) {
+        const parent = document.getElementById('play-mode-sheet');
+        if (parent) {
+            container = document.createElement('div');
+            container.id = 'play-mode-chronicle';
+            parent.appendChild(container);
+        }
+    }
+    
+    if (container) {
+        container.classList.remove('h-full', 'min-h-[75vh]', 'overflow-y-auto'); 
+        container.classList.add('w-full', 'overflow-hidden');
+        container.style.height = 'calc(100vh - 140px)'; 
+    }
+}
+
+// --- NEW FUNCTION: RENDER CHRONICLE TAB (WITH SUB-TABS) ---
+export async function renderChronicleTab() {
+    ensureChronicleTabContainer();
+    
+    let container = document.getElementById('play-mode-chronicle');
+    if (!container) return;
+
+    const chronicleId = localStorage.getItem('v20_last_chronicle_id') || (window.stState && window.stState.activeChronicleId);
+    
+    if (!chronicleId) {
+        container.innerHTML = `
+            <div class="h-full flex flex-col items-center justify-center text-gray-500">
+                <i class="fas fa-book-dead text-4xl mb-4 opacity-50"></i>
+                <p>Not connected to a Chronicle.</p>
+                <p class="text-xs mt-2">Join a game via the "Chronicles" menu to access chat & lore.</p>
+            </div>`;
+        return;
+    }
+
+    if (!window.state.chronicleSubTab) window.state.chronicleSubTab = 'info';
+
+    container.innerHTML = `<div class="flex flex-col items-center justify-center h-full text-gold"><i class="fas fa-circle-notch fa-spin text-2xl mb-2"></i><span class="text-xs uppercase tracking-widest">Connecting to Chronicle...</span></div>`;
+
+    try {
+        const docRef = doc(db, 'chronicles', chronicleId);
+        const snap = await getDoc(docRef);
+
+        if (!snap.exists()) {
+            container.innerHTML = `<div class="text-center text-red-500 mt-10">Chronicle Not Found.</div>`;
+            return;
+        }
+
+        const data = snap.data();
+        const currentTab = window.state.chronicleSubTab;
+        const activeClass = "border-b-2 border-[#d4af37] text-[#d4af37] font-bold";
+        const inactiveClass = "text-gray-500 hover:text-white transition-colors";
+
+        container.innerHTML = `
+            <div class="flex flex-col h-full relative">
+                <div class="flex gap-6 border-b border-[#333] pb-2 mb-4 px-2 shrink-0">
+                    <button id="tab-chron-info" class="text-xs uppercase tracking-wider px-2 pb-1 ${currentTab==='info'?activeClass:inactiveClass}">
+                        <i class="fas fa-info-circle mr-2"></i>Info & Lore
+                    </button>
+                    <button id="tab-chron-chat" class="text-xs uppercase tracking-wider px-2 pb-1 ${currentTab==='chat'?activeClass:inactiveClass}">
+                        <i class="fas fa-comments mr-2"></i>Chat / Log
+                    </button>
+                </div>
+
+                <div id="chronicle-content-area" class="flex-1 overflow-hidden relative h-full">
+                    <!-- Views injected here -->
+                </div>
+            </div>
+        `;
+
+        document.getElementById('tab-chron-info').onclick = () => {
+            window.state.chronicleSubTab = 'info';
+            renderChronicleTab(); 
+        };
+        document.getElementById('tab-chron-chat').onclick = () => {
+            window.state.chronicleSubTab = 'chat';
+            renderChronicleTab();
+        };
+
+        const contentArea = document.getElementById('chronicle-content-area');
+
+        if (currentTab === 'info') {
+            renderChronicleInfoView(contentArea, data);
+        } else {
+            renderChronicleChatView(contentArea, chronicleId);
+        }
+
+    } catch (e) {
+        console.error("Chronicle Render Error:", e);
+        container.innerHTML = `<div class="text-center text-red-500 mt-10">Error loading chronicle data. Check connection.</div>`;
+    }
+}
+window.renderChronicleTab = renderChronicleTab;
+
+// --- SUB-VIEW: INFO ---
+function renderChronicleInfoView(container, data) {
+    container.innerHTML = `
+        <div class="overflow-y-auto h-full custom-scrollbar pr-2 space-y-6 pb-20">
+            <div class="border-b border-[#af0000] pb-4 text-center">
+                <h2 class="text-3xl font-cinzel text-[#af0000] font-bold tracking-widest uppercase text-shadow-md">${data.name || "Untitled"}</h2>
+                <div class="text-xs text-gold font-serif italic uppercase tracking-widest mt-1">${data.timePeriod || "Modern Nights"}</div>
+            </div>
+
+            <div class="bg-[#111] p-6 border border-[#333] relative group hover:border-[#af0000] transition-colors shadow-lg">
+                <div class="absolute -top-2 left-4 bg-black px-2 text-[10px] text-gray-500 font-bold uppercase tracking-wider group-hover:text-[#af0000] transition-colors">Synopsis</div>
+                <div class="text-sm text-gray-300 font-serif leading-relaxed whitespace-pre-wrap">${data.synopsis || "No synopsis provided."}</div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="bg-[#1a0505] p-4 border border-red-900/30 relative shadow-lg h-fit">
+                    <div class="absolute -top-2 left-4 bg-black px-2 text-[10px] text-red-500 font-bold uppercase tracking-wider">House Rules</div>
+                    <div class="text-xs text-gray-400 font-serif leading-relaxed whitespace-pre-wrap max-h-96 overflow-y-auto custom-scrollbar">${data.houseRules || "Standard V20 Rules apply."}</div>
+                </div>
+
+                <div class="bg-[#0a0a0a] p-4 border border-[#d4af37]/30 relative shadow-lg h-fit">
+                    <div class="absolute -top-2 left-4 bg-black px-2 text-[10px] text-[#d4af37] font-bold uppercase tracking-wider">Lore & Setting</div>
+                    <div class="text-xs text-gray-400 font-serif leading-relaxed whitespace-pre-wrap max-h-96 overflow-y-auto custom-scrollbar">${data.lore || "No specific setting details available."}</div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// --- SUB-VIEW: CHAT ---
+function renderChronicleChatView(container, chronicleId) {
+    container.innerHTML = `
+        <div class="flex flex-col h-full bg-[#0a0a0a] border border-[#333] shadow-lg relative">
+            <div class="bg-[#111] p-3 border-b border-[#333] flex justify-between items-center shrink-0">
+                <div class="flex items-center gap-2">
+                    <i class="fas fa-comments text-[#d4af37]"></i>
+                    <h3 class="text-[#d4af37] font-cinzel font-bold text-sm uppercase tracking-widest">Chronicle Chat</h3>
+                </div>
+                <div class="text-[9px] text-gray-500 font-mono">ID: <span class="text-white">${chronicleId}</span></div>
+            </div>
+            
+            <div class="flex-1 overflow-y-auto min-h-0 space-y-3 p-4 bg-[url('https://www.transparenttextures.com/patterns/black-linen.png')] custom-scrollbar" id="chronicle-chat-history">
+                <div class="text-center text-gray-500 italic text-xs mt-10">Connecting...</div>
+            </div>
+            
+            <div class="mt-auto border-t border-[#333] p-3 bg-[#111] flex gap-2 shrink-0">
+                <input type="text" id="chronicle-chat-input" class="flex-1 bg-[#050505] border border-[#333] text-white p-2 text-sm outline-none focus:border-[#d4af37]" placeholder="Send a message...">
+                <button id="chronicle-chat-send" class="bg-[#d4af37] text-black font-bold uppercase px-4 py-2 hover:bg-[#fcd34d] transition-colors text-xs">Send</button>
+            </div>
+        </div>
+    `;
+
     const sendBtn = document.getElementById('chronicle-chat-send');
     const input = document.getElementById('chronicle-chat-input');
     
     const sendHandler = () => {
         const txt = input.value.trim();
-        if (txt) {
-            sendChronicleMessage('chat', txt);
+        if (txt && window.sendChronicleMessage) {
+            window.sendChronicleMessage('chat', txt);
             input.value = '';
         }
     };
-
-    if (sendBtn) sendBtn.onclick = sendHandler;
-    if (input) input.onkeydown = (e) => { if(e.key === 'Enter') sendHandler(); };
-
-    // Query messages (Limit to 100 recent)
-    const q = query(
-        collection(db, 'chronicles', chronicleId, 'messages'), 
-        orderBy('timestamp', 'desc'), 
-        limit(100)
-    );
-
-    stState.chatUnsub = onSnapshot(q, (snapshot) => {
-        const messages = [];
-        snapshot.forEach(doc => messages.push({ id: doc.id, ...doc.data() }));
-        messages.reverse(); // Show oldest first (top to bottom)
-        
-        // Cache for export
-        stState.chatHistory = messages;
-        
-        // Render to Player Sidebar
-        const pContainer = document.getElementById('chronicle-chat-history');
-        if (pContainer) renderMessageList(pContainer, messages);
-
-        // Render to ST Dashboard (if active)
-        if (stState.dashboardActive && stState.currentView === 'chat') {
-            const stContainer = document.getElementById('st-chat-history');
-            if (stContainer) renderMessageList(stContainer, messages);
-        }
-    }, (error) => {
-        if (error.code === 'permission-denied') {
-            console.warn("Chat Listener: Access Denied. You may be disconnected.");
-        } else {
-            console.error("Chat Listener Error:", error);
-        }
-    });
-}
-
-function renderMessageList(container, messages) {
-    container.innerHTML = '';
     
-    if (messages.length === 0) {
-        container.innerHTML = `<div class="text-center text-gray-600 text-xs italic mt-4">Chronicle initialized. No messages yet.</div>`;
-        return;
-    }
-
-    messages.forEach(msg => {
-        const div = document.createElement('div');
-        div.className = "mb-2 text-xs";
-        
-        const time = msg.timestamp ? new Date(msg.timestamp.seconds * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '';
-        
-        if (msg.type === 'system') {
-            div.innerHTML = `<div class="text-gray-500 italic text-center text-[10px] border-b border-[#333] leading-tight pb-1 mb-1"><span class="mr-2">${time}</span>${msg.content}</div>`;
-        } else if (msg.type === 'roll') {
-            div.innerHTML = `
-                <div class="bg-[#111] border border-[#333] p-2 rounded relative">
-                    <div class="flex justify-between items-baseline mb-1">
-                        <span class="font-bold text-[#d4af37]">${msg.sender}</span>
-                        <span class="text-[9px] text-gray-600">${time}</span>
-                    </div>
-                    <div class="text-gray-300 font-mono">${msg.content}</div>
-                    ${msg.details ? `<div class="text-[10px] text-gray-500 mt-1 pt-1 border-t border-[#222]">Pool: ${msg.details.pool} (Diff ${msg.details.diff})</div>` : ''}
-                </div>
-            `;
-        } else {
-            // Chat
-            const isSelf = msg.senderId === auth.currentUser?.uid;
-            div.innerHTML = `
-                <div class="${isSelf ? 'text-right' : 'text-left'}">
-                    <div class="text-[10px] text-gray-500 font-bold mb-0.5">${msg.sender} <span class="font-normal opacity-50 text-[9px] ml-1">${time}</span></div>
-                    <div class="inline-block px-3 py-1.5 rounded ${isSelf ? 'bg-[#2a2a2a] text-gray-200' : 'bg-[#1a1a1a] text-gray-300 border border-[#333]'}">${msg.content}</div>
-                </div>
-            `;
-        }
-        container.appendChild(div);
-    });
-    
-    container.scrollTop = container.scrollHeight;
-}
-
-// --- NEW CHAT FUNCTIONS: CLEAR & EXPORT ---
-
-// 1. Export Chat
-async function stExportChat() {
-    if (!stState.chatHistory || stState.chatHistory.length === 0) {
-        showNotification("Chat is empty.", "error");
-        return;
-    }
-
-    let textContent = `CHRONICLE CHAT LOG: ${stState.activeChronicleId}\nExported: ${new Date().toLocaleString()}\n\n`;
-    
-    stState.chatHistory.forEach(msg => {
-        const time = msg.timestamp ? new Date(msg.timestamp.seconds * 1000).toLocaleString() : 'Unknown';
-        if (msg.type === 'system') {
-            textContent += `[${time}] SYSTEM: ${msg.content.replace(/<[^>]*>/g, '')}\n`; // Strip HTML
-        } else if (msg.type === 'roll') {
-            textContent += `[${time}] ${msg.sender} ROLLED: ${msg.content.replace(/<[^>]*>/g, '')} (Pool: ${msg.details?.pool || '?'})\n`;
-        } else {
-            textContent += `[${time}] ${msg.sender}: ${msg.content}\n`;
-        }
-    });
-
-    const blob = new Blob([textContent], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `V20_ChatLog_${new Date().toISOString().slice(0,10)}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    showNotification("Chat Log Exported.");
-}
-
-// 2. Clear Chat (Batch Delete)
-async function stClearChat() {
-    if (!confirm("CLEAR ALL CHAT HISTORY?\n\nThis will permanently delete all messages for everyone. This cannot be undone.")) return;
-    
-    try {
-        const q = query(collection(db, 'chronicles', stState.activeChronicleId, 'messages'));
-        const snapshot = await getDocs(q);
-        
-        const batch = writeBatch(db);
-        let count = 0;
-        
-        snapshot.forEach(doc => {
-            batch.delete(doc.ref);
-            count++;
-        });
-
-        if (count > 0) {
-            await batch.commit();
-            sendChronicleMessage('system', 'Storyteller cleared the chat history.');
-            showNotification(`Cleared ${count} messages.`);
-        } else {
-            showNotification("Chat already empty.");
-        }
-    } catch (e) {
-        console.error("Clear Chat Error:", e);
-        showNotification("Failed to clear chat.", "error");
-    }
-}
-
-// EXPORTED API
-async function sendChronicleMessage(type, content, details = null) {
-    if (!stState.activeChronicleId) return;
-    
-    let senderName = "Unknown";
-    if (stState.isStoryteller) {
-        senderName = "Storyteller";
-    } else {
-        senderName = document.getElementById('c-name')?.value || "Player";
-    }
-
-    try {
-        await addDoc(collection(db, 'chronicles', stState.activeChronicleId, 'messages'), {
-            type: type,
-            content: content,
-            sender: senderName,
-            senderId: auth.currentUser.uid,
-            details: details,
-            timestamp: new Date() // Firestore will convert or use serverTimestamp if imported
-        });
-    } catch(e) {
-        console.error("Chat Error:", e.message);
-        // Suppress alert for system messages to avoid spam if disconnected
-        if (type !== 'system') showNotification("Failed to send message: " + e.message, "error");
-    }
-}
-
-// --- UPDATED ST CHAT VIEW WITH TOOLBAR ---
-function renderChatView(container) {
-    container.innerHTML = `
-        <div class="flex flex-col h-full relative">
-            <!-- TOOLBAR (NEW) -->
-            <div class="bg-[#1a1a1a] border-b border-[#333] p-2 flex justify-between items-center">
-                <div class="text-[10px] text-gray-500 uppercase font-bold tracking-widest">
-                    <i class="fas fa-history mr-1"></i> History
-                </div>
-                <div class="flex gap-2">
-                    <button onclick="window.stExportChat()" class="text-xs bg-[#222] hover:bg-[#333] text-gray-300 border border-[#444] px-3 py-1 rounded uppercase font-bold transition-colors" title="Download Log">
-                        <i class="fas fa-download mr-1"></i> Export
-                    </button>
-                    <button onclick="window.stClearChat()" class="text-xs bg-red-900/20 hover:bg-red-900/50 text-red-500 border border-red-900/50 px-3 py-1 rounded uppercase font-bold transition-colors" title="Delete All Messages">
-                        <i class="fas fa-trash-alt mr-1"></i> Clear
-                    </button>
-                </div>
-            </div>
-
-            <!-- Messages -->
-            <div id="st-chat-history" class="flex-1 overflow-y-auto p-4 space-y-3 font-serif bg-[#080808]">
-                <div class="text-center text-gray-600 text-xs italic mt-4">Loading history...</div>
-            </div>
-            
-            <!-- Input -->
-            <div class="p-4 bg-[#111] border-t border-[#333]">
-                <div class="flex gap-2">
-                    <input type="text" id="st-chat-input" placeholder="Broadcast message..." class="flex-1 bg-[#050505] border border-[#333] text-white p-3 text-sm focus:border-[#d4af37] outline-none">
-                    <button id="st-chat-send" class="bg-[#d4af37] text-black font-bold uppercase px-6 py-2 hover:bg-[#fcd34d]">Send</button>
-                </div>
-            </div>
-        </div>
-    `;
-
-    // Bind ST Inputs
-    const sendBtn = document.getElementById('st-chat-send');
-    const input = document.getElementById('st-chat-input');
-    
-    const sendHandler = () => {
-        const txt = input.value.trim();
-        if (txt) {
-            sendChronicleMessage('chat', txt);
-            input.value = '';
-        }
-    };
-
     if(sendBtn) sendBtn.onclick = sendHandler;
     if(input) input.onkeydown = (e) => { if(e.key === 'Enter') sendHandler(); };
 
-    // Force refresh list immediately if data exists
-    startChatListener(stState.activeChronicleId);
-}
-
-// --- DELEGATED JOURNAL HELPERS ---
-async function pushHandoutToPlayers(id, recipients = null) {
-    if (!id) {
-        showNotification("No ID to push. Save first.", "error");
-        return;
-    }
-    try {
-        // USE SAFE PLAYER PATH: chronicles/{id}/players/journal_{entryId}
-        const safeId = id.startsWith('journal_') ? id : 'journal_' + id;
-        
-        // Define data payload
-        const data = { 
-            pushed: true, 
-            pushTime: Date.now(),
-            recipients: recipients // Array of UIDs or null (for everyone)
-        };
-
-        await setDoc(doc(db, 'chronicles', stState.activeChronicleId, 'players', safeId), data, { merge: true });
-        
-        let msg = "Pushed to Players!";
-        if (recipients) {
-            msg = `Pushed to ${recipients.length} Player(s)`;
-        }
-        showNotification(msg);
-        
-    } catch(e) { console.error(e); showNotification("Push failed: " + e.message, "error"); }
-}
-
-async function stDeleteJournalEntry(id) {
-    if(!confirm("Delete this handout?")) return;
-    try {
-        // USE SAFE PLAYER PATH
-        const safeId = id.startsWith('journal_') ? id : 'journal_' + id;
-        await deleteDoc(doc(db, 'chronicles', stState.activeChronicleId, 'players', safeId));
-    } catch(e) { console.error(e); }
-}
-
-// --- WRAPPERS ---
-function handleAddToCombat(entity, type) {
-    if (!stState.activeChronicleId) { showNotification("No active chronicle.", "error"); return; }
-    if (!entity.health) entity.health = { damage: 0, track: [0,0,0,0,0,0,0] };
-    addCombatant(entity, type);
-    showNotification(`${entity.name} added to Combat`);
-}
-
-window.copyStaticNpc = function(name) {
-    let found = null;
-    for(const cat in BESTIARY) { if(BESTIARY[cat][name]) found = BESTIARY[cat][name]; }
-    if(found && window.openNpcCreator) { 
-        window.openNpcCreator(found.template||'mortal', found); 
-        showNotification("Template Loaded. Use 'Save to Bestiary' to edit."); 
-    }
-};
-
-window.deleteCloudNpc = async function(id) {
-    if(!confirm("Delete?")) return;
-    try { 
-        // Path: chronicles/{id}/bestiary/{npcId}
-        await deleteDoc(doc(db, 'chronicles', stState.activeChronicleId, 'bestiary', id)); 
-        showNotification("Deleted."); 
-    } catch(e) {}
-};
-
-window.editCloudNpc = function(id) {
-    const entry = stState.bestiary[id];
-    if(entry && entry.data && window.openNpcCreator) {
-        window.openNpcCreator(entry.type, entry.data);
-        showNotification("Editing NPC...");
-        exitStorytellerDashboard(); 
+    if (window.startChatListener) {
+        window.startChatListener(chronicleId);
+    } else {
+        console.warn("startChatListener not found on window object.");
     }
 }
-
-window.previewStaticNpc = function(category, key) {
-    const npc = BESTIARY[category][key];
-    const grid = document.getElementById('bestiary-grid');
-    if (grid && npc) {
-        grid.innerHTML = '';
-        renderNpcCard({ data: npc, name: key, type: npc.template }, null, false, grid);
-    }
-};
