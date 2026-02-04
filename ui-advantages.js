@@ -20,7 +20,7 @@ import {
 } from "./ui-renderer.js";
 
 import { renderPrintSheet } from "./ui-print.js";
-import { updateRitualsPlayView } from "./ui-play.js";
+// REMOVED CIRCULAR IMPORT: import { updateRitualsPlayView } from "./ui-play.js";
 
 // --- DYNAMIC ADVANTAGES (Disciplines, Backgrounds, etc.) ---
 
@@ -965,7 +965,8 @@ export function renderRitualsEdit() {
             }
             
             if(renderPrintSheet) renderPrintSheet();
-            if(updateRitualsPlayView) updateRitualsPlayView();
+            // USE WINDOW GLOBAL HERE INSTEAD OF IMPORT
+            if(window.updateRitualsPlayView) window.updateRitualsPlayView();
         };
 
         select.onchange = (e) => {
