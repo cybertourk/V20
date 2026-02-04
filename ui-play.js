@@ -301,7 +301,9 @@ export function applyPlayModeUI() {
         renderDetailedDisciplines();
         updateRitualsPlayView();
         
-        // AUTO-RENDER CHRONICLE & NPC TABS
+        // AUTO-RENDER TABS
+        // Ensures the 7th tab content is ready when clicked
+        ensureChronicleTabContainer();
         renderChronicleTab();
         renderNpcTab();
         
@@ -1222,14 +1224,30 @@ export function updateRitualsPlayView() {
 }
 window.updateRitualsPlayView = updateRitualsPlayView;
 
+// --- AUTO-CREATION HELPER ---
+// Ensures the Chronicle tab container exists so renderChronicleTab() has a target
+function ensureChronicleTabContainer() {
+    let container = document.getElementById('play-mode-chronicle');
+    if (!container) {
+        // Only try to create if parent exists
+        const parent = document.getElementById('play-mode-sheet');
+        if (parent) {
+            container = document.createElement('div');
+            container.id = 'play-mode-chronicle';
+            // CRITICAL FIX: Use min-h-screen or large vh to force container open if parent has no height
+            container.className = 'hidden w-full min-h-[75vh]';
+            parent.appendChild(container);
+        }
+    }
+}
+
 // --- NEW FUNCTION: RENDER CHRONICLE TAB (UPDATED WITH CHAT) ---
 export async function renderChronicleTab() {
-    // FIX: TARGET 'play-mode-chronicle' FIRST
-    // This is the container injected by ui-storyteller.js
-    let container = document.getElementById('play-mode-chronicle');
+    // 1. Ensure Container Exists
+    ensureChronicleTabContainer();
     
-    // Only fall back to slot 5 if the specific container isn't found
-    if (!container) container = document.getElementById('play-mode-5');
+    // 2. Target Container
+    let container = document.getElementById('play-mode-chronicle');
     
     if (!container) return;
 
