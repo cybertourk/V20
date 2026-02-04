@@ -79,7 +79,6 @@ export function initStorytellerSystem() {
     window.stClearChat = stClearChat;
     window.stExportChat = stExportChat;
     window.stSetWhisperTarget = stSetWhisperTarget;
-    window.stSendEvent = stSendEvent;
 
     // GLOBAL PUSH API
     window.stPushNpc = async (npcData) => {
@@ -1039,17 +1038,15 @@ function renderRosterView() {
     const viewport = document.getElementById('st-viewport');
     if (!viewport || stState.currentView !== 'roster') return;
 
-    // Filter out journal entries from players list (check metadataType OR id prefix)
     const players = Object.entries(stState.players)
         .filter(([id, p]) => !p.metadataType || p.metadataType !== 'journal')
-        .map(([id, p]) => ({...p, id})); // Add ID back to object for referencing
+        .map(([id, p]) => ({...p, id})); 
     
     if (players.length === 0) {
         viewport.innerHTML = `<div class="flex flex-col items-center justify-center h-full text-gray-500"><i class="fas fa-users-slash text-4xl mb-4 opacity-50"></i><p>No players connected.</p><p class="text-xs mt-2">Share ID: <span class="text-gold font-mono font-bold">${stState.activeChronicleId}</span></p></div>`;
         return;
     }
 
-    // COMPACT GRID LAYOUT - SQUARES
     let html = `<div class="p-6 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 overflow-y-auto h-full pb-20 custom-scrollbar">`;
 
     players.forEach(p => {
@@ -1060,11 +1057,8 @@ function renderRosterView() {
         const wp = p.live_stats?.willpower || 0;
         const bp = p.live_stats?.blood || 0;
 
-        // CALCULATE ONLINE STATUS
-        // Logic: Compare last_active timestamp with current time. 
-        // Sync runs every 10s. Allow 90s buffer for lag/timeouts.
         const now = new Date();
-        const lastActive = p.last_active ? new Date(p.last_active) : new Date(0); // Default to epoch if missing
+        const lastActive = p.last_active ? new Date(p.last_active) : new Date(0); 
         const diffSeconds = (now - lastActive) / 1000;
         const isOnline = diffSeconds < 90 && p.status !== 'Offline';
 
@@ -1081,7 +1075,6 @@ function renderRosterView() {
                     <div class="w-3 h-3 rounded-full ${statusColor}" title="${statusTitle}"></div>
                 </div>
 
-                <!-- Center Stats - TEXT LABELS -->
                 <div class="flex flex-col justify-center gap-1 flex-1 my-2 text-[10px] font-bold">
                     <div class="flex justify-between items-center bg-black/40 px-2 py-1 rounded border border-[#222]">
                         <span class="text-gray-500 uppercase">Health</span>
@@ -1165,7 +1158,6 @@ function renderCombatView() {
     } else {
         combatants.forEach(c => {
             const isNPC = c.type === 'NPC';
-            // Active State Highlighting
             const activeClass = c.active ? 'border-[#d4af37] bg-[#2a2a2a] shadow-[0_0_15px_rgba(212,175,55,0.2)] transform scale-[1.01]' : 'border-[#333] bg-[#1a1a1a] opacity-80';
             const activeIndicator = c.active ? `<div class="absolute left-0 top-0 bottom-0 w-1 bg-[#d4af37]"></div>` : '';
 
@@ -1354,7 +1346,8 @@ function startChatListener(chronicleId) {
         }
     });
     
-    stState.listeners.push(unsub);
+    // --- FIX: Removed erroneous push to listeners array here ---
+    // The unsub function is already stored in stState.chatUnsub and managed manually.
 }
 
 function renderMessageList(container, messages) {
@@ -1366,27 +1359,14 @@ function renderMessageList(container, messages) {
     }
 
     const uid = auth.currentUser?.uid;
-    const isST = stState.isStoryteller; // Crucial check for visibility
 
     messages.forEach(msg => {
-        // --- VISIBILITY FILTER (FIXED) ---
-        // If message is a whisper:
-        // 1. If user is Sender -> Show
-        // 2. If user is Recipient -> Show
-        // 3. If user is Storyteller -> Show (with indicator)
-        // 4. Else -> Hide
-        let isVisible = true;
-        
+        // FILTER: Check if message is private (Whisper)
         if (msg.isWhisper) {
             const isSender = msg.senderId === uid;
             const isRecipient = msg.recipientId === uid;
-            
-            if (!isSender && !isRecipient && !isST) {
-                isVisible = false;
-            }
+            if (!isSender && !isRecipient) return; // Skip if not involved
         }
-        
-        if (!isVisible) return; // SKIP MESSAGE
 
         const div = document.createElement('div');
         div.className = "mb-2 text-xs";
@@ -1434,26 +1414,8 @@ function renderMessageList(container, messages) {
         } else {
             // CHAT / WHISPER
             const isSelf = msg.senderId === uid;
-            
-            // Look up Recipient Name if Whisper
-            let whisperLabel = "";
-            if (msg.isWhisper) {
-                let targetName = "Unknown";
-                if (msg.recipientId === uid) targetName = "You";
-                else if (stState.players && stState.players[msg.recipientId]) targetName = stState.players[msg.recipientId].character_name;
-                else targetName = "Someone";
-                
-                // ST Override Label
-                if (isST && !isSelf && msg.recipientId !== uid) {
-                     whisperLabel = `<span class="text-purple-500 font-bold text-[9px] mr-1">[WHISPER TO ${targetName}]</span>`;
-                } else if (isSelf) {
-                     whisperLabel = `<span class="text-purple-400 font-bold text-[9px] mr-1">[TO ${targetName}]</span>`;
-                } else {
-                     whisperLabel = `<span class="text-purple-400 font-bold text-[9px] mr-1">[WHISPER]</span>`;
-                }
-            }
-
             const whisperClass = msg.isWhisper ? 'border-purple-500/50 bg-purple-900/10' : 'border-[#333] bg-[#1a1a1a]';
+            const whisperLabel = msg.isWhisper ? `<span class="text-purple-400 font-bold text-[9px] mr-1">[WHISPER]</span>` : '';
             
             div.innerHTML = `
                 <div class="${isSelf ? 'text-right' : 'text-left'}">
