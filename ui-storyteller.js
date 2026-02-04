@@ -1,5 +1,5 @@
 import { 
-    db, auth, collection, doc, setDoc, getDoc, getDocs, query, where, addDoc, onSnapshot, deleteDoc, updateDoc, appId, arrayUnion, arrayRemove, orderBy, limit
+    db, auth, collection, doc, setDoc, getDoc, getDocs, query, where, addDoc, onSnapshot, deleteDoc, updateDoc, appId, arrayUnion, arrayRemove, orderBy, limit, writeBatch
 } from "./firebase-config.js";
 import { showNotification } from "./ui-common.js";
 import { BESTIARY } from "./bestiary-data.js";
@@ -26,7 +26,8 @@ export const stState = {
     syncInterval: null,
     seenHandouts: new Set(),
     dashboardActive: false,
-    chatUnsub: null
+    chatUnsub: null,
+    chatHistory: [] // Local cache for export
 };
 
 // Expose state globally for other modules (fixes Journal Roster visibility)
@@ -73,8 +74,10 @@ export function initStorytellerSystem() {
     window.stPushHandout = pushHandoutToPlayers;
     window.stDeleteJournalEntry = stDeleteJournalEntry;
     
-    // EXPOSE CHAT LISTENER FOR UI-PLAY.JS
+    // Chat Bindings
     window.startChatListener = startChatListener;
+    window.stClearChat = stClearChat;
+    window.stExportChat = stExportChat;
 
     // GLOBAL PUSH API
     window.stPushNpc = async (npcData) => {
@@ -722,6 +725,7 @@ function disconnectChronicle() {
     stState.journal = {};
     stState.settings = {};
     stState.seenHandouts = new Set();
+    stState.chatHistory = [];
 
     showNotification("Disconnected from Chronicle.");
     
@@ -1323,7 +1327,7 @@ function renderNpcCard(entry, id, isCustom, container, clearFirst = false) {
 }
 
 // ==========================================================================
-// CHAT / LOGGING SYSTEM (NEW)
+// CHAT / LOGGING SYSTEM (UPDATED)
 // ==========================================================================
 
 function startChatListener(chronicleId) {
@@ -1344,17 +1348,20 @@ function startChatListener(chronicleId) {
     if (sendBtn) sendBtn.onclick = sendHandler;
     if (input) input.onkeydown = (e) => { if(e.key === 'Enter') sendHandler(); };
 
-    // Query messages (Limit to 50 recent)
+    // Query messages (Limit to 100 recent)
     const q = query(
         collection(db, 'chronicles', chronicleId, 'messages'), 
         orderBy('timestamp', 'desc'), 
-        limit(50)
+        limit(100)
     );
 
     stState.chatUnsub = onSnapshot(q, (snapshot) => {
         const messages = [];
         snapshot.forEach(doc => messages.push({ id: doc.id, ...doc.data() }));
         messages.reverse(); // Show oldest first (top to bottom)
+        
+        // Cache for export
+        stState.chatHistory = messages;
         
         // Render to Player Sidebar
         const pContainer = document.getElementById('chronicle-chat-history');
@@ -1417,6 +1424,69 @@ function renderMessageList(container, messages) {
     container.scrollTop = container.scrollHeight;
 }
 
+// --- NEW CHAT FUNCTIONS: CLEAR & EXPORT ---
+
+// 1. Export Chat
+async function stExportChat() {
+    if (!stState.chatHistory || stState.chatHistory.length === 0) {
+        showNotification("Chat is empty.", "error");
+        return;
+    }
+
+    let textContent = `CHRONICLE CHAT LOG: ${stState.activeChronicleId}\nExported: ${new Date().toLocaleString()}\n\n`;
+    
+    stState.chatHistory.forEach(msg => {
+        const time = msg.timestamp ? new Date(msg.timestamp.seconds * 1000).toLocaleString() : 'Unknown';
+        if (msg.type === 'system') {
+            textContent += `[${time}] SYSTEM: ${msg.content.replace(/<[^>]*>/g, '')}\n`; // Strip HTML
+        } else if (msg.type === 'roll') {
+            textContent += `[${time}] ${msg.sender} ROLLED: ${msg.content.replace(/<[^>]*>/g, '')} (Pool: ${msg.details?.pool || '?'})\n`;
+        } else {
+            textContent += `[${time}] ${msg.sender}: ${msg.content}\n`;
+        }
+    });
+
+    const blob = new Blob([textContent], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `V20_ChatLog_${new Date().toISOString().slice(0,10)}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showNotification("Chat Log Exported.");
+}
+
+// 2. Clear Chat (Batch Delete)
+async function stClearChat() {
+    if (!confirm("CLEAR ALL CHAT HISTORY?\n\nThis will permanently delete all messages for everyone. This cannot be undone.")) return;
+    
+    try {
+        const q = query(collection(db, 'chronicles', stState.activeChronicleId, 'messages'));
+        const snapshot = await getDocs(q);
+        
+        const batch = writeBatch(db);
+        let count = 0;
+        
+        snapshot.forEach(doc => {
+            batch.delete(doc.ref);
+            count++;
+        });
+
+        if (count > 0) {
+            await batch.commit();
+            sendChronicleMessage('system', 'Storyteller cleared the chat history.');
+            showNotification(`Cleared ${count} messages.`);
+        } else {
+            showNotification("Chat already empty.");
+        }
+    } catch (e) {
+        console.error("Clear Chat Error:", e);
+        showNotification("Failed to clear chat.", "error");
+    }
+}
+
 // EXPORTED API
 async function sendChronicleMessage(type, content, details = null) {
     if (!stState.activeChronicleId) return;
@@ -1444,10 +1514,25 @@ async function sendChronicleMessage(type, content, details = null) {
     }
 }
 
-// --- ST CHAT VIEW ---
+// --- UPDATED ST CHAT VIEW WITH TOOLBAR ---
 function renderChatView(container) {
     container.innerHTML = `
         <div class="flex flex-col h-full relative">
+            <!-- TOOLBAR (NEW) -->
+            <div class="bg-[#1a1a1a] border-b border-[#333] p-2 flex justify-between items-center">
+                <div class="text-[10px] text-gray-500 uppercase font-bold tracking-widest">
+                    <i class="fas fa-history mr-1"></i> History
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="window.stExportChat()" class="text-xs bg-[#222] hover:bg-[#333] text-gray-300 border border-[#444] px-3 py-1 rounded uppercase font-bold transition-colors" title="Download Log">
+                        <i class="fas fa-download mr-1"></i> Export
+                    </button>
+                    <button onclick="window.stClearChat()" class="text-xs bg-red-900/20 hover:bg-red-900/50 text-red-500 border border-red-900/50 px-3 py-1 rounded uppercase font-bold transition-colors" title="Delete All Messages">
+                        <i class="fas fa-trash-alt mr-1"></i> Clear
+                    </button>
+                </div>
+            </div>
+
             <!-- Messages -->
             <div id="st-chat-history" class="flex-1 overflow-y-auto p-4 space-y-3 font-serif bg-[#080808]">
                 <div class="text-center text-gray-600 text-xs italic mt-4">Loading history...</div>
