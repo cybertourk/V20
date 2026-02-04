@@ -1299,20 +1299,8 @@ function renderNpcCard(entry, id, isCustom, container, clearFirst = false) {
 function startChatListener(chronicleId) {
     if (stState.chatUnsub) stState.chatUnsub();
     
-    // Wire up inputs if sidebar exists (Player Mode)
-    const sendBtn = document.getElementById('chronicle-chat-send');
-    const input = document.getElementById('chronicle-chat-input');
-    
-    const sendHandler = () => {
-        const txt = input.value.trim();
-        if (txt) {
-            sendChronicleMessage('chat', txt);
-            input.value = '';
-        }
-    };
-
-    if (sendBtn) sendBtn.onclick = sendHandler;
-    if (input) input.onkeydown = (e) => { if(e.key === 'Enter') sendHandler(); };
+    // FIX: Do NOT bind player inputs here. ui-play.js handles its own input binding.
+    // Overwriting the onclick handler here was causing the Whisper logic to be bypassed.
 
     // Query messages (Limit to 100 recent)
     const q = query(
@@ -1356,12 +1344,11 @@ function renderMessageList(container, messages) {
     }
 
     const uid = auth.currentUser?.uid;
-    // Check if user is Storyteller by matching activeChronicleId with owned chronicles, but for speed we rely on stState.isStoryteller
-    // However, if the user is a player, stState.isStoryteller is false.
-    // If uid matches stUID, they are ST.
-    // We can't easily get stUID here without fetching, but we can rely on stState.isStoryteller flag or local storage role.
-    const amIStoryteller = stState.isStoryteller || localStorage.getItem('v20_last_chronicle_role') === 'ST';
-
+    
+    // We determine if the user is the ST based on the current view context
+    // This allows us to show ST whispers correctly
+    // Since we don't have stUID easily accessible here without fetching, we rely on the message sender/recipient checks
+    
     messages.forEach(msg => {
         let isVisible = true;
 
@@ -1372,10 +1359,8 @@ function renderMessageList(container, messages) {
             
             // If I am NOT the sender AND NOT the recipient
             if (!isSender && !isRecipient) {
-                 // If I am the Storyteller, I should see it UNLESS specifically excluded?
-                 // User Requirement: "If players wish to whisper to each other the Story teller shouldn't see it."
-                 // So ST sees it ONLY if ST is sender or recipient.
-                 // NOTE: This means players can conspire against ST. As requested.
+                 // Per requirement: "If players wish to whisper to each other the Story teller shouldn't see it."
+                 // So we hide it from everyone except sender/recipient
                  isVisible = false;
             }
         }
@@ -1541,7 +1526,8 @@ async function sendChronicleMessage(type, content, details = null, options = {})
     }
 
     // WHISPER LOGIC: Check options first
-    let isWhisper = options.isWhisper || false;
+    // Note: 'options' comes from ui-play.js correctly, but let's be explicit with defaults
+    let isWhisper = !!options.isWhisper; // Force boolean
     let recipientId = options.recipientId || null;
 
     try {
