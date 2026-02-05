@@ -788,6 +788,23 @@ function startPlayerSync() {
     stState.syncInterval = interval;
 }
 
+// Helper to refresh chat names
+function refreshChatUI() {
+    // Re-render Player Chat (Sidebar/Tab)
+    const pContainer = document.getElementById('chronicle-chat-history');
+    if (pContainer && stState.chatHistory.length > 0) {
+        renderMessageList(pContainer, stState.chatHistory);
+    }
+
+    // Re-render ST Dashboard Chat
+    if (stState.dashboardActive && stState.currentView === 'chat') {
+        const stContainer = document.getElementById('st-chat-history');
+        if (stContainer && stState.chatHistory.length > 0) {
+            renderMessageList(stContainer, stState.chatHistory);
+        }
+    }
+}
+
 function startPlayerListeners(chronicleId) {
     const q = query(collection(db, 'chronicles', chronicleId, 'players'));
     const unsub = onSnapshot(q, (snapshot) => {
@@ -1670,13 +1687,13 @@ async function sendChronicleMessage(type, content, details = null, options = {})
 // --- UPDATED ST CHAT VIEW WITH TOOLBAR ---
 function renderChatView(container) {
     let playerOptions = '';
-    // Build options from stState.players
-    Object.values(stState.players).forEach(p => {
+    // Build options from stState.players using ENTRIES to access the key (ID)
+    Object.entries(stState.players).forEach(([id, p]) => {
         // Filter journal metadata entries if they exist in the players map
         if (p.character_name) {
             playerOptions += `
             <label class="flex items-center gap-2 p-1 hover:bg-[#222] cursor-pointer">
-                <input type="checkbox" class="st-recipient-checkbox accent-[#d4af37]" value="${p.id || ''}">
+                <input type="checkbox" class="st-recipient-checkbox accent-[#d4af37]" value="${id}">
                 <span class="text-xs text-gray-300">${p.character_name} (${p.player_name || 'Player'})</span>
             </label>`;
         }
