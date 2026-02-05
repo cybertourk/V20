@@ -666,13 +666,15 @@ async function handleResumeChronicle(id, role) {
     }
 }
 
-function disconnectChronicle() {
-    if (stState.activeChronicleId) {
+function disconnectChronicle(isKicked = false) {
+    if (stState.activeChronicleId && !isKicked) {
         const charName = stState.isStoryteller ? "Storyteller" : (document.getElementById('c-name')?.value || "Unknown");
         sendChronicleMessage('system', `${charName} disconnected.`);
     }
 
-    if (!stState.isStoryteller && stState.playerRef) {
+    // Only update status to "Offline" if NOT kicked. 
+    // If kicked, the document is already deleted by the ST, so we shouldn't recreate it.
+    if (!isKicked && !stState.isStoryteller && stState.playerRef) {
         try {
             setDoc(stState.playerRef, { status: "Offline" }, { merge: true });
         } catch(e) { console.warn(e); }
@@ -694,7 +696,7 @@ function disconnectChronicle() {
     stState.seenHandouts = new Set();
     stState.chatHistory = [];
 
-    showNotification("Disconnected from Chronicle.");
+    showNotification(isKicked ? "Removed from Chronicle." : "Disconnected from Chronicle.");
     
     localStorage.removeItem('v20_last_chronicle_id');
     localStorage.removeItem('v20_last_chronicle_name');
@@ -763,8 +765,10 @@ function startPlayerListeners(chronicleId) {
             const docId = change.doc.id;
             
             // CHECK FOR SELF-REMOVAL (Kicked by ST)
+            // If the document matching our UID is removed, we've been kicked.
+            // Pass 'true' to disconnectChronicle to prevent recreation of the doc.
             if (change.type === 'removed' && auth.currentUser && docId === auth.currentUser.uid) {
-                disconnectChronicle();
+                disconnectChronicle(true); 
                 showNotification("Disconnected by Storyteller.", "error");
                 return; // Stop processing
             }
