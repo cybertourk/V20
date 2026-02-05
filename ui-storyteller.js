@@ -1409,9 +1409,6 @@ function renderNpcCard(entry, id, isCustom, container, clearFirst = false) {
 function startChatListener(chronicleId) {
     if (stState.chatUnsub) stState.chatUnsub();
     
-    // FIX: Do NOT bind player inputs here. ui-play.js handles its own input binding.
-    // Overwriting the onclick handler here was causing the Whisper logic to be bypassed.
-
     // Query messages (Limit to 100 recent)
     const q = query(
         collection(db, 'chronicles', chronicleId, 'messages'), 
@@ -1427,15 +1424,9 @@ function startChatListener(chronicleId) {
         // Cache for export
         stState.chatHistory = messages;
         
-        // Render to Player Sidebar
-        const pContainer = document.getElementById('chronicle-chat-history');
-        if (pContainer) renderMessageList(pContainer, messages);
-
-        // Render to ST Dashboard (if active)
-        if (stState.dashboardActive && stState.currentView === 'chat') {
-            const stContainer = document.getElementById('st-chat-history');
-            if (stContainer) renderMessageList(stContainer, messages);
-        }
+        // Trigger Name Resolution Update for Chat
+        refreshChatUI();
+        
     }, (error) => {
         if (error.code === 'permission-denied') {
             console.warn("Chat Listener: Access Denied. You may be disconnected.");
