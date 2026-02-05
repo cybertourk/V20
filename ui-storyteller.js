@@ -155,14 +155,28 @@ async function checkStaleSession() {
         }
     } 
     else if (user && storedId && storedRole === 'Player') {
-        stState.activeChronicleId = storedId;
-        stState.isStoryteller = false;
-        stState.playerRef = doc(db, 'chronicles', storedId, 'players', user.uid);
-        
-        initCombatTracker(storedId); 
-        startPlayerSync();
-        startPlayerListeners(storedId); 
-        startChatListener(storedId); 
+        // ZOMBIE CHECK: Verify player doc exists before reconnecting
+        try {
+            const playerRef = doc(db, 'chronicles', storedId, 'players', user.uid);
+            const playerSnap = await getDoc(playerRef);
+
+            if (!playerSnap.exists()) {
+                console.log("Player removed from roster. Clearing stale session.");
+                disconnectChronicle(true); // Treat as kick/remove
+                return;
+            }
+
+            stState.activeChronicleId = storedId;
+            stState.isStoryteller = false;
+            stState.playerRef = playerRef;
+            
+            initCombatTracker(storedId); 
+            startPlayerSync();
+            startPlayerListeners(storedId); 
+            startChatListener(storedId); 
+        } catch(e) {
+            console.error("Player Session Check Error:", e);
+        }
     }
 }
 
@@ -263,6 +277,7 @@ async function renderChronicleMenu() {
                     displayName = snap.data().name;
                 }
             } else {
+                // Check if player doc still exists (Wait for fetch to validate)
                 const playerRef = doc(db, 'chronicles', recentId, 'players', user.uid);
                 const snap = await getDoc(playerRef);
                 if (snap.exists()) {
@@ -292,6 +307,7 @@ async function renderChronicleMenu() {
                 const rBlock = document.getElementById('st-resume-block');
                 if(rBlock) rBlock.innerHTML = resumeHtml;
             } else {
+                // Clean up invalid session data
                 localStorage.removeItem('v20_last_chronicle_id');
                 localStorage.removeItem('v20_last_chronicle_name');
                 localStorage.removeItem('v20_last_chronicle_role');
@@ -641,6 +657,19 @@ async function handleResumeChronicle(id, role) {
             window.renderStorytellerDashboard(); 
         } else {
             const playerRef = doc(db, 'chronicles', id, 'players', auth.currentUser.uid);
+            
+            // CHECK EXISTENCE BEFORE RESUMING (Prevent Zombie Re-creation)
+            const pSnap = await getDoc(playerRef);
+            if (!pSnap.exists()) {
+                showNotification("Your character was removed from this Chronicle. Please rejoin.", "error");
+                // Clear local data so they are forced to Join fresh
+                localStorage.removeItem('v20_last_chronicle_id');
+                localStorage.removeItem('v20_last_chronicle_name');
+                localStorage.removeItem('v20_last_chronicle_role');
+                renderChronicleMenu();
+                return;
+            }
+
             await setDoc(playerRef, { status: "Connected", last_active: new Date().toISOString() }, { merge: true });
             
             stState.activeChronicleId = id;
