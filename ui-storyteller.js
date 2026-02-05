@@ -80,6 +80,9 @@ export function initStorytellerSystem() {
     window.stExportChat = stExportChat;
     window.stSetWhisperTarget = stSetWhisperTarget;
 
+    // Roster Management
+    window.stRemovePlayer = stRemovePlayer;
+
     // GLOBAL PUSH API
     window.stPushNpc = async (npcData) => {
         if (!stState.activeChronicleId || !stState.isStoryteller) return showNotification("Not in ST Mode", "error");
@@ -759,6 +762,13 @@ function startPlayerListeners(chronicleId) {
             const data = change.doc.data();
             const docId = change.doc.id;
             
+            // CHECK FOR SELF-REMOVAL (Kicked by ST)
+            if (change.type === 'removed' && auth.currentUser && docId === auth.currentUser.uid) {
+                disconnectChronicle();
+                showNotification("Disconnected by Storyteller.", "error");
+                return; // Stop processing
+            }
+
             if (docId.startsWith('journal_') && data.pushed === true) {
                 const myId = auth.currentUser?.uid;
                 let isRecipient = false;
@@ -1033,7 +1043,20 @@ async function stSaveSettings() {
     }
 }
 
-// --- VIEW 1: ROSTER (UPDATED: Click to Whisper) ---
+// --- REMOVE PLAYER (KICK) ---
+async function stRemovePlayer(id, name) {
+    if (!confirm(`Remove ${name} from the roster? This will disconnect them.`)) return;
+    try {
+        // Deleting the player document triggers the disconnect logic on the player's client
+        await deleteDoc(doc(db, 'chronicles', stState.activeChronicleId, 'players', id));
+        showNotification(`${name} removed.`);
+    } catch (e) {
+        console.error("Remove Player Error:", e);
+        showNotification("Failed to remove player.", "error");
+    }
+}
+
+// --- VIEW 1: ROSTER (UPDATED: Click to Whisper & Remove Button) ---
 function renderRosterView() {
     const viewport = document.getElementById('st-viewport');
     if (!viewport || stState.currentView !== 'roster') return;
@@ -1072,7 +1095,12 @@ function renderRosterView() {
                         <h3 class="font-bold text-sm text-white truncate w-full font-cinzel text-shadow hover:text-[#d4af37] transition-colors">${p.character_name || "Unknown"}</h3>
                         <div class="text-[10px] text-gray-500 truncate font-mono">${p.player_name || "Player"}</div>
                     </div>
-                    <div class="w-3 h-3 rounded-full ${statusColor}" title="${statusTitle}"></div>
+                    <div class="flex items-center gap-1">
+                        <div class="w-3 h-3 rounded-full ${statusColor}" title="${statusTitle}"></div>
+                        <button onclick="event.stopPropagation(); window.stRemovePlayer('${p.id}', '${p.character_name}')" class="text-gray-600 hover:text-red-500 text-[10px] ml-1 opacity-0 group-hover:opacity-100 transition-opacity" title="Remove Player">
+                            <i class="fas fa-user-times"></i>
+                        </button>
+                    </div>
                 </div>
 
                 <div class="flex flex-col justify-center gap-1 flex-1 my-2 text-[10px] font-bold">
