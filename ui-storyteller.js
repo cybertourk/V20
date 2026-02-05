@@ -795,7 +795,6 @@ function startPlayerSync() {
             renderMessageList(stContainer, stState.chatHistory);
         }
     }
-}
 
 function startPlayerListeners(chronicleId) {
     const q = query(collection(db, 'chronicles', chronicleId, 'players'));
