@@ -788,6 +788,23 @@ function startPlayerSync() {
     stState.syncInterval = interval;
 }
 
+// Helper to refresh chat names
+function refreshChatUI() {
+    // Re-render Player Chat (Sidebar/Tab)
+    const pContainer = document.getElementById('chronicle-chat-history');
+    if (pContainer && stState.chatHistory.length > 0) {
+        renderMessageList(pContainer, stState.chatHistory);
+    }
+
+    // Re-render ST Dashboard Chat
+    if (stState.dashboardActive && stState.currentView === 'chat') {
+        const stContainer = document.getElementById('st-chat-history');
+        if (stContainer && stState.chatHistory.length > 0) {
+            renderMessageList(stContainer, stState.chatHistory);
+        }
+    }
+}
+
 function startPlayerListeners(chronicleId) {
     const q = query(collection(db, 'chronicles', chronicleId, 'players'));
     const unsub = onSnapshot(q, (snapshot) => {
@@ -801,6 +818,9 @@ function startPlayerListeners(chronicleId) {
                 stState.players[doc.id] = data;
             }
         });
+
+        // Trigger Name Resolution Update for Chat
+        refreshChatUI();
 
         snapshot.docChanges().forEach((change) => {
             const data = change.doc.data();
@@ -884,6 +904,9 @@ function startStorytellerSession() {
                 stState.players[id] = data;
             }
         });
+
+        // Trigger Name Resolution Update for Chat
+        refreshChatUI();
 
         if (stState.dashboardActive) {
             if (stState.currentView === 'roster') {
@@ -1459,7 +1482,6 @@ function renderMessageList(container, messages) {
                     if (rid === uid) return "You";
                     
                     // Check if it's the Storyteller
-                    // FIX: Ensure stState.settings exists (Players fetch it now too)
                     if (stState.settings && stState.settings.storyteller_uid === rid) return "Storyteller";
                     
                     // Check players list
@@ -1699,16 +1721,16 @@ function renderChatView(container) {
                 <div class="text-center text-gray-600 text-xs italic mt-4">Loading history...</div>
             </div>
             
-            <!-- Input Area - COMPACT LAYOUT -->
-            <div class="p-3 bg-[#111] border-t border-[#333] space-y-2 relative shrink-0">
-                <!-- Row 1: Recipient Selector -->
+            <!-- Input Area -->
+            <div class="p-4 bg-[#111] border-t border-[#333] space-y-2 relative">
+                <!-- Multi-Select Recipient Dropdown -->
                 <div class="relative">
-                    <button id="st-chat-recipient-btn" class="w-full md:w-auto bg-[#050505] border border-[#333] text-gray-300 text-xs px-3 py-1.5 text-left flex justify-between items-center gap-4 hover:border-[#d4af37] transition-colors rounded" onclick="document.getElementById('st-chat-recipients-dropdown').classList.toggle('hidden')">
+                    <button id="st-chat-recipient-btn" class="w-full bg-[#050505] border border-[#333] text-gray-300 text-xs p-2 text-left flex justify-between items-center hover:border-[#d4af37] transition-colors" onclick="document.getElementById('st-chat-recipients-dropdown').classList.toggle('hidden')">
                         <span id="st-chat-recipient-label">Everyone (Public)</span>
                         <i class="fas fa-chevron-down text-[10px]"></i>
                     </button>
                     
-                    <div id="st-chat-recipients-dropdown" class="hidden absolute bottom-full left-0 w-64 bg-[#1a1a1a] border border-[#333] shadow-xl p-2 max-h-48 overflow-y-auto custom-scrollbar z-50 mb-1 rounded">
+                    <div id="st-chat-recipients-dropdown" class="hidden absolute bottom-full left-0 w-full bg-[#1a1a1a] border border-[#333] shadow-xl p-2 max-h-48 overflow-y-auto custom-scrollbar z-50 mb-1">
                         <label class="flex items-center gap-2 p-1 hover:bg-[#222] cursor-pointer border-b border-[#333] mb-1 pb-1">
                             <input type="checkbox" id="st-chat-all-checkbox" class="accent-[#d4af37]" checked>
                             <span class="text-xs text-gold font-bold">Broadcast to Everyone</span>
@@ -1719,15 +1741,13 @@ function renderChatView(container) {
                     </div>
                 </div>
 
-                <!-- Row 2: Input & Actions -->
+                <!-- Message Input -->
                 <div class="flex gap-2">
-                    <input type="text" id="st-chat-input" placeholder="Enter message..." class="flex-1 bg-[#050505] border border-[#333] text-white px-3 py-2 text-sm focus:border-[#d4af37] outline-none rounded">
+                    <input type="text" id="st-chat-input" placeholder="Enter message..." class="flex-1 bg-[#050505] border border-[#333] text-white p-3 text-sm focus:border-[#d4af37] outline-none">
+                    <button id="st-chat-send" class="bg-[#d4af37] text-black font-bold uppercase px-6 py-2 hover:bg-[#fcd34d]">Send</button>
                     
-                    <button id="st-chat-send" class="bg-[#d4af37] text-black font-bold uppercase px-4 py-2 hover:bg-[#fcd34d] rounded text-xs transition-transform hover:scale-105">
-                        <i class="fas fa-paper-plane mr-1 md:hidden"></i><span class="hidden md:inline">Send</span>
-                    </button>
-                    
-                    <button onclick="window.stSendEvent()" class="bg-[#222] border border-[#d4af37] text-[#d4af37] font-bold px-3 py-2 text-xs uppercase hover:bg-[#333] hover:text-white transition-colors rounded" title="Send as Announcement">
+                    <!-- Announce Button -->
+                    <button onclick="window.stSendEvent()" class="bg-[#222] border border-[#d4af37] text-[#d4af37] font-bold px-3 py-2 text-xs uppercase hover:bg-[#333] hover:text-white transition-colors" title="Send as Major Event Announcement">
                         <i class="fas fa-bullhorn"></i>
                     </button>
                 </div>
@@ -1884,3 +1904,20 @@ window.previewStaticNpc = function(category, key) {
         renderNpcCard({ data: npc, name: key, type: npc.template }, null, false, grid);
     }
 };
+
+// --- CHAT REFRESH HELPER (NEW) ---
+function refreshChatUI() {
+    // Re-render Player Chat (Sidebar/Tab)
+    const pContainer = document.getElementById('chronicle-chat-history');
+    if (pContainer && stState.chatHistory.length > 0) {
+        renderMessageList(pContainer, stState.chatHistory);
+    }
+
+    // Re-render ST Dashboard Chat
+    if (stState.dashboardActive && stState.currentView === 'chat') {
+        const stContainer = document.getElementById('st-chat-history');
+        if (stContainer && stState.chatHistory.length > 0) {
+            renderMessageList(stContainer, stState.chatHistory);
+        }
+    }
+}
