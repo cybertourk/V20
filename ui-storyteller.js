@@ -147,6 +147,7 @@ async function checkStaleSession() {
             } else {
                 stState.activeChronicleId = storedId;
                 stState.isStoryteller = true;
+                stState.settings = snap.data(); // Ensure settings loaded
                 startStorytellerSession(); 
                 toggleStorytellerButton(true);
             }
@@ -164,6 +165,13 @@ async function checkStaleSession() {
                 console.log("Player removed from roster. Clearing stale session.");
                 disconnectChronicle(true); // Treat as kick/remove
                 return;
+            }
+
+            // CRITICAL FIX: Fetch Chronicle Data for Players too (so they know ST UID for whispers)
+            const chronRef = doc(db, 'chronicles', storedId);
+            const chronSnap = await getDoc(chronRef);
+            if (chronSnap.exists()) {
+                stState.settings = chronSnap.data();
             }
 
             stState.activeChronicleId = storedId;
@@ -580,6 +588,9 @@ async function handleJoinChronicle() {
             return;
         }
 
+        // SAVE SETTINGS (Important for Name Resolution)
+        stState.settings = data;
+
         const playerRef = doc(db, 'chronicles', idInput, 'players', user.uid);
         const charName = document.getElementById('c-name')?.value || "Unknown Kindred";
         
@@ -636,6 +647,9 @@ async function handleResumeChronicle(id, role) {
         
         const data = docSnap.data();
         
+        // SAVE SETTINGS FOR ALL ROLES
+        stState.settings = data;
+
         localStorage.setItem('v20_last_chronicle_id', id);
         localStorage.setItem('v20_last_chronicle_name', data.name);
         localStorage.setItem('v20_last_chronicle_role', role);
@@ -648,7 +662,6 @@ async function handleResumeChronicle(id, role) {
             }
             stState.activeChronicleId = id;
             stState.isStoryteller = true;
-            stState.settings = data;
             
             window.closeChronicleModal();
             startStorytellerSession(); 
@@ -1446,6 +1459,7 @@ function renderMessageList(container, messages) {
                     if (rid === uid) return "You";
                     
                     // Check if it's the Storyteller
+                    // FIX: Ensure stState.settings exists (Players fetch it now too)
                     if (stState.settings && stState.settings.storyteller_uid === rid) return "Storyteller";
                     
                     // Check players list
@@ -1685,16 +1699,16 @@ function renderChatView(container) {
                 <div class="text-center text-gray-600 text-xs italic mt-4">Loading history...</div>
             </div>
             
-            <!-- Input Area -->
-            <div class="p-4 bg-[#111] border-t border-[#333] space-y-2 relative">
-                <!-- Multi-Select Recipient Dropdown -->
+            <!-- Input Area - COMPACT LAYOUT -->
+            <div class="p-3 bg-[#111] border-t border-[#333] space-y-2 relative shrink-0">
+                <!-- Row 1: Recipient Selector -->
                 <div class="relative">
-                    <button id="st-chat-recipient-btn" class="w-full bg-[#050505] border border-[#333] text-gray-300 text-xs p-2 text-left flex justify-between items-center hover:border-[#d4af37] transition-colors" onclick="document.getElementById('st-chat-recipients-dropdown').classList.toggle('hidden')">
+                    <button id="st-chat-recipient-btn" class="w-full md:w-auto bg-[#050505] border border-[#333] text-gray-300 text-xs px-3 py-1.5 text-left flex justify-between items-center gap-4 hover:border-[#d4af37] transition-colors rounded" onclick="document.getElementById('st-chat-recipients-dropdown').classList.toggle('hidden')">
                         <span id="st-chat-recipient-label">Everyone (Public)</span>
                         <i class="fas fa-chevron-down text-[10px]"></i>
                     </button>
                     
-                    <div id="st-chat-recipients-dropdown" class="hidden absolute bottom-full left-0 w-full bg-[#1a1a1a] border border-[#333] shadow-xl p-2 max-h-48 overflow-y-auto custom-scrollbar z-50 mb-1">
+                    <div id="st-chat-recipients-dropdown" class="hidden absolute bottom-full left-0 w-64 bg-[#1a1a1a] border border-[#333] shadow-xl p-2 max-h-48 overflow-y-auto custom-scrollbar z-50 mb-1 rounded">
                         <label class="flex items-center gap-2 p-1 hover:bg-[#222] cursor-pointer border-b border-[#333] mb-1 pb-1">
                             <input type="checkbox" id="st-chat-all-checkbox" class="accent-[#d4af37]" checked>
                             <span class="text-xs text-gold font-bold">Broadcast to Everyone</span>
@@ -1705,13 +1719,15 @@ function renderChatView(container) {
                     </div>
                 </div>
 
-                <!-- Message Input -->
+                <!-- Row 2: Input & Actions -->
                 <div class="flex gap-2">
-                    <input type="text" id="st-chat-input" placeholder="Enter message..." class="flex-1 bg-[#050505] border border-[#333] text-white p-3 text-sm focus:border-[#d4af37] outline-none">
-                    <button id="st-chat-send" class="bg-[#d4af37] text-black font-bold uppercase px-6 py-2 hover:bg-[#fcd34d]">Send</button>
+                    <input type="text" id="st-chat-input" placeholder="Enter message..." class="flex-1 bg-[#050505] border border-[#333] text-white px-3 py-2 text-sm focus:border-[#d4af37] outline-none rounded">
                     
-                    <!-- Announce Button -->
-                    <button onclick="window.stSendEvent()" class="bg-[#222] border border-[#d4af37] text-[#d4af37] font-bold px-3 py-2 text-xs uppercase hover:bg-[#333] hover:text-white transition-colors" title="Send as Major Event Announcement">
+                    <button id="st-chat-send" class="bg-[#d4af37] text-black font-bold uppercase px-4 py-2 hover:bg-[#fcd34d] rounded text-xs transition-transform hover:scale-105">
+                        <i class="fas fa-paper-plane mr-1 md:hidden"></i><span class="hidden md:inline">Send</span>
+                    </button>
+                    
+                    <button onclick="window.stSendEvent()" class="bg-[#222] border border-[#d4af37] text-[#d4af37] font-bold px-3 py-2 text-xs uppercase hover:bg-[#333] hover:text-white transition-colors rounded" title="Send as Announcement">
                         <i class="fas fa-bullhorn"></i>
                     </button>
                 </div>
