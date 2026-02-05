@@ -1109,12 +1109,25 @@ function stSetWhisperTarget(id, name) {
     
     // Defer slightly to ensure chat view is rendered
     setTimeout(() => {
-        const select = document.getElementById('st-chat-target');
-        if (select) {
-            select.value = id;
-            // Visual feedback
-            showNotification(`Whispering to ${name}`);
+        const checkboxes = document.querySelectorAll('.st-recipient-checkbox');
+        const allCheck = document.getElementById('st-chat-all-checkbox');
+        const label = document.getElementById('st-chat-recipient-label');
+        
+        if (allCheck) {
+            allCheck.checked = false;
+            allCheck.dispatchEvent(new Event('change'));
         }
+        
+        checkboxes.forEach(cb => {
+            if (cb.value === id) {
+                cb.checked = true;
+                cb.dispatchEvent(new Event('change'));
+            } else {
+                cb.checked = false;
+            }
+        });
+        
+        showNotification(`Whispering to ${name}`);
     }, 100);
 }
 
@@ -1345,23 +1358,41 @@ function renderMessageList(container, messages) {
 
     const uid = auth.currentUser?.uid;
     
-    // We determine if the user is the ST based on the current view context
-    // This allows us to show ST whispers correctly
-    // Since we don't have stUID easily accessible here without fetching, we rely on the message sender/recipient checks
-    
     messages.forEach(msg => {
         let isVisible = true;
+        let recipientNames = "";
 
         // FILTER: Check if message is private (Whisper)
         if (msg.isWhisper) {
             const isSender = msg.senderId === uid;
-            const isRecipient = msg.recipientId === uid;
             
-            // If I am NOT the sender AND NOT the recipient
+            // Normalize recipients to an array
+            let recipients = msg.recipients || [];
+            if (msg.recipientId) recipients.push(msg.recipientId); // Legacy support
+            recipients = [...new Set(recipients)]; // De-duplicate
+
+            const isRecipient = recipients.includes(uid);
+            
+            // If I am NOT the sender AND NOT a recipient
             if (!isSender && !isRecipient) {
-                 // Per requirement: "If players wish to whisper to each other the Story teller shouldn't see it."
-                 // So we hide it from everyone except sender/recipient
                  isVisible = false;
+            }
+
+            // Resolve Names for Display
+            if (isVisible) {
+                const names = recipients.map(rid => {
+                    // Check if it's the current user to say "You"
+                    if (rid === uid) return "You";
+                    
+                    // Check if it's the Storyteller
+                    if (stState.settings && stState.settings.storyteller_uid === rid) return "Storyteller";
+                    
+                    // Check players list
+                    const p = stState.players[rid];
+                    return p ? (p.character_name || "Unknown") : "Unknown";
+                });
+                
+                recipientNames = names.join(", ");
             }
         }
 
@@ -1417,15 +1448,17 @@ function renderMessageList(container, messages) {
             // Visual Indication for Private Messages
             let wrapperClass = isSelf ? 'bg-[#2a2a2a] text-gray-200' : 'bg-[#1a1a1a] text-gray-300 border border-[#333]';
             let whisperLabel = '';
+            let senderLine = msg.sender;
             
             if (msg.isWhisper) {
                 wrapperClass = 'bg-[#1a0525] border border-purple-500/30 text-purple-100'; // Dark Purple
                 whisperLabel = `<span class="text-purple-400 font-bold text-[9px] mr-1 uppercase tracking-wider"><i class="fas fa-user-secret"></i> Whisper</span>`;
+                senderLine = `${msg.sender} <span class="text-gray-500 text-[9px] mx-1">to</span> <span class="text-purple-300 font-bold">${recipientNames || "Unknown"}</span>`;
             }
             
             div.innerHTML = `
                 <div class="${isSelf ? 'text-right' : 'text-left'}">
-                    <div class="text-[10px] text-gray-500 font-bold mb-0.5">${whisperLabel} ${msg.sender} <span class="font-normal opacity-50 text-[9px] ml-1">${fullTime}</span></div>
+                    <div class="text-[10px] text-gray-500 font-bold mb-0.5">${whisperLabel} ${senderLine} <span class="font-normal opacity-50 text-[9px] ml-1">${fullTime}</span></div>
                     <div class="inline-block px-3 py-1.5 rounded ${wrapperClass}">${msg.content}</div>
                 </div>
             `;
@@ -1526,9 +1559,15 @@ async function sendChronicleMessage(type, content, details = null, options = {})
     }
 
     // WHISPER LOGIC: Check options first
-    // Note: 'options' comes from ui-play.js correctly, but let's be explicit with defaults
-    let isWhisper = !!options.isWhisper; // Force boolean
+    let isWhisper = !!options.isWhisper; 
     let recipientId = options.recipientId || null;
+    let recipients = options.recipients || [];
+    
+    // Merge legacy ID into array if present
+    if (recipientId) recipients.push(recipientId);
+    
+    // Ensure uniqueness
+    recipients = [...new Set(recipients)];
 
     try {
         await addDoc(collection(db, 'chronicles', stState.activeChronicleId, 'messages'), {
@@ -1539,7 +1578,8 @@ async function sendChronicleMessage(type, content, details = null, options = {})
             details: details,
             timestamp: new Date(),
             isWhisper: isWhisper,
-            recipientId: recipientId
+            recipientId: recipientId, // Keep for legacy compatibility
+            recipients: recipients    // New Array Field
         });
     } catch(e) {
         console.error("Chat Error:", e.message);
@@ -1549,12 +1589,16 @@ async function sendChronicleMessage(type, content, details = null, options = {})
 
 // --- UPDATED ST CHAT VIEW WITH TOOLBAR ---
 function renderChatView(container) {
-    let playerOptions = '<option value="">Everyone (Public)</option>';
+    let playerOptions = '';
     // Build options from stState.players
     Object.values(stState.players).forEach(p => {
         // Filter journal metadata entries if they exist in the players map
         if (p.character_name) {
-            playerOptions += `<option value="${p.id}">${p.character_name} (${p.player_name || 'Player'})</option>`;
+            playerOptions += `
+            <label class="flex items-center gap-2 p-1 hover:bg-[#222] cursor-pointer">
+                <input type="checkbox" class="st-recipient-checkbox accent-[#d4af37]" value="${p.id || ''}">
+                <span class="text-xs text-gray-300">${p.character_name} (${p.player_name || 'Player'})</span>
+            </label>`;
         }
     });
 
@@ -1581,13 +1625,23 @@ function renderChatView(container) {
             </div>
             
             <!-- Input Area -->
-            <div class="p-4 bg-[#111] border-t border-[#333] space-y-2">
-                <!-- Whisper Target Selector -->
-                <div class="flex items-center gap-2">
-                    <label class="text-[9px] text-gray-500 font-bold uppercase">To:</label>
-                    <select id="st-chat-target" class="flex-1 bg-[#050505] border border-[#333] text-gray-300 text-xs p-1 outline-none focus:border-[#d4af37]">
-                        ${playerOptions}
-                    </select>
+            <div class="p-4 bg-[#111] border-t border-[#333] space-y-2 relative">
+                <!-- Multi-Select Recipient Dropdown -->
+                <div class="relative">
+                    <button id="st-chat-recipient-btn" class="w-full bg-[#050505] border border-[#333] text-gray-300 text-xs p-2 text-left flex justify-between items-center hover:border-[#d4af37] transition-colors" onclick="document.getElementById('st-chat-recipients-dropdown').classList.toggle('hidden')">
+                        <span id="st-chat-recipient-label">Everyone (Public)</span>
+                        <i class="fas fa-chevron-down text-[10px]"></i>
+                    </button>
+                    
+                    <div id="st-chat-recipients-dropdown" class="hidden absolute bottom-full left-0 w-full bg-[#1a1a1a] border border-[#333] shadow-xl p-2 max-h-48 overflow-y-auto custom-scrollbar z-50 mb-1">
+                        <label class="flex items-center gap-2 p-1 hover:bg-[#222] cursor-pointer border-b border-[#333] mb-1 pb-1">
+                            <input type="checkbox" id="st-chat-all-checkbox" class="accent-[#d4af37]" checked>
+                            <span class="text-xs text-gold font-bold">Broadcast to Everyone</span>
+                        </label>
+                        <div id="st-chat-player-list" class="space-y-1">
+                            ${playerOptions}
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Message Input -->
@@ -1595,7 +1649,7 @@ function renderChatView(container) {
                     <input type="text" id="st-chat-input" placeholder="Enter message..." class="flex-1 bg-[#050505] border border-[#333] text-white p-3 text-sm focus:border-[#d4af37] outline-none">
                     <button id="st-chat-send" class="bg-[#d4af37] text-black font-bold uppercase px-6 py-2 hover:bg-[#fcd34d]">Send</button>
                     
-                    <!-- Announce Button Moved Here -->
+                    <!-- Announce Button -->
                     <button onclick="window.stSendEvent()" class="bg-[#222] border border-[#d4af37] text-[#d4af37] font-bold px-3 py-2 text-xs uppercase hover:bg-[#333] hover:text-white transition-colors" title="Send as Major Event Announcement">
                         <i class="fas fa-bullhorn"></i>
                     </button>
@@ -1607,20 +1661,62 @@ function renderChatView(container) {
     // Bind ST Inputs
     const sendBtn = document.getElementById('st-chat-send');
     const input = document.getElementById('st-chat-input');
-    const targetSelect = document.getElementById('st-chat-target');
+    const allCheck = document.getElementById('st-chat-all-checkbox');
+    const label = document.getElementById('st-chat-recipient-label');
+    const dropdown = document.getElementById('st-chat-recipients-dropdown');
+    
+    // Auto-update label and checkboxes
+    const updateSelection = () => {
+        const checks = document.querySelectorAll('.st-recipient-checkbox');
+        if (allCheck.checked) {
+            checks.forEach(c => { c.checked = false; c.disabled = true; });
+            label.innerText = "Everyone (Public)";
+            label.className = "text-gray-300 text-xs";
+        } else {
+            checks.forEach(c => c.disabled = false);
+            const selected = Array.from(checks).filter(c => c.checked);
+            if (selected.length === 0) {
+                label.innerText = "Select Recipients..."; 
+                label.className = "text-red-500 font-bold text-xs";
+            } else {
+                label.innerText = `Whisper to ${selected.length} Person(s)`;
+                label.className = "text-purple-400 font-bold text-xs";
+            }
+        }
+    };
+
+    allCheck.onchange = updateSelection;
+    document.querySelectorAll('.st-recipient-checkbox').forEach(c => c.onchange = updateSelection);
+
+    // Close dropdown on click outside
+    document.addEventListener('click', (e) => {
+        const btn = document.getElementById('st-chat-recipient-btn');
+        const menu = document.getElementById('st-chat-recipients-dropdown');
+        if (menu && !menu.contains(e.target) && !btn.contains(e.target)) {
+            menu.classList.add('hidden');
+        }
+    });
     
     const sendHandler = () => {
         const txt = input.value.trim();
         if (txt) {
-            const targetId = targetSelect.value;
+            const isAll = allCheck.checked;
+            const selected = Array.from(document.querySelectorAll('.st-recipient-checkbox:checked')).map(c => c.value);
+            
+            if (!isAll && selected.length === 0) {
+                showNotification("Select at least one recipient.", "error");
+                return;
+            }
+
             const options = {};
-            if (targetId) {
-                options.recipientId = targetId;
+            if (!isAll) {
+                options.recipients = selected;
                 options.isWhisper = true;
             }
             
             sendChronicleMessage('chat', txt, null, options);
             input.value = '';
+            dropdown.classList.add('hidden');
         }
     };
 
