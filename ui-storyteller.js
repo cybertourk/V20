@@ -788,14 +788,6 @@ function startPlayerSync() {
     stState.syncInterval = interval;
 }
 
-// Helper to refresh chat names
-function refreshChatUI() {
-    // Re-render Player Chat (Sidebar/Tab)
-    const pContainer = document.getElementById('chronicle-chat-history');
-    if (pContainer && stState.chatHistory.length > 0) {
-        renderMessageList(pContainer, stState.chatHistory);
-    }
-
     // Re-render ST Dashboard Chat
     if (stState.dashboardActive && stState.currentView === 'chat') {
         const stContainer = document.getElementById('st-chat-history');
@@ -803,7 +795,6 @@ function refreshChatUI() {
             renderMessageList(stContainer, stState.chatHistory);
         }
     }
-}
 
 function startPlayerListeners(chronicleId) {
     const q = query(collection(db, 'chronicles', chronicleId, 'players'));
