@@ -1344,7 +1344,7 @@ function renderChronicleInfoView(container, data) {
     `;
 }
 
-// --- SUB-VIEW: CHAT (UPDATED FOR WHISPERS) ---
+// --- SUB-VIEW: CHAT (UPDATED FOR MULTI-WHISPER) ---
 async function renderChronicleChatView(container, chronicleId) {
     // 1. Fetch Players for Dropdown (Async)
     let players = [];
@@ -1366,16 +1366,31 @@ async function renderChronicleChatView(container, chronicleId) {
         }
     } catch(e) { console.error("Player fetch error", e); }
 
-    let options = '<option value="">Everyone (Public)</option>';
-    if (stUID) options += `<option value="${stUID}">Storyteller (Private)</option>`;
+    // Build options HTML for checkbox list
+    let optionsHtml = '';
+    
+    if (stUID && (!auth.currentUser || stUID !== auth.currentUser.uid)) {
+        optionsHtml += `
+        <label class="flex items-center gap-2 p-1 hover:bg-[#222] cursor-pointer">
+            <input type="checkbox" class="pl-recipient-checkbox accent-[#d4af37]" value="${stUID}">
+            <span class="text-xs text-[#d4af37] font-bold">Storyteller (Private)</span>
+        </label>`;
+    }
     
     players.forEach(p => {
-        // Exclude self if auth is ready
+        // Exclude self
         if (auth.currentUser && p.id === auth.currentUser.uid) return;
+        // Also exclude if this player IS the ST (already added above)
+        if (p.id === stUID) return;
         
-        options += `<option value="${p.id}">${p.character_name} (${p.player_name || 'Player'})</option>`;
+        optionsHtml += `
+        <label class="flex items-center gap-2 p-1 hover:bg-[#222] cursor-pointer">
+            <input type="checkbox" class="pl-recipient-checkbox accent-[#d4af37]" value="${p.id}">
+            <span class="text-xs text-gray-300">${p.character_name} (${p.player_name || 'Player'})</span>
+        </label>`;
     });
 
+    // COMPACT LAYOUT FOR PLAYER CHAT TOO
     container.innerHTML = `
         <div class="flex flex-col h-full bg-[#0a0a0a] border border-[#333] shadow-lg relative">
             <div class="bg-[#111] p-3 border-b border-[#333] flex justify-between items-center shrink-0">
@@ -1390,38 +1405,92 @@ async function renderChronicleChatView(container, chronicleId) {
                 <div class="text-center text-gray-500 italic text-xs mt-10">Connecting...</div>
             </div>
             
-            <div class="mt-auto border-t border-[#333] p-3 bg-[#111] space-y-2 shrink-0">
-                <!-- Recipient Dropdown -->
-                <div class="flex items-center gap-2">
-                    <label class="text-[9px] text-gray-500 font-bold uppercase">To:</label>
-                    <select id="chronicle-chat-target" class="flex-1 bg-[#050505] border border-[#333] text-gray-300 text-xs p-1 outline-none focus:border-[#d4af37]">
-                        ${options}
-                    </select>
+            <div class="mt-auto border-t border-[#333] p-3 bg-[#111] space-y-2 shrink-0 relative">
+                <!-- Row 1: Recipient Selector -->
+                <div class="relative">
+                    <button id="pl-chat-recipient-btn" class="w-full md:w-auto bg-[#050505] border border-[#333] text-gray-300 text-xs px-3 py-1.5 text-left flex justify-between items-center gap-4 hover:border-[#d4af37] transition-colors rounded" onclick="document.getElementById('pl-chat-recipients-dropdown').classList.toggle('hidden')">
+                        <span id="pl-chat-recipient-label">Everyone (Public)</span>
+                        <i class="fas fa-chevron-down text-[10px]"></i>
+                    </button>
+                    <div id="pl-chat-recipients-dropdown" class="hidden absolute bottom-full left-0 w-64 bg-[#1a1a1a] border border-[#333] shadow-xl p-2 max-h-48 overflow-y-auto custom-scrollbar z-50 rounded">
+                        <label class="flex items-center gap-2 p-1 hover:bg-[#222] cursor-pointer border-b border-[#333] mb-1 pb-1">
+                            <input type="checkbox" id="pl-chat-all-checkbox" class="accent-[#d4af37]" checked>
+                            <span class="text-xs text-gold font-bold">Broadcast to Everyone</span>
+                        </label>
+                        <div id="pl-chat-player-list" class="space-y-1">
+                            ${optionsHtml}
+                        </div>
+                    </div>
                 </div>
                 
+                <!-- Row 2: Input -->
                 <div class="flex gap-2">
-                    <input type="text" id="chronicle-chat-input" class="flex-1 bg-[#050505] border border-[#333] text-white p-2 text-sm outline-none focus:border-[#d4af37]" placeholder="Send a message...">
-                    <button id="chronicle-chat-send" class="bg-[#d4af37] text-black font-bold uppercase px-4 py-2 hover:bg-[#fcd34d] transition-colors text-xs">Send</button>
+                    <input type="text" id="chronicle-chat-input" class="flex-1 bg-[#050505] border border-[#333] text-white px-3 py-2 text-sm outline-none focus:border-[#d4af37] rounded" placeholder="Send a message...">
+                    <button id="chronicle-chat-send" class="bg-[#d4af37] text-black font-bold uppercase px-4 py-2 hover:bg-[#fcd34d] transition-colors text-xs rounded hover:scale-105">Send</button>
                 </div>
             </div>
         </div>
     `;
 
+    // Bind Logic
     const sendBtn = document.getElementById('chronicle-chat-send');
     const input = document.getElementById('chronicle-chat-input');
-    const targetSelect = document.getElementById('chronicle-chat-target');
+    const allCheck = document.getElementById('pl-chat-all-checkbox');
+    const label = document.getElementById('pl-chat-recipient-label');
+    const dropdown = document.getElementById('pl-chat-recipients-dropdown');
+    
+    // Auto-update label and checkboxes
+    const updateSelection = () => {
+        const checks = document.querySelectorAll('.pl-recipient-checkbox');
+        if (allCheck.checked) {
+            checks.forEach(c => { c.checked = false; c.disabled = true; });
+            label.innerText = "Everyone (Public)";
+            label.className = "text-gray-300 text-xs";
+        } else {
+            checks.forEach(c => c.disabled = false);
+            const selected = Array.from(checks).filter(c => c.checked);
+            if (selected.length === 0) {
+                label.innerText = "Select Recipients..."; 
+                label.className = "text-red-500 font-bold text-xs";
+            } else {
+                label.innerText = `Whisper to ${selected.length} Person(s)`;
+                label.className = "text-purple-400 font-bold text-xs";
+            }
+        }
+    };
+
+    allCheck.onchange = updateSelection;
+    document.querySelectorAll('.pl-recipient-checkbox').forEach(c => c.onchange = updateSelection);
+
+    // Close dropdown on click outside
+    document.addEventListener('click', (e) => {
+        const btn = document.getElementById('pl-chat-recipient-btn');
+        const menu = document.getElementById('pl-chat-recipients-dropdown');
+        if (menu && !menu.contains(e.target) && !btn.contains(e.target)) {
+            menu.classList.add('hidden');
+        }
+    });
     
     const sendHandler = () => {
         const txt = input.value.trim();
         if (txt && window.sendChronicleMessage) {
-            const targetId = targetSelect.value;
-            const opts = {};
-            if (targetId) {
-                opts.recipientId = targetId;
-                opts.isWhisper = true;
+            const isAll = allCheck.checked;
+            const selected = Array.from(document.querySelectorAll('.pl-recipient-checkbox:checked')).map(c => c.value);
+            
+            if (!isAll && selected.length === 0) {
+                showNotification("Select at least one recipient.", "error");
+                return;
             }
-            window.sendChronicleMessage('chat', txt, null, opts);
+
+            const options = {};
+            if (!isAll) {
+                options.recipients = selected;
+                options.isWhisper = true;
+            }
+            
+            window.sendChronicleMessage('chat', txt, null, options);
             input.value = '';
+            dropdown.classList.add('hidden');
         }
     };
     
@@ -1434,11 +1503,3 @@ async function renderChronicleChatView(container, chronicleId) {
         console.warn("startChatListener not found on window object.");
     }
 }
-
-// --- UPDATED RENDER MESSAGE LIST WITH DATE & VISUALS (Duplicated from ST to ensure Players see same format) ---
-// Note: This overrides the one in ui-storyteller if loaded later, but since ui-storyteller loads before ui-play usually, we define it here too or ensure ui-storyteller handles it.
-// Actually, ui-play doesn't define renderMessageList globally; it's local scope usually, but startChatListener calls it.
-// Wait, startChatListener is defined in ui-storyteller.js and attached to window.
-// So ui-play uses window.startChatListener which uses the renderMessageList defined in ui-storyteller.js.
-// Therefore, we don't need to redefine renderMessageList here unless we want to override it.
-// The privacy logic resides in ui-storyteller.js renderMessageList.
