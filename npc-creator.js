@@ -89,7 +89,7 @@ export function openNpcCreator(typeKey = 'mortal', dataOrEvent = null, index = n
         currentTemplate = TEMPLATES[typeKey];
     } else {
         // Fallback
-        currentTemplate = BestiaryTemplate; // Default to bestiary logic if unknown, safer than defaulting to Mortal rules
+        currentTemplate = BestiaryTemplate; 
     }
 
     // Determine Input Data
@@ -151,10 +151,11 @@ export function openNpcCreator(typeKey = 'mortal', dataOrEvent = null, index = n
 
     EditUI.renderEditorModal();
     
-    // Inject "Save to Bestiary" button if Storyteller
-    if (stState && stState.isStoryteller) {
-        injectBestiarySaveButton();
-    }
+    // IF STORYTELLER MODE, REPLACE FOOTER BUTTONS OR RELY ON CONTEXT
+    // Since we now contextualize saveNpc inside getEditCallbacks, we don't strictly need injectBestiarySaveButton anymore
+    // but we can keep it as a visual indicator or to handle specific "Save as New" cases if needed.
+    // However, the user specifically asked for "save to Bestiary not currently loaded character list".
+    // The change below in getEditCallbacks handles this.
 }
 
 function injectBestiarySaveButton() {
@@ -162,18 +163,9 @@ function injectBestiarySaveButton() {
     const existing = document.getElementById('npc-save-bestiary');
     if (existing) existing.remove();
 
-    if (footer) {
-        const btn = document.createElement('button');
-        btn.id = 'npc-save-bestiary';
-        btn.className = "bg-purple-900 hover:bg-purple-700 text-white px-4 py-2 uppercase font-bold text-xs shadow-lg tracking-widest transition flex items-center gap-2 border border-purple-500 mr-2";
-        
-        const label = activeCloudId ? "Update Bestiary" : "Save to Bestiary";
-        btn.innerHTML = `<i class="fas fa-book-dead"></i> ${label}`;
-        btn.onclick = () => handleSaveNpc(true); // true = save to cloud bestiary
-        
-        // Insert before the Cancel button
-        footer.insertBefore(btn, footer.firstChild);
-    }
+    // OPTIONAL: If we want a DISTINCT button, we can add it. 
+    // But since we are overriding the main save behavior for STs, this might be redundant.
+    // Let's keep the main save button clean and contextual.
 }
 
 export function openNpcSheet(npc, index) {
@@ -207,7 +199,11 @@ function getEditCallbacks() {
             document.getElementById('npc-modal').style.display = 'none'; 
             toggleDiceUI(true); 
         },
-        saveNpc: () => handleSaveNpc(false), // Default: Local Save
+        // CONTEXTUAL SAVE: If Storyteller mode active, force Bestiary save.
+        saveNpc: () => {
+            const isST = stState && stState.isStoryteller;
+            handleSaveNpc(isST); 
+        },
         toggleMode: handleToggleMode,
         switchTemplate: handleSwitchTemplate,
         handleValueChange: handleValueChange,
@@ -225,6 +221,9 @@ function getPlayCallbacks() {
     return {
         closeModal: () => { toggleDiceUI(true); },
         saveNpc: (silent) => {
+             // Only save to local retainers if NOT in ST/Cloud mode
+             // If we are playing a cloud NPC (from Bestiary), we might need different logic
+             // But play mode usually implies active session use.
              if (activeIndex !== null && window.state.retainers) {
                 window.state.retainers[activeIndex] = activeNpc;
                 if (!silent && window.performSave) window.performSave(true);
@@ -283,7 +282,7 @@ function handleSwitchTemplate(newType) {
         getEditCallbacks()
     );
     EditUI.renderEditorModal();
-    if (stState && stState.isStoryteller) injectBestiarySaveButton();
+    // Re-inject button removed - relying on contextual save
     showNotification(`Switched to ${currentTemplate.label} template.`);
 }
 
@@ -625,7 +624,7 @@ function importNpcData(event) {
                     getEditCallbacks()
                 );
                 EditUI.renderEditorModal();
-                if (stState && stState.isStoryteller) injectBestiarySaveButton();
+                // Rely on contextual save
                 showNotification("NPC Imported Successfully");
             } else {
                 alert("Invalid JSON structure.");
