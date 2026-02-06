@@ -632,9 +632,6 @@ export function updateModeUI() {
                 badge.title = "Unlimited editing for Official/Bestiary entries";
                 badge.innerHTML = "<i class='fas fa-infinity mr-1'></i> Bestiary Mode";
                 
-                // Add explicit listener if rendered dynamically
-                badge.onclick = () => showNotification("UNLIMITED MODE ACTIVE: All editing rules bypassed.");
-                
                 container.appendChild(badge);
             }
         }
@@ -882,16 +879,22 @@ function bindRemoveBtns() {
 }
 
 function renderPrioButtons(cat, group) {
-    if (!ctx.currentTemplate.getPriorities) return '';
+    // FIX: ADDED NULL CHECKS FOR BESTIARY/UNLIMITED MODE
+    if (!ctx.currentTemplate || !ctx.currentTemplate.getPriorities) return '';
     const prios = ctx.currentTemplate.getPriorities();
-    if (!prios) return ''; 
-    const vals = prios[cat];
-    if (!vals) return ''; 
+    // If priorities are null (Bestiary Mode), don't render buttons
+    if (!prios || !prios[cat]) return ''; 
 
+    const vals = prios[cat];
     return vals.map(v => `<button class="npc-prio-btn w-6 h-6 rounded-full border border-gray-600 text-[9px] font-bold text-gray-400 hover:text-white hover:border-[#d4af37] transition-all" data-cat="${cat}" data-group="${group}" data-val="${v}">${v}</button>`).join('');
 }
 
 export function updatePrioritiesUI() {
+    // FIX: ADDED NULL CHECKS
+    if (!ctx.currentTemplate || !ctx.currentTemplate.getPriorities) return;
+    const prios = ctx.currentTemplate.getPriorities();
+    if (!prios) return;
+
     document.querySelectorAll('.npc-prio-btn').forEach(btn => {
         const { cat, group, val } = btn.dataset;
         const v = parseInt(val);
