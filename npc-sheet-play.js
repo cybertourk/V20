@@ -43,8 +43,12 @@ export function renderPlaySheetModal() {
     if (!modal) {
         modal = document.createElement('div');
         modal.id = 'npc-play-modal';
-        modal.className = 'fixed inset-0 bg-black/95 z-[90] flex items-center justify-center hidden';
+        // Z-INDEX UPDATED: Changed from z-[90] to z-[250] to appear above Storyteller Dashboard (z-[200])
+        modal.className = 'fixed inset-0 bg-black/95 z-[250] flex items-center justify-center hidden';
         document.body.appendChild(modal);
+    } else {
+        // Ensure class is updated even if element exists
+        modal.className = 'fixed inset-0 bg-black/95 z-[250] flex items-center justify-center hidden';
     }
 
     const npc = ctx.activeNpc;
