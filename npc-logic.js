@@ -70,8 +70,15 @@ export function autoDetectPriorities(npc, template, prioritiesObj) {
     prioritiesObj.attr = { Physical: null, Social: null, Mental: null };
     prioritiesObj.abil = { Talents: null, Skills: null, Knowledges: null };
 
+    // Safety check for template
+    if (!template || !template.getPriorities) return;
+
+    const pConfig = template.getPriorities();
+    if (!pConfig) return; // Template has no priorities defined (e.g. Custom/Freeform/Animal)
+
     const sumGroup = (cat, groupList, isAttr) => {
         let sum = 0;
+        if (!groupList) return 0;
         groupList.forEach(k => {
             const val = isAttr ? (npc.attributes[k] || 1) : (npc.abilities[k] || 0);
             sum += isAttr ? Math.max(0, val - 1) : val;
@@ -79,9 +86,10 @@ export function autoDetectPriorities(npc, template, prioritiesObj) {
         return sum;
     };
 
-    const pConfig = template.getPriorities();
-
     ['attr', 'abil'].forEach(cat => {
+        // CRITICAL FIX: Check if priority array exists for this category before iterating
+        if (!pConfig[cat] || !Array.isArray(pConfig[cat])) return;
+
         const groups = cat === 'attr' ? ['Physical', 'Social', 'Mental'] : ['Talents', 'Skills', 'Knowledges'];
         const sums = groups.map(g => ({ 
             grp: g, 
