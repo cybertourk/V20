@@ -20,6 +20,34 @@ const TEMPLATES = {
     'animal': AnimalTemplate
 };
 
+// UNLIMITED TEMPLATE (Fallback for Bestiary)
+const BestiaryTemplate = {
+    type: "Bestiary",
+    label: "Bestiary / Custom",
+    features: {
+        disciplines: true, bloodPool: true, virtues: true, backgrounds: true, humanity: true
+    },
+    defaults: {
+        template: "bestiary",
+        attributes: { Strength: 1, Dexterity: 1, Stamina: 1, Charisma: 1, Manipulation: 1, Appearance: 1, Perception: 1, Intelligence: 1, Wits: 1 },
+        abilities: {},
+        disciplines: {},
+        backgrounds: {},
+        merits: {},
+        flaws: {},
+        virtues: { Conscience: 1, "Self-Control": 1, Courage: 1 },
+        humanity: 1,
+        willpower: 1,
+        bloodPool: 10,
+        bio: {}
+    },
+    // No validation logic (always true)
+    validateChange: () => true,
+    getCost: () => 0, // No costs in unlimited mode
+    getPriorities: () => null, // No priorities
+    getVirtueLimit: () => 10
+};
+
 // Global State
 let activeNpc = null;
 let currentTemplate = null;
@@ -54,8 +82,15 @@ function toggleDiceUI(show, bringToFront = false) {
 export function openNpcCreator(typeKey = 'mortal', dataOrEvent = null, index = null, cloudId = null) {
     toggleDiceUI(false); // Hide dice in edit mode
 
-    if (!TEMPLATES[typeKey]) typeKey = 'mortal';
-    currentTemplate = TEMPLATES[typeKey];
+    // Check if it's bestiary/custom
+    if (!TEMPLATES[typeKey] && (typeKey === 'bestiary' || typeKey === 'custom')) {
+        currentTemplate = BestiaryTemplate;
+    } else if (TEMPLATES[typeKey]) {
+        currentTemplate = TEMPLATES[typeKey];
+    } else {
+        // Fallback
+        currentTemplate = BestiaryTemplate; // Default to bestiary logic if unknown, safer than defaulting to Mortal rules
+    }
 
     // Determine Input Data
     let incomingData = null;
@@ -79,15 +114,20 @@ export function openNpcCreator(typeKey = 'mortal', dataOrEvent = null, index = n
         activeNpc = JSON.parse(JSON.stringify(incomingData));
         if (activeNpc.template && TEMPLATES[activeNpc.template]) {
             currentTemplate = TEMPLATES[activeNpc.template];
+        } else {
+            // It's a bestiary item or custom
+            currentTemplate = BestiaryTemplate;
         }
+
         activeNpc = Logic.sanitizeNpcData(activeNpc);
         
         if (activeNpc.priorities) localPriorities = JSON.parse(JSON.stringify(activeNpc.priorities));
-        else Logic.autoDetectPriorities(activeNpc, currentTemplate, localPriorities);
+        else if (currentTemplate !== BestiaryTemplate) {
+             Logic.autoDetectPriorities(activeNpc, currentTemplate, localPriorities);
+        }
 
         // AUTO-ENABLE UNLIMITED MODE FOR BESTIARY/CLOUD/ANIMAL ENTITIES
-        // This bypasses creation rules/limits and disables ledgers
-        if (activeCloudId || activeNpc.template === 'animal') {
+        if (activeCloudId || activeNpc.template === 'animal' || activeNpc.template === 'bestiary') {
             modes.unlimited = true;
         }
 
@@ -97,6 +137,10 @@ export function openNpcCreator(typeKey = 'mortal', dataOrEvent = null, index = n
         activeNpc.template = typeKey;
         activeNpc = Logic.sanitizeNpcData(activeNpc);
         Logic.recalcStatus(activeNpc);
+        
+        if (typeKey === 'bestiary') {
+            modes.unlimited = true;
+        }
     }
 
     // Initialize Edit UI with Context and Callbacks
@@ -140,7 +184,7 @@ export function openNpcSheet(npc, index) {
     activeNpc = npc; 
     activeIndex = index;
     const typeKey = npc.template || 'mortal';
-    currentTemplate = TEMPLATES[typeKey] || MortalTemplate;
+    currentTemplate = TEMPLATES[typeKey] || BestiaryTemplate;
     
     activeNpc = Logic.sanitizeNpcData(activeNpc);
 
@@ -195,7 +239,17 @@ function getPlayCallbacks() {
 // ==========================================================================
 
 function handleSwitchTemplate(newType) {
-    if (!TEMPLATES[newType]) return;
+    
+    // Switch to Bestiary/Unlimited if selected
+    if (newType === 'bestiary') {
+        currentTemplate = BestiaryTemplate;
+        modes.unlimited = true;
+    } else if (TEMPLATES[newType]) {
+        currentTemplate = TEMPLATES[newType];
+        modes.unlimited = false;
+    } else {
+        return; // Unknown
+    }
 
     // Preserve Identity
     const preserved = {
@@ -207,7 +261,6 @@ function handleSwitchTemplate(newType) {
         bio: JSON.parse(JSON.stringify(activeNpc.bio || {}))
     };
 
-    currentTemplate = TEMPLATES[newType];
     activeNpc = JSON.parse(JSON.stringify(currentTemplate.defaults));
     activeNpc.template = newType;
     Object.assign(activeNpc, preserved);
@@ -219,8 +272,7 @@ function handleSwitchTemplate(newType) {
     modes.freebie = false;
     
     // Keep Unlimited Mode if it was active (e.g. Bestiary edit)
-    if (activeCloudId) modes.unlimited = true;
-    else modes.unlimited = false;
+    if (activeCloudId || newType === 'bestiary') modes.unlimited = true;
 
     localPriorities = { attr: { Physical: null, Social: null, Mental: null }, abil: { Talents: null, Skills: null, Knowledges: null } };
     Logic.recalcStatus(activeNpc);
@@ -557,13 +609,15 @@ function importNpcData(event) {
                 
                 if (activeNpc.template && TEMPLATES[activeNpc.template]) {
                     currentTemplate = TEMPLATES[activeNpc.template];
+                } else if (activeNpc.template === 'bestiary') {
+                    currentTemplate = BestiaryTemplate;
                 } else {
                     activeNpc.template = 'mortal';
                     currentTemplate = TEMPLATES['mortal'];
                 }
                 
                 if (activeNpc.priorities) localPriorities = activeNpc.priorities;
-                else Logic.autoDetectPriorities(activeNpc, currentTemplate, localPriorities);
+                else if (currentTemplate.getPriorities) Logic.autoDetectPriorities(activeNpc, currentTemplate, localPriorities);
                 
                 // Re-init Edit Mode
                 EditUI.initEditSheet(
