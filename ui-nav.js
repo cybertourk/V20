@@ -187,10 +187,6 @@ export function changeStep(s, updateGlobalState = true) {
     // FIX FOR ERROR: Prevent searching for play-mode-8
     if (window.state.isPlayMode && s >= 8) {
         // If system tries to go to Phase 8 in Play Mode (e.g. from saved state furthestPhase), redirect to Sheet (1)
-        targetId = 'play-mode-sheet'; // Or 'play-mode-1' depending on structure, usually 'play-mode-sheet' wrapper contains 'play-mode-1'
-        
-        // Actually, looking at index.html, 'play-mode-sheet' is the wrapper DIV. 
-        // The actual tab containers are 'play-mode-1', 'play-mode-2', etc.
         targetId = 'play-mode-1';
         s = 1;
         window.state.currentPhase = 1;
@@ -201,8 +197,7 @@ export function changeStep(s, updateGlobalState = true) {
         target.classList.add('active'); 
         window.state.currentPhase = s; 
     } else {
-        // Fallback if ID is wrong (e.g. 'play-mode-1' missing?)
-        // Check if 'play-mode-sheet' itself should be active
+        // Fallback if ID is wrong
         if (targetId === 'play-mode-1') {
              const wrapper = document.getElementById('play-mode-sheet');
              const inner = document.getElementById('play-mode-1');
@@ -300,34 +295,83 @@ window.toggleXpMode = toggleXpMode;
 export function renderXpSidebar() {
     if (!window.state.xpMode) return;
     const log = window.state.xpLog || [];
-    let buckets = { newAbil: 0, newDisc: 0, newPath: 0, attr: 0, abil: 0, clanDisc: 0, otherDisc: 0, caitiffDisc: 0, secPath: 0, virt: 0, humanity: 0, willpower: 0 };
-    const clan = window.state.textFields['c-clan'] || document.getElementById('c-clan')?.value || "None";
-    const isCaitiff = clan === "Caitiff";
-    // We skip bucket calculation to avoid complex circular imports here for now.
-    // The previous implementation had logic that depended on CLAN_DISCIPLINES
     
+    // Calculate totals
+    const costs = {
+        attr: 0,
+        abil: 0,
+        disc: 0,
+        virt: 0,
+        humanity: 0,
+        willpower: 0,
+        back: 0
+    };
+    
+    let totalSpent = 0;
+
+    log.forEach(l => {
+        const c = parseInt(l.cost) || 0;
+        totalSpent += c;
+        
+        if (l.type === 'attr') costs.attr += c;
+        else if (l.type === 'abil') costs.abil += c;
+        else if (l.type === 'disc' || l.type === 'path') costs.disc += c;
+        else if (l.type === 'virt') costs.virt += c;
+        else if (l.type === 'humanity') costs.humanity += c;
+        else if (l.type === 'willpower') costs.willpower += c;
+        else if (l.type === 'back') costs.back += c;
+    });
+
     const sb = document.getElementById('xp-sidebar');
     if (!sb) return;
-    const toggleBtn = document.getElementById('xp-sb-toggle-btn');
-    sb.innerHTML = '';
-    if (toggleBtn) sb.appendChild(toggleBtn);
-    const title = document.createElement('h3'); title.className = "heading text-purple-400 text-sm border-b border-purple-500 pb-2 mb-4 text-center"; title.innerText = "Experience Ledger"; sb.appendChild(title);
     
-    const totalSpent = log.reduce((a,b) => a+b.cost, 0);
     const totalEarned = parseInt(document.getElementById('c-xp-total')?.value) || 0;
-    
-    const listDiv = document.createElement('div');
-    listDiv.className = "space-y-2 text-xs";
-    listDiv.innerHTML = `
-        <div class="mt-4 pt-2 border-t border-[#444] flex justify-between font-bold text-sm"><span>Total Spent:</span><span class="text-purple-400">${totalSpent}</span></div>
-        <div class="flex justify-between font-bold text-sm"><span>Remaining:</span><span class="text-white">${totalEarned - totalSpent}</span></div>
-    `;
-    sb.appendChild(listDiv);
+    const remaining = totalEarned - totalSpent;
 
-    const logContainer = document.createElement('div'); logContainer.className = "mt-4"; logContainer.innerHTML = `<h4 class="text-[9px] uppercase text-gray-500 font-bold mb-1 tracking-wider">Session Log</h4>`;
-    const logInner = document.createElement('div'); logInner.id = "xp-log-recent"; logInner.className = "text-[9px] text-gray-400 h-24 overflow-y-auto border border-[#333] p-1 font-mono bg-white/5";
-    if(log.length > 0) { logInner.innerHTML = log.slice().reverse().map(l => { const d = new Date(l.date).toLocaleDateString(); return `<div>[${d}] ${l.trait} -> ${l.new} (${l.cost}xp)</div>`; }).join(''); }
-    logContainer.appendChild(logInner); sb.appendChild(logContainer);
+    sb.innerHTML = `
+        <div id="xp-sb-toggle-btn" class="absolute right-[-24px] top-0 w-6 h-20 bg-purple-900 border border-purple-500 border-l-0 text-white text-[10px] font-bold flex items-center justify-center cursor-pointer [writing-mode:vertical-rl] [text-orientation:mixed] tracking-widest uppercase rounded-r shadow-md hover:bg-purple-800" onclick="window.toggleXpSidebarLedger()">Ledger</div>
+        
+        <h3 class="heading text-purple-400 text-sm border-b border-purple-500 pb-2 mb-4 text-center">Experience Ledger</h3>
+        
+        <div class="space-y-2 text-xs">
+            <div class="cost-row"><span class="text-gray-400">Attributes</span><span id="sb-xp-attr" class="cost-val text-purple-400 font-bold bg-black/95 z-10 shrink-0">${costs.attr}</span></div>
+            <div class="cost-row"><span class="text-gray-400">Abilities</span><span id="sb-xp-abil" class="cost-val text-purple-400 font-bold bg-black/95 z-10 shrink-0">${costs.abil}</span></div>
+            <div class="cost-row"><span class="text-gray-400">Disciplines</span><span id="sb-xp-disc" class="cost-val text-purple-400 font-bold bg-black/95 z-10 shrink-0">${costs.disc}</span></div>
+            <div class="cost-row"><span class="text-gray-400">Virtues</span><span id="sb-xp-virt" class="cost-val text-purple-400 font-bold bg-black/95 z-10 shrink-0">${costs.virt}</span></div>
+            <div class="cost-row"><span class="text-gray-400">Humanity/Path</span><span id="sb-xp-human" class="cost-val text-purple-400 font-bold bg-black/95 z-10 shrink-0">${costs.humanity}</span></div>
+            <div class="cost-row"><span class="text-gray-400">Willpower</span><span id="sb-xp-will" class="cost-val text-purple-400 font-bold bg-black/95 z-10 shrink-0">${costs.willpower}</span></div>
+            ${costs.back > 0 ? `<div class="cost-row"><span class="text-gray-400">Backgrounds</span><span id="sb-xp-back" class="cost-val text-purple-400 font-bold bg-black/95 z-10 shrink-0">${costs.back}</span></div>` : ''}
+            
+            <div class="mt-4 pt-2 border-t border-[#444] flex justify-between font-bold text-sm">
+                <span>Total Spent:</span>
+                <span id="sb-xp-spent" class="text-purple-400">${totalSpent}</span>
+            </div>
+            <div class="flex justify-between font-bold text-sm">
+                <span>Remaining:</span>
+                <span id="sb-xp-remaining" class="${remaining < 0 ? 'text-red-500' : 'text-white'}">${remaining}</span>
+            </div>
+        </div>
+
+        <div class="mt-4 flex-1 flex flex-col min-h-0">
+            <h4 class="text-[9px] uppercase text-gray-500 font-bold mb-1 tracking-wider">Session Log</h4>
+            <div id="xp-log-recent" class="text-[9px] text-gray-400 h-48 overflow-y-auto border border-[#333] p-1 font-mono bg-white/5 custom-scrollbar"></div>
+        </div>
+    `;
+
+    const logInner = document.getElementById("xp-log-recent");
+    if(log.length > 0) { 
+        logInner.innerHTML = log.slice().reverse().map(l => { 
+            const d = new Date(l.date).toLocaleDateString(undefined, {month:'short', day:'numeric'}); 
+            // Handle different log formats: old format (trait, new, cost) vs new format (entry)
+            let text = l.entry ? l.entry : `${l.trait} -> ${l.new}`;
+            return `<div class="border-b border-gray-800 py-1">
+                <div class="flex justify-between"><span class="text-gray-300">[${d}]</span> <span class="text-purple-400 font-bold">-${l.cost}</span></div>
+                <div class="pl-2">${text}</div>
+            </div>`; 
+        }).join(''); 
+    } else {
+        logInner.innerHTML = '<div class="text-gray-600 italic p-2">No XP spent yet.</div>';
+    }
 }
 window.renderXpSidebar = renderXpSidebar;
 
