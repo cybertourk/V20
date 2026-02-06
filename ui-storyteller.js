@@ -1687,3 +1687,23 @@ function renderChatView(container) {
     // Force refresh list immediately if data exists
     startChatListener(stState.activeChronicleId);
 }
+
+// --- AUTO-CREATION HELPER ---
+function ensureChronicleTabContainer() {
+    let container = document.getElementById('play-mode-chronicle');
+    
+    if (!container) {
+        const parent = document.getElementById('play-mode-sheet');
+        if (parent) {
+            container = document.createElement('div');
+            container.id = 'play-mode-chronicle';
+            parent.appendChild(container);
+        }
+    }
+    
+    if (container) {
+        container.classList.remove('h-full', 'min-h-[75vh]', 'overflow-y-auto'); 
+        container.classList.add('w-full', 'overflow-hidden');
+        container.style.height = 'calc(100vh - 140px)'; 
+    }
+}
