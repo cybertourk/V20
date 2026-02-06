@@ -578,3 +578,7 @@ window.addEventListener('beforeunload', (e) => {
         return "Unsaved changes may be lost.";
     }
 });
+
+// --- GLOBAL EXPORTS ---
+window.openNpcCreator = openNpcCreator;
+window.openNpcSheet = openNpcSheet;
