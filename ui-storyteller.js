@@ -11,6 +11,12 @@ import {
 // IMPORT NEW JOURNAL LOGIC
 import { renderStorytellerJournal, updateJournalList } from "./ui-journal.js";
 
+// IMPORT CHAT MODEL
+import { 
+    initChatSystem, startChatListener, sendChronicleMessage, 
+    stClearChat, stExportChat, stSetWhisperTarget, renderMessageList, refreshChatUI
+} from "./chat-model.js";
+
 // --- STATE ---
 export const stState = {
     activeChronicleId: null,
@@ -37,7 +43,10 @@ window.stState = stState;
 export function initStorytellerSystem() {
     console.log("Storyteller System Initializing...");
     
-    // Window bindings
+    // Initialize Chat System (Binds window functions)
+    initChatSystem();
+
+    // Window bindings for Storyteller UI
     window.openChronicleModal = openChronicleModal;
     window.closeChronicleModal = closeChronicleModal;
     window.renderJoinChronicleUI = renderJoinChronicleUI;
@@ -74,12 +83,6 @@ export function initStorytellerSystem() {
     window.stPushHandout = pushHandoutToPlayers;
     window.stDeleteJournalEntry = stDeleteJournalEntry;
     
-    // Chat Bindings
-    window.startChatListener = startChatListener;
-    window.stClearChat = stClearChat;
-    window.stExportChat = stExportChat;
-    window.stSetWhisperTarget = stSetWhisperTarget;
-
     // Roster Management
     window.stRemovePlayer = stRemovePlayer;
 
@@ -96,9 +99,6 @@ export function initStorytellerSystem() {
             showNotification(`${npcData.name} sent to Bestiary`);
         } catch(e) { console.error(e); showNotification("Failed to push NPC", "error"); }
     };
-
-    // Chat API
-    window.sendChronicleMessage = sendChronicleMessage;
 
     bindDashboardButton();
     if (document.readyState === 'loading') {
@@ -147,7 +147,7 @@ async function checkStaleSession() {
             } else {
                 stState.activeChronicleId = storedId;
                 stState.isStoryteller = true;
-                stState.settings = snap.data(); // Ensure settings loaded
+                stState.settings = snap.data(); 
                 startStorytellerSession(); 
                 toggleStorytellerButton(true);
             }
@@ -156,18 +156,16 @@ async function checkStaleSession() {
         }
     } 
     else if (user && storedId && storedRole === 'Player') {
-        // ZOMBIE CHECK: Verify player doc exists before reconnecting
         try {
             const playerRef = doc(db, 'chronicles', storedId, 'players', user.uid);
             const playerSnap = await getDoc(playerRef);
 
             if (!playerSnap.exists()) {
                 console.log("Player removed from roster. Clearing stale session.");
-                disconnectChronicle(true); // Treat as kick/remove
+                disconnectChronicle(true); 
                 return;
             }
 
-            // CRITICAL FIX: Fetch Chronicle Data for Players too (so they know ST UID for whispers)
             const chronRef = doc(db, 'chronicles', storedId);
             const chronSnap = await getDoc(chronRef);
             if (chronSnap.exists()) {
@@ -285,7 +283,6 @@ async function renderChronicleMenu() {
                     displayName = snap.data().name;
                 }
             } else {
-                // Check if player doc still exists (Wait for fetch to validate)
                 const playerRef = doc(db, 'chronicles', recentId, 'players', user.uid);
                 const snap = await getDoc(playerRef);
                 if (snap.exists()) {
@@ -315,7 +312,6 @@ async function renderChronicleMenu() {
                 const rBlock = document.getElementById('st-resume-block');
                 if(rBlock) rBlock.innerHTML = resumeHtml;
             } else {
-                // Clean up invalid session data
                 localStorage.removeItem('v20_last_chronicle_id');
                 localStorage.removeItem('v20_last_chronicle_name');
                 localStorage.removeItem('v20_last_chronicle_role');
@@ -588,7 +584,6 @@ async function handleJoinChronicle() {
             return;
         }
 
-        // SAVE SETTINGS (Important for Name Resolution)
         stState.settings = data;
 
         const playerRef = doc(db, 'chronicles', idInput, 'players', user.uid);
@@ -646,8 +641,6 @@ async function handleResumeChronicle(id, role) {
         }
         
         const data = docSnap.data();
-        
-        // SAVE SETTINGS FOR ALL ROLES
         stState.settings = data;
 
         localStorage.setItem('v20_last_chronicle_id', id);
@@ -671,11 +664,9 @@ async function handleResumeChronicle(id, role) {
         } else {
             const playerRef = doc(db, 'chronicles', id, 'players', auth.currentUser.uid);
             
-            // CHECK EXISTENCE BEFORE RESUMING (Prevent Zombie Re-creation)
             const pSnap = await getDoc(playerRef);
             if (!pSnap.exists()) {
                 showNotification("Your character was removed from this Chronicle. Please rejoin.", "error");
-                // Clear local data so they are forced to Join fresh
                 localStorage.removeItem('v20_last_chronicle_id');
                 localStorage.removeItem('v20_last_chronicle_name');
                 localStorage.removeItem('v20_last_chronicle_role');
@@ -714,8 +705,6 @@ function disconnectChronicle(isKicked = false) {
         sendChronicleMessage('system', `${charName} disconnected.`);
     }
 
-    // Only update status to "Offline" if NOT kicked. 
-    // If kicked, the document is already deleted by the ST, so we shouldn't recreate it.
     if (!isKicked && !stState.isStoryteller && stState.playerRef) {
         try {
             setDoc(stState.playerRef, { status: "Offline" }, { merge: true });
@@ -788,20 +777,11 @@ function startPlayerSync() {
     stState.syncInterval = interval;
 }
 
-    // Re-render ST Dashboard Chat
-    if (stState.dashboardActive && stState.currentView === 'chat') {
-        const stContainer = document.getElementById('st-chat-history');
-        if (stContainer && stState.chatHistory.length > 0) {
-            renderMessageList(stContainer, stState.chatHistory);
-        }
-    }
-
 function startPlayerListeners(chronicleId) {
     const q = query(collection(db, 'chronicles', chronicleId, 'players'));
     const unsub = onSnapshot(q, (snapshot) => {
         let updated = false;
         
-        // Sync Players for Roster/Whisper
         stState.players = {};
         snapshot.forEach(doc => {
             const data = doc.data();
@@ -810,20 +790,16 @@ function startPlayerListeners(chronicleId) {
             }
         });
 
-        // Trigger Name Resolution Update for Chat
         refreshChatUI();
 
         snapshot.docChanges().forEach((change) => {
             const data = change.doc.data();
             const docId = change.doc.id;
             
-            // CHECK FOR SELF-REMOVAL (Kicked by ST)
-            // If the document matching our UID is removed, we've been kicked.
-            // Pass 'true' to disconnectChronicle to prevent recreation of the doc.
             if (change.type === 'removed' && auth.currentUser && docId === auth.currentUser.uid) {
                 disconnectChronicle(true); 
                 showNotification("Disconnected by Storyteller.", "error");
-                return; // Stop processing
+                return;
             }
 
             if (docId.startsWith('journal_') && data.pushed === true) {
@@ -896,7 +872,6 @@ function startStorytellerSession() {
             }
         });
 
-        // Trigger Name Resolution Update for Chat
         refreshChatUI();
 
         if (stState.dashboardActive) {
@@ -1107,7 +1082,6 @@ async function stSaveSettings() {
 async function stRemovePlayer(id, name) {
     if (!confirm(`Remove ${name} from the roster? This will disconnect them.`)) return;
     try {
-        // Deleting the player document triggers the disconnect logic on the player's client
         await deleteDoc(doc(db, 'chronicles', stState.activeChronicleId, 'players', id));
         showNotification(`${name} removed.`);
     } catch (e) {
@@ -1116,7 +1090,7 @@ async function stRemovePlayer(id, name) {
     }
 }
 
-// --- VIEW 1: ROSTER (UPDATED: Click to Whisper & Remove Button) ---
+// --- VIEW 1: ROSTER ---
 function renderRosterView() {
     const viewport = document.getElementById('st-viewport');
     if (!viewport || stState.currentView !== 'roster') return;
@@ -1188,35 +1162,6 @@ function renderRosterView() {
     });
     html += `</div>`;
     viewport.innerHTML = html;
-}
-
-// NEW: Set Whisper Target via Roster Click (Legacy support, but also updates select)
-function stSetWhisperTarget(id, name) {
-    // If the view isn't chat, switch to chat
-    window.switchStorytellerView('chat');
-    
-    // Defer slightly to ensure chat view is rendered
-    setTimeout(() => {
-        const checkboxes = document.querySelectorAll('.st-recipient-checkbox');
-        const allCheck = document.getElementById('st-chat-all-checkbox');
-        const label = document.getElementById('st-chat-recipient-label');
-        
-        if (allCheck) {
-            allCheck.checked = false;
-            allCheck.dispatchEvent(new Event('change'));
-        }
-        
-        checkboxes.forEach(cb => {
-            if (cb.value === id) {
-                cb.checked = true;
-                cb.dispatchEvent(new Event('change'));
-            } else {
-                cb.checked = false;
-            }
-        });
-        
-        showNotification(`Whispering to ${name}`);
-    }, 100);
 }
 
 // --- VIEW 2: COMBAT ---
@@ -1361,17 +1306,13 @@ function renderNpcCard(entry, id, isCustom, container, clearFirst = false) {
     const card = document.createElement('div');
     card.className = "bg-[#111] border border-[#333] p-3 rounded shadow-lg hover:border-[#555] transition-all group relative flex flex-col";
     
-    // UPDATED ACTION BUTTONS: Copy for Static, Edit/Delete for Custom
     let actionsHtml = '';
     if (isCustom) {
-        // Custom = Edit / Delete
         actionsHtml = `
             <button onclick="event.stopPropagation(); window.deleteCloudNpc('${id}')" class="text-red-900 hover:text-red-500 p-1" title="Delete"><i class="fas fa-trash"></i></button>
             <button class="bg-[#222] hover:bg-[#333] text-gray-300 px-2 py-1 text-[9px] font-bold uppercase rounded border border-[#444]" onclick='event.stopPropagation(); window.editCloudNpc("${id}")'>Edit</button>
         `;
     } else {
-        // Static = Copy to Custom (Allows editing copy)
-        // Passing full name string for lookup
         actionsHtml = `<button class="bg-blue-900/30 hover:bg-blue-900/50 text-blue-200 px-2 py-1 text-[9px] font-bold uppercase rounded border border-blue-800" onclick='event.stopPropagation(); window.copyStaticNpc("${name}")'>Copy</button>`;
     }
 
@@ -1397,288 +1338,106 @@ function renderNpcCard(entry, id, isCustom, container, clearFirst = false) {
     container.appendChild(card);
 }
 
-// ==========================================================================
-// CHAT / LOGGING SYSTEM (UPDATED)
-// ==========================================================================
-
-function startChatListener(chronicleId) {
-    if (stState.chatUnsub) stState.chatUnsub();
-    
-    // FIX: Do NOT bind player inputs here. ui-play.js handles its own input binding.
-    // Overwriting the onclick handler here was causing the Whisper logic to be bypassed.
-
-    // Query messages (Limit to 100 recent)
-    const q = query(
-        collection(db, 'chronicles', chronicleId, 'messages'), 
-        orderBy('timestamp', 'desc'), 
-        limit(100)
-    );
-
-    stState.chatUnsub = onSnapshot(q, (snapshot) => {
-        const messages = [];
-        snapshot.forEach(doc => messages.push({ id: doc.id, ...doc.data() }));
-        messages.reverse(); // Show oldest first (top to bottom)
-        
-        // Cache for export
-        stState.chatHistory = messages;
-        
-        // Trigger Name Resolution Update for Chat
-        refreshChatUI();
-        
-    }, (error) => {
-        if (error.code === 'permission-denied') {
-            console.warn("Chat Listener: Access Denied. You may be disconnected.");
-        } else {
-            console.error("Chat Listener Error:", error);
-        }
-    });
-}
-
-function renderMessageList(container, messages) {
-    container.innerHTML = '';
-    
-    if (messages.length === 0) {
-        container.innerHTML = `<div class="text-center text-gray-600 text-xs italic mt-4">Chronicle initialized. No messages yet.</div>`;
+// --- DELEGATED JOURNAL HELPERS ---
+async function pushHandoutToPlayers(id, recipients = null) {
+    if (!id) {
+        showNotification("No ID to push. Save first.", "error");
         return;
     }
-
-    const uid = auth.currentUser?.uid;
-    
-    messages.forEach(msg => {
-        let isVisible = true;
-        let recipientNames = "";
-
-        // FILTER: Check if message is private (Whisper)
-        if (msg.isWhisper) {
-            const isSender = msg.senderId === uid;
-            
-            // Normalize recipients to an array
-            let recipients = msg.recipients || [];
-            if (msg.recipientId) recipients.push(msg.recipientId); // Legacy support
-            recipients = [...new Set(recipients)]; // De-duplicate
-
-            const isRecipient = recipients.includes(uid);
-            
-            // If I am NOT the sender AND NOT a recipient
-            if (!isSender && !isRecipient) {
-                 isVisible = false;
-            }
-
-            // Resolve Names for Display
-            if (isVisible) {
-                const names = recipients.map(rid => {
-                    // Check if it's the current user to say "You"
-                    if (rid === uid) return "You";
-                    
-                    // Check if it's the Storyteller
-                    if (stState.settings && stState.settings.storyteller_uid === rid) return "Storyteller";
-                    
-                    // Check players list
-                    const p = stState.players[rid];
-                    return p ? (p.character_name || "Unknown") : "Unknown";
-                });
-                
-                recipientNames = names.join(", ");
-            }
-        }
-
-        if (!isVisible) return;
-
-        const div = document.createElement('div');
-        div.className = "mb-2 text-xs";
-        
-        // DATE FORMATTING
-        const dateObj = msg.timestamp ? new Date(msg.timestamp.seconds * 1000) : new Date();
-        const dateStr = dateObj.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-        const timeStr = dateObj.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-        const fullTime = `${dateStr} ${timeStr}`;
-        
-        if (msg.type === 'event') {
-            // NARRATIVE BEAT (BIG GOLD TEXT)
-            div.innerHTML = `
-                <div class="my-4 text-center border-t border-b border-[#d4af37]/30 py-2 bg-black/40">
-                    <div class="text-[#d4af37] font-cinzel font-bold text-lg uppercase tracking-widest text-shadow">${msg.content}</div>
-                    <div class="text-[9px] text-gray-600 font-mono mt-1">${fullTime}</div>
-                </div>
-            `;
-        } else if (msg.type === 'system') {
-            div.innerHTML = `<div class="text-gray-500 italic text-center text-[10px] border-b border-[#333] leading-tight pb-1 mb-1"><span class="mr-2">${fullTime}</span>${msg.content}</div>`;
-        } else if (msg.type === 'roll') {
-            // VISUAL DICE RENDERING
-            let diceHTML = '';
-            if (msg.details && msg.details.results) {
-                diceHTML = msg.details.results.map(d => {
-                    let color = 'text-gray-500 border-gray-700';
-                    if (d >= (msg.details.diff || 6)) color = 'text-[#d4af37] border-[#d4af37] font-bold';
-                    if (d === 10 && msg.details.isSpec) color = 'text-[#4ade80] border-[#4ade80] font-black shadow-[0_0_5px_lime]';
-                    if (d === 1) color = 'text-red-600 border-red-900 font-bold';
-                    return `<span class="inline-flex items-center justify-center w-5 h-5 border ${color} bg-black/50 rounded text-[10px] mx-0.5">${d}</span>`;
-                }).join('');
-            }
-
-            div.innerHTML = `
-                <div class="bg-[#111] border border-[#333] p-2 rounded relative group hover:border-[#555] transition-colors">
-                    <div class="flex justify-between items-baseline mb-1">
-                        <span class="font-bold text-[#d4af37]">${msg.sender}</span>
-                        <span class="text-[9px] text-gray-600">${fullTime}</span>
-                    </div>
-                    <div class="text-gray-300 font-mono mb-1">${msg.content}</div>
-                    ${diceHTML ? `<div class="flex flex-wrap mt-1 py-1 border-t border-[#222] bg-black/20 justify-center">${diceHTML}</div>` : ''}
-                    ${msg.details ? `<div class="text-[9px] text-gray-500 mt-1 text-center">Pool: ${msg.details.pool} (Diff ${msg.details.diff})</div>` : ''}
-                </div>
-            `;
-        } else {
-            // CHAT / WHISPER
-            const isSelf = msg.senderId === uid;
-            
-            // Visual Indication for Private Messages
-            let wrapperClass = isSelf ? 'bg-[#2a2a2a] text-gray-200' : 'bg-[#1a1a1a] text-gray-300 border border-[#333]';
-            let whisperLabel = '';
-            let senderLine = msg.sender;
-            
-            if (msg.isWhisper) {
-                wrapperClass = 'bg-[#1a0525] border border-purple-500/30 text-purple-100'; // Dark Purple
-                whisperLabel = `<span class="text-purple-400 font-bold text-[9px] mr-1 uppercase tracking-wider"><i class="fas fa-user-secret"></i> Whisper</span>`;
-                senderLine = `${msg.sender} <span class="text-gray-500 text-[9px] mx-1">to</span> <span class="text-purple-300 font-bold">${recipientNames || "Unknown"}</span>`;
-            }
-            
-            div.innerHTML = `
-                <div class="${isSelf ? 'text-right' : 'text-left'}">
-                    <div class="text-[10px] text-gray-500 font-bold mb-0.5">${whisperLabel} ${senderLine} <span class="font-normal opacity-50 text-[9px] ml-1">${fullTime}</span></div>
-                    <div class="inline-block px-3 py-1.5 rounded ${wrapperClass}">${msg.content}</div>
-                </div>
-            `;
-        }
-        container.appendChild(div);
-    });
-    
-    container.scrollTop = container.scrollHeight;
-}
-
-// --- NEW CHAT FUNCTIONS: CLEAR & EXPORT ---
-
-// 1. Export Chat
-async function stExportChat() {
-    if (!stState.chatHistory || stState.chatHistory.length === 0) {
-        showNotification("Chat is empty.", "error");
-        return;
-    }
-
-    let textContent = `CHRONICLE CHAT LOG: ${stState.activeChronicleId}\nExported: ${new Date().toLocaleString()}\n\n`;
-    
-    stState.chatHistory.forEach(msg => {
-        const time = msg.timestamp ? new Date(msg.timestamp.seconds * 1000).toLocaleString() : 'Unknown';
-        if (msg.type === 'system') {
-            textContent += `[${time}] SYSTEM: ${msg.content.replace(/<[^>]*>/g, '')}\n`; 
-        } else if (msg.type === 'event') {
-            textContent += `[${time}] EVENT: ${msg.content}\n`;
-        } else if (msg.type === 'roll') {
-            textContent += `[${time}] ${msg.sender} ROLLED: ${msg.content.replace(/<[^>]*>/g, '')} (Pool: ${msg.details?.pool || '?'})\n`;
-        } else {
-            const whisperTag = msg.isWhisper ? "[WHISPER] " : "";
-            textContent += `[${time}] ${whisperTag}${msg.sender}: ${msg.content}\n`;
-        }
-    });
-
-    const blob = new Blob([textContent], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `V20_ChatLog_${new Date().toISOString().slice(0,10)}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    showNotification("Chat Log Exported.");
-}
-
-// 2. Clear Chat (Batch Delete)
-async function stClearChat() {
-    if (!confirm("CLEAR ALL CHAT HISTORY?\n\nThis will permanently delete all messages for everyone. This cannot be undone.")) return;
-    
     try {
-        const q = query(collection(db, 'chronicles', stState.activeChronicleId, 'messages'));
-        const snapshot = await getDocs(q);
+        const safeId = id.startsWith('journal_') ? id : 'journal_' + id;
         
-        const batch = writeBatch(db);
-        let count = 0;
-        
-        snapshot.forEach(doc => {
-            batch.delete(doc.ref);
-            count++;
-        });
+        const data = { 
+            pushed: true, 
+            pushTime: Date.now(),
+            recipients: recipients 
+        };
 
-        if (count > 0) {
-            await batch.commit();
-            sendChronicleMessage('system', 'Storyteller cleared the chat history.');
-            showNotification(`Cleared ${count} messages.`);
-        } else {
-            showNotification("Chat already empty.");
+        await setDoc(doc(db, 'chronicles', stState.activeChronicleId, 'players', safeId), data, { merge: true });
+        
+        let msg = "Pushed to Players!";
+        if (recipients) {
+            msg = `Pushed to ${recipients.length} Player(s)`;
         }
-    } catch (e) {
-        console.error("Clear Chat Error:", e);
-        showNotification("Failed to clear chat.", "error");
-    }
+        showNotification(msg);
+        
+    } catch(e) { console.error(e); showNotification("Push failed: " + e.message, "error"); }
 }
 
-// 3. New Event Message (Announcement)
-async function stSendEvent() {
-    const input = document.getElementById('st-chat-input');
-    if(!input) return;
-    const txt = input.value.trim();
-    if(!txt) return;
-    
-    sendChronicleMessage('event', txt);
-    input.value = '';
-}
-window.stSendEvent = stSendEvent; 
-
-// EXPORTED API
-async function sendChronicleMessage(type, content, details = null, options = {}) {
-    if (!stState.activeChronicleId) return;
-    
-    let senderName = "Unknown";
-    if (stState.isStoryteller) {
-        senderName = "Storyteller";
-    } else {
-        senderName = document.getElementById('c-name')?.value || "Player";
-    }
-
-    // WHISPER LOGIC: Check options first
-    let isWhisper = !!options.isWhisper; 
-    let recipientId = options.recipientId || null;
-    let recipients = options.recipients || [];
-    
-    // Merge legacy ID into array if present
-    if (recipientId) recipients.push(recipientId);
-    
-    // Ensure uniqueness
-    recipients = [...new Set(recipients)];
-
+async function stDeleteJournalEntry(id) {
+    if(!confirm("Delete this handout?")) return;
     try {
-        await addDoc(collection(db, 'chronicles', stState.activeChronicleId, 'messages'), {
-            type: type,
-            content: content,
-            sender: senderName,
-            senderId: auth.currentUser.uid,
-            details: details,
-            timestamp: new Date(),
-            isWhisper: isWhisper,
-            recipientId: recipientId, // Keep for legacy compatibility
-            recipients: recipients    // New Array Field
-        });
-    } catch(e) {
-        console.error("Chat Error:", e.message);
-        if (type !== 'system') showNotification("Failed to send message: " + e.message, "error");
+        const safeId = id.startsWith('journal_') ? id : 'journal_' + id;
+        await deleteDoc(doc(db, 'chronicles', stState.activeChronicleId, 'players', safeId));
+    } catch(e) { console.error(e); }
+}
+
+// --- WRAPPERS ---
+function handleAddToCombat(entity, type) {
+    if (!stState.activeChronicleId) { showNotification("No active chronicle.", "error"); return; }
+    if (!entity.health) entity.health = { damage: 0, track: [0,0,0,0,0,0,0] };
+    addCombatant(entity, type);
+    showNotification(`${entity.name} added to Combat`);
+}
+
+window.copyStaticNpc = async function(name) {
+    let found = null;
+    for (const cat in BESTIARY) { 
+        if (BESTIARY[cat][name]) {
+            found = { ...BESTIARY[cat][name] }; 
+            break;
+        }
+    }
+
+    if (found && stState.activeChronicleId) { 
+        const newId = "npc_" + Date.now();
+        const customName = `${found.name} (Copy)`;
+
+        try {
+            await setDoc(doc(db, 'chronicles', stState.activeChronicleId, 'bestiary', newId), {
+                name: customName,
+                type: "Custom",
+                data: { ...found, name: customName } 
+            });
+            showNotification(`Created customizable copy: ${customName}`);
+        } catch(e) {
+            console.error("Copy Failed", e);
+            showNotification("Failed to copy NPC.", "error");
+        }
+    }
+};
+
+window.deleteCloudNpc = async function(id) {
+    if(!confirm("Delete?")) return;
+    try { 
+        await deleteDoc(doc(db, 'chronicles', stState.activeChronicleId, 'bestiary', id)); 
+        showNotification("Deleted."); 
+    } catch(e) {}
+};
+
+window.editCloudNpc = function(id) {
+    const entry = stState.bestiary[id];
+    if(entry && entry.data && window.openNpcCreator) {
+        const type = entry.data.template || 'mortal'; 
+        window.openNpcCreator(type, entry.data, null, id);
+        showNotification("Editing NPC...");
+        exitStorytellerDashboard(); 
     }
 }
 
-// --- UPDATED ST CHAT VIEW WITH TOOLBAR ---
+window.previewStaticNpc = function(category, key) {
+    const npc = BESTIARY[category][key];
+    const grid = document.getElementById('bestiary-grid');
+    if (grid && npc) {
+        grid.innerHTML = '';
+        renderNpcCard({ data: npc, name: key, type: npc.template }, null, false, grid);
+    }
+};
+
+// --- CHAT RENDERING: DELEGATED TO CHAT MODEL (VIEW) ---
 function renderChatView(container) {
     let playerOptions = '';
-    // Build options from stState.players using ENTRIES to access the key (ID)
     Object.entries(stState.players).forEach(([id, p]) => {
-        // Filter journal metadata entries if they exist in the players map
         if (p.character_name) {
             playerOptions += `
             <label class="flex items-center gap-2 p-1 hover:bg-[#222] cursor-pointer">
@@ -1690,7 +1449,7 @@ function renderChatView(container) {
 
     container.innerHTML = `
         <div class="flex flex-col h-full relative">
-            <!-- TOOLBAR (NEW) -->
+            <!-- TOOLBAR -->
             <div class="bg-[#1a1a1a] border-b border-[#333] p-2 flex justify-between items-center">
                 <div class="text-[10px] text-gray-500 uppercase font-bold tracking-widest flex items-center gap-2">
                     <i class="fas fa-history"></i> History
@@ -1811,136 +1570,4 @@ function renderChatView(container) {
 
     // Force refresh list immediately if data exists
     startChatListener(stState.activeChronicleId);
-}
-
-// --- DELEGATED JOURNAL HELPERS ---
-async function pushHandoutToPlayers(id, recipients = null) {
-    if (!id) {
-        showNotification("No ID to push. Save first.", "error");
-        return;
-    }
-    try {
-        // USE SAFE PLAYER PATH: chronicles/{id}/players/journal_{entryId}
-        const safeId = id.startsWith('journal_') ? id : 'journal_' + id;
-        
-        // Define data payload
-        const data = { 
-            pushed: true, 
-            pushTime: Date.now(),
-            recipients: recipients // Array of UIDs or null (for everyone)
-        };
-
-        await setDoc(doc(db, 'chronicles', stState.activeChronicleId, 'players', safeId), data, { merge: true });
-        
-        let msg = "Pushed to Players!";
-        if (recipients) {
-            msg = `Pushed to ${recipients.length} Player(s)`;
-        }
-        showNotification(msg);
-        
-    } catch(e) { console.error(e); showNotification("Push failed: " + e.message, "error"); }
-}
-
-async function stDeleteJournalEntry(id) {
-    if(!confirm("Delete this handout?")) return;
-    try {
-        // USE SAFE PLAYER PATH
-        const safeId = id.startsWith('journal_') ? id : 'journal_' + id;
-        await deleteDoc(doc(db, 'chronicles', stState.activeChronicleId, 'players', safeId));
-    } catch(e) { console.error(e); }
-}
-
-// --- WRAPPERS ---
-function handleAddToCombat(entity, type) {
-    if (!stState.activeChronicleId) { showNotification("No active chronicle.", "error"); return; }
-    if (!entity.health) entity.health = { damage: 0, track: [0,0,0,0,0,0,0] };
-    addCombatant(entity, type);
-    showNotification(`${entity.name} added to Combat`);
-}
-
-// UPDATED: CREATE CUSTOM COPY FROM STATIC
-window.copyStaticNpc = async function(name) {
-    let found = null;
-    // 1. Find the Static Template
-    for (const cat in BESTIARY) { 
-        if (BESTIARY[cat][name]) {
-            found = { ...BESTIARY[cat][name] }; // Shallow Clone
-            break;
-        }
-    }
-
-    if (found && stState.activeChronicleId) { 
-        // 2. Generate new ID
-        const newId = "npc_" + Date.now();
-        const customName = `${found.name} (Copy)`;
-
-        // 3. Save to Firestore as "Custom" entry
-        try {
-            await setDoc(doc(db, 'chronicles', stState.activeChronicleId, 'bestiary', newId), {
-                name: customName,
-                type: "Custom",
-                data: { ...found, name: customName } // Override name in payload
-            });
-            showNotification(`Created customizable copy: ${customName}`);
-        } catch(e) {
-            console.error("Copy Failed", e);
-            showNotification("Failed to copy NPC.", "error");
-        }
-    }
-};
-
-window.deleteCloudNpc = async function(id) {
-    if(!confirm("Delete?")) return;
-    try { 
-        // Path: chronicles/{id}/bestiary/{npcId}
-        await deleteDoc(doc(db, 'chronicles', stState.activeChronicleId, 'bestiary', id)); 
-        showNotification("Deleted."); 
-    } catch(e) {}
-};
-
-window.editCloudNpc = function(id) {
-    const entry = stState.bestiary[id];
-    if(entry && entry.data && window.openNpcCreator) {
-        // Use entry.data which contains the full stat block
-        const type = entry.data.template || 'mortal'; 
-        
-        // Open Editor with the custom ID so it saves back to the right place
-        // Note: openNpcCreator usually handles local arrays, we need to ensure it handles Cloud Updates
-        // Actually, we usually pass an index. Here we pass the object.
-        // We'll need to hook the Save action in NPC Creator or handle it here?
-        // Current implementation of npc-creator typically saves to window.state.retainers.
-        
-        // TEMPORARY FIX: Launch Creator in "Cloud Mode" if possible, or just copy to local retainer temporarily?
-        // Better: Just launch it. If openNpcCreator supports object passing.
-        
-        window.openNpcCreator(type, entry.data, null, id); // Pass ID as 3rd arg context
-        showNotification("Editing NPC...");
-        exitStorytellerDashboard(); 
-    }
-}
-
-window.previewStaticNpc = function(category, key) {
-    const npc = BESTIARY[category][key];
-    const grid = document.getElementById('bestiary-grid');
-    if (grid && npc) {
-        grid.innerHTML = '';
-        renderNpcCard({ data: npc, name: key, type: npc.template }, null, false, grid);
-    }
-};
-
-// --- CHAT REFRESH HELPER ---
-function refreshChatUI() {
-    // Re-render Player Chat (Sidebar/Tab)
-    const pContainer = document.getElementById('chronicle-chat-history');
-    if (pContainer && stState.chatHistory.length > 0) {
-        renderMessageList(pContainer, stState.chatHistory);
-    }
-
-    // Re-render ST Dashboard Chat
-    if (stState.dashboardActive && stState.currentView === 'chat') {
-        const stContainer = document.getElementById('st-chat-history');
-        if (stContainer && stState.chatHistory.length > 0) {
-            renderMessageList(stContainer, stState.chatHistory);
-        }
-    }
 }
