@@ -60,7 +60,7 @@ export function renderEditorModal() {
                         </select>
                         <i class="fas fa-caret-down text-xs ml-2 opacity-50"></i>
                     </h2>
-                    <div class="ml-6 flex items-center gap-2 border-l border-[#444] pl-4">
+                    <div class="ml-6 flex items-center gap-2 border-l border-[#444] pl-4" id="npc-mode-toggles">
                          <button id="toggle-fb-mode" class="text-[10px] uppercase font-bold px-3 py-1 border border-[#444] rounded transition-all">
                             <i class="fas fa-star mr-1"></i> Freebie Mode
                         </button>
@@ -396,7 +396,15 @@ export function renderEditorModal() {
             const val = e.target.value;
             if(val) {
                 if(!ctx.activeNpc[type]) ctx.activeNpc[type] = {};
-                ctx.activeNpc[type][val] = (ctx.modes.xp || ctx.modes.freebie) ? 0 : 1;
+                // Force to 0 for unlimited mode so next click makes it 1 (handled in handleValueChange)
+                // Or if regular mode, start at 1. Logic inside handleValueChange will sort it out if we set it directly.
+                // Actually, handleValueChange takes care of incrementing.
+                // Let's set it to 0 initially so it shows up in list but is empty.
+                ctx.activeNpc[type][val] = 0; 
+                if (ctx.modes.unlimited) {
+                    // Pre-fill to 1 for convenience in unlimited mode
+                    ctx.activeNpc[type][val] = 1;
+                }
                 renderFn();
                 e.target.value = "";
             }
@@ -581,6 +589,39 @@ export function updateModeUI() {
         if (isActive) btn.className = `text-[10px] uppercase font-bold px-3 py-1 border rounded transition-all bg-${color}-900/40 text-${color}-300 border-${color}-500 shadow-[0_0_10px_rgba(255,255,255,0.2)]`;
         else btn.className = "text-[10px] uppercase font-bold px-3 py-1 border border-[#444] rounded transition-all text-gray-500 hover:text-white";
     };
+
+    // --- UNLIMITED / BESTIARY MODE OVERRIDES ---
+    if (ctx.modes.unlimited) {
+        // Disable Standard Buttons visual
+        if(xpBtn) { xpBtn.disabled = true; xpBtn.style.opacity = '0.2'; }
+        if(fbBtn) { fbBtn.disabled = true; fbBtn.style.opacity = '0.2'; }
+        
+        // Hide Standard Ledgers
+        if(xpBar) { xpBar.classList.add('hidden'); xpBar.classList.remove('flex'); }
+        if(fbBar) { fbBar.classList.add('hidden'); fbBar.classList.remove('flex'); }
+
+        // Inject "Unlimited Mode" visual indicator if missing
+        let badge = document.getElementById('npc-unlimited-badge');
+        if (!badge) {
+            const container = document.getElementById('npc-mode-toggles'); // Use specific container
+            if (container) {
+                badge = document.createElement('div');
+                badge.id = 'npc-unlimited-badge';
+                badge.className = "text-[#d4af37] font-bold text-[10px] uppercase border border-[#d4af37] px-2 py-1 bg-[#d4af37]/10 ml-2 animate-pulse rounded select-none cursor-help";
+                badge.title = "Unlimited editing for Official/Bestiary entries";
+                badge.innerHTML = "<i class='fas fa-infinity mr-1'></i> Bestiary Mode";
+                container.appendChild(badge);
+            }
+        }
+        return;
+    } else {
+        // Re-enable buttons if not unlimited
+        if(xpBtn) { xpBtn.disabled = false; xpBtn.style.opacity = '1'; }
+        if(fbBtn) { fbBtn.disabled = false; fbBtn.style.opacity = '1'; }
+        
+        const badge = document.getElementById('npc-unlimited-badge');
+        if(badge) badge.remove();
+    }
 
     setActive(xpBtn, ctx.modes.xp, 'purple');
     setActive(fbBtn, ctx.modes.freebie, 'yellow');
@@ -783,7 +824,7 @@ export function renderMeritsFlaws() {
         `<div class="flex justify-between text-[9px] text-gray-300 bg-black/50 p-1 rounded"><span>${k}</span><span>${v} pts <i class="fas fa-times text-red-500 ml-2 cursor-pointer remove-item-btn" data-type="merits" data-key="${k}"></i></span></div>`
     ).join('');
     fList.innerHTML = Object.entries(ctx.activeNpc.flaws).map(([k,v]) => 
-        `<div class="flex justify-between text-[9px] text-red-300 bg-black/50 p-1 rounded"><span>${k}</span><span>${v} pts <i class="fas fa-times text-red-500 ml-2 cursor-pointer remove-item-btn" data-type="flaws" data-key="${k}"></i></span></di790791792788789785786787772773774775776777778779780781782783784769770771764765766767768761762763$0v>`
+        `<div class="flex justify-between text-[9px] text-red-300 bg-black/50 p-1 rounded"><span>${k}</span><span>${v} pts <i class="fas fa-times text-red-500 ml-2 cursor-pointer remove-item-btn" data-type="flaws" data-key="${k}"></i></span></div>`
     ).join('');
     bindRemoveBtns();
 }
@@ -816,11 +857,9 @@ function bindRemoveBtns() {
 }
 
 function renderPrioButtons(cat, group) {
-    // CRITICAL FIX: Animal Templates (and others) return NULL for priorities.
-    // If we try to map null, it crashes. We must check first.
     if (!ctx.currentTemplate.getPriorities) return '';
     const vals = ctx.currentTemplate.getPriorities()[cat];
-    if (!vals) return ''; // Safely return empty string if no priority array exists for this template
+    if (!vals) return ''; 
 
     return vals.map(v => `<button class="npc-prio-btn w-6 h-6 rounded-full border border-gray-600 text-[9px] font-bold text-gray-400 hover:text-white hover:border-[#d4af37] transition-all" data-cat="${cat}" data-group="${group}" data-val="${v}">${v}</button>`).join('');
 }
@@ -841,7 +880,8 @@ export function updatePrioritiesUI() {
         } else {
             btn.classList.add('border-gray-600', 'text-gray-400', 'hover:border-[#d4af37]', 'hover:text-white');
             btn.onclick = () => {
-                if(ctx.modes.xp || ctx.modes.freebie) return;
+                // Priority buttons only work in normal Creation Mode, not Unlimited/XP/Freebie
+                if(ctx.modes.xp || ctx.modes.freebie || ctx.modes.unlimited) return;
                 const existingOwner = Object.keys(ctx.localPriorities[cat]).find(k => ctx.localPriorities[cat][k] === v);
                 if(existingOwner) ctx.localPriorities[cat][existingOwner] = null;
                 ctx.localPriorities[cat][group] = v;
@@ -883,7 +923,7 @@ export function updateXpLog() {
 
     ctx.activeNpc.experience.log.forEach(entry => {
         spentTotal += entry.cost;
-        if (costs[entry.type.substring(0,4)] !== undefined) costs[entry.type.substring(0,4)] += entry.cost; // Simple mapping won't work perfectly, manual map below
+        if (costs[entry.type.substring(0,4)] !== undefined) costs[entry.type.substring(0,4)] += entry.cost; 
         if (entry.type === 'attributes') costs.attr += entry.cost;
         else if (entry.type === 'abilities') costs.abil += entry.cost;
         else if (entry.type === 'disciplines') costs.disc += entry.cost;
