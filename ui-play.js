@@ -1,3 +1,4 @@
+// ... [Imports and other functions remain unchanged] ...
 import { 
     ATTRIBUTES, ABILITIES, VIRTUES, BACKGROUNDS, 
     CLAN_WEAKNESSES, VIT,
@@ -18,7 +19,204 @@ import {
 import { db, doc, getDoc, collection, getDocs, query, auth } from "./firebase-config.js";
 import { combatState } from "./combat-tracker.js";
 
-// --- INFO MODAL HANDLERS ---
+// ... [Info Modal Handlers, Injection Helpers, Combat Float unchanged] ...
+
+// --- SUB-VIEW: CHAT (UPDATED FOR MOOD) ---
+async function renderChronicleChatView(container, chronicleId) {
+    // 1. Fetch Players for Dropdown (Async)
+    let players = [];
+    let stUID = null;
+    
+    try {
+        const q = query(collection(db, 'chronicles', chronicleId, 'players'));
+        const snap = await getDocs(q);
+        snap.forEach(doc => {
+            const data = doc.data();
+            if (!doc.id.startsWith('journal_')) {
+                players.push({ id: doc.id, ...data });
+            }
+        });
+        
+        const cSnap = await getDoc(doc(db, 'chronicles', chronicleId));
+        if (cSnap.exists()) {
+            stUID = cSnap.data().storyteller_uid;
+        }
+    } catch(e) { console.error("Player fetch error", e); }
+
+    // Build options HTML for checkbox list
+    let optionsHtml = '';
+    
+    if (stUID && (!auth.currentUser || stUID !== auth.currentUser.uid)) {
+        optionsHtml += `
+        <label class="flex items-center gap-2 p-1 hover:bg-[#222] cursor-pointer">
+            <input type="checkbox" class="pl-recipient-checkbox accent-[#d4af37]" value="${stUID}">
+            <span class="text-xs text-[#d4af37] font-bold">Storyteller (Private)</span>
+        </label>`;
+    }
+    
+    players.forEach(p => {
+        // Exclude self
+        if (auth.currentUser && p.id === auth.currentUser.uid) return;
+        // Also exclude if this player IS the ST (already added above)
+        if (p.id === stUID) return;
+        
+        optionsHtml += `
+        <label class="flex items-center gap-2 p-1 hover:bg-[#222] cursor-pointer">
+            <input type="checkbox" class="pl-recipient-checkbox accent-[#d4af37]" value="${p.id}">
+            <span class="text-xs text-gray-300">${p.character_name} (${p.player_name || 'Player'})</span>
+        </label>`;
+    });
+
+    // MOODS LIST
+    const moodOptions = `
+        <option value="">Mood (Optional)</option>
+        <option value="Angrily">Angrily</option>
+        <option value="Sadness">Sadness</option>
+        <option value="Pained">Pained</option>
+        <option value="Whispering">Whispering</option>
+        <option value="Shouting">Shouting</option>
+        <option value="Joyful">Joyful</option>
+        <option value="Sarcastic">Sarcastic</option>
+        <option value="Fearful">Fearful</option>
+        <option value="Serious">Serious</option>
+        <option value="Joking">Joking</option>
+    `;
+
+    // COMPACT LAYOUT FOR PLAYER CHAT
+    container.innerHTML = `
+        <div class="flex flex-col h-full bg-[#0a0a0a] border border-[#333] shadow-lg relative">
+            <div class="bg-[#111] p-3 border-b border-[#333] flex justify-between items-center shrink-0">
+                <div class="flex items-center gap-2">
+                    <i class="fas fa-comments text-[#d4af37]"></i>
+                    <h3 class="text-[#d4af37] font-cinzel font-bold text-sm uppercase tracking-widest">Chronicle Chat</h3>
+                </div>
+                <div class="text-[9px] text-gray-500 font-mono">ID: <span class="text-white">${chronicleId}</span></div>
+            </div>
+            
+            <div class="flex-1 overflow-y-auto min-h-0 space-y-3 p-4 bg-[url('https://www.transparenttextures.com/patterns/black-linen.png')] custom-scrollbar" id="chronicle-chat-history">
+                <div class="text-center text-gray-500 italic text-xs mt-10">Connecting...</div>
+            </div>
+            
+            <div class="mt-auto border-t border-[#333] p-3 bg-[#111] space-y-2 shrink-0 relative">
+                <!-- Row 1: Recipient Selector & Mood -->
+                <div class="flex gap-2 mb-1">
+                    <div class="relative">
+                        <button id="pl-chat-recipient-btn" class="bg-[#050505] border border-[#333] text-gray-300 text-xs px-3 py-2 text-left flex items-center gap-2 hover:border-[#d4af37] transition-colors min-w-[140px] rounded" onclick="document.getElementById('pl-chat-recipients-dropdown').classList.toggle('hidden')">
+                            <span id="pl-chat-recipient-label">Everyone</span>
+                            <i class="fas fa-chevron-down text-[10px] ml-auto"></i>
+                        </button>
+                        <div id="pl-chat-recipients-dropdown" class="hidden absolute bottom-full left-0 w-64 bg-[#1a1a1a] border border-[#333] shadow-xl p-2 max-h-48 overflow-y-auto custom-scrollbar z-50 rounded mb-1">
+                            <label class="flex items-center gap-2 p-1 hover:bg-[#222] cursor-pointer border-b border-[#333] mb-1 pb-1">
+                                <input type="checkbox" id="pl-chat-all-checkbox" class="accent-[#d4af37]" checked>
+                                <span class="text-xs text-gold font-bold">Broadcast to Everyone</span>
+                            </label>
+                            <div id="pl-chat-player-list" class="space-y-1">
+                                ${optionsHtml}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="relative flex-1">
+                         <input list="pl-mood-list" id="pl-chat-mood" class="w-full bg-[#050505] border border-[#333] text-gray-300 text-xs px-3 py-2 outline-none focus:border-[#d4af37] rounded" placeholder="Mood (Optional)">
+                         <datalist id="pl-mood-list">${moodOptions}</datalist>
+                    </div>
+                </div>
+                
+                <!-- Row 2: Input -->
+                <div class="flex gap-2">
+                    <input type="text" id="chronicle-chat-input" class="flex-1 bg-[#050505] border border-[#333] text-white px-3 py-2 text-sm outline-none focus:border-[#d4af37] rounded" placeholder="Send a message...">
+                    <button id="chronicle-chat-send" class="bg-[#d4af37] text-black font-bold uppercase px-4 py-2 hover:bg-[#fcd34d] transition-colors text-xs rounded hover:scale-105">Send</button>
+                </div>
+            </div>
+        </div>
+    `;
+
+    // Bind Logic
+    const sendBtn = document.getElementById('chronicle-chat-send');
+    const input = document.getElementById('chronicle-chat-input');
+    const moodInput = document.getElementById('pl-chat-mood');
+    const allCheck = document.getElementById('pl-chat-all-checkbox');
+    const label = document.getElementById('pl-chat-recipient-label');
+    const dropdown = document.getElementById('pl-chat-recipients-dropdown');
+    
+    // Auto-update label and checkboxes
+    const updateSelection = () => {
+        const checks = document.querySelectorAll('.pl-recipient-checkbox');
+        if (allCheck.checked) {
+            checks.forEach(c => { c.checked = false; c.disabled = true; });
+            label.innerText = "Everyone";
+            label.className = "text-gray-300 text-xs";
+        } else {
+            checks.forEach(c => c.disabled = false);
+            const selected = Array.from(checks).filter(c => c.checked);
+            if (selected.length === 0) {
+                label.innerText = "Select Recipients..."; 
+                label.className = "text-red-500 font-bold text-xs";
+            } else {
+                label.innerText = `Whisper (${selected.length})`;
+                label.className = "text-purple-400 font-bold text-xs";
+            }
+        }
+    };
+
+    allCheck.onchange = updateSelection;
+    document.querySelectorAll('.pl-recipient-checkbox').forEach(c => c.onchange = updateSelection);
+
+    // Close dropdown on click outside
+    document.addEventListener('click', (e) => {
+        const btn = document.getElementById('pl-chat-recipient-btn');
+        const menu = document.getElementById('pl-chat-recipients-dropdown');
+        if (menu && !menu.contains(e.target) && !btn.contains(e.target)) {
+            menu.classList.add('hidden');
+        }
+    });
+    
+    const sendHandler = () => {
+        const txt = input.value.trim();
+        if (txt && window.sendChronicleMessage) {
+            const isAll = allCheck.checked;
+            const selected = Array.from(document.querySelectorAll('.pl-recipient-checkbox:checked')).map(c => c.value);
+            const moodVal = moodInput.value.trim();
+            
+            if (!isAll && selected.length === 0) {
+                showNotification("Select at least one recipient.", "error");
+                return;
+            }
+
+            const options = {};
+            if (!isAll) {
+                options.recipients = selected;
+                options.isWhisper = true;
+            }
+            if (moodVal) {
+                options.mood = moodVal;
+            }
+            
+            window.sendChronicleMessage('chat', txt, null, options);
+            input.value = '';
+            moodInput.value = ''; 
+            dropdown.classList.add('hidden');
+        }
+    };
+    
+    if(sendBtn) sendBtn.onclick = sendHandler;
+    if(input) input.onkeydown = (e) => { if(e.key === 'Enter') sendHandler(); };
+
+    if (window.startChatListener) {
+        window.startChatListener(chronicleId);
+    } else {
+        console.warn("startChatListener not found on window object.");
+    }
+}
+
+// ... [Rest of ui-play.js (imports at top, functions below renderChronicleChatView)] ...
+// (Omitting rest for brevity, but ensure renderChronicleChatView replaces the old version)
+// (Note: In the full file generation, I will output the entire file to avoid errors, 
+//  but since ui-play.js is huge and I only modified one function, 
+//  and per instructions I should output complete files...)
+
+// Wait, ui-play.js is mostly about the sheet display. 
+// I need to make sure I don't truncate the rest of the file.
 
 export function showWillpowerInfo(e) {
     if(e) e.stopPropagation();
@@ -74,8 +272,7 @@ export function setupHunting() {
 }
 window.setupHunting = setupHunting;
 
-
-// --- INJECTION HELPERS ---
+// ... [Injection Helpers] ...
 
 function injectWillpowerInfo() {
     const sections = document.querySelectorAll('#play-mode-sheet .section-title');
@@ -153,7 +350,8 @@ function injectBloodInfo() {
     }
 }
 
-// --- COMBAT INTEGRATION FOR PLAYERS ---
+// ... [Combat Integration] ...
+
 function checkCombatStatus() {
     // Rely on WINDOW.stState to avoid circular dependency
     const stState = window.stState;
@@ -229,8 +427,7 @@ function renderPlayerCombatOverlay(container) {
     `;
 }
 
-
-// --- PLAY MODE LOGIC ---
+// ... [Play Mode Logic] ...
 
 export function applyPlayModeUI() {
     const isPlay = window.state.isPlayMode;
@@ -255,7 +452,7 @@ export function applyPlayModeUI() {
         if (['save-filename', 'char-select', 'roll-diff', 'use-specialty', 'c-path-name', 'c-path-name-create', 'c-bearing-name', 'c-bearing-value', 'custom-weakness-input', 'xp-points-input', 'blood-per-turn-input', 'custom-dice-input', 'spend-willpower', 'c-xp-total', 'frenzy-diff', 'rotschreck-diff', 'play-merit-notes', 'dmg-input-val', 'tray-use-armor',
         'log-sess-num', 'log-date', 'log-game-date', 'log-title', 'log-effects', 'log-scene1', 'log-scene2', 'log-scene3', 'log-scene-outcome', 'log-xp-gain',
         'log-obj', 'log-clues', 'log-secrets', 'log-downtime',
-        'chronicle-chat-input'
+        'chronicle-chat-input', 'pl-chat-mood'
         ].includes(el.id) || el.classList.contains('merit-flaw-desc') || el.closest('#active-log-form')) {
             el.disabled = false;
             return;
@@ -481,8 +678,7 @@ export function togglePlayMode() {
 }
 window.togglePlayMode = togglePlayMode;
 
-
-// --- RENDER HELPERS ---
+// ... [Keep other render helpers (Attributes, Abilities, Advantages, etc.) unchanged] ...
 
 function renderPlayModeHeader() {
     const row = document.getElementById('play-concept-row');
@@ -1342,164 +1538,4 @@ function renderChronicleInfoView(container, data) {
             </div>
         </div>
     `;
-}
-
-// --- SUB-VIEW: CHAT (UPDATED FOR MULTI-WHISPER) ---
-async function renderChronicleChatView(container, chronicleId) {
-    // 1. Fetch Players for Dropdown (Async)
-    let players = [];
-    let stUID = null;
-    
-    try {
-        const q = query(collection(db, 'chronicles', chronicleId, 'players'));
-        const snap = await getDocs(q);
-        snap.forEach(doc => {
-            const data = doc.data();
-            if (!doc.id.startsWith('journal_')) {
-                players.push({ id: doc.id, ...data });
-            }
-        });
-        
-        const cSnap = await getDoc(doc(db, 'chronicles', chronicleId));
-        if (cSnap.exists()) {
-            stUID = cSnap.data().storyteller_uid;
-        }
-    } catch(e) { console.error("Player fetch error", e); }
-
-    // Build options HTML for checkbox list
-    let optionsHtml = '';
-    
-    if (stUID && (!auth.currentUser || stUID !== auth.currentUser.uid)) {
-        optionsHtml += `
-        <label class="flex items-center gap-2 p-1 hover:bg-[#222] cursor-pointer">
-            <input type="checkbox" class="pl-recipient-checkbox accent-[#d4af37]" value="${stUID}">
-            <span class="text-xs text-[#d4af37] font-bold">Storyteller (Private)</span>
-        </label>`;
-    }
-    
-    players.forEach(p => {
-        // Exclude self
-        if (auth.currentUser && p.id === auth.currentUser.uid) return;
-        // Also exclude if this player IS the ST (already added above)
-        if (p.id === stUID) return;
-        
-        optionsHtml += `
-        <label class="flex items-center gap-2 p-1 hover:bg-[#222] cursor-pointer">
-            <input type="checkbox" class="pl-recipient-checkbox accent-[#d4af37]" value="${p.id}">
-            <span class="text-xs text-gray-300">${p.character_name} (${p.player_name || 'Player'})</span>
-        </label>`;
-    });
-
-    // COMPACT LAYOUT FOR PLAYER CHAT TOO
-    container.innerHTML = `
-        <div class="flex flex-col h-full bg-[#0a0a0a] border border-[#333] shadow-lg relative">
-            <div class="bg-[#111] p-3 border-b border-[#333] flex justify-between items-center shrink-0">
-                <div class="flex items-center gap-2">
-                    <i class="fas fa-comments text-[#d4af37]"></i>
-                    <h3 class="text-[#d4af37] font-cinzel font-bold text-sm uppercase tracking-widest">Chronicle Chat</h3>
-                </div>
-                <div class="text-[9px] text-gray-500 font-mono">ID: <span class="text-white">${chronicleId}</span></div>
-            </div>
-            
-            <div class="flex-1 overflow-y-auto min-h-0 space-y-3 p-4 bg-[url('https://www.transparenttextures.com/patterns/black-linen.png')] custom-scrollbar" id="chronicle-chat-history">
-                <div class="text-center text-gray-500 italic text-xs mt-10">Connecting...</div>
-            </div>
-            
-            <div class="mt-auto border-t border-[#333] p-3 bg-[#111] space-y-2 shrink-0 relative">
-                <!-- Row 1: Recipient Selector -->
-                <div class="relative">
-                    <button id="pl-chat-recipient-btn" class="w-full md:w-auto bg-[#050505] border border-[#333] text-gray-300 text-xs px-3 py-1.5 text-left flex justify-between items-center gap-4 hover:border-[#d4af37] transition-colors rounded" onclick="document.getElementById('pl-chat-recipients-dropdown').classList.toggle('hidden')">
-                        <span id="pl-chat-recipient-label">Everyone (Public)</span>
-                        <i class="fas fa-chevron-down text-[10px]"></i>
-                    </button>
-                    <div id="pl-chat-recipients-dropdown" class="hidden absolute bottom-full left-0 w-64 bg-[#1a1a1a] border border-[#333] shadow-xl p-2 max-h-48 overflow-y-auto custom-scrollbar z-50 rounded">
-                        <label class="flex items-center gap-2 p-1 hover:bg-[#222] cursor-pointer border-b border-[#333] mb-1 pb-1">
-                            <input type="checkbox" id="pl-chat-all-checkbox" class="accent-[#d4af37]" checked>
-                            <span class="text-xs text-gold font-bold">Broadcast to Everyone</span>
-                        </label>
-                        <div id="pl-chat-player-list" class="space-y-1">
-                            ${optionsHtml}
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Row 2: Input -->
-                <div class="flex gap-2">
-                    <input type="text" id="chronicle-chat-input" class="flex-1 bg-[#050505] border border-[#333] text-white px-3 py-2 text-sm outline-none focus:border-[#d4af37] rounded" placeholder="Send a message...">
-                    <button id="chronicle-chat-send" class="bg-[#d4af37] text-black font-bold uppercase px-4 py-2 hover:bg-[#fcd34d] transition-colors text-xs rounded hover:scale-105">Send</button>
-                </div>
-            </div>
-        </div>
-    `;
-
-    // Bind Logic
-    const sendBtn = document.getElementById('chronicle-chat-send');
-    const input = document.getElementById('chronicle-chat-input');
-    const allCheck = document.getElementById('pl-chat-all-checkbox');
-    const label = document.getElementById('pl-chat-recipient-label');
-    const dropdown = document.getElementById('pl-chat-recipients-dropdown');
-    
-    // Auto-update label and checkboxes
-    const updateSelection = () => {
-        const checks = document.querySelectorAll('.pl-recipient-checkbox');
-        if (allCheck.checked) {
-            checks.forEach(c => { c.checked = false; c.disabled = true; });
-            label.innerText = "Everyone (Public)";
-            label.className = "text-gray-300 text-xs";
-        } else {
-            checks.forEach(c => c.disabled = false);
-            const selected = Array.from(checks).filter(c => c.checked);
-            if (selected.length === 0) {
-                label.innerText = "Select Recipients..."; 
-                label.className = "text-red-500 font-bold text-xs";
-            } else {
-                label.innerText = `Whisper to ${selected.length} Person(s)`;
-                label.className = "text-purple-400 font-bold text-xs";
-            }
-        }
-    };
-
-    allCheck.onchange = updateSelection;
-    document.querySelectorAll('.pl-recipient-checkbox').forEach(c => c.onchange = updateSelection);
-
-    // Close dropdown on click outside
-    document.addEventListener('click', (e) => {
-        const btn = document.getElementById('pl-chat-recipient-btn');
-        const menu = document.getElementById('pl-chat-recipients-dropdown');
-        if (menu && !menu.contains(e.target) && !btn.contains(e.target)) {
-            menu.classList.add('hidden');
-        }
-    });
-    
-    const sendHandler = () => {
-        const txt = input.value.trim();
-        if (txt && window.sendChronicleMessage) {
-            const isAll = allCheck.checked;
-            const selected = Array.from(document.querySelectorAll('.pl-recipient-checkbox:checked')).map(c => c.value);
-            
-            if (!isAll && selected.length === 0) {
-                showNotification("Select at least one recipient.", "error");
-                return;
-            }
-
-            const options = {};
-            if (!isAll) {
-                options.recipients = selected;
-                options.isWhisper = true;
-            }
-            
-            window.sendChronicleMessage('chat', txt, null, options);
-            input.value = '';
-            dropdown.classList.add('hidden');
-        }
-    };
-    
-    if(sendBtn) sendBtn.onclick = sendHandler;
-    if(input) input.onkeydown = (e) => { if(e.key === 'Enter') sendHandler(); };
-
-    if (window.startChatListener) {
-        window.startChatListener(chronicleId);
-    } else {
-        console.warn("startChatListener not found on window object.");
-    }
 }
