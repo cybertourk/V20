@@ -506,6 +506,12 @@ export function renderPlaySheetModal() {
                             
                             ${physicalStats ? `<div class="border-t border-[#333] pt-2 mt-2">${physicalStats}</div>` : ''}
                             
+                            ${npc.bio.Notes ? `
+                            <div class="mt-4 pt-2 border-t border-[#333]">
+                                <h4 class="font-bold text-gray-500 uppercase text-[10px] mb-1">Notes / Special Rules</h4>
+                                <div class="text-xs text-gray-300 italic leading-relaxed whitespace-pre-wrap">${npc.bio.Notes}</div>
+                            </div>` : ''}
+
                             ${showFeedingGrounds && npc.feedingGrounds ? `
                             <div class="mt-4 pt-2 border-t border-[#333]">
                                 <h4 class="font-bold text-gray-500 uppercase text-[10px] mb-1">Feeding Grounds</h4>
