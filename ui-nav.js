@@ -322,55 +322,66 @@ export function renderXpSidebar() {
         else if (l.type === 'back') costs.back += c;
     });
 
-    const sb = document.getElementById('xp-sidebar');
-    if (!sb) return;
-    
     const totalEarned = parseInt(document.getElementById('c-xp-total')?.value) || 0;
     const remaining = totalEarned - totalSpent;
 
-    sb.innerHTML = `
-        <div id="xp-sb-toggle-btn" class="absolute right-[-24px] top-0 w-6 h-20 bg-purple-900 border border-purple-500 border-l-0 text-white text-[10px] font-bold flex items-center justify-center cursor-pointer [writing-mode:vertical-rl] [text-orientation:mixed] tracking-widest uppercase rounded-r shadow-md hover:bg-purple-800" onclick="window.toggleXpSidebarLedger()">Ledger</div>
-        
-        <h3 class="heading text-purple-400 text-sm border-b border-purple-500 pb-2 mb-4 text-center">Experience Ledger</h3>
-        
-        <div class="space-y-2 text-xs">
-            <div class="cost-row"><span class="text-gray-400">Attributes</span><span id="sb-xp-attr" class="cost-val text-purple-400 font-bold bg-black/95 z-10 shrink-0">${costs.attr}</span></div>
-            <div class="cost-row"><span class="text-gray-400">Abilities</span><span id="sb-xp-abil" class="cost-val text-purple-400 font-bold bg-black/95 z-10 shrink-0">${costs.abil}</span></div>
-            <div class="cost-row"><span class="text-gray-400">Disciplines</span><span id="sb-xp-disc" class="cost-val text-purple-400 font-bold bg-black/95 z-10 shrink-0">${costs.disc}</span></div>
-            <div class="cost-row"><span class="text-gray-400">Virtues</span><span id="sb-xp-virt" class="cost-val text-purple-400 font-bold bg-black/95 z-10 shrink-0">${costs.virt}</span></div>
-            <div class="cost-row"><span class="text-gray-400">Humanity/Path</span><span id="sb-xp-human" class="cost-val text-purple-400 font-bold bg-black/95 z-10 shrink-0">${costs.humanity}</span></div>
-            <div class="cost-row"><span class="text-gray-400">Willpower</span><span id="sb-xp-will" class="cost-val text-purple-400 font-bold bg-black/95 z-10 shrink-0">${costs.willpower}</span></div>
-            ${costs.back > 0 ? `<div class="cost-row"><span class="text-gray-400">Backgrounds</span><span id="sb-xp-back" class="cost-val text-purple-400 font-bold bg-black/95 z-10 shrink-0">${costs.back}</span></div>` : ''}
-            
-            <div class="mt-4 pt-2 border-t border-[#444] flex justify-between font-bold text-sm">
-                <span>Total Spent:</span>
-                <span id="sb-xp-spent" class="text-purple-400">${totalSpent}</span>
-            </div>
-            <div class="flex justify-between font-bold text-sm">
-                <span>Remaining:</span>
-                <span id="sb-xp-remaining" class="${remaining < 0 ? 'text-red-500' : 'text-white'}">${remaining}</span>
-            </div>
-        </div>
+    // UPDATE BY ID (Preserves index.html structure)
+    const setVal = (id, val) => {
+        const el = document.getElementById(id);
+        if(el) el.innerText = val;
+    }
 
-        <div class="mt-4 flex-1 flex flex-col min-h-0">
-            <h4 class="text-[9px] uppercase text-gray-500 font-bold mb-1 tracking-wider">Session Log</h4>
-            <div id="xp-log-recent" class="text-[9px] text-gray-400 h-48 overflow-y-auto border border-[#333] p-1 font-mono bg-white/5 custom-scrollbar"></div>
-        </div>
-    `;
+    setVal('sb-xp-attr', costs.attr);
+    setVal('sb-xp-abil', costs.abil);
+    setVal('sb-xp-disc', costs.disc);
+    setVal('sb-xp-virt', costs.virt);
+    setVal('sb-xp-human', costs.humanity);
+    setVal('sb-xp-will', costs.willpower);
+    setVal('sb-xp-spent', totalSpent);
+    setVal('sb-xp-remaining', remaining);
 
-    const logInner = document.getElementById("xp-log-recent");
-    if(log.length > 0) { 
-        logInner.innerHTML = log.slice().reverse().map(l => { 
-            const d = new Date(l.date).toLocaleDateString(undefined, {month:'short', day:'numeric'}); 
-            // Handle different log formats: old format (trait, new, cost) vs new format (entry)
-            let text = l.entry ? l.entry : `${l.trait} -> ${l.new}`;
-            return `<div class="border-b border-gray-800 py-1">
-                <div class="flex justify-between"><span class="text-gray-300">[${d}]</span> <span class="text-purple-400 font-bold">-${l.cost}</span></div>
-                <div class="pl-2">${text}</div>
-            </div>`; 
-        }).join(''); 
+    const remEl = document.getElementById('sb-xp-remaining');
+    if(remEl) remEl.className = remaining < 0 ? 'text-red-500 font-bold' : 'text-white font-bold';
+
+    // DYNAMIC BACKGROUNDS ROW
+    // Check if we need to insert the backgrounds row (it's not in the static HTML by default)
+    let backSpan = document.getElementById('sb-xp-back');
+    if (costs.back > 0) {
+        if (!backSpan) {
+            // Find container to inject
+            const container = document.querySelector('#xp-sidebar .space-y-2');
+            const totalRow = container ? container.querySelector('.border-t') : null;
+            if (container && totalRow) {
+                const div = document.createElement('div');
+                div.className = 'cost-row dynamic-back-row';
+                div.innerHTML = `<span class="text-gray-400">Backgrounds</span><span id="sb-xp-back" class="cost-val text-purple-400 font-bold bg-black/95 z-10 shrink-0">${costs.back}</span>`;
+                container.insertBefore(div, totalRow);
+            }
+        } else {
+            backSpan.innerText = costs.back;
+        }
     } else {
-        logInner.innerHTML = '<div class="text-gray-600 italic p-2">No XP spent yet.</div>';
+        // Remove if it exists and count is 0
+        const dynamicRow = document.querySelector('.dynamic-back-row');
+        if (dynamicRow) dynamicRow.remove();
+        else if (backSpan) backSpan.innerText = 0;
+    }
+
+    // LOGS
+    const logInner = document.getElementById("xp-log-recent");
+    if(logInner) {
+        if(log.length > 0) { 
+            logInner.innerHTML = log.slice().reverse().map(l => { 
+                const d = new Date(l.date).toLocaleDateString(undefined, {month:'short', day:'numeric'}); 
+                let text = l.entry ? l.entry : `${l.trait} -> ${l.new}`;
+                return `<div class="border-b border-gray-800 py-1">
+                    <div class="flex justify-between"><span class="text-gray-300">[${d}]</span> <span class="text-purple-400 font-bold">-${l.cost}</span></div>
+                    <div class="pl-2 truncate" title="${text}">${text}</div>
+                </div>`; 
+            }).join(''); 
+        } else {
+            logInner.innerHTML = '<div class="text-gray-600 italic p-2">No XP spent yet.</div>';
+        }
     }
 }
 window.renderXpSidebar = renderXpSidebar;
