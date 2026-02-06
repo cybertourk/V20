@@ -83,6 +83,13 @@ export function openNpcCreator(typeKey = 'mortal', dataOrEvent = null, index = n
         
         if (activeNpc.priorities) localPriorities = JSON.parse(JSON.stringify(activeNpc.priorities));
         else Logic.autoDetectPriorities(activeNpc, currentTemplate, localPriorities);
+
+        // AUTO-ENABLE FREEBIE MODE FOR BESTIARY/CLOUD/ANIMAL ENTITIES
+        // This bypasses creation rules and allows free editing
+        if (activeCloudId || activeNpc.template === 'animal') {
+            modes.freebie = true;
+        }
+
     } else {
         // Create Mode
         activeNpc = JSON.parse(JSON.stringify(currentTemplate.defaults));
