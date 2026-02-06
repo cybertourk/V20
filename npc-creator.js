@@ -23,7 +23,8 @@ const TEMPLATES = {
 // Global State
 let activeNpc = null;
 let currentTemplate = null;
-let activeIndex = null; // Index in the global retainer list
+let activeIndex = null; // Index in the global retainer list (Local)
+let activeCloudId = null; // ID for Cloud/Bestiary editing (Storyteller)
 let currentTab = 'step1';
 let modes = { xp: false, freebie: false };
 let localPriorities = {
@@ -49,7 +50,7 @@ function toggleDiceUI(show, bringToFront = false) {
 // INITIALIZATION
 // ==========================================================================
 
-export function openNpcCreator(typeKey = 'mortal', dataOrEvent = null, index = null) {
+export function openNpcCreator(typeKey = 'mortal', dataOrEvent = null, index = null, cloudId = null) {
     toggleDiceUI(false); // Hide dice in edit mode
 
     if (!TEMPLATES[typeKey]) typeKey = 'mortal';
@@ -61,6 +62,8 @@ export function openNpcCreator(typeKey = 'mortal', dataOrEvent = null, index = n
     if (dataOrEvent && !isEvent) incomingData = dataOrEvent;
 
     activeIndex = (typeof index === 'number') ? index : null;
+    activeCloudId = cloudId || null; // Capture Cloud ID for Bestiary updates
+
     currentTab = 'step1';
     modes = { xp: false, freebie: false };
     
@@ -104,11 +107,16 @@ export function openNpcCreator(typeKey = 'mortal', dataOrEvent = null, index = n
 
 function injectBestiarySaveButton() {
     const footer = document.querySelector('#npc-modal .border-t .flex');
-    if (footer && !document.getElementById('npc-save-bestiary')) {
+    const existing = document.getElementById('npc-save-bestiary');
+    if (existing) existing.remove();
+
+    if (footer) {
         const btn = document.createElement('button');
         btn.id = 'npc-save-bestiary';
         btn.className = "bg-purple-900 hover:bg-purple-700 text-white px-4 py-2 uppercase font-bold text-xs shadow-lg tracking-widest transition flex items-center gap-2 border border-purple-500 mr-2";
-        btn.innerHTML = `<i class="fas fa-book-dead"></i> Save to Bestiary`;
+        
+        const label = activeCloudId ? "Update Bestiary" : "Save to Bestiary";
+        btn.innerHTML = `<i class="fas fa-book-dead"></i> ${label}`;
         btn.onclick = () => handleSaveNpc(true); // true = save to cloud bestiary
         
         // Insert before the Cancel button
@@ -418,7 +426,13 @@ async function handleSaveNpc(toBestiary = false) {
         }
         
         try {
-            const npcId = cleanNpc.name.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() + "_" + Date.now();
+            let npcId;
+            if (activeCloudId) {
+                npcId = activeCloudId; // UPDATE EXISTING
+            } else {
+                npcId = cleanNpc.name.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() + "_" + Date.now(); // CREATE NEW
+            }
+
             const npcRef = doc(db, 'chronicles', stState.activeChronicleId, 'bestiary', npcId);
             
             await setDoc(npcRef, {
@@ -429,7 +443,9 @@ async function handleSaveNpc(toBestiary = false) {
                 created_at: new Date().toISOString()
             });
             
-            showNotification(`"${cleanNpc.name}" saved to Bestiary!`);
+            const actionVerb = activeCloudId ? "Updated" : "Saved";
+            showNotification(`"${cleanNpc.name}" ${actionVerb} in Bestiary!`);
+            
             document.getElementById('npc-modal').style.display = 'none';
             toggleDiceUI(true);
             
