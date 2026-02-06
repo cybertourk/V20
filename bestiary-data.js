@@ -1,12 +1,13 @@
 /**
  * V20 Bestiary Data
  * A library of pre-generated NPCs and Creatures for Storyteller Mode.
+ * Templates are set to "bestiary" to allow unlimited editing (no creation point limits).
  */
 
 export const BESTIARY = {
     "Lupines": {
         "Adolescent Werewolf": {
-            template: "animal", 
+            template: "bestiary", 
             name: "Adolescent Werewolf",
             species: "Werewolf",
             ghouled: false,
@@ -39,7 +40,7 @@ export const BESTIARY = {
             }
         },
         "Veteran Lupine": {
-            template: "animal",
+            template: "bestiary",
             name: "Veteran Lupine",
             species: "Werewolf",
             ghouled: false,
@@ -68,7 +69,7 @@ export const BESTIARY = {
             }
         },
         "Elder Shapeshifter": {
-            template: "animal",
+            template: "bestiary",
             name: "Elder Shapeshifter",
             species: "Werewolf",
             ghouled: false,
@@ -100,7 +101,7 @@ export const BESTIARY = {
     },
     "Witch-Hunters": {
         "Society of Leopold Inquisitor": {
-            template: "mortal",
+            template: "bestiary",
             name: "Leopold Inquisitor",
             species: "Mortal",
             attributes: {
@@ -137,7 +138,7 @@ export const BESTIARY = {
             }
         },
         "Government Agent": {
-            template: "mortal",
+            template: "bestiary",
             name: "Government Agent",
             species: "Mortal",
             attributes: {
@@ -160,12 +161,12 @@ export const BESTIARY = {
                 { name: "Surveillance Device", type: "Gear", status: "carried" }
             ],
             bio: {
-                Description: "An agent of the NSA, FBI (SAD), or similar organization. Likely aware of the existence of 'negative bodies' or 'extradimensionals' but may not understand true vampiric nature.",
+                Description: "A agent of the NSA, FBI (SAD), or similar organization. Likely aware of the existence of 'negative bodies' or 'extradimensionals' but may not understand true vampiric nature.",
                 Notes: "May have access to Chaoscopic scanners or infrared equipment."
             }
         },
         "Arcanum Scholar": {
-            template: "mortal",
+            template: "bestiary",
             name: "Arcanum Scholar",
             species: "Mortal",
             attributes: {
@@ -193,7 +194,7 @@ export const BESTIARY = {
     },
     "Criminals": {
         "Criminal Enforcer/Boss": {
-            template: "mortal",
+            template: "bestiary",
             name: "Criminal Enforcer",
             species: "Mortal",
             attributes: {
@@ -222,7 +223,7 @@ export const BESTIARY = {
     },
     "Magi": {
         "Young Cultist": {
-            template: "mortal",
+            template: "bestiary",
             name: "Young Cultist",
             species: "Mage",
             attributes: {
@@ -253,7 +254,7 @@ export const BESTIARY = {
             }
         },
         "High Wizard": {
-            template: "mortal",
+            template: "bestiary",
             name: "High Wizard",
             species: "Mage",
             attributes: {
@@ -285,7 +286,7 @@ export const BESTIARY = {
             }
         },
         "Technological Abomination": {
-            template: "mortal",
+            template: "bestiary",
             name: "Techno-Mage",
             species: "Mage",
             attributes: {
@@ -320,7 +321,7 @@ export const BESTIARY = {
     },
     "Faeries": {
         "Pooka Trickster": {
-            template: "mortal",
+            template: "bestiary",
             name: "Pooka Trickster",
             species: "Faerie",
             attributes: {
@@ -347,7 +348,7 @@ export const BESTIARY = {
             }
         },
         "Redcap Warrior": {
-            template: "mortal",
+            template: "bestiary",
             name: "Redcap Warrior",
             species: "Faerie",
             attributes: {
@@ -374,12 +375,12 @@ export const BESTIARY = {
             }
         },
         "Sidhe Enchantress": {
-            template: "mortal",
+            template: "bestiary",
             name: "Sidhe Enchantress",
             species: "Faerie",
             attributes: {
                 Strength: 2, Dexterity: 4, Stamina: 3,
-                Charisma: 4, Manipulation: 4, Appearance: 5, // V20 stat max is usually 5, but Sidhe are exceptions. Capped at 5 for sheet compatibility, noted in bio.
+                Charisma: 4, Manipulation: 4, Appearance: 5, 
                 Perception: 3, Intelligence: 3, Wits: 4
             },
             abilities: {
@@ -403,7 +404,7 @@ export const BESTIARY = {
     },
     "Ghosts": {
         "Recently Deceased": {
-            template: "mortal",
+            template: "bestiary",
             name: "Recently Deceased",
             species: "Wraith",
             attributes: {
@@ -430,7 +431,7 @@ export const BESTIARY = {
             }
         },
         "Spectre": {
-            template: "mortal",
+            template: "bestiary",
             name: "Spectre",
             species: "Wraith",
             attributes: {
@@ -456,7 +457,7 @@ export const BESTIARY = {
             }
         },
         "Old Soul": {
-            template: "mortal",
+            template: "bestiary",
             name: "Old Soul",
             species: "Wraith",
             attributes: {
@@ -485,7 +486,7 @@ export const BESTIARY = {
     },
     "Demons": {
         "Fallen Tempter": {
-            template: "mortal",
+            template: "bestiary",
             name: "Fallen Tempter",
             species: "Demon",
             attributes: {
@@ -511,7 +512,7 @@ export const BESTIARY = {
             }
         },
         "Earthbound Defiler": {
-            template: "mortal",
+            template: "bestiary",
             name: "Earthbound Defiler",
             species: "Demon",
             attributes: {
