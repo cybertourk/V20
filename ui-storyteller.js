@@ -3,7 +3,6 @@ import {
 } from "./firebase-config.js";
 import { showNotification } from "./ui-common.js";
 import { BESTIARY } from "./bestiary-data.js";
-import { GEN_LIMITS } from "./data.js"; // Added GEN_LIMITS for player sheet conversion
 import { 
     initCombatTracker, combatState, startCombat, endCombat, nextTurn, 
     addCombatant, removeCombatant, updateInitiative, rollNPCInitiative 
@@ -87,6 +86,7 @@ export function initStorytellerSystem() {
     // Roster Management
     window.stRemovePlayer = stRemovePlayer;
     window.stViewPlayerSheet = stViewPlayerSheet; // New Binding
+    window.returnToStoryteller = returnToStoryteller; // New Binding
 
     // GLOBAL PUSH API
     window.stPushNpc = async (npcData) => {
@@ -1094,7 +1094,7 @@ async function stRemovePlayer(id, name) {
     }
 }
 
-// --- NEW FUNCTION: VIEW PLAYER SHEET (Convert Player Data to NPC Format) ---
+// --- NEW FUNCTION: VIEW PLAYER SHEET (Full App View) ---
 function stViewPlayerSheet(playerId) {
     const player = stState.players[playerId];
     if (!player || !player.full_sheet) {
@@ -1102,51 +1102,60 @@ function stViewPlayerSheet(playerId) {
         return;
     }
 
-    const s = player.full_sheet;
-    
-    // Calculate Generation for derived stats
-    const genDots = s.dots.back['Generation'] || 0;
-    const generation = 13 - genDots;
-    const maxBlood = (GEN_LIMITS && GEN_LIMITS[generation]) ? GEN_LIMITS[generation].m : 10;
-    
-    // Transform Player State to NPC-like Object for Viewer
-    const viewData = {
-        name: s.textFields['c-name'] || "Unknown",
-        template: 'bestiary', // Use Bestiary/Unlimited template to render everything
-        
-        attributes: s.dots.attr || {},
-        abilities: s.dots.abil || {},
-        disciplines: s.dots.disc || {},
-        backgrounds: s.dots.back || {},
-        virtues: s.dots.virt || {},
-        
-        humanity: s.status.humanity || 7,
-        willpower: s.status.willpower || 5,
-        tempWillpower: s.status.tempWillpower,
-        
-        bloodPool: maxBlood,
-        currentBlood: s.status.blood,
-        
-        merits: (s.merits || []).reduce((acc, m) => { acc[m.name] = m.val; return acc; }, {}),
-        flaws: (s.flaws || []).reduce((acc, f) => { acc[f.name] = parseInt(f.val); return acc; }, {}),
-        
-        inventory: s.inventory || [],
-        
-        bio: {
-            Description: s.textFields['bio-desc'] || "",
-            Notes: `Player: ${s.textFields['c-player'] || 'Unknown'}\nClan: ${s.textFields['c-clan'] || 'Unknown'}\nGeneration: ${generation}\nSire: ${s.textFields['c-sire'] || 'Unknown'}`
-        },
-        
-        image: s.characterImage
-    };
+    // 1. Backup current ST state
+    window.stSavedLocalState = JSON.parse(JSON.stringify(window.state));
 
-    if (window.openNpcSheet) {
-        // Pass index null to prevent saving back to local retainer array
-        window.openNpcSheet(viewData, null); 
-    } else {
-        showNotification("Sheet viewer module not loaded.", "error");
+    // 2. Load Player Data into State
+    window.state = JSON.parse(JSON.stringify(player.full_sheet));
+    
+    // Force Play Mode
+    window.state.isPlayMode = true;
+    
+    // 3. Hide Dashboard
+    const dashboard = document.getElementById('st-dashboard-view');
+    if (dashboard) dashboard.classList.add('hidden');
+
+    // 4. Update UI
+    if (window.fullRefresh) window.fullRefresh();
+    if (window.applyPlayModeUI) window.applyPlayModeUI();
+
+    // 5. Show Return Button
+    let btn = document.getElementById('st-return-btn');
+    if (!btn) {
+        btn = document.createElement('button');
+        btn.id = 'st-return-btn';
+        // High Z-index to sit on top of everything
+        btn.className = 'fixed bottom-6 left-1/2 transform -translate-x-1/2 z-[9999] bg-[#8b0000] text-white px-6 py-3 rounded-full font-bold uppercase shadow-[0_0_20px_red] border-2 border-[#d4af37] animate-pulse hover:scale-105 transition-transform flex items-center gap-2';
+        btn.innerHTML = '<i class="fas fa-crown"></i> Return to Dashboard';
+        btn.onclick = window.returnToStoryteller;
+        document.body.appendChild(btn);
     }
+    btn.classList.remove('hidden');
+    
+    showNotification(`Viewing ${player.character_name}'s Sheet`);
 }
+
+function returnToStoryteller() {
+    // 1. Restore State
+    if (window.stSavedLocalState) {
+        window.state = window.stSavedLocalState;
+        window.stSavedLocalState = null;
+    }
+
+    // 2. Hide Button
+    const btn = document.getElementById('st-return-btn');
+    if (btn) btn.classList.add('hidden');
+
+    // 3. Show Dashboard
+    const dashboard = document.getElementById('st-dashboard-view');
+    if (dashboard) dashboard.classList.remove('hidden');
+
+    // 4. Refresh UI back to ST's character (background)
+    if (window.fullRefresh) window.fullRefresh();
+    
+    // 5. Ensure ST view is correct
+    if (window.renderStorytellerDashboard) window.renderStorytellerDashboard();
+};
 
 
 // --- VIEW 1: ROSTER ---
