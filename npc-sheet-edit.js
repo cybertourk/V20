@@ -52,6 +52,10 @@ export function renderEditorModal() {
     const tVal = ctx.activeNpc.template;
     // We treat anything not in the standard list as 'bestiary' for the dropdown selection state
     const isBestiarySel = !['mortal', 'ghoul', 'animal'].includes(tVal);
+    
+    // STORYTELLER CHECK: Only show Bestiary option if ST or if currently viewing a Bestiary NPC
+    const isST = window.stState && window.stState.isStoryteller;
+    const showBestiaryOption = isST || isBestiarySel;
 
     modal.innerHTML = `
         <div class="w-[95%] max-w-7xl h-[95%] bg-[#0a0a0a] border-2 border-[#8b0000] shadow-[0_0_50px_rgba(139,0,0,0.5)] flex flex-col relative font-serif">
@@ -65,7 +69,7 @@ export function renderEditorModal() {
                             <option value="mortal" ${tVal === 'mortal' ? 'selected' : ''}>Mortal</option>
                             <option value="ghoul" ${tVal === 'ghoul' ? 'selected' : ''}>Ghoul / Revenant</option>
                             <option value="animal" ${tVal === 'animal' ? 'selected' : ''}>Animal</option>
-                            <option value="bestiary" ${isBestiarySel ? 'selected' : ''}>Bestiary / Custom (Unlimited)</option>
+                            ${showBestiaryOption ? `<option value="bestiary" ${isBestiarySel ? 'selected' : ''}>Bestiary / Custom (Unlimited)</option>` : ''}
                         </select>
                         <i class="fas fa-caret-down text-xs ml-2 opacity-50"></i>
                     </h2>
@@ -879,7 +883,9 @@ function bindRemoveBtns() {
 
 function renderPrioButtons(cat, group) {
     if (!ctx.currentTemplate.getPriorities) return '';
-    const vals = ctx.currentTemplate.getPriorities()[cat];
+    const prios = ctx.currentTemplate.getPriorities();
+    if (!prios) return ''; 
+    const vals = prios[cat];
     if (!vals) return ''; 
 
     return vals.map(v => `<button class="npc-prio-btn w-6 h-6 rounded-full border border-gray-600 text-[9px] font-bold text-gray-400 hover:text-white hover:border-[#d4af37] transition-all" data-cat="${cat}" data-group="${group}" data-val="${v}">${v}</button>`).join('');
