@@ -15,6 +15,7 @@ import {
 import { renderJournalTab } from "./ui-journal.js";
 import { renderPrintSheet } from "./ui-print.js";
 import { renderRitualsEdit } from "./ui-advantages.js";
+import { CLAN_DISCIPLINES } from "./data.js"; // Needed for clan buckets
 
 // REMOVED IMPORTS FROM ui-play.js TO PREVENT CIRCULAR DEPENDENCY ERRORS
 // We will access renderNpcTab and renderChronicleTab via window object
@@ -281,7 +282,7 @@ export function toggleXpMode() {
         if(window.state.xpMode) {
             sb.classList.remove('hidden');
             setTimeout(() => sb.classList.add('open'), 10);
-            if(window.renderXpSidebar) window.renderXpSidebar();
+            renderXpSidebar(); // Call renderXpSidebar when opening
         } else {
             sb.classList.remove('open');
             setTimeout(() => sb.classList.add('hidden'), 300);
@@ -296,93 +297,153 @@ export function renderXpSidebar() {
     if (!window.state.xpMode) return;
     const log = window.state.xpLog || [];
     
-    // Calculate totals
-    const costs = {
-        attr: 0,
-        abil: 0,
-        disc: 0,
-        virt: 0,
-        humanity: 0,
-        willpower: 0,
-        back: 0
+    // Cost Buckets for V20 breakdown
+    let buckets = { 
+        newAbil: 0, newDisc: 0, newPath: 0, 
+        attr: 0, abil: 0, clanDisc: 0, otherDisc: 0, caitiffDisc: 0, 
+        secPath: 0, virt: 0, humanity: 0, willpower: 0 
     };
-    
-    let totalSpent = 0;
 
-    log.forEach(l => {
-        const c = parseInt(l.cost) || 0;
-        totalSpent += c;
-        
-        if (l.type === 'attr') costs.attr += c;
-        else if (l.type === 'abil') costs.abil += c;
-        else if (l.type === 'disc' || l.type === 'path') costs.disc += c;
-        else if (l.type === 'virt') costs.virt += c;
-        else if (l.type === 'humanity') costs.humanity += c;
-        else if (l.type === 'willpower') costs.willpower += c;
-        else if (l.type === 'back') costs.back += c;
+    const clan = window.state.textFields['c-clan'] || document.getElementById('c-clan')?.value || "None";
+    const isCaitiff = clan === "Caitiff";
+    const clanDiscs = CLAN_DISCIPLINES[clan] || [];
+    const primThaum = window.state.primaryThaumPath;
+    const primNecro = window.state.primaryNecroPath;
+
+    log.forEach(entry => {
+        const isNew = entry.old === 0;
+        const name = entry.trait || "";
+        const type = entry.type;
+        const cost = entry.cost;
+
+        if (type === 'abil') { 
+            if (isNew) buckets.newAbil += cost; 
+            else buckets.abil += cost; 
+        } 
+        else if (type === 'attr') buckets.attr += cost;
+        else if (type === 'disc') {
+            const isPrimary = (name === primThaum || name === primNecro);
+            const isPathName = name.toLowerCase().includes('path');
+            
+            if (isPathName && !isPrimary) { 
+                if (isNew) buckets.newPath += cost; 
+                else buckets.secPath += cost; 
+            } 
+            else {
+                if (isNew) buckets.newDisc += cost;
+                else {
+                    let checkName = name;
+                    if (name === primThaum) checkName = 'Thaumaturgy';
+                    if (name === primNecro) checkName = 'Necromancy';
+                    
+                    if (isCaitiff) buckets.caitiffDisc += cost;
+                    else if (clanDiscs.includes(checkName)) buckets.clanDisc += cost;
+                    else buckets.otherDisc += cost;
+                }
+            }
+        }
+        else if (type === 'virt') buckets.virt += cost;
+        else if (type === 'humanity' || (type === 'status' && name === 'Humanity')) buckets.humanity += cost;
+        else if (type === 'willpower' || (type === 'status' && name === 'Willpower')) buckets.willpower += cost;
+        else if (type === 'path') buckets.secPath += cost;
+        // Backgrounds (if any) usually x1 or x3 depending on ST, we'll bucket them generically or ignore if not tracked
     });
 
+    const sb = document.getElementById('xp-sidebar');
+    if (!sb) return;
+    
+    // Clear and Rebuild
+    sb.innerHTML = '';
+    
+    // Re-add Toggle Button
+    const toggleBtn = document.createElement('div');
+    toggleBtn.id = 'xp-sb-toggle-btn';
+    toggleBtn.className = "absolute right-[-24px] top-0 w-6 h-20 bg-purple-900 border border-purple-500 border-l-0 text-white text-[10px] font-bold flex items-center justify-center cursor-pointer [writing-mode:vertical-rl] [text-orientation:mixed] tracking-widest uppercase rounded-r shadow-md hover:bg-purple-800";
+    toggleBtn.innerText = "Ledger";
+    toggleBtn.onclick = () => window.toggleXpSidebarLedger();
+    sb.appendChild(toggleBtn);
+    
+    const title = document.createElement('h3'); 
+    title.className = "heading text-purple-400 text-sm border-b border-purple-500 pb-2 mb-4 text-center"; 
+    title.innerText = "Experience Ledger"; 
+    sb.appendChild(title);
+    
+    const listDiv = document.createElement('div'); 
+    listDiv.className = "space-y-2 text-xs";
+    
+    const addRow = (label, val, highlight = false) => { 
+        const row = document.createElement('div'); 
+        row.className = "cost-row"; 
+        const valClass = highlight ? "text-purple-300 font-bold" : "text-gray-400 font-bold"; 
+        row.innerHTML = `<span class="text-gray-400">${label}</span><span class="cost-val ${valClass} bg-black/95 z-10 shrink-0">${val}</span>`; 
+        listDiv.appendChild(row); 
+    };
+    
+    addRow("New Ability (3)", buckets.newAbil);
+    addRow("New Discipline (10)", buckets.newDisc);
+    addRow("New Path (7)", buckets.newPath);
+    addRow("Attribute (Cur x4)", buckets.attr);
+    addRow("Ability (Cur x2)", buckets.abil);
+    
+    if (isCaitiff) {
+        addRow("Discipline (Cur x6)*", buckets.caitiffDisc, true);
+    } else { 
+        addRow("Clan Disc (Cur x5)*", buckets.clanDisc); 
+        addRow("Other Disc (Cur x7)*", buckets.otherDisc); 
+    }
+    
+    addRow("Sec. Path (Cur x4)", buckets.secPath);
+    addRow("Virtue (Cur x2)**", buckets.virt);
+    addRow("Humanity/Path (Cur x2)", buckets.humanity);
+    addRow("Willpower (Cur x1)", buckets.willpower);
+
+    const totalSpent = Object.values(buckets).reduce((a,b) => a+b, 0);
     const totalEarned = parseInt(document.getElementById('c-xp-total')?.value) || 0;
-    const remaining = totalEarned - totalSpent;
+    
+    const divTotal = document.createElement('div'); 
+    divTotal.className = "mt-4 pt-2 border-t border-[#444] flex justify-between font-bold text-sm"; 
+    divTotal.innerHTML = `<span>Total Spent:</span><span class="text-purple-400">${totalSpent}</span>`; 
+    listDiv.appendChild(divTotal);
+    
+    const divRemain = document.createElement('div'); 
+    divRemain.className = "flex justify-between font-bold text-sm"; 
+    divRemain.innerHTML = `<span>Remaining:</span><span class="text-white">${totalEarned - totalSpent}</span>`; 
+    listDiv.appendChild(divRemain);
+    
+    sb.appendChild(listDiv);
 
-    // UPDATE BY ID (Preserves index.html structure)
-    const setVal = (id, val) => {
-        const el = document.getElementById(id);
-        if(el) el.innerText = val;
-    }
-
-    setVal('sb-xp-attr', costs.attr);
-    setVal('sb-xp-abil', costs.abil);
-    setVal('sb-xp-disc', costs.disc);
-    setVal('sb-xp-virt', costs.virt);
-    setVal('sb-xp-human', costs.humanity);
-    setVal('sb-xp-will', costs.willpower);
-    setVal('sb-xp-spent', totalSpent);
-    setVal('sb-xp-remaining', remaining);
-
-    const remEl = document.getElementById('sb-xp-remaining');
-    if(remEl) remEl.className = remaining < 0 ? 'text-red-500 font-bold' : 'text-white font-bold';
-
-    // DYNAMIC BACKGROUNDS ROW
-    // Check if we need to insert the backgrounds row (it's not in the static HTML by default)
-    let backSpan = document.getElementById('sb-xp-back');
-    if (costs.back > 0) {
-        if (!backSpan) {
-            // Find container to inject
-            const container = document.querySelector('#xp-sidebar .space-y-2');
-            const totalRow = container ? container.querySelector('.border-t') : null;
-            if (container && totalRow) {
-                const div = document.createElement('div');
-                div.className = 'cost-row dynamic-back-row';
-                div.innerHTML = `<span class="text-gray-400">Backgrounds</span><span id="sb-xp-back" class="cost-val text-purple-400 font-bold bg-black/95 z-10 shrink-0">${costs.back}</span>`;
-                container.insertBefore(div, totalRow);
-            }
-        } else {
-            backSpan.innerText = costs.back;
-        }
+    const logContainer = document.createElement('div'); 
+    logContainer.className = "mt-4"; 
+    logContainer.innerHTML = `<h4 class="text-[9px] uppercase text-gray-500 font-bold mb-1 tracking-wider">Session Log</h4>`;
+    
+    const logInner = document.createElement('div'); 
+    logInner.id = "xp-log-recent"; 
+    logInner.className = "text-[9px] text-gray-400 h-24 overflow-y-auto border border-[#333] p-1 font-mono bg-white/5 custom-scrollbar";
+    
+    if(log.length > 0) { 
+        logInner.innerHTML = log.slice().reverse().map(l => { 
+            const d = new Date(l.date).toLocaleDateString(undefined, {month:'short', day:'numeric'}); 
+            // Handle different log formats: old format (trait, new, cost) vs new format (entry)
+            let text = l.entry ? l.entry : `${l.trait} -> ${l.new}`;
+            return `<div class="border-b border-gray-800 py-1">
+                <div class="flex justify-between"><span class="text-gray-300">[${d}]</span> <span class="text-purple-400 font-bold">-${l.cost}</span></div>
+                <div class="pl-2 truncate" title="${text}">${text}</div>
+            </div>`; 
+        }).join(''); 
     } else {
-        // Remove if it exists and count is 0
-        const dynamicRow = document.querySelector('.dynamic-back-row');
-        if (dynamicRow) dynamicRow.remove();
-        else if (backSpan) backSpan.innerText = 0;
+        logInner.innerHTML = '<div class="text-gray-600 italic p-2">No XP spent yet.</div>';
     }
-
-    // LOGS
-    const logInner = document.getElementById("xp-log-recent");
-    if(logInner) {
-        if(log.length > 0) { 
-            logInner.innerHTML = log.slice().reverse().map(l => { 
-                const d = new Date(l.date).toLocaleDateString(undefined, {month:'short', day:'numeric'}); 
-                let text = l.entry ? l.entry : `${l.trait} -> ${l.new}`;
-                return `<div class="border-b border-gray-800 py-1">
-                    <div class="flex justify-between"><span class="text-gray-300">[${d}]</span> <span class="text-purple-400 font-bold">-${l.cost}</span></div>
-                    <div class="pl-2 truncate" title="${text}">${text}</div>
-                </div>`; 
-            }).join(''); 
-        } else {
-            logInner.innerHTML = '<div class="text-gray-600 italic p-2">No XP spent yet.</div>';
-        }
-    }
+    
+    logContainer.appendChild(logInner); 
+    sb.appendChild(logContainer);
+    
+    const footer = document.createElement('div'); 
+    footer.className = "mt-4 pt-2 border-t border-[#444] text-[8px] text-gray-500 italic leading-tight"; 
+    let footerText = `<div>** Virtues do not raise Traits.</div>`; 
+    if (isCaitiff) footerText += `<div class="mt-1 text-purple-400">* Caitiff cost is x6 (Curse/Blessing).</div>`; 
+    else footerText += `<div class="mt-1">* In-Clan/Out-of-Clan multiplier.</div>`; 
+    footer.innerHTML = footerText; 
+    sb.appendChild(footer);
 }
 window.renderXpSidebar = renderXpSidebar;
 
