@@ -30,7 +30,11 @@ export function renderEditorModal() {
     const archOptions = (ARCHETYPES || []).sort().map(a => `<option value="${a}">${a}</option>`).join('');
     const clanOptions = (CLANS || []).sort().map(c => `<option value="${c}" ${ctx.activeNpc.domitorClan === c ? 'selected' : ''}>${c}</option>`).join('');
     
-    const extrasHtml = ctx.currentTemplate.renderIdentityExtras ? ctx.currentTemplate.renderIdentityExtras(ctx.activeNpc) : '';
+    // Check if current template is standard
+    const isStandard = ['mortal', 'ghoul', 'animal'].includes(ctx.activeNpc.template);
+    // If not standard (e.g. 'bestiary' or undefined), default to mortal-like features but don't crash
+    
+    const extrasHtml = (isStandard && ctx.currentTemplate.renderIdentityExtras) ? ctx.currentTemplate.renderIdentityExtras(ctx.activeNpc) : '';
     const f = ctx.currentTemplate.features || { disciplines: true, bloodPool: true, virtues: true, backgrounds: true, humanity: true };
     
     const isGhoul = ctx.activeNpc.template === 'ghoul';
@@ -45,6 +49,10 @@ export function renderEditorModal() {
         displayImage = window.convertGoogleDriveLink(displayImage);
     }
 
+    // Determine selection state for template dropdown
+    const tVal = ctx.activeNpc.template;
+    const isBestiary = !isStandard;
+
     modal.innerHTML = `
         <div class="w-[95%] max-w-7xl h-[95%] bg-[#0a0a0a] border-2 border-[#8b0000] shadow-[0_0_50px_rgba(139,0,0,0.5)] flex flex-col relative font-serif">
             
@@ -54,9 +62,10 @@ export function renderEditorModal() {
                     <h2 class="text-2xl font-cinzel text-[#d4af37] font-bold tracking-widest uppercase shadow-black drop-shadow-md flex items-center">
                         <i class="fas fa-user-edit mr-3 text-[#8b0000]"></i>
                         <select id="npc-type-selector" class="bg-transparent border-none text-[#d4af37] font-bold uppercase focus:outline-none cursor-pointer hover:text-white transition-colors appearance-none">
-                            <option value="mortal" ${ctx.activeNpc.template === 'mortal' ? 'selected' : ''}>Mortal</option>
-                            <option value="ghoul" ${ctx.activeNpc.template === 'ghoul' ? 'selected' : ''}>Ghoul / Revenant</option>
-                            <option value="animal" ${ctx.activeNpc.template === 'animal' ? 'selected' : ''}>Animal</option>
+                            <option value="mortal" ${tVal === 'mortal' ? 'selected' : ''}>Mortal</option>
+                            <option value="ghoul" ${tVal === 'ghoul' ? 'selected' : ''}>Ghoul / Revenant</option>
+                            <option value="animal" ${tVal === 'animal' ? 'selected' : ''}>Animal</option>
+                            ${isBestiary ? `<option value="bestiary" selected>Bestiary / Custom</option>` : ''}
                         </select>
                         <i class="fas fa-caret-down text-xs ml-2 opacity-50"></i>
                     </h2>
@@ -209,7 +218,7 @@ export function renderEditorModal() {
                                 </div>
                             </div>
 
-                            ${ctx.currentTemplate.renderBio ? ctx.currentTemplate.renderBio(ctx.activeNpc) : `
+                            ${(isStandard && ctx.currentTemplate.renderBio) ? ctx.currentTemplate.renderBio(ctx.activeNpc) : `
                                 <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
                                     <div class="space-y-4">
                                         ${VIT.filter(v => !EXCLUDED_VITALS.includes(v)).map(v => `<div class="flex justify-between items-center border-b border-[#333] pb-1"><label class="label-text text-[#d4af37] w-1/3">${v}</label><input type="text" class="npc-bio w-2/3 bg-transparent text-white text-xs text-right focus:outline-none" data-field="${v}" value="${ctx.activeNpc.bio[v]||''}"></div>`).join('')}
@@ -287,7 +296,7 @@ export function renderEditorModal() {
 
             <!-- FOOTER -->
             <div class="p-4 border-t border-[#444] bg-[#050505] flex justify-between items-center shrink-0">
-                <div class="text-[10px] text-gray-500 italic">Mode: ${ctx.currentTemplate.label}</div>
+                <div class="text-[10px] text-gray-500 italic">Mode: ${isStandard ? ctx.currentTemplate.label : 'Unlimited / Bestiary'}</div>
                 <div class="flex gap-4">
                     <button id="npc-cancel" class="border border-[#444] text-gray-400 px-6 py-2 uppercase font-bold text-xs hover:bg-[#222] hover:text-white transition">Cancel</button>
                     <button id="npc-save" class="bg-[#8b0000] text-white px-8 py-2 uppercase font-bold text-xs hover:bg-red-700 shadow-lg tracking-widest transition flex items-center gap-2">
@@ -383,6 +392,14 @@ export function renderEditorModal() {
     if(bxp) bxp.onclick = () => callbacks.toggleMode('xp');
     if(bfb) bfb.onclick = () => callbacks.toggleMode('freebie');
     
+    // Bind Bestiary Badge click
+    const badge = document.getElementById('npc-unlimited-badge');
+    if (badge) {
+        badge.onclick = () => {
+            showNotification("UNLIMITED MODE ACTIVE: All editing rules bypassed.");
+        };
+    }
+
     document.getElementById('btn-import-npc').onclick = () => document.getElementById('file-import-npc').click();
     document.getElementById('file-import-npc').onchange = callbacks.importData;
     document.getElementById('btn-export-npc').onclick = callbacks.exportData;
@@ -556,7 +573,7 @@ export function renderEditorModal() {
         updateXpLog();
     };
 
-    if (ctx.currentTemplate.setupListeners) {
+    if (isStandard && ctx.currentTemplate.setupListeners) {
         ctx.currentTemplate.setupListeners(modal, ctx.activeNpc, () => {
              updateVirtueDisplay();
              renderAllDots(); 
@@ -607,9 +624,13 @@ export function updateModeUI() {
             if (container) {
                 badge = document.createElement('div');
                 badge.id = 'npc-unlimited-badge';
-                badge.className = "text-[#d4af37] font-bold text-[10px] uppercase border border-[#d4af37] px-2 py-1 bg-[#d4af37]/10 ml-2 animate-pulse rounded select-none cursor-help";
+                badge.className = "text-[#d4af37] font-bold text-[10px] uppercase border border-[#d4af37] px-2 py-1 bg-[#d4af37]/10 ml-2 animate-pulse rounded select-none cursor-help hover:bg-[#d4af37]/30 transition-colors";
                 badge.title = "Unlimited editing for Official/Bestiary entries";
                 badge.innerHTML = "<i class='fas fa-infinity mr-1'></i> Bestiary Mode";
+                
+                // Add explicit listener if rendered dynamically
+                badge.onclick = () => showNotification("UNLIMITED MODE ACTIVE: All editing rules bypassed.");
+                
                 container.appendChild(badge);
             }
         }
@@ -908,9 +929,14 @@ export function updatePrioritiesUI() {
 }
 
 function updateVirtueDisplay() {
-    const limit = ctx.currentTemplate.getVirtueLimit(ctx.activeNpc);
+    // Safety check for templates that don't enforce virtue limits (Bestiary/Unlimited)
+    const limit = (ctx.currentTemplate && ctx.currentTemplate.getVirtueLimit) ? ctx.currentTemplate.getVirtueLimit(ctx.activeNpc) : 'N/A';
+    
     const el = document.getElementById('virtue-limit-display');
-    if(el) el.innerText = `(Max ${limit} Dots)`;
+    if(el) {
+        if (limit === 'N/A') el.innerText = '';
+        else el.innerText = `(Max ${limit} Dots)`;
+    }
 }
 
 export function updateXpLog() {
