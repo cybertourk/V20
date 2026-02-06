@@ -3,6 +3,7 @@ import {
 } from "./firebase-config.js";
 import { showNotification } from "./ui-common.js";
 import { BESTIARY } from "./bestiary-data.js";
+import { GEN_LIMITS } from "./data.js"; // Added GEN_LIMITS for player sheet conversion
 import { 
     initCombatTracker, combatState, startCombat, endCombat, nextTurn, 
     addCombatant, removeCombatant, updateInitiative, rollNPCInitiative 
@@ -85,6 +86,7 @@ export function initStorytellerSystem() {
     
     // Roster Management
     window.stRemovePlayer = stRemovePlayer;
+    window.stViewPlayerSheet = stViewPlayerSheet; // New Binding
 
     // GLOBAL PUSH API
     window.stPushNpc = async (npcData) => {
@@ -762,6 +764,8 @@ function startPlayerSync() {
         try {
             await setDoc(stState.playerRef, {
                 character_name: document.getElementById('c-name')?.value || "Unknown",
+                // ADDED: Sync full sheet state so ST can view it
+                full_sheet: window.state || {}, 
                 live_stats: {
                     health: window.state.status.health_states || [],
                     willpower: window.state.status.tempWillpower || 0,
@@ -1090,6 +1094,61 @@ async function stRemovePlayer(id, name) {
     }
 }
 
+// --- NEW FUNCTION: VIEW PLAYER SHEET (Convert Player Data to NPC Format) ---
+function stViewPlayerSheet(playerId) {
+    const player = stState.players[playerId];
+    if (!player || !player.full_sheet) {
+        showNotification("Sheet data not yet synced. Wait for player update.", "error");
+        return;
+    }
+
+    const s = player.full_sheet;
+    
+    // Calculate Generation for derived stats
+    const genDots = s.dots.back['Generation'] || 0;
+    const generation = 13 - genDots;
+    const maxBlood = (GEN_LIMITS && GEN_LIMITS[generation]) ? GEN_LIMITS[generation].m : 10;
+    
+    // Transform Player State to NPC-like Object for Viewer
+    const viewData = {
+        name: s.textFields['c-name'] || "Unknown",
+        template: 'bestiary', // Use Bestiary/Unlimited template to render everything
+        
+        attributes: s.dots.attr || {},
+        abilities: s.dots.abil || {},
+        disciplines: s.dots.disc || {},
+        backgrounds: s.dots.back || {},
+        virtues: s.dots.virt || {},
+        
+        humanity: s.status.humanity || 7,
+        willpower: s.status.willpower || 5,
+        tempWillpower: s.status.tempWillpower,
+        
+        bloodPool: maxBlood,
+        currentBlood: s.status.blood,
+        
+        merits: (s.merits || []).reduce((acc, m) => { acc[m.name] = m.val; return acc; }, {}),
+        flaws: (s.flaws || []).reduce((acc, f) => { acc[f.name] = parseInt(f.val); return acc; }, {}),
+        
+        inventory: s.inventory || [],
+        
+        bio: {
+            Description: s.textFields['bio-desc'] || "",
+            Notes: `Player: ${s.textFields['c-player'] || 'Unknown'}\nClan: ${s.textFields['c-clan'] || 'Unknown'}\nGeneration: ${generation}\nSire: ${s.textFields['c-sire'] || 'Unknown'}`
+        },
+        
+        image: s.characterImage
+    };
+
+    if (window.openNpcSheet) {
+        // Pass index null to prevent saving back to local retainer array
+        window.openNpcSheet(viewData, null); 
+    } else {
+        showNotification("Sheet viewer module not loaded.", "error");
+    }
+}
+
+
 // --- VIEW 1: ROSTER ---
 function renderRosterView() {
     const viewport = document.getElementById('st-viewport');
@@ -1121,6 +1180,12 @@ function renderRosterView() {
 
         const statusColor = isOnline ? 'bg-green-500 shadow-[0_0_5px_lime]' : 'bg-red-500 opacity-50';
         const statusTitle = isOnline ? 'Online' : `Offline (Last seen: ${lastActive.toLocaleTimeString()})`;
+        
+        // Check if full sheet data is available
+        const hasSheet = !!p.full_sheet;
+        const sheetBtnClass = hasSheet 
+            ? "text-blue-400 hover:text-white border-blue-900/30 hover:bg-blue-900" 
+            : "text-gray-600 border-gray-800 cursor-not-allowed opacity-50";
 
         html += `
             <div class="bg-[#1a1a1a] border border-[#333] rounded p-3 shadow-lg relative group hover:border-[#d4af37] transition-all flex flex-col justify-between aspect-square">
@@ -1152,9 +1217,13 @@ function renderRosterView() {
                     </div>
                 </div>
 
-                <div class="mt-auto">
-                    <button class="w-full bg-[#2a0a0a] border border-red-900/30 text-[10px] py-2 text-red-400 hover:text-white hover:bg-red-900 hover:border-red-500 uppercase font-bold rounded transition-colors" onclick="window.stAddToCombat({id:'${p.id}', name:'${p.character_name}'}, 'Player')">
-                        Add to Combat
+                <div class="mt-auto flex gap-1">
+                    <button class="flex-1 border text-[9px] py-1 uppercase font-bold rounded transition-colors ${sheetBtnClass}" 
+                            onclick="${hasSheet ? `window.stViewPlayerSheet('${p.id}')` : ''}" title="${hasSheet ? 'View Sheet' : 'Waiting for Sync...'}">
+                        <i class="fas fa-eye"></i> Sheet
+                    </button>
+                    <button class="flex-1 bg-[#2a0a0a] border border-red-900/30 text-[9px] py-1 text-red-400 hover:text-white hover:bg-red-900 hover:border-red-500 uppercase font-bold rounded transition-colors" onclick="window.stAddToCombat({id:'${p.id}', name:'${p.character_name}'}, 'Player')">
+                        <i class="fas fa-swords"></i> Fight
                     </button>
                 </div>
             </div>
