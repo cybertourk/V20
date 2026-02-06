@@ -2,6 +2,7 @@
  * V20 Bestiary Data
  * A library of pre-generated NPCs and Creatures for Storyteller Mode.
  * Templates are set to "bestiary" to allow unlimited editing (no creation point limits).
+ * * Source: Vampire: The Masquerade 20th Anniversary Edition
  */
 
 export const BESTIARY = {
@@ -27,16 +28,11 @@ export const BESTIARY = {
             },
             willpower: 5,
             humanity: 7,
-            bloodPool: 4, // Representing Gnosis
-            healthConfig: [
-                { l: 'OK', p: 0 }, { l: '-1', p: -1 }, { l: '-1', p: -1 },
-                { l: '-2', p: -2 }, { l: '-2', p: -2 }, { l: '-5', p: -5 },
-                { l: 'Incapacitated', p: 0 }
-            ],
-            naturalWeapons: "Battle Form: Double Physical Attributes. 4-6 Actions/Turn. Regenerates 1 Health/Turn. Soak Lethal/Aggravated with Stamina. Weakness: Silver (No Soak).",
+            bloodPool: 4, // Gnosis
+            naturalWeapons: "Battle Form (Crinos): Physical Attributes Doubled. Delirium effect. \nRegeneration: 1 Health Level/turn (except Fire/Silver/Agg). \nSoak: Can soak Lethal/Aggravated with Stamina. Bashing not halved. \nWeakness: Silver (Cannot soak, agg damage).",
             bio: {
-                Description: "A young, fierce warrior of Gaia. Capable of shifting into a crinos battle form that induces Delirium in mortals.",
-                Notes: "Gnosis: 4. Rage: High."
+                Description: "A young shapeshifter, new to the war but terrifying nonetheless.",
+                Notes: "GNOSIS: 4. \n\nVAMPIRE FEEDING: Contains ~20 BP worth of blood. Drinking causes Frenzy checks (+1 diff per point) and paranoia/temper."
             }
         },
         "Veteran Lupine": {
@@ -62,10 +58,10 @@ export const BESTIARY = {
             willpower: 7,
             humanity: 6,
             bloodPool: 6, // Gnosis
-            naturalWeapons: "Battle Form: Double Physical Attributes. Multiple Actions. Regenerates 1 Health/Turn. Soak Lethal/Aggravated with Stamina. Weakness: Silver.",
+            naturalWeapons: "Battle Form (Crinos): Physical Attributes Doubled. Delirium effect. \nRegeneration: 1 Health Level/turn. \nSoak: Can soak Lethal/Aggravated with Stamina. \nWeakness: Silver (Cannot soak).",
             bio: {
-                Description: "A hardened warrior who has survived many battles. Dangerous and cunning.",
-                Notes: "Gnosis: 6."
+                Description: "A hardened warrior who has survived many battles. Capable of multiple actions per turn.",
+                Notes: "GNOSIS: 6. \n\nVAMPIRE FEEDING: Drinking risks Frenzy and temporary Derangements."
             }
         },
         "Elder Shapeshifter": {
@@ -87,15 +83,16 @@ export const BESTIARY = {
             },
             disciplines: {
                 Celerity: 6, Dominate: 2, Fortitude: 2,
-                Obfuscate: 3, Potence: 3, Protean: 4
+                Obfuscate: 3, Potence: 3, Protean: 4, 
+                "Other Discipline": 4
             },
             willpower: 9,
             humanity: 5,
             bloodPool: 8, // Gnosis
-            naturalWeapons: "Battle Form: Double Physical Attributes. Master of Spirits. Regenerates. Soak Lethal/Aggravated. Weakness: Silver.",
+            naturalWeapons: "Battle Form (Crinos): Physical Attributes Doubled. \nRegeneration: 1 Health Level/turn. \nSoak: Can soak Lethal/Aggravated. \nWeakness: Silver.",
             bio: {
-                Description: "A legendary leader of the pack. Possesses strange mystical powers akin to Thaumaturgy.",
-                Notes: "Gnosis: 8. One other Discipline at 4."
+                Description: "A legendary leader of the pack. One werewolf is a match for a coterie; this one matches elders.",
+                Notes: "GNOSIS: 8. \n\nHas one additional Discipline-equivalent power at rating 4."
             }
         }
     },
