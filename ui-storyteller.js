@@ -795,6 +795,7 @@ function startPlayerSync() {
             renderMessageList(stContainer, stState.chatHistory);
         }
     }
+}
 
 function startPlayerListeners(chronicleId) {
     const q = query(collection(db, 'chronicles', chronicleId, 'players'));
@@ -1361,13 +1362,17 @@ function renderNpcCard(entry, id, isCustom, container, clearFirst = false) {
     const card = document.createElement('div');
     card.className = "bg-[#111] border border-[#333] p-3 rounded shadow-lg hover:border-[#555] transition-all group relative flex flex-col";
     
+    // UPDATED ACTION BUTTONS: Copy for Static, Edit/Delete for Custom
     let actionsHtml = '';
     if (isCustom) {
+        // Custom = Edit / Delete
         actionsHtml = `
             <button onclick="event.stopPropagation(); window.deleteCloudNpc('${id}')" class="text-red-900 hover:text-red-500 p-1" title="Delete"><i class="fas fa-trash"></i></button>
             <button class="bg-[#222] hover:bg-[#333] text-gray-300 px-2 py-1 text-[9px] font-bold uppercase rounded border border-[#444]" onclick='event.stopPropagation(); window.editCloudNpc("${id}")'>Edit</button>
         `;
     } else {
+        // Static = Copy to Custom (Allows editing copy)
+        // Passing full name string for lookup
         actionsHtml = `<button class="bg-blue-900/30 hover:bg-blue-900/50 text-blue-200 px-2 py-1 text-[9px] font-bold uppercase rounded border border-blue-800" onclick='event.stopPropagation(); window.copyStaticNpc("${name}")'>Copy</button>`;
     }
 
@@ -1400,6 +1405,9 @@ function renderNpcCard(entry, id, isCustom, container, clearFirst = false) {
 function startChatListener(chronicleId) {
     if (stState.chatUnsub) stState.chatUnsub();
     
+    // FIX: Do NOT bind player inputs here. ui-play.js handles its own input binding.
+    // Overwriting the onclick handler here was causing the Whisper logic to be bypassed.
+
     // Query messages (Limit to 100 recent)
     const q = query(
         collection(db, 'chronicles', chronicleId, 'messages'), 
@@ -1851,12 +1859,34 @@ function handleAddToCombat(entity, type) {
     showNotification(`${entity.name} added to Combat`);
 }
 
-window.copyStaticNpc = function(name) {
+// UPDATED: CREATE CUSTOM COPY FROM STATIC
+window.copyStaticNpc = async function(name) {
     let found = null;
-    for(const cat in BESTIARY) { if(BESTIARY[cat][name]) found = BESTIARY[cat][name]; }
-    if(found && window.openNpcCreator) { 
-        window.openNpcCreator(found.template||'mortal', found); 
-        showNotification("Template Loaded. Use 'Save to Bestiary' to edit."); 
+    // 1. Find the Static Template
+    for (const cat in BESTIARY) { 
+        if (BESTIARY[cat][name]) {
+            found = { ...BESTIARY[cat][name] }; // Shallow Clone
+            break;
+        }
+    }
+
+    if (found && stState.activeChronicleId) { 
+        // 2. Generate new ID
+        const newId = "npc_" + Date.now();
+        const customName = `${found.name} (Copy)`;
+
+        // 3. Save to Firestore as "Custom" entry
+        try {
+            await setDoc(doc(db, 'chronicles', stState.activeChronicleId, 'bestiary', newId), {
+                name: customName,
+                type: "Custom",
+                data: { ...found, name: customName } // Override name in payload
+            });
+            showNotification(`Created customizable copy: ${customName}`);
+        } catch(e) {
+            console.error("Copy Failed", e);
+            showNotification("Failed to copy NPC.", "error");
+        }
     }
 };
 
@@ -1872,7 +1902,19 @@ window.deleteCloudNpc = async function(id) {
 window.editCloudNpc = function(id) {
     const entry = stState.bestiary[id];
     if(entry && entry.data && window.openNpcCreator) {
-        window.openNpcCreator(entry.type, entry.data);
+        // Use entry.data which contains the full stat block
+        const type = entry.data.template || 'mortal'; 
+        
+        // Open Editor with the custom ID so it saves back to the right place
+        // Note: openNpcCreator usually handles local arrays, we need to ensure it handles Cloud Updates
+        // Actually, we usually pass an index. Here we pass the object.
+        // We'll need to hook the Save action in NPC Creator or handle it here?
+        // Current implementation of npc-creator typically saves to window.state.retainers.
+        
+        // TEMPORARY FIX: Launch Creator in "Cloud Mode" if possible, or just copy to local retainer temporarily?
+        // Better: Just launch it. If openNpcCreator supports object passing.
+        
+        window.openNpcCreator(type, entry.data, null, id); // Pass ID as 3rd arg context
         showNotification("Editing NPC...");
         exitStorytellerDashboard(); 
     }
@@ -1887,7 +1929,7 @@ window.previewStaticNpc = function(category, key) {
     }
 };
 
-// --- CHAT REFRESH HELPER (NEW) ---
+// --- CHAT REFRESH HELPER ---
 function refreshChatUI() {
     // Re-render Player Chat (Sidebar/Tab)
     const pContainer = document.getElementById('chronicle-chat-history');
