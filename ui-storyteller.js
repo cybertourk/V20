@@ -3,15 +3,14 @@ import {
 } from "./firebase-config.js";
 import { showNotification } from "./ui-common.js";
 import { BESTIARY } from "./bestiary-data.js";
+import { GEN_LIMITS } from "./data.js";
 import { 
     initCombatTracker, combatState, startCombat, endCombat, nextTurn, 
     addCombatant, removeCombatant, updateInitiative, rollNPCInitiative 
 } from "./combat-tracker.js";
 
-// IMPORT NEW JOURNAL LOGIC
 import { renderStorytellerJournal, updateJournalList } from "./ui-journal.js";
 
-// IMPORT CHAT MODEL
 import { 
     initChatSystem, startChatListener, sendChronicleMessage, 
     stClearChat, stExportChat, stSetWhisperTarget, renderMessageList, refreshChatUI
@@ -85,8 +84,8 @@ export function initStorytellerSystem() {
     
     // Roster Management
     window.stRemovePlayer = stRemovePlayer;
-    window.stViewPlayerSheet = stViewPlayerSheet; // New Binding
-    window.returnToStoryteller = returnToStoryteller; // New Binding
+    window.stViewPlayerSheet = stViewPlayerSheet; 
+    window.returnToStoryteller = returnToStoryteller; 
 
     // GLOBAL PUSH API
     window.stPushNpc = async (npcData) => {
@@ -1535,6 +1534,21 @@ function renderChatView(container) {
         }
     });
 
+    // MOODS LIST
+    const moodOptions = `
+        <option value="">Mood (Optional)</option>
+        <option value="Angrily">Angrily</option>
+        <option value="Sadness">Sadness</option>
+        <option value="Pained">Pained</option>
+        <option value="Whispering">Whispering</option>
+        <option value="Shouting">Shouting</option>
+        <option value="Joyful">Joyful</option>
+        <option value="Sarcastic">Sarcastic</option>
+        <option value="Fearful">Fearful</option>
+        <option value="Serious">Serious</option>
+        <option value="Joking">Joking</option>
+    `;
+
     container.innerHTML = `
         <div class="flex flex-col h-full relative">
             <!-- TOOLBAR -->
@@ -1560,20 +1574,28 @@ function renderChatView(container) {
             <!-- Input Area -->
             <div class="p-4 bg-[#111] border-t border-[#333] space-y-2 relative">
                 <!-- Multi-Select Recipient Dropdown -->
-                <div class="relative">
-                    <button id="st-chat-recipient-btn" class="w-full bg-[#050505] border border-[#333] text-gray-300 text-xs p-2 text-left flex justify-between items-center hover:border-[#d4af37] transition-colors" onclick="document.getElementById('st-chat-recipients-dropdown').classList.toggle('hidden')">
-                        <span id="st-chat-recipient-label">Everyone (Public)</span>
-                        <i class="fas fa-chevron-down text-[10px]"></i>
-                    </button>
-                    
-                    <div id="st-chat-recipients-dropdown" class="hidden absolute bottom-full left-0 w-full bg-[#1a1a1a] border border-[#333] shadow-xl p-2 max-h-48 overflow-y-auto custom-scrollbar z-50 mb-1">
-                        <label class="flex items-center gap-2 p-1 hover:bg-[#222] cursor-pointer border-b border-[#333] mb-1 pb-1">
-                            <input type="checkbox" id="st-chat-all-checkbox" class="accent-[#d4af37]" checked>
-                            <span class="text-xs text-gold font-bold">Broadcast to Everyone</span>
-                        </label>
-                        <div id="st-chat-player-list" class="space-y-1">
-                            ${playerOptions}
+                <div class="flex gap-2 mb-2">
+                    <div class="relative">
+                        <button id="st-chat-recipient-btn" class="bg-[#050505] border border-[#333] text-gray-300 text-xs px-3 py-2 text-left flex items-center gap-2 hover:border-[#d4af37] transition-colors min-w-[140px]" onclick="document.getElementById('st-chat-recipients-dropdown').classList.toggle('hidden')">
+                            <span id="st-chat-recipient-label">Everyone</span>
+                            <i class="fas fa-chevron-down text-[10px] ml-auto"></i>
+                        </button>
+                        
+                        <div id="st-chat-recipients-dropdown" class="hidden absolute bottom-full left-0 w-64 bg-[#1a1a1a] border border-[#333] shadow-xl p-2 max-h-48 overflow-y-auto custom-scrollbar z-50 mb-1">
+                            <label class="flex items-center gap-2 p-1 hover:bg-[#222] cursor-pointer border-b border-[#333] mb-1 pb-1">
+                                <input type="checkbox" id="st-chat-all-checkbox" class="accent-[#d4af37]" checked>
+                                <span class="text-xs text-gold font-bold">Broadcast to Everyone</span>
+                            </label>
+                            <div id="st-chat-player-list" class="space-y-1">
+                                ${playerOptions}
+                            </div>
                         </div>
+                    </div>
+
+                    <!-- Mood Selector -->
+                    <div class="relative flex-1">
+                         <input list="st-mood-list" id="st-chat-mood" class="w-full bg-[#050505] border border-[#333] text-gray-300 text-xs px-3 py-2 outline-none focus:border-[#d4af37]" placeholder="Mood (Optional)">
+                         <datalist id="st-mood-list">${moodOptions}</datalist>
                     </div>
                 </div>
 
@@ -1594,6 +1616,7 @@ function renderChatView(container) {
     // Bind ST Inputs
     const sendBtn = document.getElementById('st-chat-send');
     const input = document.getElementById('st-chat-input');
+    const moodInput = document.getElementById('st-chat-mood');
     const allCheck = document.getElementById('st-chat-all-checkbox');
     const label = document.getElementById('st-chat-recipient-label');
     const dropdown = document.getElementById('st-chat-recipients-dropdown');
@@ -1603,7 +1626,7 @@ function renderChatView(container) {
         const checks = document.querySelectorAll('.st-recipient-checkbox');
         if (allCheck.checked) {
             checks.forEach(c => { c.checked = false; c.disabled = true; });
-            label.innerText = "Everyone (Public)";
+            label.innerText = "Everyone";
             label.className = "text-gray-300 text-xs";
         } else {
             checks.forEach(c => c.disabled = false);
@@ -1612,7 +1635,7 @@ function renderChatView(container) {
                 label.innerText = "Select Recipients..."; 
                 label.className = "text-red-500 font-bold text-xs";
             } else {
-                label.innerText = `Whisper to ${selected.length} Person(s)`;
+                label.innerText = `Whisper (${selected.length})`;
                 label.className = "text-purple-400 font-bold text-xs";
             }
         }
@@ -1635,6 +1658,7 @@ function renderChatView(container) {
         if (txt) {
             const isAll = allCheck.checked;
             const selected = Array.from(document.querySelectorAll('.st-recipient-checkbox:checked')).map(c => c.value);
+            const moodVal = moodInput.value.trim();
             
             if (!isAll && selected.length === 0) {
                 showNotification("Select at least one recipient.", "error");
@@ -1646,9 +1670,13 @@ function renderChatView(container) {
                 options.recipients = selected;
                 options.isWhisper = true;
             }
+            if (moodVal) {
+                options.mood = moodVal;
+            }
             
             sendChronicleMessage('chat', txt, null, options);
             input.value = '';
+            moodInput.value = ''; // Clear mood after send? Usually better UX to keep context, but let's clear to avoid accidents.
             dropdown.classList.add('hidden');
         }
     };
