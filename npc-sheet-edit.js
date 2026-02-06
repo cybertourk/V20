@@ -32,7 +32,6 @@ export function renderEditorModal() {
     
     // Check if current template is standard
     const isStandard = ['mortal', 'ghoul', 'animal'].includes(ctx.activeNpc.template);
-    // If not standard (e.g. 'bestiary' or undefined), default to mortal-like features but don't crash
     
     const extrasHtml = (isStandard && ctx.currentTemplate.renderIdentityExtras) ? ctx.currentTemplate.renderIdentityExtras(ctx.activeNpc) : '';
     const f = ctx.currentTemplate.features || { disciplines: true, bloodPool: true, virtues: true, backgrounds: true, humanity: true };
@@ -51,7 +50,8 @@ export function renderEditorModal() {
 
     // Determine selection state for template dropdown
     const tVal = ctx.activeNpc.template;
-    const isBestiary = !isStandard;
+    // We treat anything not in the standard list as 'bestiary' for the dropdown selection state
+    const isBestiarySel = !['mortal', 'ghoul', 'animal'].includes(tVal);
 
     modal.innerHTML = `
         <div class="w-[95%] max-w-7xl h-[95%] bg-[#0a0a0a] border-2 border-[#8b0000] shadow-[0_0_50px_rgba(139,0,0,0.5)] flex flex-col relative font-serif">
@@ -65,7 +65,7 @@ export function renderEditorModal() {
                             <option value="mortal" ${tVal === 'mortal' ? 'selected' : ''}>Mortal</option>
                             <option value="ghoul" ${tVal === 'ghoul' ? 'selected' : ''}>Ghoul / Revenant</option>
                             <option value="animal" ${tVal === 'animal' ? 'selected' : ''}>Animal</option>
-                            ${isBestiary ? `<option value="bestiary" selected>Bestiary / Custom</option>` : ''}
+                            <option value="bestiary" ${isBestiarySel ? 'selected' : ''}>Bestiary / Custom (Unlimited)</option>
                         </select>
                         <i class="fas fa-caret-down text-xs ml-2 opacity-50"></i>
                     </h2>
