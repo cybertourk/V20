@@ -26,7 +26,8 @@ let currentTemplate = null;
 let activeIndex = null; // Index in the global retainer list (Local)
 let activeCloudId = null; // ID for Cloud/Bestiary editing (Storyteller)
 let currentTab = 'step1';
-let modes = { xp: false, freebie: false };
+// MODES: Added 'unlimited' for Bestiary/ST editing
+let modes = { xp: false, freebie: false, unlimited: false };
 let localPriorities = {
     attr: { Physical: null, Social: null, Mental: null },
     abil: { Talents: null, Skills: null, Knowledges: null }
@@ -65,7 +66,7 @@ export function openNpcCreator(typeKey = 'mortal', dataOrEvent = null, index = n
     activeCloudId = cloudId || null; // Capture Cloud ID for Bestiary updates
 
     currentTab = 'step1';
-    modes = { xp: false, freebie: false };
+    modes = { xp: false, freebie: false, unlimited: false };
     
     // Reset Priorities
     localPriorities = {
@@ -84,10 +85,10 @@ export function openNpcCreator(typeKey = 'mortal', dataOrEvent = null, index = n
         if (activeNpc.priorities) localPriorities = JSON.parse(JSON.stringify(activeNpc.priorities));
         else Logic.autoDetectPriorities(activeNpc, currentTemplate, localPriorities);
 
-        // AUTO-ENABLE FREEBIE MODE FOR BESTIARY/CLOUD/ANIMAL ENTITIES
-        // This bypasses creation rules and allows free editing
+        // AUTO-ENABLE UNLIMITED MODE FOR BESTIARY/CLOUD/ANIMAL ENTITIES
+        // This bypasses creation rules/limits and disables ledgers
         if (activeCloudId || activeNpc.template === 'animal') {
-            modes.freebie = true;
+            modes.unlimited = true;
         }
 
     } else {
@@ -216,6 +217,11 @@ function handleSwitchTemplate(newType) {
     // Reset State
     modes.xp = false; 
     modes.freebie = false;
+    
+    // Keep Unlimited Mode if it was active (e.g. Bestiary edit)
+    if (activeCloudId) modes.unlimited = true;
+    else modes.unlimited = false;
+
     localPriorities = { attr: { Physical: null, Social: null, Mental: null }, abil: { Talents: null, Skills: null, Knowledges: null } };
     Logic.recalcStatus(activeNpc);
 
@@ -230,6 +236,12 @@ function handleSwitchTemplate(newType) {
 }
 
 function handleToggleMode(mode) {
+    // If Unlimited Mode is active, prevent standard toggles
+    if (modes.unlimited) {
+        showNotification("Unlimited Mode Active (Bestiary)", "info");
+        return;
+    }
+
     if (mode === 'xp') {
         modes.xp = !modes.xp;
         if(modes.xp) modes.freebie = false;
@@ -243,10 +255,20 @@ function handleToggleMode(mode) {
 function handleValueChange(type, key, newVal) {
     let currentVal = (key) ? (activeNpc[type][key] || 0) : activeNpc[type];
     
+    // --- UNLIMITED MODE (BYPASS ALL RULES) ---
+    if (modes.unlimited) {
+        let finalVal = newVal;
+        if (newVal === currentVal) finalVal = newVal - 1; // Toggle down support
+        if (finalVal < 0) finalVal = 0;
+        
+        applyChange(type, key, finalVal);
+        return; 
+    }
+
     // --- XP MODE ---
     if (modes.xp) {
         let finalVal = newVal;
-        if (newVal === currentVal) finalVal = newVal - 1; // Toggle down
+        if (newVal === currentVal) finalVal = newVal - 1; 
 
         if (finalVal > currentVal) {
             // BUY
@@ -263,10 +285,9 @@ function handleValueChange(type, key, newVal) {
             });
             applyChange(type, key, finalVal);
         } else if (finalVal < currentVal) {
-            // REFUND (Undo last purchase of this trait)
+            // REFUND
             let logIdx = -1;
             const targetTrait = key || type;
-            // Find most recent matching log entry
             for (let i = activeNpc.experience.log.length - 1; i >= 0; i--) {
                 const entry = activeNpc.experience.log[i];
                 if (entry.trait === targetTrait && entry.to === currentVal && entry.from === finalVal) {
@@ -288,7 +309,6 @@ function handleValueChange(type, key, newVal) {
         let finalVal = newVal;
         if (newVal === currentVal) finalVal = newVal - 1; 
         
-        // Validation: Don't allow going below base generation stats
         if (finalVal < currentVal) {
             if (!Logic.validateFreebieRefund(type, key, finalVal, activeNpc, localPriorities, currentTemplate)) {
                 showNotification("Cannot refund base dots (Creation points).");
@@ -300,22 +320,13 @@ function handleValueChange(type, key, newVal) {
         if (finalVal < 0) return;
 
         if (finalVal > currentVal) {
-            // SPEND
             const cost = Logic.calculateMarginalFreebieCost(type, key, currentVal, finalVal, activeNpc, localPriorities, currentTemplate);
-            const avail = Logic.getFreebiesAvailable(activeNpc);
-            
-            if (cost > avail) {
-                showNotification(`Not enough Freebie Points! Need ${cost}, have ${avail}.`);
-                return;
-            }
-
             if (cost > 0) {
                 activeNpc.freebieLog.push({
                     type: type, trait: key || type, from: currentVal, to: finalVal, cost: cost
                 });
             }
         } else {
-            // REFUND (Consolidate log logic)
             let rangeBottom = finalVal;
             const traitName = key || type;
 
@@ -324,11 +335,9 @@ function handleValueChange(type, key, newVal) {
                 if (entry.trait !== traitName) continue;
 
                 if (entry.from >= rangeBottom) {
-                    // Full refund of this step
                     activeNpc.freebieLog.splice(i, 1);
                 }
                 else if (entry.to > rangeBottom) {
-                    // Partial refund (shouldn't happen often with single dot clicks, but safe to handle)
                     const retainedCost = Logic.calculateMarginalFreebieCost(type, key, entry.from, rangeBottom, activeNpc, localPriorities, currentTemplate, rangeBottom);
                     entry.to = rangeBottom;
                     entry.cost = retainedCost;
