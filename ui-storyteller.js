@@ -1316,10 +1316,11 @@ function renderNpcCard(entry, id, isCustom, container, clearFirst = false) {
         actionsHtml = `<button class="bg-blue-900/30 hover:bg-blue-900/50 text-blue-200 px-2 py-1 text-[9px] font-bold uppercase rounded border border-blue-800" onclick='event.stopPropagation(); window.copyStaticNpc("${name}")'>Copy</button>`;
     }
 
+    // Name is explicitly clickable with hover effect to indicate interaction
     card.innerHTML = `
         <div class="flex justify-between items-start mb-2">
             <div class="overflow-hidden">
-                <div class="text-[#d4af37] font-bold text-sm truncate" title="${name}">${name}</div>
+                <div class="text-[#d4af37] font-bold text-sm truncate cursor-pointer hover:text-white hover:underline transition-colors" title="Click to View Stats" id="card-name-${id||name}">${name}</div>
                 <div class="text-[9px] text-gray-500 uppercase tracking-wider">${type}</div>
             </div>
             ${isCustom ? `<i class="fas fa-cloud text-[10px] text-blue-500"></i>` : `<i class="fas fa-book text-[10px] text-gray-600"></i>`}
@@ -1334,7 +1335,14 @@ function renderNpcCard(entry, id, isCustom, container, clearFirst = false) {
             <button class="bg-[#8b0000] hover:bg-red-700 text-white px-3 py-1 text-[9px] font-bold uppercase rounded shadow-md" onclick="event.stopPropagation(); window.stAddToCombat({id:'${id||name}', name:'${name}', health:${isCustom?'null':'{damage:0}'}, sourceId:'${id}'}, 'NPC')">Spawn</button>
         </div>
     `;
-    card.onclick = () => { if(window.openNpcSheet) window.openNpcSheet(npc); };
+    
+    // Attach click listener to the entire card, but ensure propagation is handled in inner buttons
+    card.onclick = (e) => { 
+        // If clicking buttons inside, don't trigger
+        if (e.target.closest('button')) return;
+        if(window.openNpcSheet) window.openNpcSheet(npc); 
+    };
+    
     container.appendChild(card);
 }
 
@@ -1397,7 +1405,7 @@ window.copyStaticNpc = async function(name) {
             await setDoc(doc(db, 'chronicles', stState.activeChronicleId, 'bestiary', newId), {
                 name: customName,
                 type: "Custom",
-                data: { ...found, name: customName } 
+                data: { ...found, name: customName, template: 'bestiary' } // Force bestiary template
             });
             showNotification(`Created customizable copy: ${customName}`);
         } catch(e) {
@@ -1418,7 +1426,9 @@ window.deleteCloudNpc = async function(id) {
 window.editCloudNpc = function(id) {
     const entry = stState.bestiary[id];
     if(entry && entry.data && window.openNpcCreator) {
+        // Force Bestiary mode if template is bestiary
         const type = entry.data.template || 'mortal'; 
+        // If it was a copy, it should be bestiary template.
         window.openNpcCreator(type, entry.data, null, id);
         showNotification("Editing NPC...");
         exitStorytellerDashboard(); 
