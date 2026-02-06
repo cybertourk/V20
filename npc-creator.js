@@ -44,7 +44,8 @@ const BestiaryTemplate = {
     // No validation logic (always true)
     validateChange: () => true,
     getCost: () => 0, // No costs in unlimited mode
-    getPriorities: () => null, // No priorities
+    // FIXED: Return null for priorities explicitly, handled in sheet-edit
+    getPriorities: () => null, 
     getVirtueLimit: () => 10
 };
 
@@ -88,8 +89,14 @@ export function openNpcCreator(typeKey = 'mortal', dataOrEvent = null, index = n
     } else if (TEMPLATES[typeKey]) {
         currentTemplate = TEMPLATES[typeKey];
     } else {
-        // Fallback
-        currentTemplate = BestiaryTemplate; 
+        // Fallback for unknown templates (like 'vampire' if data comes from weird source)
+        // If dataOrEvent has a template property that matches Bestiary, use that.
+        if (dataOrEvent && dataOrEvent.template === 'bestiary') {
+             currentTemplate = BestiaryTemplate;
+        } else {
+             // Default fallback if we really don't know
+             currentTemplate = BestiaryTemplate; 
+        }
     }
 
     // Determine Input Data
@@ -112,17 +119,21 @@ export function openNpcCreator(typeKey = 'mortal', dataOrEvent = null, index = n
     if (incomingData) {
         // Edit Mode
         activeNpc = JSON.parse(JSON.stringify(incomingData));
-        if (activeNpc.template && TEMPLATES[activeNpc.template]) {
+        
+        // Ensure template on activeNpc matches logic
+        if (TEMPLATES[activeNpc.template]) {
             currentTemplate = TEMPLATES[activeNpc.template];
         } else {
-            // It's a bestiary item or custom
             currentTemplate = BestiaryTemplate;
+            activeNpc.template = 'bestiary';
         }
 
         activeNpc = Logic.sanitizeNpcData(activeNpc);
         
-        if (activeNpc.priorities) localPriorities = JSON.parse(JSON.stringify(activeNpc.priorities));
-        else if (currentTemplate !== BestiaryTemplate) {
+        // Only try to auto-detect priorities if the template supports it
+        if (activeNpc.priorities) {
+            localPriorities = JSON.parse(JSON.stringify(activeNpc.priorities));
+        } else if (currentTemplate.getPriorities && currentTemplate.getPriorities()) {
              Logic.autoDetectPriorities(activeNpc, currentTemplate, localPriorities);
         }
 
@@ -134,11 +145,11 @@ export function openNpcCreator(typeKey = 'mortal', dataOrEvent = null, index = n
     } else {
         // Create Mode
         activeNpc = JSON.parse(JSON.stringify(currentTemplate.defaults));
-        activeNpc.template = typeKey;
+        activeNpc.template = typeKey === 'custom' ? 'bestiary' : typeKey;
         activeNpc = Logic.sanitizeNpcData(activeNpc);
         Logic.recalcStatus(activeNpc);
         
-        if (typeKey === 'bestiary') {
+        if (typeKey === 'bestiary' || typeKey === 'custom') {
             modes.unlimited = true;
         }
     }
@@ -151,11 +162,10 @@ export function openNpcCreator(typeKey = 'mortal', dataOrEvent = null, index = n
 
     EditUI.renderEditorModal();
     
-    // IF STORYTELLER MODE, REPLACE FOOTER BUTTONS OR RELY ON CONTEXT
-    // Since we now contextualize saveNpc inside getEditCallbacks, we don't strictly need injectBestiarySaveButton anymore
-    // but we can keep it as a visual indicator or to handle specific "Save as New" cases if needed.
-    // However, the user specifically asked for "save to Bestiary not currently loaded character list".
-    // The change below in getEditCallbacks handles this.
+    // Inject "Save to Bestiary" button if Storyteller (Visual confirmation)
+    if (stState && stState.isStoryteller) {
+        injectBestiarySaveButton();
+    }
 }
 
 function injectBestiarySaveButton() {
@@ -163,9 +173,16 @@ function injectBestiarySaveButton() {
     const existing = document.getElementById('npc-save-bestiary');
     if (existing) existing.remove();
 
-    // OPTIONAL: If we want a DISTINCT button, we can add it. 
-    // But since we are overriding the main save behavior for STs, this might be redundant.
-    // Let's keep the main save button clean and contextual.
+    if (footer) {
+        // Just a visual badge here, real save logic is in getEditCallbacks
+        const btn = document.createElement('div');
+        btn.id = 'npc-save-bestiary';
+        btn.className = "text-[#d4af37] font-bold text-xs uppercase px-4 py-2 border border-[#d4af37] bg-[#d4af37]/10 rounded mr-2 flex items-center gap-2";
+        btn.innerHTML = `<i class="fas fa-crown"></i> ST Mode Active`;
+        
+        // Insert before the Cancel button
+        footer.insertBefore(btn, footer.firstChild);
+    }
 }
 
 export function openNpcSheet(npc, index) {
@@ -222,8 +239,6 @@ function getPlayCallbacks() {
         closeModal: () => { toggleDiceUI(true); },
         saveNpc: (silent) => {
              // Only save to local retainers if NOT in ST/Cloud mode
-             // If we are playing a cloud NPC (from Bestiary), we might need different logic
-             // But play mode usually implies active session use.
              if (activeIndex !== null && window.state.retainers) {
                 window.state.retainers[activeIndex] = activeNpc;
                 if (!silent && window.performSave) window.performSave(true);
@@ -282,7 +297,7 @@ function handleSwitchTemplate(newType) {
         getEditCallbacks()
     );
     EditUI.renderEditorModal();
-    // Re-inject button removed - relying on contextual save
+    if (stState && stState.isStoryteller) injectBestiarySaveButton();
     showNotification(`Switched to ${currentTemplate.label} template.`);
 }
 
@@ -616,7 +631,9 @@ function importNpcData(event) {
                 }
                 
                 if (activeNpc.priorities) localPriorities = activeNpc.priorities;
-                else if (currentTemplate.getPriorities) Logic.autoDetectPriorities(activeNpc, currentTemplate, localPriorities);
+                else if (currentTemplate.getPriorities && currentTemplate.getPriorities()) {
+                     Logic.autoDetectPriorities(activeNpc, currentTemplate, localPriorities);
+                }
                 
                 // Re-init Edit Mode
                 EditUI.initEditSheet(
