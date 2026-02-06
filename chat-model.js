@@ -85,7 +85,8 @@ export async function sendChronicleMessage(type, content, details = null, option
             timestamp: new Date(),
             isWhisper: isWhisper,
             recipientId: recipientId, // Keep for legacy compatibility
-            recipients: recipients    // New Array Field
+            recipients: recipients,   // New Array Field
+            mood: options.mood || null // NEW: Mood Descriptor
         });
     } catch(e) {
         console.error("Chat Error:", e.message);
@@ -137,6 +138,8 @@ export async function stExportChat() {
     
     stState.chatHistory.forEach(msg => {
         const time = msg.timestamp ? new Date(msg.timestamp.seconds * 1000).toLocaleString() : 'Unknown';
+        const moodText = msg.mood ? ` <${msg.mood}>` : "";
+
         if (msg.type === 'system') {
             textContent += `[${time}] SYSTEM: ${msg.content.replace(/<[^>]*>/g, '')}\n`; 
         } else if (msg.type === 'event') {
@@ -145,7 +148,7 @@ export async function stExportChat() {
             textContent += `[${time}] ${msg.sender} ROLLED: ${msg.content.replace(/<[^>]*>/g, '')} (Pool: ${msg.details?.pool || '?'})\n`;
         } else {
             const whisperTag = msg.isWhisper ? "[WHISPER] " : "";
-            textContent += `[${time}] ${whisperTag}${msg.sender}: ${msg.content}\n`;
+            textContent += `[${time}] ${whisperTag}${msg.sender}${moodText}: ${msg.content}\n`;
         }
     });
 
@@ -306,11 +309,17 @@ export function renderMessageList(container, messages) {
                 whisperLabel = `<span class="text-purple-400 font-bold text-[9px] mr-1 uppercase tracking-wider"><i class="fas fa-user-secret"></i> Whisper</span>`;
                 senderLine = `${msg.sender} <span class="text-gray-500 text-[9px] mx-1">to</span> <span class="text-purple-300 font-bold">${recipientNames || "Unknown"}</span>`;
             }
+
+            // MOOD RENDERING
+            let moodHtml = "";
+            if (msg.mood) {
+                moodHtml = `<span class="text-gray-500 italic text-[10px] mr-1">&lt;${msg.mood}&gt;</span>`;
+            }
             
             div.innerHTML = `
                 <div class="${isSelf ? 'text-right' : 'text-left'}">
                     <div class="text-[10px] text-gray-500 font-bold mb-0.5">${whisperLabel} ${senderLine} <span class="font-normal opacity-50 text-[9px] ml-1">${fullTime}</span></div>
-                    <div class="inline-block px-3 py-1.5 rounded ${wrapperClass}">${msg.content}</div>
+                    <div class="inline-block px-3 py-1.5 rounded ${wrapperClass}">${moodHtml}${msg.content}</div>
                 </div>
             `;
         }
