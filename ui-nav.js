@@ -180,17 +180,41 @@ export function changeStep(s, updateGlobalState = true) {
 
     // Activate Target Container
     let targetId = prefix + s;
+    
     // FIX: Map Step 7 to the correct ID in Play Mode
     if (window.state.isPlayMode && s === 7) targetId = 'play-mode-chronicle';
+
+    // FIX FOR ERROR: Prevent searching for play-mode-8
+    if (window.state.isPlayMode && s >= 8) {
+        // If system tries to go to Phase 8 in Play Mode (e.g. from saved state furthestPhase), redirect to Sheet (1)
+        targetId = 'play-mode-sheet'; // Or 'play-mode-1' depending on structure, usually 'play-mode-sheet' wrapper contains 'play-mode-1'
+        
+        // Actually, looking at index.html, 'play-mode-sheet' is the wrapper DIV. 
+        // The actual tab containers are 'play-mode-1', 'play-mode-2', etc.
+        targetId = 'play-mode-1';
+        s = 1;
+        window.state.currentPhase = 1;
+    }
 
     const target = document.getElementById(targetId);
     if (target) { 
         target.classList.add('active'); 
         window.state.currentPhase = s; 
     } else {
-        console.warn(`Target container ${targetId} not found. Defaulting to 1.`);
-        const def = document.getElementById(prefix + '1');
-        if(def) { def.classList.add('active'); window.state.currentPhase = 1; }
+        // Fallback if ID is wrong (e.g. 'play-mode-1' missing?)
+        // Check if 'play-mode-sheet' itself should be active
+        if (targetId === 'play-mode-1') {
+             const wrapper = document.getElementById('play-mode-sheet');
+             const inner = document.getElementById('play-mode-1');
+             if(wrapper && inner) {
+                 inner.classList.add('active');
+                 window.state.currentPhase = 1;
+             }
+        } else {
+            console.warn(`Target container ${targetId} not found. Defaulting to 1.`);
+            const def = document.getElementById(prefix + '1');
+            if(def) { def.classList.add('active'); window.state.currentPhase = 1; }
+        }
     }
     
     // --- RENDER NAVIGATION BAR ---
