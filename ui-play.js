@@ -445,7 +445,6 @@ export function applyPlayModeUI() {
 }
 window.applyPlayModeUI = applyPlayModeUI;
 
-// 2. Toggle Mode
 export function togglePlayMode() {
     const safeVal = (id) => {
         const el = document.getElementById(id);
@@ -1418,7 +1417,7 @@ function renderChronicleRosterView(container, chronicleId) {
             const charName = p.character_name || "Unknown";
             const playerName = tf['c-player'] || "Unknown Player";
             const description = tf['bio-desc'] || "No physical description provided.";
-            const clan = tf['c-clan'] || "Kindred";
+            const demeanor = tf['c-demeanor'] || "Unknown Demeanor";
             const imgUrl = sheet.characterImage || null;
 
             // Status Logic
@@ -1460,14 +1459,14 @@ function renderChronicleRosterView(container, chronicleId) {
                     <div class="mb-3">
                         <h3 class="text-xl font-cinzel font-bold text-[#d4af37] leading-none mb-1">${charName}</h3>
                         <div class="flex justify-between items-center text-[10px] text-gray-400 uppercase font-bold tracking-wider border-b border-[#333] pb-2">
-                            <span>${clan}</span>
+                            <span>${demeanor}</span>
                             <span class="text-gray-500">Player: <span class="text-gray-300">${playerName}</span></span>
                         </div>
                     </div>
                     
-                    <div class="flex-1 mb-4">
-                        <div class="text-[9px] text-gray-500 uppercase font-bold mb-1">Physical Description</div>
-                        <div class="text-xs text-gray-300 font-serif italic leading-relaxed line-clamp-4 h-16 overflow-hidden text-ellipsis">
+                    <div class="flex-1 mb-4 h-24 overflow-y-auto custom-scrollbar border border-[#222] bg-[#0a0a0a] p-2 rounded">
+                        <div class="text-[9px] text-gray-500 uppercase font-bold mb-1 sticky top-0 bg-[#0a0a0a]">Physical Description</div>
+                        <div class="text-xs text-gray-300 font-serif italic leading-relaxed">
                             "${description}"
                         </div>
                     </div>
