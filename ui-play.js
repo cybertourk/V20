@@ -1383,7 +1383,8 @@ async function renderChronicleChatView(container, chronicleId) {
 function renderChronicleRosterView(container, chronicleId) {
     container.innerHTML = `
     <div class="p-6 overflow-y-auto h-full custom-scrollbar">
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6" id="roster-grid">
+        <!-- WIDER CARDS: Changed from lg:grid-cols-3 to lg:grid-cols-2 -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6" id="roster-grid">
             <div class="text-center text-gray-500 italic text-xs col-span-full mt-10"><i class="fas fa-spinner fa-spin text-2xl mb-2"></i><br>Gathering Kindred...</div>
         </div>
     </div>`;
