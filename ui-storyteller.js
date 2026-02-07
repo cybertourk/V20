@@ -16,6 +16,8 @@ import {
     stClearChat, stExportChat, stSetWhisperTarget, renderMessageList, refreshChatUI
 } from "./chat-model.js";
 
+import { renderCoterieMap } from "./coterie-map.js";
+
 // --- STATE ---
 export const stState = {
     activeChronicleId: null,
@@ -325,7 +327,7 @@ async function renderChronicleMenu() {
     const listDiv = document.getElementById('st-campaign-list');
     if (listDiv) {
         try {
-            const q = query(collection(db, 'chronicles'), where("storyteller_uid", "==", user.uid));
+            const q = query(collection(db, 'chronicles', where("storyteller_uid", "==", user.uid)));
             const querySnapshot = await getDocs(q);
             
             if (!querySnapshot.empty) {
@@ -943,6 +945,9 @@ function renderStorytellerDashboard(container = null) {
                 <button class="st-tab active px-6 py-3 text-xs font-bold uppercase tracking-wider text-[#d4af37] border-b-2 border-[#d4af37] hover:bg-[#222] transition-colors whitespace-nowrap" onclick="window.switchStorytellerView('roster')">
                     <i class="fas fa-users mr-2"></i> Roster
                 </button>
+                <button class="st-tab px-6 py-3 text-xs font-bold uppercase tracking-wider text-gray-500 hover:text-white hover:bg-[#222] transition-colors whitespace-nowrap" onclick="window.switchStorytellerView('coterie')">
+                    <i class="fas fa-project-diagram mr-2"></i> Relationship Map
+                </button>
                 <button class="st-tab px-6 py-3 text-xs font-bold uppercase tracking-wider text-gray-500 hover:text-white hover:bg-[#222] transition-colors whitespace-nowrap" onclick="window.switchStorytellerView('combat')">
                     <i class="fas fa-swords mr-2"></i> Combat
                 </button>
@@ -990,6 +995,7 @@ function switchStorytellerView(view) {
 
     const viewport = document.getElementById('st-viewport');
     if (view === 'roster') renderRosterView();
+    else if (view === 'coterie') renderCoterieMap(viewport);
     else if (view === 'combat') renderCombatView();
     else if (view === 'bestiary') renderBestiaryView();
     else if (view === 'journal') {
