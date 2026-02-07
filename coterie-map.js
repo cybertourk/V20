@@ -171,7 +171,6 @@ function startMapSync() {
             mapState.characters = data.characters || [];
             mapState.relationships = data.relationships || [];
         } else {
-            // Don't wipe local state if snapshot is empty but we have pending local changes
             if (mapState.characters.length === 0) {
                  mapState.characters = [];
                  mapState.relationships = [];
@@ -188,7 +187,6 @@ async function saveMapData() {
     try {
         const docRef = doc(db, 'chronicles', stState.activeChronicleId, 'coterie', 'map');
         
-        // Use setDoc with merge: true to handle creation automatically
         await setDoc(docRef, {
             characters: mapState.characters,
             relationships: mapState.relationships
@@ -216,13 +214,13 @@ async function addCharacter() {
     const id = name.replace(/[^a-zA-Z0-9]/g, '');
     if (mapState.characters.some(c => c.id === id)) return showNotification("Exists!", "error");
 
-    // Optimistic Update
-    mapState.characters.push({ id, name, clan, type });
+    // Add with default visible
+    mapState.characters.push({ id, name, clan, type, hidden: false });
     
     nameInput.value = '';
     clanInput.value = '';
     
-    refreshMapUI(); // Update UI immediately
+    refreshMapUI(); 
     await saveMapData();
 }
 
@@ -240,18 +238,19 @@ async function addRelationship() {
     if (!source || !target) return showNotification("Select Source & Target", "error");
     if (source === target) return showNotification("Self-link invalid", "error");
 
-    // Optimistic Update
-    mapState.relationships.push({ source, target, type, label });
+    // Add with default visible
+    mapState.relationships.push({ source, target, type, label, hidden: false });
     
     labelInput.value = '';
-    refreshMapUI(); // Update UI immediately
+    refreshMapUI(); 
     await saveMapData();
 }
 
-// Exposed globally for onclicks in generated HTML
+// Global functions for list interaction
 window.cmapRemoveChar = async (id) => {
     if(!confirm("Remove character?")) return;
     mapState.characters = mapState.characters.filter(c => c.id !== id);
+    // Cascade delete relationships
     mapState.relationships = mapState.relationships.filter(r => r.source !== id && r.target !== id);
     refreshMapUI();
     await saveMapData();
@@ -261,6 +260,23 @@ window.cmapRemoveRel = async (idx) => {
     mapState.relationships.splice(idx, 1);
     refreshMapUI();
     await saveMapData();
+};
+
+window.cmapToggleChar = async (id) => {
+    const char = mapState.characters.find(c => c.id === id);
+    if (char) {
+        char.hidden = !char.hidden;
+        refreshMapUI();
+        await saveMapData();
+    }
+};
+
+window.cmapToggleRel = async (idx) => {
+    if (mapState.relationships[idx]) {
+        mapState.relationships[idx].hidden = !mapState.relationships[idx].hidden;
+        refreshMapUI();
+        await saveMapData();
+    }
 };
 
 // --- UI UPDATES ---
@@ -292,15 +308,22 @@ function updateDropdowns() {
 function updateLists() {
     const charList = document.getElementById('cmap-char-list');
     if (charList) {
-        charList.innerHTML = mapState.characters.map(c => `
-            <li class="flex justify-between items-center bg-[#222] p-1.5 rounded text-[10px] border border-[#333]">
-                <div>
-                    <span class="font-bold ${c.type === 'npc' ? 'text-[#8a0303]' : 'text-blue-300'}">${c.name}</span>
-                    <span class="text-gray-500 ml-1">(${c.clan || '?'})</span>
+        charList.innerHTML = mapState.characters.map(c => {
+            const isHidden = c.hidden === true;
+            return `
+            <li class="flex justify-between items-center bg-[#222] p-1.5 rounded text-[10px] border border-[#333] ${isHidden ? 'opacity-50' : ''}">
+                <div class="flex items-center gap-2">
+                    <button onclick="window.cmapToggleChar('${c.id}')" class="text-gray-500 hover:text-white" title="Toggle Visibility">
+                        <i class="fas ${isHidden ? 'fa-eye-slash' : 'fa-eye'}"></i>
+                    </button>
+                    <div>
+                        <span class="font-bold ${c.type === 'npc' ? 'text-[#8a0303]' : 'text-blue-300'}">${c.name}</span>
+                        <span class="text-gray-500 ml-1">(${c.clan || '?'})</span>
+                    </div>
                 </div>
                 <button onclick="window.cmapRemoveChar('${c.id}')" class="text-gray-600 hover:text-red-500 px-1"><i class="fas fa-trash"></i></button>
-            </li>
-        `).join('');
+            </li>`;
+        }).join('');
     }
 
     const relList = document.getElementById('cmap-rel-list');
@@ -309,16 +332,22 @@ function updateLists() {
             const sName = mapState.characters.find(c => c.id === r.source)?.name || r.source;
             const tName = mapState.characters.find(c => c.id === r.target)?.name || r.target;
             let icon = r.type === 'blood' ? 'fa-link text-red-500' : (r.type === 'boon' ? 'fa-ellipsis-h' : 'fa-arrow-right');
+            const isHidden = r.hidden === true;
             
             return `
-            <li class="flex justify-between items-center bg-[#222] p-1.5 rounded text-[10px] border-l-2 ${r.type === 'blood' ? 'border-[#8a0303]' : 'border-gray-500'} border-t border-r border-b border-[#333]">
-                <div class="flex-1 truncate">
-                    <span class="font-bold text-gray-300">${sName}</span>
-                    <i class="fas ${icon} mx-1 text-gray-600"></i>
-                    <span class="font-bold text-gray-300">${tName}</span>
-                    <div class="text-[9px] text-[#d4af37] italic truncate">${r.label || r.type}</div>
+            <li class="flex justify-between items-center bg-[#222] p-1.5 rounded text-[10px] border-l-2 ${r.type === 'blood' ? 'border-[#8a0303]' : 'border-gray-500'} border-t border-r border-b border-[#333] ${isHidden ? 'opacity-50' : ''}">
+                <div class="flex gap-2 items-center flex-1 truncate">
+                    <button onclick="window.cmapToggleRel(${i})" class="text-gray-500 hover:text-white flex-shrink-0" title="Toggle Visibility">
+                        <i class="fas ${isHidden ? 'fa-eye-slash' : 'fa-eye'}"></i>
+                    </button>
+                    <div class="truncate">
+                        <span class="font-bold text-gray-300">${sName}</span>
+                        <i class="fas ${icon} mx-1 text-gray-600"></i>
+                        <span class="font-bold text-gray-300">${tName}</span>
+                        <div class="text-[9px] text-[#d4af37] italic truncate">${r.label || r.type}</div>
+                    </div>
                 </div>
-                <button onclick="window.cmapRemoveRel(${i})" class="text-gray-600 hover:text-red-500 px-1 ml-1"><i class="fas fa-trash"></i></button>
+                <button onclick="window.cmapRemoveRel(${i})" class="text-gray-600 hover:text-red-500 px-1 ml-1 flex-shrink-0"><i class="fas fa-trash"></i></button>
             </li>`;
         }).join('');
     }
@@ -328,14 +357,24 @@ async function renderMermaidChart() {
     const container = document.getElementById('mermaid-container');
     if (!container) return;
     
-    // Safety check for mermaid loaded
     if (!window.mermaid) {
         container.innerHTML = `<div class="text-center text-gray-500 text-xs mt-10">Loading Graph Engine...</div>`;
         return;
     }
 
-    if (mapState.characters.length === 0) {
-        container.innerHTML = `<div class="text-center text-gray-500 text-xs mt-10 italic">Add characters to begin mapping...</div>`;
+    // Filter out hidden characters for the view
+    const visibleChars = mapState.characters.filter(c => !c.hidden);
+    
+    // Filter out relationships where either node is hidden OR the relationship itself is hidden
+    const visibleRels = mapState.relationships.filter(r => {
+        if (r.hidden) return false;
+        const sVisible = visibleChars.some(c => c.id === r.source);
+        const tVisible = visibleChars.some(c => c.id === r.target);
+        return sVisible && tVisible;
+    });
+
+    if (visibleChars.length === 0) {
+        container.innerHTML = `<div class="text-center text-gray-500 text-xs mt-10 italic">No visible nodes to map...</div>`;
         return;
     }
 
@@ -343,14 +382,14 @@ async function renderMermaidChart() {
     graph += 'classDef pc fill:#1e293b,stroke:#fff,stroke-width:2px,color:#fff;\n';
     graph += 'classDef npc fill:#000,stroke:#8a0303,stroke-width:3px,color:#8a0303,font-weight:bold;\n';
 
-    mapState.characters.forEach(c => {
+    visibleChars.forEach(c => {
         const safeName = c.name.replace(/"/g, "'");
         const label = c.clan ? `${safeName}<br/>(${c.clan})` : safeName;
         const cls = c.type === 'npc' ? ':::npc' : ':::pc';
         graph += `${c.id}("${label}")${cls}\n`;
     });
 
-    mapState.relationships.forEach(r => {
+    visibleRels.forEach(r => {
         const label = r.label ? `"${r.label}"` : "";
         if (r.type === 'blood') {
             graph += label ? `${r.source} == ${label} ==> ${r.target}\n` : `${r.source} ==> ${r.target}\n`;
@@ -366,6 +405,5 @@ async function renderMermaidChart() {
         container.innerHTML = svg;
     } catch (e) {
         console.warn("Mermaid Render Warning:", e);
-        // Don't wipe container on error, keeps old chart if just a syntax glitch
     }
 }
