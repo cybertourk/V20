@@ -2,6 +2,8 @@ import {
     ATTRIBUTES, ABILITIES, VIRTUES 
 } from "./data.js";
 
+import { DISCIPLINES_DATA } from "./disciplines-data.js";
+
 import { 
     renderDots 
 } from "./ui-common.js";
@@ -13,6 +15,23 @@ export function renderPrintSheet() {
     
     // Refresh Movement if available (Play Mode dependency, safe check)
     if (window.renderMovementSection && window.state.isPlayMode) window.renderMovementSection();
+
+    // 0. CHARACTER IMAGE (New)
+    const imgContainer = document.getElementById('pr-img-container');
+    if (imgContainer) {
+        if (window.state.characterImage) {
+            let src = window.state.characterImage;
+            // Handle Google Drive conversion if needed
+            if (window.convertGoogleDriveLink) src = window.convertGoogleDriveLink(src);
+            
+            imgContainer.innerHTML = `<img src="${src}" style="width: 100%; height: 100%; object-fit: cover; filter: grayscale(100%); opacity: 0.8;">`;
+            imgContainer.style.display = 'block';
+            imgContainer.style.border = '2px solid black';
+        } else {
+            imgContainer.innerHTML = '';
+            imgContainer.style.display = 'none';
+        }
+    }
 
     // 1. Header Fields
     const map = {
@@ -86,23 +105,59 @@ export function renderPrintSheet() {
         }
     });
 
-    // 4. Advantages (Disciplines, Backgrounds)
-    const renderAdvSection = (src, destId, max = 5) => {
-        const container = document.getElementById(destId);
-        if (container) {
-            container.innerHTML = '';
-            Object.entries(src).forEach(([name, val]) => {
-                if(val > 0) { // Only print dots > 0
-                    const row = document.createElement('div');
-                    row.className = "flex justify-between border-b border-black text-xs mb-1";
-                    row.innerHTML = `<span class="font-bold uppercase">${name}</span><span>${renderDots(val, max)}</span>`;
-                    container.appendChild(row);
+    // 4. Advantages (Disciplines with Detailed Powers)
+    const discDest = document.getElementById('pr-disc-list');
+    if (discDest) {
+        discDest.innerHTML = '';
+        Object.entries(window.state.dots.disc || {}).forEach(([name, val]) => {
+            if(val > 0) {
+                // Basic Dot Row
+                const row = document.createElement('div');
+                row.className = "flex justify-between border-b border-black text-xs mb-1 font-bold";
+                row.innerHTML = `<span class="uppercase">${name}</span><span>${renderDots(val, 5)}</span>`;
+                discDest.appendChild(row);
+
+                // Detailed Power List (New)
+                let powerNames = [];
+                // Normalize Name
+                let key = name;
+                if (!DISCIPLINES_DATA[key]) {
+                    // Try case insensitive find
+                    const match = Object.keys(DISCIPLINES_DATA).find(k => k.toLowerCase() === name.toLowerCase());
+                    if (match) key = match;
                 }
-            });
-        }
-    };
-    renderAdvSection(window.state.dots.disc, 'pr-disc-list');
-    renderAdvSection(window.state.dots.back, 'pr-back-list');
+
+                if (DISCIPLINES_DATA[key]) {
+                    for(let i=1; i<=val; i++) {
+                        if (DISCIPLINES_DATA[key][i]) {
+                            powerNames.push(DISCIPLINES_DATA[key][i].name);
+                        }
+                    }
+                }
+                
+                if (powerNames.length > 0) {
+                    const detailRow = document.createElement('div');
+                    detailRow.className = "text-[9px] italic text-gray-700 mb-2 pl-2 leading-tight";
+                    detailRow.innerText = powerNames.join(', ');
+                    discDest.appendChild(detailRow);
+                }
+            }
+        });
+    }
+
+    // Backgrounds
+    const backDest = document.getElementById('pr-back-list');
+    if (backDest) {
+        backDest.innerHTML = '';
+        Object.entries(window.state.dots.back || {}).forEach(([name, val]) => {
+            if(val > 0) {
+                const row = document.createElement('div');
+                row.className = "flex justify-between border-b border-black text-xs mb-1";
+                row.innerHTML = `<span class="font-bold uppercase">${name}</span><span>${renderDots(val, 5)}</span>`;
+                backDest.appendChild(row);
+            }
+        });
+    }
 
     // Virtues
     const vCont = document.getElementById('pr-virt-list');
@@ -124,7 +179,7 @@ export function renderPrintSheet() {
         
         const renderItem = (item, type) => {
             const div = document.createElement('div');
-            div.className = "mb-1";
+            div.className = "mb-1 text-xs";
             // Format: Name (Val pt Type): Description
             const header = document.createElement('span');
             header.className = "font-bold";
@@ -134,7 +189,7 @@ export function renderPrintSheet() {
             
             if (item.desc) {
                 const descSpan = document.createElement('span');
-                descSpan.className = "italic ml-1";
+                descSpan.className = "italic ml-1 text-[10px]";
                 descSpan.innerText = `- ${item.desc}`;
                 div.appendChild(descSpan);
             }
@@ -148,14 +203,39 @@ export function renderPrintSheet() {
     const otCont = document.getElementById('pr-other-traits');
     if(otCont) {
         otCont.innerHTML = '';
-        Object.entries(window.state.dots.other || {}).forEach(([k,v]) => {
-            if(v > 0) {
-                 const row = document.createElement('div');
-                 row.className = "flex justify-between border-b border-black text-xs mb-1";
-                 row.innerHTML = `<span>${k}</span><span>${renderDots(v,5)}</span>`;
-                 otCont.appendChild(row);
-            }
-        });
+        
+        // Add Rituals Here (New)
+        if (window.state.rituals && window.state.rituals.length > 0) {
+            const ritHeader = document.createElement('div');
+            ritHeader.className = "font-cinzel font-bold text-sm border-b border-black mb-1 mt-2";
+            ritHeader.innerText = "RITUALS";
+            otCont.appendChild(ritHeader);
+
+            const sorted = [...window.state.rituals].sort((a,b) => a.level - b.level);
+            sorted.forEach(r => {
+                const row = document.createElement('div');
+                row.className = "text-xs mb-1 flex justify-between";
+                row.innerHTML = `<span>${r.name}</span><span class="font-bold">Lvl ${r.level}</span>`;
+                otCont.appendChild(row);
+            });
+        }
+
+        // Standard Other Traits
+        if (window.state.dots.other) {
+            const traitHeader = document.createElement('div');
+            traitHeader.className = "font-cinzel font-bold text-sm border-b border-black mb-1 mt-2";
+            traitHeader.innerText = "TRAITS";
+            otCont.appendChild(traitHeader);
+
+            Object.entries(window.state.dots.other || {}).forEach(([k,v]) => {
+                if(v > 0) {
+                     const row = document.createElement('div');
+                     row.className = "flex justify-between border-b border-black text-xs mb-1";
+                     row.innerHTML = `<span>${k}</span><span>${renderDots(v,5)}</span>`;
+                     otCont.appendChild(row);
+                }
+            });
+        }
     }
 
     // 6. Humanity / Willpower / Blood
@@ -189,7 +269,6 @@ export function renderPrintSheet() {
     const bBox = document.getElementById('pr-blood-boxes');
     if(bBox) {
         // Max blood based on Gen
-        const gen = 13 - (window.state.dots.back['Generation']||0);
         // Simple approximation or use Rules
         let html = '';
         const currentB = window.state.status.blood || 0;
@@ -216,27 +295,18 @@ export function renderPrintSheet() {
     // 8. Combat & Inventory
     const combatTbl = document.getElementById('pr-combat-table');
     if (combatTbl) {
-        // Use a single string buffer to construct the innerHTML
         let tblHTML = '';
         
         // Add Maneuvers (Extended V20 List)
         const manuevers = [
             {n: 'Bite', d: 6, dmg: 'Str+1 (A)'},
-            {n: 'Block', d: 6, dmg: 'None (R)'},
             {n: 'Claw', d: 6, dmg: 'Str+1 (A)'},
-            {n: 'Clinch', d: 6, dmg: 'Str (B)'},
-            {n: 'Disarm', d: 7, dmg: 'Special'},
-            {n: 'Dodge', d: 6, dmg: 'None (R)'},
-            {n: 'Hold', d: 6, dmg: 'None (C)'},
+            {n: 'Grapple', d: 6, dmg: 'Str (B)'},
             {n: 'Kick', d: 7, dmg: 'Str+1 (B)'},
-            {n: 'Parry', d: 6, dmg: 'None (R)'},
             {n: 'Strike', d: 6, dmg: 'Str (B)'},
-            {n: 'Sweep', d: 7, dmg: 'Str (K)'},
-            {n: 'Tackle', d: 7, dmg: 'Str+1 (K)'},
-            {n: 'Weapon Str.', d: 6, dmg: 'Weapon'}
         ];
         manuevers.forEach(m => {
-            tblHTML += `<tr><td class="py-1 border-b border-gray-300 font-bold">${m.n}</td><td class="border-b border-gray-300">${m.d}</td><td class="border-b border-gray-300">${m.dmg}</td></tr>`;
+            tblHTML += `<tr><td class="py-1 border-b border-gray-300 font-bold text-[10px]">${m.n}</td><td class="border-b border-gray-300 text-[10px]">${m.d}</td><td class="border-b border-gray-300 text-[10px]">${m.dmg}</td></tr>`;
         });
         
         // Add Weapons from Inventory
@@ -244,7 +314,7 @@ export function renderPrintSheet() {
             window.state.inventory.filter(i => i.type === 'Weapon' && i.status === 'carried').forEach(w => {
                 const name = w.displayName || w.name;
                 const stats = w.stats || {};
-                tblHTML += `<tr><td class="py-1 border-b border-gray-300 font-bold italic">${name}</td><td class="border-b border-gray-300">${stats.diff||6}</td><td class="border-b border-gray-300">${stats.dmg||'-'}</td></tr>`;
+                tblHTML += `<tr><td class="py-1 border-b border-gray-300 font-bold italic text-[10px]">${name}</td><td class="border-b border-gray-300 text-[10px]">${stats.diff||6}</td><td class="border-b border-gray-300 text-[10px]">${stats.dmg||'-'}</td></tr>`;
             });
         }
         
@@ -318,23 +388,10 @@ export function renderPrintSheet() {
             // Standard V20 Maneuvers (Same list as Play Mode)
             const standards = [
                 {n:'Bite', diff:6, dmg:'Str+1(A)', rng:'-', rate:'-', clip:'-'},
-                {n:'Block', diff:6, dmg:'None (R)', rng:'-', rate:'-', clip:'-'},
                 {n:'Claw', diff:6, dmg:'Str+1(A)', rng:'-', rate:'-', clip:'-'},
-                {n:'Clinch', diff:6, dmg:'Str(C)', rng:'-', rate:'-', clip:'-'},
-                {n:'Disarm', diff:7, dmg:'Special', rng:'-', rate:'-', clip:'-'},
-                {n:'Dodge', diff:6, dmg:'None (R)', rng:'-', rate:'-', clip:'-'},
-                {n:'Hold', diff:6, dmg:'None (C)', rng:'-', rate:'-', clip:'-'},
+                {n:'Grapple', diff:6, dmg:'Str(B)', rng:'-', rate:'-', clip:'-'},
                 {n:'Kick', diff:7, dmg:'Str+1', rng:'-', rate:'-', clip:'-'},
-                {n:'Parry', diff:6, dmg:'None (R)', rng:'-', rate:'-', clip:'-'},
                 {n:'Strike', diff:6, dmg:'Str', rng:'-', rate:'-', clip:'-'},
-                {n:'Sweep', diff:7, dmg:'Str(K)', rng:'-', rate:'-', clip:'-'},
-                {n:'Tackle', diff:7, dmg:'Str+1(K)', rng:'-', rate:'-', clip:'-'},
-                {n:'Weapon Strike', diff:6, dmg:'Weapon', rng:'-', rate:'-', clip:'-'},
-                {n:'Auto Fire', diff:8, dmg:'Special', rng:'-', rate:'-', clip:'-'},
-                {n:'Multi Shot', diff:6, dmg:'Weapon', rng:'-', rate:'-', clip:'-'},
-                {n:'Strafing', diff:8, dmg:'Special', rng:'-', rate:'-', clip:'-'},
-                {n:'3-Rnd Burst', diff:7, dmg:'Weapon', rng:'-', rate:'-', clip:'-'},
-                {n:'Two Weapons', diff:7, dmg:'Weapon', rng:'-', rate:'-', clip:'-'}
             ];
 
             standards.forEach(s => {
@@ -417,5 +474,34 @@ export function renderPrintSheet() {
 
     const hist = document.getElementById('pr-history');
     if(hist) hist.innerText = document.getElementById('char-history')?.value || "";
+
+    // 11. NPCs / Retainers (NEW)
+    const npcCont = document.getElementById('pr-retainers');
+    if (npcCont) {
+        if (window.state.retainers && window.state.retainers.length > 0) {
+             npcCont.innerHTML = window.state.retainers.map(npc => {
+                 let type = npc.template === 'animal' ? (npc.ghouled ? 'Ghouled Animal' : 'Animal') : (npc.template === 'mortal' ? 'Mortal' : 'Ghoul');
+                 return `<div class="mb-1"><strong>${npc.name || "Unnamed"}</strong> <span class="text-[10px] italic">(${type})</span></div>`;
+             }).join('');
+        } else {
+            npcCont.innerHTML = '<span class="italic text-gray-500">None</span>';
+        }
+    }
+
+    // 12. Experience Log (NEW)
+    const xpCont = document.getElementById('pr-xp-log');
+    if (xpCont) {
+        const total = parseInt(document.getElementById('c-xp-total')?.value) || 0;
+        const log = window.state.xpLog || [];
+        const spent = log.reduce((a,b)=>a+b.cost,0);
+        
+        xpCont.innerHTML = `
+            <div class="flex justify-between border-b border-black mb-1 font-bold">
+                <span>Total: ${total}</span>
+                <span>Spent: ${spent}</span>
+                <span>Remaining: ${total - spent}</span>
+            </div>
+        `;
+    }
 }
 window.renderPrintSheet = renderPrintSheet;
