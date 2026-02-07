@@ -1,12 +1,7 @@
-import { db, doc, onSnapshot, updateDoc, arrayUnion, arrayRemove } from "./firebase-config.js";
+import { db, doc, onSnapshot, setDoc, updateDoc, arrayUnion, arrayRemove } from "./firebase-config.js";
 import { showNotification } from "./ui-common.js";
 
 // We need mermaid from CDN as it's not bundled. 
-// Ideally, this should be added to index.html as a script tag, but we can dynamic import or assume global.
-// For robustness in this modular setup, we'll assume window.mermaid is available or import it.
-// Since the prompt's reference used an import map/module in HTML, we'll try to use the global if loaded via script,
-// or dynamic import if not.
-
 let mermaidInitialized = false;
 
 async function initMermaid() {
@@ -176,8 +171,11 @@ function startMapSync() {
             mapState.characters = data.characters || [];
             mapState.relationships = data.relationships || [];
         } else {
-            mapState.characters = [];
-            mapState.relationships = [];
+            // Don't wipe local state if snapshot is empty but we have pending local changes
+            if (mapState.characters.length === 0) {
+                 mapState.characters = [];
+                 mapState.relationships = [];
+            }
         }
         refreshMapUI();
     });
@@ -189,53 +187,64 @@ async function saveMapData() {
     
     try {
         const docRef = doc(db, 'chronicles', stState.activeChronicleId, 'coterie', 'map');
-        await updateDoc(docRef, {
+        
+        // Use setDoc with merge: true to handle creation automatically
+        await setDoc(docRef, {
             characters: mapState.characters,
             relationships: mapState.relationships
-        }).catch(async (err) => {
-            if (err.code === 'not-found') {
-                await import("./firebase-config.js").then(({setDoc}) => 
-                    setDoc(docRef, { characters: mapState.characters, relationships: mapState.relationships })
-                );
-            }
-        });
+        }, { merge: true });
+        
     } catch(e) {
         console.error("Map Save Failed:", e);
+        showNotification("Sync Failed (Blocked?)", "error");
     }
 }
 
 // --- LOGIC ---
 
 async function addCharacter() {
-    const name = document.getElementById('cmap-name').value.trim();
-    const clan = document.getElementById('cmap-clan').value.trim();
-    const type = document.getElementById('cmap-type').value;
+    const nameInput = document.getElementById('cmap-name');
+    const clanInput = document.getElementById('cmap-clan');
+    const typeInput = document.getElementById('cmap-type');
+    
+    const name = nameInput.value.trim();
+    const clan = clanInput.value.trim();
+    const type = typeInput.value;
 
     if (!name) return showNotification("Name required!", "error");
 
     const id = name.replace(/[^a-zA-Z0-9]/g, '');
     if (mapState.characters.some(c => c.id === id)) return showNotification("Exists!", "error");
 
+    // Optimistic Update
     mapState.characters.push({ id, name, clan, type });
     
-    document.getElementById('cmap-name').value = '';
-    document.getElementById('cmap-clan').value = '';
+    nameInput.value = '';
+    clanInput.value = '';
     
+    refreshMapUI(); // Update UI immediately
     await saveMapData();
 }
 
 async function addRelationship() {
-    const source = document.getElementById('cmap-source').value;
-    const target = document.getElementById('cmap-target').value;
-    const type = document.getElementById('cmap-rel-type').value;
-    const label = document.getElementById('cmap-label').value.trim();
+    const sourceInput = document.getElementById('cmap-source');
+    const targetInput = document.getElementById('cmap-target');
+    const typeInput = document.getElementById('cmap-rel-type');
+    const labelInput = document.getElementById('cmap-label');
+    
+    const source = sourceInput.value;
+    const target = targetInput.value;
+    const type = typeInput.value;
+    const label = labelInput.value.trim();
 
     if (!source || !target) return showNotification("Select Source & Target", "error");
     if (source === target) return showNotification("Self-link invalid", "error");
 
+    // Optimistic Update
     mapState.relationships.push({ source, target, type, label });
     
-    document.getElementById('cmap-label').value = '';
+    labelInput.value = '';
+    refreshMapUI(); // Update UI immediately
     await saveMapData();
 }
 
@@ -244,11 +253,13 @@ window.cmapRemoveChar = async (id) => {
     if(!confirm("Remove character?")) return;
     mapState.characters = mapState.characters.filter(c => c.id !== id);
     mapState.relationships = mapState.relationships.filter(r => r.source !== id && r.target !== id);
+    refreshMapUI();
     await saveMapData();
 };
 
 window.cmapRemoveRel = async (idx) => {
     mapState.relationships.splice(idx, 1);
+    refreshMapUI();
     await saveMapData();
 };
 
