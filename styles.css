@@ -550,7 +550,7 @@ body.xp-mode #top-xp-counter { display: flex !important; }
     #print-sheet h1 {
         font-size: 24px !important; /* Reduced by ~25% */
         margin-top: 0 !important;
-        margin-bottom: 10px !important;
+        margin-bottom: 2px !important; /* Reduced to 2px */
         line-height: 1 !important;
         text-align: center;
         font-family: 'Cinzel', serif !important;
@@ -569,8 +569,9 @@ body.xp-mode #top-xp-counter { display: flex !important; }
         font-weight: 700 !important;
         text-transform: uppercase;
         font-size: 14px;
-        padding: 5px 0 !important;
-        margin-bottom: 8px !important;
+        padding: 1px 0 !important; /* Reduced padding */
+        margin-bottom: 2px !important; /* Reduced bottom margin */
+        margin-top: 4px !important; /* Tight top margin */
         text-align: center;
         /* Double line separator top/bottom */
         border-top: 2px solid black !important;
@@ -581,6 +582,7 @@ body.xp-mode #top-xp-counter { display: flex !important; }
         letter-spacing: 0.15em;
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
+        line-height: 1.4 !important;
     }
     
     /* Trait Rows: Dotted Leaders */
@@ -596,7 +598,7 @@ body.xp-mode #top-xp-counter { display: flex !important; }
         font-weight: bold;
         text-transform: uppercase;
         font-size: 11px;
-        margin-bottom: 4px;
+        margin-bottom: 2px !important; /* Reduced margin */
         text-align: center;
         color: #000;
         font-family: 'Cinzel', serif;
