@@ -546,6 +546,17 @@ body.xp-mode #top-xp-counter { display: flex !important; }
         box-sizing: border-box;
     }
 
+    /* REDUCED TITLE SIZE TO SAVE SPACE */
+    #print-sheet h1 {
+        font-size: 24px !important; /* Reduced by ~25% */
+        margin-top: 0 !important;
+        margin-bottom: 10px !important;
+        line-height: 1 !important;
+        text-align: center;
+        font-family: 'Cinzel', serif !important;
+        font-weight: 700 !important;
+    }
+
     /* GOTHIC TYPOGRAPHY for Headers */
     .font-cinzel { font-family: 'Cinzel', serif; color: black !important; }
     
