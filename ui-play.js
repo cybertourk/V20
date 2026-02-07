@@ -1417,7 +1417,7 @@ function renderChronicleRosterView(container, chronicleId) {
             const charName = p.character_name || "Unknown";
             const playerName = tf['c-player'] || "Unknown Player";
             const description = tf['bio-desc'] || "No physical description provided.";
-            const demeanor = tf['c-demeanor'] || "Unknown Demeanor";
+            const demeanor = tf['c-demeanor'] || "Unknown Demeanor"; // REPLACED CLAN WITH DEMEANOR
             const imgUrl = sheet.characterImage || null;
 
             // Status Logic
