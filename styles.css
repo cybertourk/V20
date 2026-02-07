@@ -505,7 +505,7 @@ body.xp-mode #top-xp-counter { display: flex !important; }
 }
 
 
-/* --- PRINT STYLES --- */
+/* --- PRINT STYLES (GOTHIC UPGRADE) --- */
 
 .section-header, .col-header { display: none; } /* Hidden normally, shown in print */
 
@@ -514,7 +514,7 @@ body.xp-mode #top-xp-counter { display: flex !important; }
     #loading-overlay, #main-menubar, #sheet-nav, #notification, #dice-tray, 
     #freebie-sidebar, #xp-sidebar, #walkthrough-guide, #sheet-content,
     .modal-overlay, #auth-modal, #save-modal, #load-modal, #dice-toggle-btn,
-    #phase-info-btn, #st-dashboard-btn { /* Hide the Storyteller button */
+    #phase-info-btn, #st-dashboard-btn {
         display: none !important;
     }
 
@@ -528,9 +528,10 @@ body.xp-mode #top-xp-counter { display: flex !important; }
         height: auto !important;
         overflow: visible !important;
         -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
     }
 
-    /* Show Print Sheet */
+    /* Show Print Sheet with GOTHIC BORDER */
     #print-sheet {
         display: block !important;
         background: white !important;
@@ -538,35 +539,59 @@ body.xp-mode #top-xp-counter { display: flex !important; }
         font-family: 'IM Fell English', serif;
         width: 100%;
         max-width: 100%;
+        /* Classic Double Frame Border */
+        border: 5px double #000; 
+        padding: 25px;
+        margin: 0;
+        box-sizing: border-box;
     }
 
-    /* Print Typography */
+    /* GOTHIC TYPOGRAPHY for Headers */
     .font-cinzel { font-family: 'Cinzel', serif; color: black !important; }
     
-    /* Section Headers */
-    .section-header {
-        display: block;
-        border-bottom: 2px solid black;
-        font-family: 'Cinzel', serif;
-        font-weight: bold;
+    /* GOTHIC SECTION HEADERS (Elegant Bars) */
+    .section-header, h4, .column-title {
+        display: block !important;
+        background: transparent !important;
+        color: black !important;
+        font-family: 'Cinzel', serif !important;
+        font-weight: 700 !important;
         text-transform: uppercase;
         font-size: 14px;
-        margin-bottom: 8px;
-        letter-spacing: 0.1em;
+        padding: 5px 0 !important;
+        margin-bottom: 8px !important;
+        text-align: center;
+        /* Double line separator top/bottom */
+        border-top: 2px solid black !important;
+        border-bottom: 2px solid black !important;
+        border-left: none !important;
+        border-right: none !important;
+        border-radius: 0 !important;
+        letter-spacing: 0.15em;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
     }
     
+    /* Trait Rows: Dotted Leaders */
+    .flex.justify-between.border-b.border-black {
+        border-bottom: 1px dotted #888 !important; /* Replaces solid line with dotted for paper look */
+        align-items: flex-end !important;
+    }
+    
+    /* Clean up Column Headers */
     .col-header {
         display: block;
-        border-bottom: 1px solid black;
+        border-bottom: 2px solid #000;
         font-weight: bold;
         text-transform: uppercase;
         font-size: 11px;
         margin-bottom: 4px;
         text-align: center;
-        color: #333;
+        color: #000;
+        font-family: 'Cinzel', serif;
     }
 
-    /* Dots & Boxes for Print */
+    /* Dots - CRISP BLACK CIRCLES */
     .dot {
         border: 1px solid #000 !important;
         background: white !important;
@@ -576,12 +601,13 @@ body.xp-mode #top-xp-counter { display: flex !important; }
         print-color-adjust: exact;
     }
     .dot.filled {
-        background: #000 !important;
+        background: black !important;
         box-shadow: none !important;
     }
 
+    /* Boxes - CRISP BLACK SQUARES */
     .box {
-        border: 1px solid #000 !important;
+        border: 2px solid #000 !important;
         color: black !important;
         width: 12px;
         height: 12px;
@@ -597,8 +623,24 @@ body.xp-mode #top-xp-counter { display: flex !important; }
     .box[data-state="3"]::after { content: "*" !important; color: black !important; }
     .box[data-state="3"] { background: #ddd !important; }
     
-    /* Hide scrollbars etc */
+    /* Remove Screen-Only Backgrounds from Containers */
+    .bg-black\/40, .bg-\[\#111\], .bg-\[\#1a0505\], .bg-\[\#0a0a0a\], .bg-[#111] {
+        background: transparent !important;
+        border: 1px solid #aaa !important; /* Light border for containment */
+        color: black !important;
+    }
+    
+    /* Layout cleanups */
     ::-webkit-scrollbar { display: none; }
+    
+    /* Ensure Borders print */
+    .border-black { border-color: #000 !important; }
+    .border-b { border-bottom-width: 1px !important; }
+    
+    /* Text Color overrides for dark mode classes */
+    .text-gray-300, .text-gray-400, .text-gray-500, .text-gold, .text-white {
+        color: black !important;
+    }
 }
 
 /* --- NPC CREATOR SPECIFIC STYLES --- */
