@@ -59,14 +59,14 @@ export async function renderCoterieMap(container) {
                     
                     <div class="grid grid-cols-2 gap-2 mb-3">
                         <input type="text" id="cmap-name" placeholder="Name" class="bg-[#262626] border border-[#404040] text-white p-2 rounded text-xs focus:border-[#8a0303] outline-none col-span-2">
-                        <input type="text" id="cmap-clan" placeholder="Clan" class="bg-[#262626] border border-[#404040] text-white p-2 rounded text-xs focus:border-[#8a0303] outline-none">
+                        <input type="text" id="cmap-clan" placeholder="Clan / Type" class="bg-[#262626] border border-[#404040] text-white p-2 rounded text-xs focus:border-[#8a0303] outline-none">
                         <select id="cmap-type" class="bg-[#262626] border border-[#404040] text-white p-2 rounded text-xs focus:border-[#8a0303] outline-none">
                             <option value="pc">PC</option>
                             <option value="npc">NPC</option>
                         </select>
                     </div>
                     <button id="cmap-add-char" class="w-full bg-[#8a0303] hover:bg-[#6d0202] text-white font-bold py-2 rounded text-xs uppercase tracking-wider transition-colors">
-                        <i class="fas fa-plus mr-2"></i>Add Vampire
+                        <i class="fas fa-plus mr-2"></i>ADD
                     </button>
 
                     <ul id="cmap-char-list" class="mt-4 space-y-1 max-h-40 overflow-y-auto custom-scrollbar"></ul>
