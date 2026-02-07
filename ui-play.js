@@ -21,7 +21,7 @@ import { combatState } from "./combat-tracker.js";
 
 // ... [Info Modal Handlers, Injection Helpers, Combat Float unchanged] ...
 
-// --- SUB-VIEW: CHAT (UPDATED FOR MOOD) ---
+// --- SUB-VIEW: CHAT (UPDATED FOR MOOD & ASYNC SAFETY) ---
 async function renderChronicleChatView(container, chronicleId) {
     // 1. Fetch Players for Dropdown (Async)
     let players = [];
@@ -42,6 +42,9 @@ async function renderChronicleChatView(container, chronicleId) {
             stUID = cSnap.data().storyteller_uid;
         }
     } catch(e) { console.error("Player fetch error", e); }
+
+    // SAFETY CHECK: If tab switched during await, container might be gone
+    if (!container || !document.body.contains(container)) return;
 
     // Build options HTML for checkbox list
     let optionsHtml = '';
@@ -142,41 +145,50 @@ async function renderChronicleChatView(container, chronicleId) {
     // Auto-update label and checkboxes
     const updateSelection = () => {
         const checks = document.querySelectorAll('.pl-recipient-checkbox');
-        if (allCheck.checked) {
+        if (allCheck && allCheck.checked) {
             checks.forEach(c => { c.checked = false; c.disabled = true; });
-            label.innerText = "Everyone";
-            label.className = "text-gray-300 text-xs";
+            if (label) {
+                label.innerText = "Everyone";
+                label.className = "text-gray-300 text-xs";
+            }
         } else {
             checks.forEach(c => c.disabled = false);
             const selected = Array.from(checks).filter(c => c.checked);
-            if (selected.length === 0) {
-                label.innerText = "Select Recipients..."; 
-                label.className = "text-red-500 font-bold text-xs";
-            } else {
-                label.innerText = `Whisper (${selected.length})`;
-                label.className = "text-purple-400 font-bold text-xs";
+            if (label) {
+                if (selected.length === 0) {
+                    label.innerText = "Select Recipients..."; 
+                    label.className = "text-red-500 font-bold text-xs";
+                } else {
+                    label.innerText = `Whisper (${selected.length})`;
+                    label.className = "text-purple-400 font-bold text-xs";
+                }
             }
         }
     };
 
-    allCheck.onchange = updateSelection;
+    if (allCheck) {
+        allCheck.onchange = updateSelection;
+    }
+    
+    // Bind individual checkboxes if they exist
     document.querySelectorAll('.pl-recipient-checkbox').forEach(c => c.onchange = updateSelection);
 
     // Close dropdown on click outside
     document.addEventListener('click', (e) => {
         const btn = document.getElementById('pl-chat-recipient-btn');
         const menu = document.getElementById('pl-chat-recipients-dropdown');
-        if (menu && !menu.contains(e.target) && !btn.contains(e.target)) {
+        if (menu && !menu.contains(e.target) && btn && !btn.contains(e.target)) {
             menu.classList.add('hidden');
         }
     });
     
     const sendHandler = () => {
+        if (!input) return;
         const txt = input.value.trim();
         if (txt && window.sendChronicleMessage) {
-            const isAll = allCheck.checked;
+            const isAll = allCheck ? allCheck.checked : true;
             const selected = Array.from(document.querySelectorAll('.pl-recipient-checkbox:checked')).map(c => c.value);
-            const moodVal = moodInput.value.trim();
+            const moodVal = moodInput ? moodInput.value.trim() : "";
             
             if (!isAll && selected.length === 0) {
                 showNotification("Select at least one recipient.", "error");
@@ -194,8 +206,8 @@ async function renderChronicleChatView(container, chronicleId) {
             
             window.sendChronicleMessage('chat', txt, null, options);
             input.value = '';
-            moodInput.value = ''; 
-            dropdown.classList.add('hidden');
+            if (moodInput) moodInput.value = ''; 
+            if (dropdown) dropdown.classList.add('hidden');
         }
     };
     
@@ -209,7 +221,7 @@ async function renderChronicleChatView(container, chronicleId) {
     }
 }
 
-// --- SUB-VIEW: ROSTER (MOVED HERE TO AVOID DUPLICATION) ---
+// --- SUB-VIEW: ROSTER ---
 function renderChronicleRosterView(container, chronicleId) {
     container.innerHTML = `<div class="p-4 grid grid-cols-1 md:grid-cols-2 gap-4 overflow-y-auto h-full custom-scrollbar" id="roster-grid">
         <div class="text-center text-gray-500 italic text-xs col-span-full mt-4">Loading Roster...</div>
@@ -1542,6 +1554,7 @@ export async function renderChronicleTab() {
 
     if (!window.state.chronicleSubTab) window.state.chronicleSubTab = 'info';
 
+    // Show Loading state without clearing container entirely if possible? No, we need to clear.
     container.innerHTML = `<div class="flex flex-col items-center justify-center h-full text-gold"><i class="fas fa-circle-notch fa-spin text-2xl mb-2"></i><span class="text-xs uppercase tracking-widest">Connecting to Chronicle...</span></div>`;
 
     try {
