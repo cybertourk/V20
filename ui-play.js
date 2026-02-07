@@ -16,7 +16,7 @@ import {
 } from "./ui-mechanics.js";
 
 // FIREBASE IMPORTS (Added auth for ID checks)
-import { db, doc, getDoc, collection, getDocs, query, auth } from "./firebase-config.js";
+import { db, doc, getDoc, collection, getDocs, query, auth, onSnapshot } from "./firebase-config.js";
 import { combatState } from "./combat-tracker.js";
 
 // ... [Info Modal Handlers, Injection Helpers, Combat Float unchanged] ...
@@ -209,14 +209,96 @@ async function renderChronicleChatView(container, chronicleId) {
     }
 }
 
-// ... [Rest of ui-play.js (imports at top, functions below renderChronicleChatView)] ...
-// (Omitting rest for brevity, but ensure renderChronicleChatView replaces the old version)
-// (Note: In the full file generation, I will output the entire file to avoid errors, 
-//  but since ui-play.js is huge and I only modified one function, 
-//  and per instructions I should output complete files...)
+// --- SUB-VIEW: ROSTER (NEW) ---
+function renderChronicleRosterView(container, chronicleId) {
+    container.innerHTML = `<div class="p-4 grid grid-cols-1 md:grid-cols-2 gap-4 overflow-y-auto h-full custom-scrollbar" id="roster-grid">
+        <div class="text-center text-gray-500 italic text-xs col-span-full mt-4">Loading Roster...</div>
+    </div>`;
 
-// Wait, ui-play.js is mostly about the sheet display. 
-// I need to make sure I don't truncate the rest of the file.
+    const grid = document.getElementById('roster-grid');
+    const q = query(collection(db, 'chronicles', chronicleId, 'players'));
+    
+    window.rosterUnsub = onSnapshot(q, (snapshot) => {
+        if(!grid) return;
+        grid.innerHTML = '';
+        
+        const players = [];
+        snapshot.forEach(doc => {
+            if(!doc.id.startsWith('journal_')) {
+                players.push({id: doc.id, ...doc.data()});
+            }
+        });
+
+        if (players.length === 0) {
+            grid.innerHTML = `<div class="text-center text-gray-500 italic text-xs col-span-full mt-4">No other kindred found.</div>`;
+            return;
+        }
+
+        players.forEach(p => {
+            const isMe = auth.currentUser && p.id === auth.currentUser.uid;
+            const statusColor = (p.status === 'Connected' || p.status === 'Online') ? 'bg-green-500 shadow-[0_0_5px_lime]' : 'bg-red-500 opacity-50';
+            
+            // Calculate last active
+            const now = new Date();
+            const lastActive = p.last_active ? new Date(p.last_active) : new Date(0);
+            const diffSeconds = (now - lastActive) / 1000;
+            const isOnline = diffSeconds < 300; // 5 min threshold for "Online" visually
+            
+            const displayStatus = isOnline ? "Active" : "Away";
+            const displayColor = isOnline ? "text-green-400" : "text-gray-500";
+            
+            // Extract Clan from full_sheet if available
+            const clan = p.full_sheet?.textFields?.['c-clan'] || "Kindred";
+
+            const card = document.createElement('div');
+            card.className = `bg-[#111] border ${isMe ? 'border-[#d4af37]' : 'border-[#333]'} p-3 rounded flex items-center justify-between relative group hover:border-[#555] transition-colors`;
+            
+            card.innerHTML = `
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-full bg-[#050505] border border-[#333] flex items-center justify-center overflow-hidden">
+                        <i class="fas fa-user text-gray-600"></i>
+                    </div>
+                    <div>
+                        <div class="text-sm font-bold text-white font-cinzel leading-none">${p.character_name || "Unknown"}</div>
+                        <div class="text-[9px] text-gray-500 uppercase tracking-wider">${clan}</div>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <div class="flex items-center justify-end gap-2 mb-1">
+                        <span class="text-[9px] uppercase font-bold ${displayColor}">${displayStatus}</span>
+                        <div class="w-2 h-2 rounded-full ${statusColor}"></div>
+                    </div>
+                    ${!isMe ? `<button class="text-[9px] text-gray-600 hover:text-[#d4af37] uppercase font-bold border border-[#333] px-2 py-0.5 rounded hover:bg-[#222] transition-colors" onclick="window.initWhisper('${p.id}', '${p.character_name}')"><i class="fas fa-comment-alt mr-1"></i> Whisper</button>` : ''}
+                </div>
+            `;
+            grid.appendChild(card);
+        });
+    });
+}
+
+window.initWhisper = function(id, name) {
+    window.state.chronicleSubTab = 'chat';
+    renderChronicleTab().then(() => {
+        // Wait a tick for chat to render
+        setTimeout(() => {
+            const btn = document.getElementById('pl-chat-recipient-btn');
+            const menu = document.getElementById('pl-chat-recipients-dropdown');
+            const allCheck = document.getElementById('pl-chat-all-checkbox');
+            
+            if (menu) menu.classList.remove('hidden');
+            if (allCheck) { allCheck.checked = false; allCheck.dispatchEvent(new Event('change')); }
+            
+            const checks = document.querySelectorAll('.pl-recipient-checkbox');
+            checks.forEach(c => {
+                if (c.value === id) { c.checked = true; c.dispatchEvent(new Event('change')); }
+            });
+            
+            showNotification(`Drafting whisper to ${name}`);
+        }, 300);
+    });
+}
+
+// ... [Rest of ui-play.js (imports at top, functions below renderChronicleChatView)] ...
 
 export function showWillpowerInfo(e) {
     if(e) e.stopPropagation();
@@ -1452,6 +1534,12 @@ export async function renderChronicleTab() {
         return;
     }
 
+    // Clean up previous Roster listener if switching away or re-rendering
+    if (window.rosterUnsub) {
+        window.rosterUnsub();
+        window.rosterUnsub = null;
+    }
+
     if (!window.state.chronicleSubTab) window.state.chronicleSubTab = 'info';
 
     container.innerHTML = `<div class="flex flex-col items-center justify-center h-full text-gold"><i class="fas fa-circle-notch fa-spin text-2xl mb-2"></i><span class="text-xs uppercase tracking-widest">Connecting to Chronicle...</span></div>`;
@@ -1474,10 +1562,13 @@ export async function renderChronicleTab() {
             <div class="flex flex-col h-full relative">
                 <div class="flex gap-6 border-b border-[#333] pb-2 mb-4 px-2 shrink-0">
                     <button id="tab-chron-info" class="text-xs uppercase tracking-wider px-2 pb-1 ${currentTab==='info'?activeClass:inactiveClass}">
-                        <i class="fas fa-info-circle mr-2"></i>Info & Lore
+                        <i class="fas fa-info-circle mr-2"></i>Info
+                    </button>
+                    <button id="tab-chron-roster" class="text-xs uppercase tracking-wider px-2 pb-1 ${currentTab==='roster'?activeClass:inactiveClass}">
+                        <i class="fas fa-users mr-2"></i>Roster
                     </button>
                     <button id="tab-chron-chat" class="text-xs uppercase tracking-wider px-2 pb-1 ${currentTab==='chat'?activeClass:inactiveClass}">
-                        <i class="fas fa-comments mr-2"></i>Chat / Log
+                        <i class="fas fa-comments mr-2"></i>Chat
                     </button>
                 </div>
 
@@ -1487,19 +1578,16 @@ export async function renderChronicleTab() {
             </div>
         `;
 
-        document.getElementById('tab-chron-info').onclick = () => {
-            window.state.chronicleSubTab = 'info';
-            renderChronicleTab(); 
-        };
-        document.getElementById('tab-chron-chat').onclick = () => {
-            window.state.chronicleSubTab = 'chat';
-            renderChronicleTab();
-        };
+        document.getElementById('tab-chron-info').onclick = () => { window.state.chronicleSubTab = 'info'; renderChronicleTab(); };
+        document.getElementById('tab-chron-roster').onclick = () => { window.state.chronicleSubTab = 'roster'; renderChronicleTab(); };
+        document.getElementById('tab-chron-chat').onclick = () => { window.state.chronicleSubTab = 'chat'; renderChronicleTab(); };
 
         const contentArea = document.getElementById('chronicle-content-area');
 
         if (currentTab === 'info') {
             renderChronicleInfoView(contentArea, data);
+        } else if (currentTab === 'roster') {
+            renderChronicleRosterView(contentArea, chronicleId);
         } else {
             renderChronicleChatView(contentArea, chronicleId);
         }
@@ -1510,6 +1598,95 @@ export async function renderChronicleTab() {
     }
 }
 window.renderChronicleTab = renderChronicleTab;
+
+// --- SUB-VIEW: ROSTER (NEW) ---
+function renderChronicleRosterView(container, chronicleId) {
+    container.innerHTML = `<div class="p-4 grid grid-cols-1 md:grid-cols-2 gap-4 overflow-y-auto h-full custom-scrollbar" id="roster-grid">
+        <div class="text-center text-gray-500 italic text-xs col-span-full mt-4">Loading Roster...</div>
+    </div>`;
+
+    const grid = document.getElementById('roster-grid');
+    const q = query(collection(db, 'chronicles', chronicleId, 'players'));
+    
+    window.rosterUnsub = onSnapshot(q, (snapshot) => {
+        if(!grid) return;
+        grid.innerHTML = '';
+        
+        const players = [];
+        snapshot.forEach(doc => {
+            if(!doc.id.startsWith('journal_')) {
+                players.push({id: doc.id, ...doc.data()});
+            }
+        });
+
+        if (players.length === 0) {
+            grid.innerHTML = `<div class="text-center text-gray-500 italic text-xs col-span-full mt-4">No other kindred found.</div>`;
+            return;
+        }
+
+        players.forEach(p => {
+            const isMe = auth.currentUser && p.id === auth.currentUser.uid;
+            const statusColor = (p.status === 'Connected' || p.status === 'Online') ? 'bg-green-500 shadow-[0_0_5px_lime]' : 'bg-red-500 opacity-50';
+            
+            // Calculate last active
+            const now = new Date();
+            const lastActive = p.last_active ? new Date(p.last_active) : new Date(0);
+            const diffSeconds = (now - lastActive) / 1000;
+            const isOnline = diffSeconds < 300; // 5 min threshold for "Online" visually
+            
+            const displayStatus = isOnline ? "Active" : "Away";
+            const displayColor = isOnline ? "text-green-400" : "text-gray-500";
+            
+            // Extract Clan from full_sheet if available
+            const clan = p.full_sheet?.textFields?.['c-clan'] || "Kindred";
+
+            const card = document.createElement('div');
+            card.className = `bg-[#111] border ${isMe ? 'border-[#d4af37]' : 'border-[#333]'} p-3 rounded flex items-center justify-between relative group hover:border-[#555] transition-colors`;
+            
+            card.innerHTML = `
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-full bg-[#050505] border border-[#333] flex items-center justify-center overflow-hidden">
+                        <i class="fas fa-user text-gray-600"></i>
+                    </div>
+                    <div>
+                        <div class="text-sm font-bold text-white font-cinzel leading-none">${p.character_name || "Unknown"}</div>
+                        <div class="text-[9px] text-gray-500 uppercase tracking-wider">${clan}</div>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <div class="flex items-center justify-end gap-2 mb-1">
+                        <span class="text-[9px] uppercase font-bold ${displayColor}">${displayStatus}</span>
+                        <div class="w-2 h-2 rounded-full ${statusColor}"></div>
+                    </div>
+                    ${!isMe ? `<button class="text-[9px] text-gray-600 hover:text-[#d4af37] uppercase font-bold border border-[#333] px-2 py-0.5 rounded hover:bg-[#222] transition-colors" onclick="window.initWhisper('${p.id}', '${p.character_name}')"><i class="fas fa-comment-alt mr-1"></i> Whisper</button>` : ''}
+                </div>
+            `;
+            grid.appendChild(card);
+        });
+    });
+}
+
+window.initWhisper = function(id, name) {
+    window.state.chronicleSubTab = 'chat';
+    renderChronicleTab().then(() => {
+        // Wait a tick for chat to render
+        setTimeout(() => {
+            const btn = document.getElementById('pl-chat-recipient-btn');
+            const menu = document.getElementById('pl-chat-recipients-dropdown');
+            const allCheck = document.getElementById('pl-chat-all-checkbox');
+            
+            if (menu) menu.classList.remove('hidden');
+            if (allCheck) { allCheck.checked = false; allCheck.dispatchEvent(new Event('change')); }
+            
+            const checks = document.querySelectorAll('.pl-recipient-checkbox');
+            checks.forEach(c => {
+                if (c.value === id) { c.checked = true; c.dispatchEvent(new Event('change')); }
+            });
+            
+            showNotification(`Drafting whisper to ${name}`);
+        }, 300);
+    });
+}
 
 // --- SUB-VIEW: INFO ---
 function renderChronicleInfoView(container, data) {
