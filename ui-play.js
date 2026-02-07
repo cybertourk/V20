@@ -209,7 +209,7 @@ async function renderChronicleChatView(container, chronicleId) {
     }
 }
 
-// --- SUB-VIEW: ROSTER (NEW) ---
+// --- SUB-VIEW: ROSTER (MOVED HERE TO AVOID DUPLICATION) ---
 function renderChronicleRosterView(container, chronicleId) {
     container.innerHTML = `<div class="p-4 grid grid-cols-1 md:grid-cols-2 gap-4 overflow-y-auto h-full custom-scrollbar" id="roster-grid">
         <div class="text-center text-gray-500 italic text-xs col-span-full mt-4">Loading Roster...</div>
@@ -1598,95 +1598,6 @@ export async function renderChronicleTab() {
     }
 }
 window.renderChronicleTab = renderChronicleTab;
-
-// --- SUB-VIEW: ROSTER (NEW) ---
-function renderChronicleRosterView(container, chronicleId) {
-    container.innerHTML = `<div class="p-4 grid grid-cols-1 md:grid-cols-2 gap-4 overflow-y-auto h-full custom-scrollbar" id="roster-grid">
-        <div class="text-center text-gray-500 italic text-xs col-span-full mt-4">Loading Roster...</div>
-    </div>`;
-
-    const grid = document.getElementById('roster-grid');
-    const q = query(collection(db, 'chronicles', chronicleId, 'players'));
-    
-    window.rosterUnsub = onSnapshot(q, (snapshot) => {
-        if(!grid) return;
-        grid.innerHTML = '';
-        
-        const players = [];
-        snapshot.forEach(doc => {
-            if(!doc.id.startsWith('journal_')) {
-                players.push({id: doc.id, ...doc.data()});
-            }
-        });
-
-        if (players.length === 0) {
-            grid.innerHTML = `<div class="text-center text-gray-500 italic text-xs col-span-full mt-4">No other kindred found.</div>`;
-            return;
-        }
-
-        players.forEach(p => {
-            const isMe = auth.currentUser && p.id === auth.currentUser.uid;
-            const statusColor = (p.status === 'Connected' || p.status === 'Online') ? 'bg-green-500 shadow-[0_0_5px_lime]' : 'bg-red-500 opacity-50';
-            
-            // Calculate last active
-            const now = new Date();
-            const lastActive = p.last_active ? new Date(p.last_active) : new Date(0);
-            const diffSeconds = (now - lastActive) / 1000;
-            const isOnline = diffSeconds < 300; // 5 min threshold for "Online" visually
-            
-            const displayStatus = isOnline ? "Active" : "Away";
-            const displayColor = isOnline ? "text-green-400" : "text-gray-500";
-            
-            // Extract Clan from full_sheet if available
-            const clan = p.full_sheet?.textFields?.['c-clan'] || "Kindred";
-
-            const card = document.createElement('div');
-            card.className = `bg-[#111] border ${isMe ? 'border-[#d4af37]' : 'border-[#333]'} p-3 rounded flex items-center justify-between relative group hover:border-[#555] transition-colors`;
-            
-            card.innerHTML = `
-                <div class="flex items-center gap-3">
-                    <div class="w-8 h-8 rounded-full bg-[#050505] border border-[#333] flex items-center justify-center overflow-hidden">
-                        <i class="fas fa-user text-gray-600"></i>
-                    </div>
-                    <div>
-                        <div class="text-sm font-bold text-white font-cinzel leading-none">${p.character_name || "Unknown"}</div>
-                        <div class="text-[9px] text-gray-500 uppercase tracking-wider">${clan}</div>
-                    </div>
-                </div>
-                <div class="text-right">
-                    <div class="flex items-center justify-end gap-2 mb-1">
-                        <span class="text-[9px] uppercase font-bold ${displayColor}">${displayStatus}</span>
-                        <div class="w-2 h-2 rounded-full ${statusColor}"></div>
-                    </div>
-                    ${!isMe ? `<button class="text-[9px] text-gray-600 hover:text-[#d4af37] uppercase font-bold border border-[#333] px-2 py-0.5 rounded hover:bg-[#222] transition-colors" onclick="window.initWhisper('${p.id}', '${p.character_name}')"><i class="fas fa-comment-alt mr-1"></i> Whisper</button>` : ''}
-                </div>
-            `;
-            grid.appendChild(card);
-        });
-    });
-}
-
-window.initWhisper = function(id, name) {
-    window.state.chronicleSubTab = 'chat';
-    renderChronicleTab().then(() => {
-        // Wait a tick for chat to render
-        setTimeout(() => {
-            const btn = document.getElementById('pl-chat-recipient-btn');
-            const menu = document.getElementById('pl-chat-recipients-dropdown');
-            const allCheck = document.getElementById('pl-chat-all-checkbox');
-            
-            if (menu) menu.classList.remove('hidden');
-            if (allCheck) { allCheck.checked = false; allCheck.dispatchEvent(new Event('change')); }
-            
-            const checks = document.querySelectorAll('.pl-recipient-checkbox');
-            checks.forEach(c => {
-                if (c.value === id) { c.checked = true; c.dispatchEvent(new Event('change')); }
-            });
-            
-            showNotification(`Drafting whisper to ${name}`);
-        }, 300);
-    });
-}
 
 // --- SUB-VIEW: INFO ---
 function renderChronicleInfoView(container, data) {
