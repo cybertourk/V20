@@ -1,350 +1,409 @@
-import { 
-    db, auth, collection, addDoc, query, orderBy, limit, onSnapshot, getDocs, writeBatch
-} from "./firebase-config.js";
+import { db, doc, onSnapshot, setDoc, updateDoc, arrayUnion, arrayRemove } from "./firebase-config.js";
 import { showNotification } from "./ui-common.js";
 
-// We access stState via window to avoid circular dependency with ui-storyteller.js
-// window.stState is initialized in ui-storyteller.js
+// We need mermaid from CDN as it's not bundled. 
+let mermaidInitialized = false;
 
-// --- GLOBAL CHAT FUNCTIONS ---
-
-export function initChatSystem() {
-    // Bind global functions for UI interaction
-    window.startChatListener = startChatListener;
-    window.sendChronicleMessage = sendChronicleMessage;
-    window.stClearChat = stClearChat;
-    window.stExportChat = stExportChat;
-    window.stSendEvent = stSendEvent;
-    window.stSetWhisperTarget = stSetWhisperTarget;
-}
-
-// 1. Start Listener
-export function startChatListener(chronicleId) {
-    const stState = window.stState;
-    if (!stState) return;
-
-    if (stState.chatUnsub) stState.chatUnsub();
-    
-    // Query messages (Limit to 100 recent)
-    const q = query(
-        collection(db, 'chronicles', chronicleId, 'messages'), 
-        orderBy('timestamp', 'desc'), 
-        limit(100)
-    );
-
-    stState.chatUnsub = onSnapshot(q, (snapshot) => {
-        const messages = [];
-        snapshot.forEach(doc => messages.push({ id: doc.id, ...doc.data() }));
-        messages.reverse(); // Show oldest first (top to bottom)
-        
-        // Cache for export
-        stState.chatHistory = messages;
-        
-        // Trigger UI Updates
-        refreshChatUI();
-        
-    }, (error) => {
-        if (error.code === 'permission-denied') {
-            console.warn("Chat Listener: Access Denied.");
-        } else {
-            console.error("Chat Listener Error:", error);
-        }
-    });
-}
-
-// 2. Send Message
-export async function sendChronicleMessage(type, content, details = null, options = {}) {
-    const stState = window.stState;
-    if (!stState || !stState.activeChronicleId) return;
-    
-    let senderName = "Unknown";
-    if (stState.isStoryteller) {
-        senderName = "Storyteller";
-    } else {
-        senderName = document.getElementById('c-name')?.value || "Player";
-    }
-
-    // WHISPER LOGIC
-    let isWhisper = !!options.isWhisper; 
-    let recipientId = options.recipientId || null;
-    let recipients = options.recipients || [];
-    
-    // Merge legacy ID into array if present
-    if (recipientId) recipients.push(recipientId);
-    
-    // Ensure uniqueness
-    recipients = [...new Set(recipients)];
-
-    try {
-        await addDoc(collection(db, 'chronicles', stState.activeChronicleId, 'messages'), {
-            type: type,
-            content: content,
-            sender: senderName,
-            senderId: auth.currentUser.uid,
-            details: details,
-            timestamp: new Date(),
-            isWhisper: isWhisper,
-            recipientId: recipientId, // Keep for legacy compatibility
-            recipients: recipients,   // New Array Field
-            mood: options.mood || null // NEW: Mood Descriptor
-        });
-    } catch(e) {
-        console.error("Chat Error:", e.message);
-        if (type !== 'system') showNotification("Failed to send message: " + e.message, "error");
-    }
-}
-
-// 3. Clear Chat (ST Only)
-export async function stClearChat() {
-    const stState = window.stState;
-    if (!stState || !stState.activeChronicleId) return;
-
-    if (!confirm("CLEAR ALL CHAT HISTORY?\n\nThis will permanently delete all messages for everyone. This cannot be undone.")) return;
+async function initMermaid() {
+    if (mermaidInitialized) return;
     
     try {
-        const q = query(collection(db, 'chronicles', stState.activeChronicleId, 'messages'));
-        const snapshot = await getDocs(q);
-        
-        const batch = writeBatch(db);
-        let count = 0;
-        
-        snapshot.forEach(doc => {
-            batch.delete(doc.ref);
-            count++;
-        });
-
-        if (count > 0) {
-            await batch.commit();
-            sendChronicleMessage('system', 'Storyteller cleared the chat history.');
-            showNotification(`Cleared ${count} messages.`);
-        } else {
-            showNotification("Chat already empty.");
+        // Try dynamic import from CDN if not globally available
+        if (!window.mermaid) {
+            const module = await import('https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs');
+            window.mermaid = module.default;
         }
+
+        window.mermaid.initialize({
+            startOnLoad: false,
+            theme: 'base',
+            themeVariables: {
+                primaryColor: '#2d2d2d',
+                primaryTextColor: '#fff',
+                primaryBorderColor: '#8a0303',
+                lineColor: '#aaa',
+                secondaryColor: '#000',
+                tertiaryColor: '#fff',
+                fontFamily: 'Lato'
+            },
+            securityLevel: 'loose',
+            flowchart: { curve: 'basis', htmlLabels: true }
+        });
+        mermaidInitialized = true;
     } catch (e) {
-        console.error("Clear Chat Error:", e);
-        showNotification("Failed to clear chat.", "error");
+        console.error("Mermaid Init Failed:", e);
+        showNotification("Failed to load Graph Engine", "error");
     }
 }
 
-// 4. Export Chat
-export async function stExportChat() {
-    const stState = window.stState;
-    if (!stState || !stState.chatHistory || stState.chatHistory.length === 0) {
-        showNotification("Chat is empty.", "error");
-        return;
-    }
+// --- STATE ---
+let mapState = {
+    characters: [],
+    relationships: [],
+    zoom: 1.0,
+    unsub: null
+};
 
-    let textContent = `CHRONICLE CHAT LOG: ${stState.activeChronicleId}\nExported: ${new Date().toLocaleString()}\n\n`;
-    
-    stState.chatHistory.forEach(msg => {
-        const time = msg.timestamp ? new Date(msg.timestamp.seconds * 1000).toLocaleString() : 'Unknown';
-        const moodText = msg.mood ? ` <${msg.mood}>` : "";
+// --- MAIN RENDERER ---
+export async function renderCoterieMap(container) {
+    await initMermaid();
 
-        if (msg.type === 'system') {
-            textContent += `[${time}] SYSTEM: ${msg.content.replace(/<[^>]*>/g, '')}\n`; 
-        } else if (msg.type === 'event') {
-            textContent += `[${time}] EVENT: ${msg.content}\n`;
-        } else if (msg.type === 'roll') {
-            textContent += `[${time}] ${msg.sender} ROLLED: ${msg.content.replace(/<[^>]*>/g, '')} (Pool: ${msg.details?.pool || '?'})\n`;
-        } else {
-            const whisperTag = msg.isWhisper ? "[WHISPER] " : "";
-            textContent += `[${time}] ${whisperTag}${msg.sender}${moodText}: ${msg.content}\n`;
-        }
-    });
-
-    const blob = new Blob([textContent], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `V20_ChatLog_${new Date().toISOString().slice(0,10)}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    showNotification("Chat Log Exported.");
-}
-
-// 5. Send Event Announcement (ST)
-export async function stSendEvent() {
-    const input = document.getElementById('st-chat-input');
-    if(!input) return;
-    const txt = input.value.trim();
-    if(!txt) return;
-    
-    sendChronicleMessage('event', txt);
-    input.value = '';
-}
-
-// 6. Set Whisper Target (From Roster Click)
-export function stSetWhisperTarget(id, name) {
-    // If the view isn't chat, switch to chat (Assumes switchStorytellerView is global)
-    if (window.switchStorytellerView) window.switchStorytellerView('chat');
-    
-    // Defer slightly to ensure chat view is rendered
-    setTimeout(() => {
-        const checkboxes = document.querySelectorAll('.st-recipient-checkbox');
-        const allCheck = document.getElementById('st-chat-all-checkbox');
-        
-        if (allCheck) {
-            allCheck.checked = false;
-            allCheck.dispatchEvent(new Event('change'));
-        }
-        
-        checkboxes.forEach(cb => {
-            if (cb.value === id) {
-                cb.checked = true;
-                cb.dispatchEvent(new Event('change'));
-            } else {
-                cb.checked = false;
-            }
-        });
-        
-        showNotification(`Whispering to ${name}`);
-    }, 100);
-}
-
-// --- UI RENDERING ---
-
-// Render the bubbles
-export function renderMessageList(container, messages) {
-    container.innerHTML = '';
-    
-    if (messages.length === 0) {
-        container.innerHTML = `<div class="text-center text-gray-600 text-xs italic mt-4">Chronicle initialized. No messages yet.</div>`;
-        return;
-    }
-
-    const stState = window.stState;
-    const uid = auth.currentUser?.uid;
-    
-    messages.forEach(msg => {
-        let isVisible = true;
-        let recipientNames = "";
-
-        // FILTER: Check if message is private (Whisper)
-        if (msg.isWhisper) {
-            const isSender = msg.senderId === uid;
-            
-            // Normalize recipients to an array
-            let recipients = msg.recipients || [];
-            if (msg.recipientId) recipients.push(msg.recipientId); // Legacy support
-            recipients = [...new Set(recipients)]; // De-duplicate
-
-            const isRecipient = recipients.includes(uid);
-            
-            // If I am NOT the sender AND NOT a recipient
-            if (!isSender && !isRecipient) {
-                 isVisible = false;
-            }
-
-            // Resolve Names for Display
-            if (isVisible) {
-                const names = recipients.map(rid => {
-                    if (rid === uid) return "You";
-                    if (stState.settings && stState.settings.storyteller_uid === rid) return "Storyteller";
-                    const p = stState.players[rid];
-                    return p ? (p.character_name || "Unknown") : "Unknown";
-                });
+    container.innerHTML = `
+        <div class="flex h-full bg-[#0a0a0a] text-[#e5e5e5] font-sans overflow-hidden">
+            <!-- LEFT COLUMN: Editor -->
+            <aside class="w-1/3 min-w-[300px] max-w-[400px] flex flex-col gap-4 h-full border-r border-[#333] bg-[#111] p-4 overflow-y-auto custom-scrollbar">
                 
-                recipientNames = names.join(", ");
-            }
-        }
-
-        if (!isVisible) return;
-
-        const div = document.createElement('div');
-        div.className = "mb-2 text-xs";
-        
-        // DATE FORMATTING
-        const dateObj = msg.timestamp ? new Date(msg.timestamp.seconds * 1000) : new Date();
-        const dateStr = dateObj.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-        const timeStr = dateObj.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-        const fullTime = `${dateStr} ${timeStr}`;
-        
-        if (msg.type === 'event') {
-            // NARRATIVE BEAT (BIG GOLD TEXT)
-            div.innerHTML = `
-                <div class="my-4 text-center border-t border-b border-[#d4af37]/30 py-2 bg-black/40">
-                    <div class="text-[#d4af37] font-cinzel font-bold text-lg uppercase tracking-widest text-shadow">${msg.content}</div>
-                    <div class="text-[9px] text-gray-600 font-mono mt-1">${fullTime}</div>
-                </div>
-            `;
-        } else if (msg.type === 'system') {
-            div.innerHTML = `<div class="text-gray-500 italic text-center text-[10px] border-b border-[#333] leading-tight pb-1 mb-1"><span class="mr-2">${fullTime}</span>${msg.content}</div>`;
-        } else if (msg.type === 'roll') {
-            // VISUAL DICE RENDERING
-            let diceHTML = '';
-            if (msg.details && msg.details.results) {
-                diceHTML = msg.details.results.map(d => {
-                    let color = 'text-gray-500 border-gray-700';
-                    if (d >= (msg.details.diff || 6)) color = 'text-[#d4af37] border-[#d4af37] font-bold';
-                    if (d === 10 && msg.details.isSpec) color = 'text-[#4ade80] border-[#4ade80] font-black shadow-[0_0_5px_lime]';
-                    if (d === 1) color = 'text-red-600 border-red-900 font-bold';
-                    return `<span class="inline-flex items-center justify-center w-5 h-5 border ${color} bg-black/50 rounded text-[10px] mx-0.5">${d}</span>`;
-                }).join('');
-            }
-
-            div.innerHTML = `
-                <div class="bg-[#111] border border-[#333] p-2 rounded relative group hover:border-[#555] transition-colors">
-                    <div class="flex justify-between items-baseline mb-1">
-                        <span class="font-bold text-[#d4af37]">${msg.sender}</span>
-                        <span class="text-[9px] text-gray-600">${fullTime}</span>
+                <!-- 1. Add Character -->
+                <div class="bg-[#1a1a1a] border border-[#333] rounded p-4 shadow-lg shrink-0">
+                    <h3 class="text-md font-cinzel font-bold text-gray-300 border-l-4 border-[#8a0303] pl-2 mb-3 uppercase">1. Characters</h3>
+                    
+                    <div class="grid grid-cols-2 gap-2 mb-3">
+                        <input type="text" id="cmap-name" placeholder="Name" class="bg-[#262626] border border-[#404040] text-white p-2 rounded text-xs focus:border-[#8a0303] outline-none col-span-2">
+                        <input type="text" id="cmap-clan" placeholder="Clan / Type" class="bg-[#262626] border border-[#404040] text-white p-2 rounded text-xs focus:border-[#8a0303] outline-none">
+                        <select id="cmap-type" class="bg-[#262626] border border-[#404040] text-white p-2 rounded text-xs focus:border-[#8a0303] outline-none">
+                            <option value="pc">PC</option>
+                            <option value="npc">NPC</option>
+                        </select>
                     </div>
-                    <div class="text-gray-300 font-mono mb-1">${msg.content}</div>
-                    ${diceHTML ? `<div class="flex flex-wrap mt-1 py-1 border-t border-[#222] bg-black/20 justify-center">${diceHTML}</div>` : ''}
-                    ${msg.details ? `<div class="text-[9px] text-gray-500 mt-1 text-center">Pool: ${msg.details.pool} (Diff ${msg.details.diff})</div>` : ''}
-                </div>
-            `;
-        } else {
-            // CHAT / WHISPER
-            const isSelf = msg.senderId === uid;
-            
-            // Visual Indication for Private Messages
-            let wrapperClass = isSelf ? 'bg-[#2a2a2a] text-gray-200' : 'bg-[#1a1a1a] text-gray-300 border border-[#333]';
-            let whisperLabel = '';
-            let senderLine = msg.sender;
-            
-            if (msg.isWhisper) {
-                wrapperClass = 'bg-[#1a0525] border border-purple-500/30 text-purple-100'; // Dark Purple
-                whisperLabel = `<span class="text-purple-400 font-bold text-[9px] mr-1 uppercase tracking-wider"><i class="fas fa-user-secret"></i> Whisper</span>`;
-                senderLine = `${msg.sender} <span class="text-gray-500 text-[9px] mx-1">to</span> <span class="text-purple-300 font-bold">${recipientNames || "Unknown"}</span>`;
-            }
+                    <button id="cmap-add-char" class="w-full bg-[#8a0303] hover:bg-[#6d0202] text-white font-bold py-2 rounded text-xs uppercase tracking-wider transition-colors">
+                        <i class="fas fa-plus mr-2"></i>ADD
+                    </button>
 
-            // MOOD RENDERING
-            let moodHtml = "";
-            if (msg.mood) {
-                moodHtml = `<span class="text-gray-500 italic text-[10px] mr-1">&lt;${msg.mood}&gt;</span>`;
-            }
-            
-            div.innerHTML = `
-                <div class="${isSelf ? 'text-right' : 'text-left'}">
-                    <div class="text-[10px] text-gray-500 font-bold mb-0.5">${whisperLabel} ${senderLine} <span class="font-normal opacity-50 text-[9px] ml-1">${fullTime}</span></div>
-                    <div class="inline-block px-3 py-1.5 rounded ${wrapperClass}">${moodHtml}${msg.content}</div>
+                    <ul id="cmap-char-list" class="mt-4 space-y-1 max-h-40 overflow-y-auto custom-scrollbar"></ul>
                 </div>
-            `;
-        }
-        container.appendChild(div);
-    });
+
+                <!-- 2. Add Relationship -->
+                <div class="bg-[#1a1a1a] border border-[#333] rounded p-4 shadow-lg shrink-0">
+                    <h3 class="text-md font-cinzel font-bold text-gray-300 border-l-4 border-[#8a0303] pl-2 mb-3 uppercase">2. Relationships</h3>
+                    
+                    <div class="space-y-3 mb-4">
+                        <div class="flex gap-2 items-center">
+                            <select id="cmap-source" class="bg-[#262626] border border-[#404040] text-white p-2 rounded text-xs w-full outline-none"></select>
+                            <i class="fas fa-arrow-right text-gray-500 text-xs"></i>
+                            <select id="cmap-target" class="bg-[#262626] border border-[#404040] text-white p-2 rounded text-xs w-full outline-none"></select>
+                        </div>
+                        
+                        <select id="cmap-rel-type" class="bg-[#262626] border border-[#404040] text-white p-2 rounded text-xs w-full outline-none">
+                            <option value="social">Social (Solid)</option>
+                            <option value="boon">Boon/Debt (Dotted)</option>
+                            <option value="blood">Blood Bond (Thick)</option>
+                        </select>
+
+                        <input type="text" id="cmap-label" placeholder="Label (e.g. Sire of)" class="bg-[#262626] border border-[#404040] text-white p-2 rounded text-xs w-full outline-none">
+                    </div>
+
+                    <button id="cmap-add-rel" class="w-full bg-[#334155] hover:bg-[#1e293b] text-white font-bold py-2 rounded text-xs uppercase tracking-wider transition-colors">
+                        <i class="fas fa-link mr-2"></i>Connect
+                    </button>
+
+                    <ul id="cmap-rel-list" class="mt-4 space-y-1 max-h-40 overflow-y-auto custom-scrollbar"></ul>
+                </div>
+            </aside>
+
+            <!-- RIGHT COLUMN: Visualization -->
+            <section class="flex-1 bg-[#050505] relative flex flex-col overflow-hidden">
+                
+                <!-- Toolbar -->
+                <div class="absolute top-4 right-4 z-10 flex gap-2 bg-black/50 p-1 rounded backdrop-blur border border-[#333]">
+                    <button id="cmap-zoom-out" class="w-8 h-8 flex items-center justify-center bg-[#222] hover:bg-[#333] text-white rounded font-bold transition-colors">-</button>
+                    <button id="cmap-reset-zoom" class="w-8 h-8 flex items-center justify-center bg-[#222] hover:bg-[#333] text-white rounded font-bold transition-colors"><i class="fas fa-compress"></i></button>
+                    <button id="cmap-zoom-in" class="w-8 h-8 flex items-center justify-center bg-[#222] hover:bg-[#333] text-white rounded font-bold transition-colors">+</button>
+                </div>
+
+                <!-- Canvas -->
+                <div class="flex-1 overflow-auto p-4 flex items-center justify-center bg-[radial-gradient(#333_1px,transparent_1px)] [background-size:20px_20px]">
+                    <div id="mermaid-wrapper" class="origin-center transition-transform duration-200">
+                        <div id="mermaid-container" class="mermaid"></div>
+                    </div>
+                </div>
+
+                <!-- Legend -->
+                <div class="bg-[#111] text-gray-400 text-[10px] p-2 text-center border-t border-[#333] uppercase font-bold tracking-wider">
+                    <span class="mr-4"><i class="fas fa-minus text-gray-500"></i> Social</span>
+                    <span class="mr-4"><i class="fas fa-ellipsis-h text-gray-500"></i> Boon/Debt</span>
+                    <span><i class="fas fa-minus text-white font-black border-b-2 border-white"></i> Blood Bond</span>
+                </div>
+            </section>
+        </div>
+    `;
+
+    // Initialize Listeners
+    setupMapListeners();
     
-    container.scrollTop = container.scrollHeight;
+    // Start Data Sync
+    startMapSync();
 }
 
-// Refresh wrapper to update both ST and Player views if they exist in DOM
-export function refreshChatUI() {
-    const stState = window.stState;
-    if (!stState || !stState.chatHistory) return;
+function setupMapListeners() {
+    document.getElementById('cmap-add-char').onclick = addCharacter;
+    document.getElementById('cmap-add-rel').onclick = addRelationship;
+    
+    const wrapper = document.getElementById('mermaid-wrapper');
+    
+    document.getElementById('cmap-zoom-in').onclick = () => {
+        mapState.zoom = Math.min(mapState.zoom + 0.1, 3.0);
+        if(wrapper) wrapper.style.transform = `scale(${mapState.zoom})`;
+    };
+    
+    document.getElementById('cmap-zoom-out').onclick = () => {
+        mapState.zoom = Math.max(mapState.zoom - 0.1, 0.5);
+        if(wrapper) wrapper.style.transform = `scale(${mapState.zoom})`;
+    };
+    
+    document.getElementById('cmap-reset-zoom').onclick = () => {
+        mapState.zoom = 1.0;
+        if(wrapper) wrapper.style.transform = `scale(1)`;
+    };
+}
 
-    // Re-render Player Chat (Sidebar/Tab)
-    const pContainer = document.getElementById('chronicle-chat-history');
-    if (pContainer && stState.chatHistory.length > 0) {
-        renderMessageList(pContainer, stState.chatHistory);
+// --- FIREBASE SYNC ---
+function startMapSync() {
+    const stState = window.stState;
+    if (!stState || !stState.activeChronicleId) return;
+    
+    if (mapState.unsub) mapState.unsub();
+    
+    const docRef = doc(db, 'chronicles', stState.activeChronicleId, 'coterie', 'map');
+    
+    mapState.unsub = onSnapshot(docRef, (snapshot) => {
+        if (snapshot.exists()) {
+            const data = snapshot.data();
+            mapState.characters = data.characters || [];
+            mapState.relationships = data.relationships || [];
+        } else {
+            if (mapState.characters.length === 0) {
+                 mapState.characters = [];
+                 mapState.relationships = [];
+            }
+        }
+        refreshMapUI();
+    });
+}
+
+async function saveMapData() {
+    const stState = window.stState;
+    if (!stState || !stState.activeChronicleId) return;
+    
+    try {
+        const docRef = doc(db, 'chronicles', stState.activeChronicleId, 'coterie', 'map');
+        
+        await setDoc(docRef, {
+            characters: mapState.characters,
+            relationships: mapState.relationships
+        }, { merge: true });
+        
+    } catch(e) {
+        console.error("Map Save Failed:", e);
+        showNotification("Sync Failed (Blocked?)", "error");
+    }
+}
+
+// --- LOGIC ---
+
+async function addCharacter() {
+    const nameInput = document.getElementById('cmap-name');
+    const clanInput = document.getElementById('cmap-clan');
+    const typeInput = document.getElementById('cmap-type');
+    
+    const name = nameInput.value.trim();
+    const clan = clanInput.value.trim();
+    const type = typeInput.value;
+
+    if (!name) return showNotification("Name required!", "error");
+
+    const id = name.replace(/[^a-zA-Z0-9]/g, '');
+    if (mapState.characters.some(c => c.id === id)) return showNotification("Exists!", "error");
+
+    // Add with default visible
+    mapState.characters.push({ id, name, clan, type, hidden: false });
+    
+    nameInput.value = '';
+    clanInput.value = '';
+    
+    refreshMapUI(); 
+    await saveMapData();
+}
+
+async function addRelationship() {
+    const sourceInput = document.getElementById('cmap-source');
+    const targetInput = document.getElementById('cmap-target');
+    const typeInput = document.getElementById('cmap-rel-type');
+    const labelInput = document.getElementById('cmap-label');
+    
+    const source = sourceInput.value;
+    const target = targetInput.value;
+    const type = typeInput.value;
+    const label = labelInput.value.trim();
+
+    if (!source || !target) return showNotification("Select Source & Target", "error");
+    if (source === target) return showNotification("Self-link invalid", "error");
+
+    // Add with default visible
+    mapState.relationships.push({ source, target, type, label, hidden: false });
+    
+    labelInput.value = '';
+    refreshMapUI(); 
+    await saveMapData();
+}
+
+// Global functions for list interaction
+window.cmapRemoveChar = async (id) => {
+    if(!confirm("Remove character?")) return;
+    mapState.characters = mapState.characters.filter(c => c.id !== id);
+    // Cascade delete relationships
+    mapState.relationships = mapState.relationships.filter(r => r.source !== id && r.target !== id);
+    refreshMapUI();
+    await saveMapData();
+};
+
+window.cmapRemoveRel = async (idx) => {
+    mapState.relationships.splice(idx, 1);
+    refreshMapUI();
+    await saveMapData();
+};
+
+window.cmapToggleChar = async (id) => {
+    const char = mapState.characters.find(c => c.id === id);
+    if (char) {
+        char.hidden = !char.hidden;
+        refreshMapUI();
+        await saveMapData();
+    }
+};
+
+window.cmapToggleRel = async (idx) => {
+    if (mapState.relationships[idx]) {
+        mapState.relationships[idx].hidden = !mapState.relationships[idx].hidden;
+        refreshMapUI();
+        await saveMapData();
+    }
+};
+
+// --- UI UPDATES ---
+
+function refreshMapUI() {
+    renderMermaidChart();
+    updateDropdowns();
+    updateLists();
+}
+
+function updateDropdowns() {
+    const sourceSelect = document.getElementById('cmap-source');
+    const targetSelect = document.getElementById('cmap-target');
+    if (!sourceSelect || !targetSelect) return;
+
+    const currentS = sourceSelect.value;
+    const currentT = targetSelect.value;
+
+    const opts = '<option value="">-- Select --</option>' + 
+        mapState.characters.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+
+    sourceSelect.innerHTML = opts;
+    targetSelect.innerHTML = opts;
+
+    if (mapState.characters.some(c => c.id === currentS)) sourceSelect.value = currentS;
+    if (mapState.characters.some(c => c.id === currentT)) targetSelect.value = currentT;
+}
+
+function updateLists() {
+    const charList = document.getElementById('cmap-char-list');
+    if (charList) {
+        charList.innerHTML = mapState.characters.map(c => {
+            const isHidden = c.hidden === true;
+            return `
+            <li class="flex justify-between items-center bg-[#222] p-1.5 rounded text-[10px] border border-[#333] ${isHidden ? 'opacity-50' : ''}">
+                <div class="flex items-center gap-2">
+                    <button onclick="window.cmapToggleChar('${c.id}')" class="text-gray-500 hover:text-white" title="Toggle Visibility">
+                        <i class="fas ${isHidden ? 'fa-eye-slash' : 'fa-eye'}"></i>
+                    </button>
+                    <div>
+                        <span class="font-bold ${c.type === 'npc' ? 'text-[#8a0303]' : 'text-blue-300'}">${c.name}</span>
+                        <span class="text-gray-500 ml-1">(${c.clan || '?'})</span>
+                    </div>
+                </div>
+                <button onclick="window.cmapRemoveChar('${c.id}')" class="text-gray-600 hover:text-red-500 px-1"><i class="fas fa-trash"></i></button>
+            </li>`;
+        }).join('');
     }
 
-    // Re-render ST Dashboard Chat
-    if (stState.dashboardActive && stState.currentView === 'chat') {
-        const stContainer = document.getElementById('st-chat-history');
-        if (stContainer && stState.chatHistory.length > 0) {
-            renderMessageList(stContainer, stState.chatHistory);
+    const relList = document.getElementById('cmap-rel-list');
+    if (relList) {
+        relList.innerHTML = mapState.relationships.map((r, i) => {
+            const sName = mapState.characters.find(c => c.id === r.source)?.name || r.source;
+            const tName = mapState.characters.find(c => c.id === r.target)?.name || r.target;
+            let icon = r.type === 'blood' ? 'fa-link text-red-500' : (r.type === 'boon' ? 'fa-ellipsis-h' : 'fa-arrow-right');
+            const isHidden = r.hidden === true;
+            
+            return `
+            <li class="flex justify-between items-center bg-[#222] p-1.5 rounded text-[10px] border-l-2 ${r.type === 'blood' ? 'border-[#8a0303]' : 'border-gray-500'} border-t border-r border-b border-[#333] ${isHidden ? 'opacity-50' : ''}">
+                <div class="flex gap-2 items-center flex-1 truncate">
+                    <button onclick="window.cmapToggleRel(${i})" class="text-gray-500 hover:text-white flex-shrink-0" title="Toggle Visibility">
+                        <i class="fas ${isHidden ? 'fa-eye-slash' : 'fa-eye'}"></i>
+                    </button>
+                    <div class="truncate">
+                        <span class="font-bold text-gray-300">${sName}</span>
+                        <i class="fas ${icon} mx-1 text-gray-600"></i>
+                        <span class="font-bold text-gray-300">${tName}</span>
+                        <div class="text-[9px] text-[#d4af37] italic truncate">${r.label || r.type}</div>
+                    </div>
+                </div>
+                <button onclick="window.cmapRemoveRel(${i})" class="text-gray-600 hover:text-red-500 px-1 ml-1 flex-shrink-0"><i class="fas fa-trash"></i></button>
+            </li>`;
+        }).join('');
+    }
+}
+
+async function renderMermaidChart() {
+    const container = document.getElementById('mermaid-container');
+    if (!container) return;
+    
+    if (!window.mermaid) {
+        container.innerHTML = `<div class="text-center text-gray-500 text-xs mt-10">Loading Graph Engine...</div>`;
+        return;
+    }
+
+    // Filter out hidden characters for the view
+    const visibleChars = mapState.characters.filter(c => !c.hidden);
+    
+    // Filter out relationships where either node is hidden OR the relationship itself is hidden
+    const visibleRels = mapState.relationships.filter(r => {
+        if (r.hidden) return false;
+        const sVisible = visibleChars.some(c => c.id === r.source);
+        const tVisible = visibleChars.some(c => c.id === r.target);
+        return sVisible && tVisible;
+    });
+
+    if (visibleChars.length === 0) {
+        container.innerHTML = `<div class="text-center text-gray-500 text-xs mt-10 italic">No visible nodes to map...</div>`;
+        return;
+    }
+
+    let graph = 'graph TD\n';
+    graph += 'classDef pc fill:#1e293b,stroke:#fff,stroke-width:2px,color:#fff;\n';
+    graph += 'classDef npc fill:#000,stroke:#8a0303,stroke-width:3px,color:#8a0303,font-weight:bold;\n';
+
+    visibleChars.forEach(c => {
+        const safeName = c.name.replace(/"/g, "'");
+        const label = c.clan ? `${safeName}<br/>(${c.clan})` : safeName;
+        const cls = c.type === 'npc' ? ':::npc' : ':::pc';
+        graph += `${c.id}("${label}")${cls}\n`;
+    });
+
+    visibleRels.forEach(r => {
+        const label = r.label ? `"${r.label}"` : "";
+        if (r.type === 'blood') {
+            graph += label ? `${r.source} == ${label} ==> ${r.target}\n` : `${r.source} ==> ${r.target}\n`;
+        } else if (r.type === 'boon') {
+            graph += label ? `${r.source} -. ${label} .-> ${r.target}\n` : `${r.source} -.-> ${r.target}\n`;
+        } else {
+            graph += label ? `${r.source} -- ${label} --> ${r.target}\n` : `${r.source} --> ${r.target}\n`;
         }
+    });
+
+    try {
+        const { svg } = await window.mermaid.render('mermaid-svg-' + Date.now(), graph);
+        container.innerHTML = svg;
+    } catch (e) {
+        console.warn("Mermaid Render Warning:", e);
     }
 }
