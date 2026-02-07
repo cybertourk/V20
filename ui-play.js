@@ -1379,108 +1379,152 @@ async function renderChronicleChatView(container, chronicleId) {
     }
 }
 
-// --- SUB-VIEW: ROSTER (ENRICHED WITH PORTRAIT & DESC) ---
+// --- SUB-VIEW: ROSTER (ENRICHED WITH PORTRAIT & DESC & SCROLL PERSISTENCE) ---
 function renderChronicleRosterView(container, chronicleId) {
-    container.innerHTML = `
-    <div class="p-6 overflow-y-auto h-full custom-scrollbar">
-        <!-- WIDER CARDS: Changed from lg:grid-cols-3 to lg:grid-cols-2 -->
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6" id="roster-grid">
-            <div class="text-center text-gray-500 italic text-xs col-span-full mt-10"><i class="fas fa-spinner fa-spin text-2xl mb-2"></i><br>Gathering Kindred...</div>
-        </div>
-    </div>`;
+    // Only set initial HTML if container is empty or switching views
+    if (!container.querySelector('#roster-grid')) {
+        container.innerHTML = `
+        <div class="p-6 overflow-y-auto h-full custom-scrollbar">
+            <!-- WIDER CARDS: Changed from lg:grid-cols-3 to lg:grid-cols-2 -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6" id="roster-grid">
+                <div id="roster-loading" class="text-center text-gray-500 italic text-xs col-span-full mt-10"><i class="fas fa-spinner fa-spin text-2xl mb-2"></i><br>Gathering Kindred...</div>
+            </div>
+        </div>`;
+    }
 
     const grid = document.getElementById('roster-grid');
     const q = query(collection(db, 'chronicles', chronicleId, 'players'));
     
+    if (window.rosterUnsub) window.rosterUnsub();
+
     window.rosterUnsub = onSnapshot(q, (snapshot) => {
         if(!grid) return;
-        grid.innerHTML = '';
         
+        // Track active IDs to remove stale cards
+        const activeIds = new Set();
         const players = [];
+
         snapshot.forEach(doc => {
             if(!doc.id.startsWith('journal_')) {
                 players.push({id: doc.id, ...doc.data()});
+                activeIds.add(doc.id);
             }
         });
 
-        if (players.length === 0) {
-            grid.innerHTML = `<div class="text-center text-gray-500 italic text-xs col-span-full mt-4">No other kindred found within this Chronicle.</div>`;
+        // Remove loading indicator if we have data
+        const loader = document.getElementById('roster-loading');
+        if (loader && players.length > 0) loader.remove();
+        
+        if (players.length === 0 && loader) {
+            loader.innerHTML = "No other kindred found within this Chronicle.";
             return;
         }
 
-        players.forEach(p => {
-            const isMe = auth.currentUser && p.id === auth.currentUser.uid;
-            
-            // Extract Rich Data from Synced Sheet
-            const sheet = p.full_sheet || {};
-            const tf = sheet.textFields || {};
-            
-            const charName = p.character_name || "Unknown";
-            const playerName = tf['c-player'] || "Unknown Player";
-            const description = tf['bio-desc'] || "No physical description provided.";
-            const demeanor = tf['c-demeanor'] || "Unknown Demeanor"; // REPLACED CLAN WITH DEMEANOR
-            const imgUrl = sheet.characterImage || null;
-
-            // Status Logic
-            const now = new Date();
-            const lastActive = p.last_active ? new Date(p.last_active) : new Date(0);
-            const diffSeconds = (now - lastActive) / 1000;
-            const isOnline = diffSeconds < 300 && p.status !== 'Offline';
-            const statusColor = isOnline ? 'bg-green-500 shadow-[0_0_8px_lime]' : 'bg-red-900 border border-red-500';
-            const statusLabel = isOnline ? 'Present' : 'Absent';
-
-            const card = document.createElement('div');
-            card.className = `bg-[#111] border ${isMe ? 'border-[#d4af37]' : 'border-[#333]'} rounded-lg overflow-hidden relative group hover:border-[#666] transition-all flex flex-col shadow-lg`;
-            
-            // Portrait Area
-            let portraitHtml = '';
-            if (imgUrl) {
-                // Check if Google Drive Link needs conversion
-                let displayUrl = imgUrl;
-                if (window.convertGoogleDriveLink) displayUrl = window.convertGoogleDriveLink(imgUrl);
-                
-                portraitHtml = `<div class="w-full h-48 bg-black bg-cover bg-center bg-no-repeat border-b border-[#333]" style="background-image: url('${displayUrl}')"></div>`;
-            } else {
-                portraitHtml = `
-                <div class="w-full h-48 bg-[#080808] border-b border-[#333] flex flex-col items-center justify-center text-gray-700">
-                    <i class="fas fa-user-secret text-6xl mb-2 opacity-50"></i>
-                    <span class="text-[10px] uppercase font-bold tracking-widest">No Portrait</span>
-                </div>`;
+        // 1. Remove Stale Cards
+        Array.from(grid.children).forEach(child => {
+            if (child.id.startsWith('roster-card-')) {
+                const uid = child.dataset.uid;
+                if (!activeIds.has(uid)) child.remove();
             }
+        });
 
-            card.innerHTML = `
-                ${portraitHtml}
-                
-                <div class="absolute top-2 right-2 flex items-center gap-2 bg-black/80 px-2 py-1 rounded-full border border-[#333]">
-                    <div class="w-2 h-2 rounded-full ${statusColor}"></div>
-                    <span class="text-[9px] uppercase font-bold text-gray-300">${statusLabel}</span>
-                </div>
-
-                <div class="p-4 flex flex-col flex-1">
-                    <div class="mb-3">
-                        <h3 class="text-xl font-cinzel font-bold text-[#d4af37] leading-none mb-1">${charName}</h3>
-                        <div class="flex justify-between items-center text-[10px] text-gray-400 uppercase font-bold tracking-wider border-b border-[#333] pb-2">
-                            <span>${demeanor}</span>
-                            <span class="text-gray-500">Player: <span class="text-gray-300">${playerName}</span></span>
-                        </div>
-                    </div>
-                    
-                    <div class="mb-4">
-                        <div class="text-[9px] text-gray-500 uppercase font-bold mb-1">Physical Description</div>
-                        <div class="w-full max-h-24 overflow-y-auto custom-scrollbar border border-[#222] bg-[#0a0a0a] p-2 rounded text-xs text-gray-300 font-serif italic leading-relaxed">
-                            "${description}"
-                        </div>
-                    </div>
-
-                    ${!isMe ? `
-                    <button class="w-full bg-[#1a1a1a] hover:bg-[#222] border border-[#333] text-gray-400 hover:text-[#d4af37] py-2 text-xs uppercase font-bold rounded transition-colors flex items-center justify-center gap-2" onclick="window.initWhisper('${p.id}', '${charName}')">
-                        <i class="fas fa-comment-alt"></i> Whisper
-                    </button>` : `<div class="text-center text-[10px] text-gray-600 italic py-2">You</div>`}
-                </div>
-            `;
-            grid.appendChild(card);
+        // 2. Update/Add Cards
+        players.forEach(p => {
+            updateRosterCard(grid, p, auth.currentUser?.uid);
         });
     });
+}
+
+function updateRosterCard(grid, p, myUid) {
+    const isMe = myUid && p.id === myUid;
+    
+    // Extract Data
+    const sheet = p.full_sheet || {};
+    const tf = sheet.textFields || {};
+    
+    const charName = p.character_name || "Unknown";
+    const playerName = tf['c-player'] || "Unknown Player";
+    const description = tf['bio-desc'] || "No physical description provided.";
+    const demeanor = tf['c-demeanor'] || "Unknown Demeanor"; 
+    const imgUrl = sheet.characterImage || null;
+
+    // Status Logic
+    const now = new Date();
+    const lastActive = p.last_active ? new Date(p.last_active) : new Date(0);
+    const diffSeconds = (now - lastActive) / 1000;
+    const isOnline = diffSeconds < 300 && p.status !== 'Offline';
+    const statusColor = isOnline ? 'bg-green-500 shadow-[0_0_8px_lime]' : 'bg-red-900 border border-red-500';
+    const statusLabel = isOnline ? 'Present' : 'Absent';
+
+    // Check for existing card
+    let card = document.getElementById(`roster-card-${p.id}`);
+    
+    // HTML Generation
+    let portraitHtml = '';
+    if (imgUrl) {
+        let displayUrl = imgUrl;
+        if (window.convertGoogleDriveLink) displayUrl = window.convertGoogleDriveLink(imgUrl);
+        portraitHtml = `<div class="w-full h-48 bg-black bg-cover bg-center bg-no-repeat border-b border-[#333]" style="background-image: url('${displayUrl}')"></div>`;
+    } else {
+        portraitHtml = `
+        <div class="w-full h-48 bg-[#080808] border-b border-[#333] flex flex-col items-center justify-center text-gray-700">
+            <i class="fas fa-user-secret text-6xl mb-2 opacity-50"></i>
+            <span class="text-[10px] uppercase font-bold tracking-widest">No Portrait</span>
+        </div>`;
+    }
+
+    const contentHtml = `
+        ${portraitHtml}
+        
+        <div class="absolute top-2 right-2 flex items-center gap-2 bg-black/80 px-2 py-1 rounded-full border border-[#333]">
+            <div class="w-2 h-2 rounded-full ${statusColor}"></div>
+            <span class="text-[9px] uppercase font-bold text-gray-300">${statusLabel}</span>
+        </div>
+
+        <div class="p-4 flex flex-col flex-1">
+            <div class="mb-3">
+                <h3 class="text-xl font-cinzel font-bold text-[#d4af37] leading-none mb-1">${charName}</h3>
+                <div class="flex justify-between items-center text-[10px] text-gray-400 uppercase font-bold tracking-wider border-b border-[#333] pb-2">
+                    <span>${demeanor}</span>
+                    <span class="text-gray-500">Player: <span class="text-gray-300">${playerName}</span></span>
+                </div>
+            </div>
+            
+            <div class="mb-4">
+                <div class="text-[9px] text-gray-500 uppercase font-bold mb-1">Physical Description</div>
+                <div class="w-full max-h-24 overflow-y-auto custom-scrollbar border border-[#222] bg-[#0a0a0a] p-2 rounded text-xs text-gray-300 font-serif italic leading-relaxed description-content">
+                    "${description}"
+                </div>
+            </div>
+
+            ${!isMe ? `
+            <button class="w-full bg-[#1a1a1a] hover:bg-[#222] border border-[#333] text-gray-400 hover:text-[#d4af37] py-2 text-xs uppercase font-bold rounded transition-colors flex items-center justify-center gap-2" onclick="window.initWhisper('${p.id}', '${charName.replace(/'/g, "\\'")}')">
+                <i class="fas fa-comment-alt"></i> Whisper
+            </button>` : `<div class="text-center text-[10px] text-gray-600 italic py-2">You</div>`}
+        </div>
+    `;
+
+    if (!card) {
+        card = document.createElement('div');
+        card.id = `roster-card-${p.id}`;
+        card.dataset.uid = p.id;
+        card.className = `bg-[#111] border ${isMe ? 'border-[#d4af37]' : 'border-[#333]'} rounded-lg overflow-hidden relative group hover:border-[#666] transition-all flex flex-col shadow-lg`;
+        card.innerHTML = contentHtml;
+        grid.appendChild(card);
+    } else {
+        // PRESERVE SCROLL POSITION
+        const scrollBox = card.querySelector('.description-content');
+        const scrollTop = scrollBox ? scrollBox.scrollTop : 0;
+        
+        card.innerHTML = contentHtml;
+        
+        // RESTORE SCROLL
+        const newScrollBox = card.querySelector('.description-content');
+        if (newScrollBox) newScrollBox.scrollTop = scrollTop;
+        
+        // Ensure styling matches (if isMe changed, though unlikely)
+        card.className = `bg-[#111] border ${isMe ? 'border-[#d4af37]' : 'border-[#333]'} rounded-lg overflow-hidden relative group hover:border-[#666] transition-all flex flex-col shadow-lg`;
+    }
 }
 
 // --- WHISPER HELPER ---
