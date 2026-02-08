@@ -691,7 +691,8 @@ async function renderMermaidChart() {
     };
 
     const renderSubgraph = (group) => {
-        let output = `subgraph ${group.id} ["${group.name}"]\n`;
+        // FIX: Ensure ID uniqueness for subgraph container vs node by appending _sg
+        let output = `subgraph ${group.id}_sg ["${group.name}"]\n`;
         output += `direction TB\n`; // optional
         
         output += renderNode(group); // Render the clickable group header node inside
