@@ -1,4 +1,4 @@
-import { db, doc, onSnapshot, setDoc, updateDoc, arrayUnion, arrayRemove } from "./firebase-config.js";
+import { db, doc, onSnapshot, setDoc, updateDoc, collection, getDocs, deleteDoc } from "./firebase-config.js";
 import { showNotification } from "./ui-common.js";
 
 // We need mermaid from CDN as it's not bundled. 
@@ -6,14 +6,11 @@ let mermaidInitialized = false;
 
 async function initMermaid() {
     if (mermaidInitialized) return;
-    
     try {
-        // Try dynamic import from CDN if not globally available
         if (!window.mermaid) {
             const module = await import('https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs');
             window.mermaid = module.default;
         }
-
         window.mermaid.initialize({
             startOnLoad: false,
             theme: 'base',
@@ -38,12 +35,15 @@ async function initMermaid() {
 
 // --- STATE ---
 let mapState = {
+    currentMapId: 'main', // Default ID
+    mapHistory: [],       // Breadcrumbs for navigation
+    availableMaps: [],    // List of map IDs for dropdown
     characters: [],
     relationships: [],
     zoom: 1.0,
     unsub: null,
-    editingVisibilityId: null, // Track which item is being edited for visibility
-    editingVisibilityType: null // 'char' or 'rel'
+    editingVisibilityId: null,
+    editingVisibilityType: null
 };
 
 // --- MAIN RENDERER ---
@@ -55,16 +55,35 @@ export async function renderCoterieMap(container) {
             <!-- LEFT COLUMN: Editor -->
             <aside class="w-1/3 min-w-[300px] max-w-[400px] flex flex-col gap-4 h-full border-r border-[#333] bg-[#111] p-4 overflow-y-auto custom-scrollbar">
                 
+                <!-- MAP CONTROLS (NEW) -->
+                <div class="bg-[#1a1a1a] border border-[#333] rounded p-4 shadow-lg shrink-0">
+                    <h3 class="text-md font-cinzel font-bold text-gold border-b border-[#333] pb-2 mb-3 uppercase flex justify-between items-center">
+                        <span>Active Map</span>
+                        <button id="cmap-delete-map" class="text-xs text-red-500 hover:text-white" title="Delete current map"><i class="fas fa-trash"></i></button>
+                    </h3>
+                    
+                    <div class="flex gap-2 mb-3">
+                        <select id="cmap-select-map" class="bg-[#262626] border border-[#404040] text-white p-2 rounded text-xs w-full outline-none focus:border-gold"></select>
+                        <button id="cmap-new-map-btn" class="bg-[#333] hover:bg-[#444] border border-[#444] text-white px-3 rounded text-xs"><i class="fas fa-plus"></i></button>
+                    </div>
+
+                    <div id="cmap-breadcrumbs" class="text-[10px] text-gray-400 font-mono mb-1 hidden">
+                        <button id="cmap-nav-up" class="text-blue-400 hover:text-white mr-2"><i class="fas fa-level-up-alt mr-1"></i> Back to Parent</button>
+                        <span id="cmap-current-label" class="text-gold font-bold"></span>
+                    </div>
+                </div>
+
                 <!-- 1. Add Character -->
                 <div class="bg-[#1a1a1a] border border-[#333] rounded p-4 shadow-lg shrink-0">
-                    <h3 class="text-md font-cinzel font-bold text-gray-300 border-l-4 border-[#8a0303] pl-2 mb-3 uppercase">1. Characters</h3>
+                    <h3 class="text-md font-cinzel font-bold text-gray-300 border-l-4 border-[#8a0303] pl-2 mb-3 uppercase">Add Node</h3>
                     
                     <div class="grid grid-cols-2 gap-2 mb-3">
                         <input type="text" id="cmap-name" placeholder="Name" class="bg-[#262626] border border-[#404040] text-white p-2 rounded text-xs focus:border-[#8a0303] outline-none col-span-2">
-                        <input type="text" id="cmap-clan" placeholder="Clan / Type" class="bg-[#262626] border border-[#404040] text-white p-2 rounded text-xs focus:border-[#8a0303] outline-none">
+                        <input type="text" id="cmap-clan" placeholder="Clan / Type / Desc" class="bg-[#262626] border border-[#404040] text-white p-2 rounded text-xs focus:border-[#8a0303] outline-none">
                         <select id="cmap-type" class="bg-[#262626] border border-[#404040] text-white p-2 rounded text-xs focus:border-[#8a0303] outline-none">
                             <option value="pc">PC</option>
                             <option value="npc">NPC</option>
+                            <option value="group">Group (Sub-Map)</option> <!-- NEW -->
                         </select>
                     </div>
                     <button id="cmap-add-char" class="w-full bg-[#8a0303] hover:bg-[#6d0202] text-white font-bold py-2 rounded text-xs uppercase tracking-wider transition-colors">
@@ -76,7 +95,7 @@ export async function renderCoterieMap(container) {
 
                 <!-- 2. Add Relationship -->
                 <div class="bg-[#1a1a1a] border border-[#333] rounded p-4 shadow-lg shrink-0">
-                    <h3 class="text-md font-cinzel font-bold text-gray-300 border-l-4 border-[#8a0303] pl-2 mb-3 uppercase">2. Relationships</h3>
+                    <h3 class="text-md font-cinzel font-bold text-gray-300 border-l-4 border-[#8a0303] pl-2 mb-3 uppercase">Connect</h3>
                     
                     <div class="space-y-3 mb-4">
                         <div class="flex gap-2 items-center">
@@ -122,8 +141,9 @@ export async function renderCoterieMap(container) {
                 <!-- Legend -->
                 <div class="bg-[#111] text-gray-400 text-[10px] p-2 text-center border-t border-[#333] uppercase font-bold tracking-wider">
                     <span class="mr-4"><i class="fas fa-minus text-gray-500"></i> Social</span>
-                    <span class="mr-4"><i class="fas fa-ellipsis-h text-gray-500"></i> Boon/Debt</span>
-                    <span class="mr-4"><i class="fas fa-minus text-white font-black border-b-2 border-white"></i> Blood Bond</span>
+                    <span class="mr-4"><i class="fas fa-ellipsis-h text-gray-500"></i> Boon</span>
+                    <span class="mr-4"><i class="fas fa-minus text-white font-black border-b-2 border-white"></i> Bond</span>
+                    <span class="mr-4 text-blue-400"><i class="fas fa-layer-group"></i> Group</span>
                     <span class="text-gray-600"><i class="fas fa-eye-slash mr-1"></i> Hidden</span>
                 </div>
             </section>
@@ -164,30 +184,25 @@ export async function renderCoterieMap(container) {
     // Initialize Listeners
     setupMapListeners();
     
-    // Start Data Sync
-    startMapSync();
+    // Load Available Maps
+    await loadMapList();
+    
+    // Start Data Sync (Default 'main')
+    startMapSync('main');
 }
 
 function setupMapListeners() {
     document.getElementById('cmap-add-char').onclick = addCharacter;
     document.getElementById('cmap-add-rel').onclick = addRelationship;
-    
+    document.getElementById('cmap-new-map-btn').onclick = createNewMap;
+    document.getElementById('cmap-delete-map').onclick = deleteCurrentMap;
+    document.getElementById('cmap-select-map').onchange = (e) => switchMap(e.target.value);
+    document.getElementById('cmap-nav-up').onclick = navigateUp;
+
     const wrapper = document.getElementById('mermaid-wrapper');
-    
-    document.getElementById('cmap-zoom-in').onclick = () => {
-        mapState.zoom = Math.min(mapState.zoom + 0.1, 3.0);
-        if(wrapper) wrapper.style.transform = `scale(${mapState.zoom})`;
-    };
-    
-    document.getElementById('cmap-zoom-out').onclick = () => {
-        mapState.zoom = Math.max(mapState.zoom - 0.1, 0.5);
-        if(wrapper) wrapper.style.transform = `scale(${mapState.zoom})`;
-    };
-    
-    document.getElementById('cmap-reset-zoom').onclick = () => {
-        mapState.zoom = 1.0;
-        if(wrapper) wrapper.style.transform = `scale(1)`;
-    };
+    document.getElementById('cmap-zoom-in').onclick = () => { mapState.zoom = Math.min(mapState.zoom + 0.1, 3.0); if(wrapper) wrapper.style.transform = `scale(${mapState.zoom})`; };
+    document.getElementById('cmap-zoom-out').onclick = () => { mapState.zoom = Math.max(mapState.zoom - 0.1, 0.5); if(wrapper) wrapper.style.transform = `scale(${mapState.zoom})`; };
+    document.getElementById('cmap-reset-zoom').onclick = () => { mapState.zoom = 1.0; if(wrapper) wrapper.style.transform = `scale(1)`; };
 
     // VISIBILITY MODAL LOGIC
     const radios = document.getElementsByName('cmap-vis-option');
@@ -205,14 +220,13 @@ function setupMapListeners() {
         else if (selected === 'specific') {
             const checks = document.querySelectorAll('.cmap-player-check:checked');
             finalVal = Array.from(checks).map(c => c.value);
-            if (finalVal.length === 0) finalVal = 'st'; // Fallback if none checked
+            if (finalVal.length === 0) finalVal = 'st';
         }
 
         if (mapState.editingVisibilityType === 'char') {
             const char = mapState.characters.find(c => c.id === mapState.editingVisibilityId);
             if(char) char.visibility = finalVal;
         } else if (mapState.editingVisibilityType === 'rel') {
-            // Rel ID is index
             const idx = parseInt(mapState.editingVisibilityId);
             if(mapState.relationships[idx]) mapState.relationships[idx].visibility = finalVal;
         }
@@ -223,14 +237,127 @@ function setupMapListeners() {
     };
 }
 
+// --- MAP MANAGEMENT ---
+
+async function loadMapList() {
+    const stState = window.stState;
+    if (!stState || !stState.activeChronicleId) return;
+
+    try {
+        const snap = await getDocs(collection(db, 'chronicles', stState.activeChronicleId, 'coterie'));
+        mapState.availableMaps = [];
+        snap.forEach(doc => {
+            // Only list docs that have character/rel data (not empty metadata)
+            mapState.availableMaps.push(doc.id);
+        });
+        
+        if (mapState.availableMaps.length === 0) mapState.availableMaps.push('main');
+        
+        updateMapSelect();
+    } catch(e) { console.error("Map List Load Error", e); }
+}
+
+function updateMapSelect() {
+    const sel = document.getElementById('cmap-select-map');
+    if(!sel) return;
+    
+    sel.innerHTML = mapState.availableMaps.map(id => `<option value="${id}">${id}</option>`).join('');
+    sel.value = mapState.currentMapId;
+}
+
+async function createNewMap() {
+    const name = prompt("New Map Name (ID):");
+    if (!name) return;
+    const id = name.replace(/[^a-zA-Z0-9_-]/g, '').toLowerCase();
+    
+    if (mapState.availableMaps.includes(id)) {
+        showNotification("Map ID exists.");
+        return;
+    }
+    
+    // Switch context and save initial state
+    switchMap(id);
+    await saveMapData(); 
+    
+    mapState.availableMaps.push(id);
+    updateMapSelect();
+}
+
+async function deleteCurrentMap() {
+    if (mapState.currentMapId === 'main') {
+        showNotification("Cannot delete 'main' map.");
+        return;
+    }
+    if (!confirm(`Delete map '${mapState.currentMapId}' permanently?`)) return;
+    
+    try {
+        const stState = window.stState;
+        await deleteDoc(doc(db, 'chronicles', stState.activeChronicleId, 'coterie', mapState.currentMapId));
+        
+        mapState.availableMaps = mapState.availableMaps.filter(id => id !== mapState.currentMapId);
+        switchMap('main');
+        updateMapSelect();
+        showNotification("Map Deleted.");
+    } catch(e) { console.error(e); }
+}
+
+function switchMap(mapId) {
+    if (mapId === mapState.currentMapId) return;
+    mapState.currentMapId = mapId;
+    mapState.mapHistory = []; // Reset history on manual switch
+    startMapSync(mapId);
+    
+    const sel = document.getElementById('cmap-select-map');
+    if(sel) sel.value = mapId;
+    
+    document.getElementById('cmap-breadcrumbs').classList.add('hidden');
+}
+
+// Group Navigation
+window.cmapEnterGroup = (groupId) => {
+    // Push current map to history
+    mapState.mapHistory.push(mapState.currentMapId);
+    
+    // Switch context to group ID
+    // Note: Group IDs should serve as Map IDs.
+    // If the map doesn't exist yet, it will be empty (good).
+    mapState.currentMapId = groupId;
+    startMapSync(groupId);
+    
+    renderBreadcrumbs();
+};
+
+function navigateUp() {
+    if (mapState.mapHistory.length === 0) return;
+    const prevMap = mapState.mapHistory.pop();
+    mapState.currentMapId = prevMap;
+    startMapSync(prevMap);
+    renderBreadcrumbs();
+}
+
+function renderBreadcrumbs() {
+    const bc = document.getElementById('cmap-breadcrumbs');
+    if(!bc) return;
+    
+    if (mapState.mapHistory.length > 0) {
+        bc.classList.remove('hidden');
+        document.getElementById('cmap-current-label').innerText = mapState.currentMapId;
+    } else {
+        bc.classList.add('hidden');
+        // Sync main dropdown to match
+        const sel = document.getElementById('cmap-select-map');
+        if(sel) sel.value = mapState.currentMapId;
+    }
+}
+
 // --- FIREBASE SYNC ---
-function startMapSync() {
+function startMapSync(docId = 'main') {
     const stState = window.stState;
     if (!stState || !stState.activeChronicleId) return;
     
     if (mapState.unsub) mapState.unsub();
     
-    const docRef = doc(db, 'chronicles', stState.activeChronicleId, 'coterie', 'map');
+    const docRef = doc(db, 'chronicles', stState.activeChronicleId, 'coterie', docId);
     
     mapState.unsub = onSnapshot(docRef, (snapshot) => {
         if (snapshot.exists()) {
@@ -238,11 +365,8 @@ function startMapSync() {
             mapState.characters = data.characters || [];
             mapState.relationships = data.relationships || [];
         } else {
-            // Don't wipe local state if snapshot is empty but we have pending local changes
-            if (mapState.characters.length === 0) {
-                 mapState.characters = [];
-                 mapState.relationships = [];
-            }
+             mapState.characters = [];
+             mapState.relationships = [];
         }
         refreshMapUI();
     });
@@ -253,9 +377,8 @@ async function saveMapData() {
     if (!stState || !stState.activeChronicleId) return;
     
     try {
-        const docRef = doc(db, 'chronicles', stState.activeChronicleId, 'coterie', 'map');
+        const docRef = doc(db, 'chronicles', stState.activeChronicleId, 'coterie', mapState.currentMapId);
         
-        // Use setDoc with merge: true to handle creation automatically
         await setDoc(docRef, {
             characters: mapState.characters,
             relationships: mapState.relationships
@@ -263,7 +386,7 @@ async function saveMapData() {
         
     } catch(e) {
         console.error("Map Save Failed:", e);
-        showNotification("Sync Failed (Blocked?)", "error");
+        showNotification("Sync Failed", "error");
     }
 }
 
@@ -280,10 +403,10 @@ async function addCharacter() {
 
     if (!name) return showNotification("Name required!", "error");
 
-    const id = name.replace(/[^a-zA-Z0-9]/g, '');
+    // Allow group IDs to be cleaner
+    const id = name.replace(/[^a-zA-Z0-9_-]/g, '').toLowerCase(); 
     if (mapState.characters.some(c => c.id === id)) return showNotification("Exists!", "error");
 
-    // Add with default visibility: 'st' (Storyteller Only / Hidden)
     mapState.characters.push({ id, name, clan, type, visibility: 'st' });
     
     nameInput.value = '';
@@ -304,10 +427,9 @@ async function addRelationship() {
     const type = typeInput.value;
     const label = labelInput.value.trim();
 
-    if (!source || !target) return showNotification("Select Source & Target", "error");
+    if (!source || !target) return showNotification("Select Nodes", "error");
     if (source === target) return showNotification("Self-link invalid", "error");
 
-    // Add with default visibility: 'st' (Storyteller Only / Hidden)
     mapState.relationships.push({ source, target, type, label, visibility: 'st' });
     
     labelInput.value = '';
@@ -315,11 +437,9 @@ async function addRelationship() {
     await saveMapData();
 }
 
-// Global functions for list interaction
 window.cmapRemoveChar = async (id) => {
-    if(!confirm("Remove character?")) return;
+    if(!confirm("Remove node?")) return;
     mapState.characters = mapState.characters.filter(c => c.id !== id);
-    // Cascade delete relationships
     mapState.relationships = mapState.relationships.filter(r => r.source !== id && r.target !== id);
     refreshMapUI();
     await saveMapData();
@@ -331,7 +451,24 @@ window.cmapRemoveRel = async (idx) => {
     await saveMapData();
 };
 
-// Open Visibility Modal
+window.cmapToggleChar = async (id) => {
+    const char = mapState.characters.find(c => c.id === id);
+    if (char) {
+        char.visibility = (char.visibility === 'all') ? 'st' : 'all';
+        refreshMapUI();
+        await saveMapData();
+    }
+};
+
+window.cmapToggleRel = async (idx) => {
+    if (mapState.relationships[idx]) {
+        const rel = mapState.relationships[idx];
+        rel.visibility = (rel.visibility === 'all') ? 'st' : 'all';
+        refreshMapUI();
+        await saveMapData();
+    }
+};
+
 window.cmapOpenVisModal = (id, type) => {
     mapState.editingVisibilityId = id;
     mapState.editingVisibilityType = type;
@@ -348,20 +485,18 @@ window.cmapOpenVisModal = (id, type) => {
         if(r) currentVis = r.visibility || 'st';
     }
 
-    // Set Radio
     const radios = document.getElementsByName('cmap-vis-option');
     if (Array.isArray(currentVis)) {
-        radios[2].checked = true; // Specific
+        radios[2].checked = true; 
         list.classList.remove('hidden');
     } else if (currentVis === 'all') {
         radios[0].checked = true;
         list.classList.add('hidden');
     } else {
-        radios[1].checked = true; // ST
+        radios[1].checked = true;
         list.classList.add('hidden');
     }
 
-    // Build Player List
     list.innerHTML = '';
     const players = window.stState?.players || {};
     Object.entries(players).forEach(([uid, p]) => {
@@ -380,7 +515,6 @@ window.cmapOpenVisModal = (id, type) => {
 
     modal.classList.remove('hidden');
 };
-
 
 // --- UI UPDATES ---
 
@@ -413,9 +547,9 @@ function updateLists() {
     if (charList) {
         charList.innerHTML = mapState.characters.map(c => {
             const vis = c.visibility;
-            let iconClass = 'fa-eye-slash text-gray-500'; // Hidden
+            let iconClass = 'fa-eye-slash text-gray-500'; 
             if (vis === 'all') iconClass = 'fa-eye text-[#4ade80]';
-            if (Array.isArray(vis)) iconClass = 'fa-user-secret text-[#d4af37]'; // Specific
+            if (Array.isArray(vis)) iconClass = 'fa-user-secret text-[#d4af37]'; 
 
             return `
             <li class="flex justify-between items-center bg-[#222] p-1.5 rounded text-[10px] border border-[#333] ${vis !== 'all' ? 'opacity-70 border-l-2 border-l-gray-600' : 'border-l-2 border-l-[#4ade80]'}">
@@ -424,11 +558,14 @@ function updateLists() {
                         <i class="fas ${iconClass}"></i>
                     </button>
                     <div>
-                        <span class="font-bold ${c.type === 'npc' ? 'text-[#8a0303]' : 'text-blue-300'}">${c.name}</span>
-                        <span class="text-gray-500 ml-1">(${c.clan || '?'})</span>
+                        <span class="font-bold ${c.type === 'npc' ? 'text-[#8a0303]' : (c.type === 'group' ? 'text-blue-400' : 'text-blue-300')}">${c.name}</span>
+                        <span class="text-gray-500 ml-1">(${c.clan || (c.type==='group'?'Group':'?')})</span>
                     </div>
                 </div>
-                <button onclick="window.cmapRemoveChar('${c.id}')" class="text-gray-600 hover:text-red-500 px-1"><i class="fas fa-trash"></i></button>
+                <div class="flex gap-1">
+                    ${c.type === 'group' ? `<button onclick="window.cmapEnterGroup('${c.id}')" class="text-blue-400 hover:text-white px-1" title="Enter Group"><i class="fas fa-folder-open"></i></button>` : ''}
+                    <button onclick="window.cmapRemoveChar('${c.id}')" class="text-gray-600 hover:text-red-500 px-1"><i class="fas fa-trash"></i></button>
+                </div>
             </li>`;
         }).join('');
     }
@@ -483,37 +620,42 @@ async function renderMermaidChart() {
     // Classes
     graph += 'classDef pc fill:#1e293b,stroke:#fff,stroke-width:2px,color:#fff;\n';
     graph += 'classDef npc fill:#000,stroke:#8a0303,stroke-width:3px,color:#8a0303,font-weight:bold;\n';
-    // Style for hidden/restricted nodes (Dashed border)
+    graph += 'classDef group fill:#1e3a8a,stroke:#60a5fa,stroke-width:2px,color:#fff,stroke-dasharray: 5 5;\n';
     graph += 'classDef hiddenNode stroke-dasharray: 5 5,opacity:0.6;\n';
 
-    // RENDER ALL CHARACTERS (ST View)
+    // RENDER NODES
     mapState.characters.forEach(c => {
         const safeName = c.name.replace(/"/g, "'");
-        const label = c.clan ? `${safeName}<br/>(${c.clan})` : safeName;
+        let label = c.clan ? `${safeName}<br/>(${c.clan})` : safeName;
         
-        let cls = c.type === 'npc' ? ':::npc' : ':::pc';
+        let cls = ':::pc';
+        if (c.type === 'npc') cls = ':::npc';
+        if (c.type === 'group') {
+             cls = ':::group';
+             label = `${safeName}<br/>[Group]`;
+             // Make Group Clickable (Mermaid callback logic needs global hook)
+             window.mermaidClick = (id) => window.cmapEnterGroup(id);
+             graph += `click ${c.id} call mermaidClick("${c.id}") "Enter Group"\n`;
+        }
         
-        // Check visibility
         if (c.visibility !== 'all') {
-             graph += `${c.id}("${label}"):::${c.type === 'npc' ? 'npc' : 'pc'} hiddenNode\n`;
+             graph += `${c.id}("${label}"):::${c.type === 'group' ? 'group' : (c.type === 'npc' ? 'npc' : 'pc')} hiddenNode\n`;
         } else {
              graph += `${c.id}("${label}")${cls}\n`;
         }
     });
 
-    // RENDER ALL RELATIONSHIPS (ST View)
+    // RENDER LINKS
     mapState.relationships.forEach(r => {
         const label = r.label ? `"${r.label}"` : "";
         const isHidden = r.visibility !== 'all';
         
-        // Mermaid styling for links
         let arrow = "-->"; 
         if (r.type === 'boon') arrow = "-.->";
         if (r.type === 'blood') arrow = "==>";
         
         let displayLabel = label;
         if (isHidden) {
-             // Visual marker for restricted links
              if (displayLabel) displayLabel = `"${r.label} *"`; 
              else displayLabel = `"* *"`;
         }
@@ -525,9 +667,6 @@ async function renderMermaidChart() {
         } else {
             graph += `${r.source} ${arrow} ${r.target}\n`;
         }
-        
-        // Apply styling to restricted links if supported by current mermaid theme
-        // (Mermaid link styling is complex by index, simpler to use labels for now)
     });
 
     try {
