@@ -35,9 +35,9 @@ async function initMermaid() {
 
 // --- STATE ---
 let mapState = {
-    currentMapId: 'main', // Default ID
-    mapHistory: [],       // Breadcrumbs for navigation
-    availableMaps: [],    // List of map IDs for dropdown
+    currentMapId: 'main', 
+    mapHistory: [],       
+    availableMaps: [],    
     characters: [],
     relationships: [],
     zoom: 1.0,
@@ -55,7 +55,7 @@ export async function renderCoterieMap(container) {
             <!-- LEFT COLUMN: Editor -->
             <aside class="w-1/3 min-w-[300px] max-w-[400px] flex flex-col gap-4 h-full border-r border-[#333] bg-[#111] p-4 overflow-y-auto custom-scrollbar">
                 
-                <!-- MAP CONTROLS (NEW) -->
+                <!-- MAP CONTROLS -->
                 <div class="bg-[#1a1a1a] border border-[#333] rounded p-4 shadow-lg shrink-0">
                     <h3 class="text-md font-cinzel font-bold text-gold border-b border-[#333] pb-2 mb-3 uppercase flex justify-between items-center">
                         <span>Active Map</span>
@@ -73,7 +73,7 @@ export async function renderCoterieMap(container) {
                     </div>
                 </div>
 
-                <!-- 1. Add Character -->
+                <!-- 1. Add Character / Group -->
                 <div class="bg-[#1a1a1a] border border-[#333] rounded p-4 shadow-lg shrink-0">
                     <h3 class="text-md font-cinzel font-bold text-gray-300 border-l-4 border-[#8a0303] pl-2 mb-3 uppercase">Add Node</h3>
                     
@@ -83,14 +83,18 @@ export async function renderCoterieMap(container) {
                         <select id="cmap-type" class="bg-[#262626] border border-[#404040] text-white p-2 rounded text-xs focus:border-[#8a0303] outline-none">
                             <option value="pc">PC</option>
                             <option value="npc">NPC</option>
-                            <option value="group">Group (Sub-Map)</option> <!-- NEW -->
+                            <option value="group">Group (Sub-Map)</option> 
+                        </select>
+                        <!-- Group Parent Selector -->
+                        <select id="cmap-parent-group" class="bg-[#262626] border border-[#404040] text-white p-2 rounded text-xs focus:border-[#8a0303] outline-none col-span-2 hidden">
+                            <option value="">-- No Parent Group --</option>
                         </select>
                     </div>
                     <button id="cmap-add-char" class="w-full bg-[#8a0303] hover:bg-[#6d0202] text-white font-bold py-2 rounded text-xs uppercase tracking-wider transition-colors">
                         <i class="fas fa-plus mr-2"></i>ADD (Hidden)
                     </button>
 
-                    <ul id="cmap-char-list" class="mt-4 space-y-1 max-h-40 overflow-y-auto custom-scrollbar"></ul>
+                    <ul id="cmap-char-list" class="mt-4 space-y-1 max-h-60 overflow-y-auto custom-scrollbar"></ul>
                 </div>
 
                 <!-- 2. Add Relationship -->
@@ -199,6 +203,13 @@ function setupMapListeners() {
     document.getElementById('cmap-select-map').onchange = (e) => switchMap(e.target.value);
     document.getElementById('cmap-nav-up').onclick = navigateUp;
 
+    // Toggle Parent Group Select visibility based on type (Groups can't have parents here to prevent loops complexity for now)
+    document.getElementById('cmap-type').onchange = (e) => {
+        // We allow groups to be nested, but for simplicity let's allow all types to have parents
+        const isGroup = e.target.value === 'group';
+        document.getElementById('cmap-parent-group').classList.remove('hidden');
+    };
+
     const wrapper = document.getElementById('mermaid-wrapper');
     document.getElementById('cmap-zoom-in').onclick = () => { mapState.zoom = Math.min(mapState.zoom + 0.1, 3.0); if(wrapper) wrapper.style.transform = `scale(${mapState.zoom})`; };
     document.getElementById('cmap-zoom-out').onclick = () => { mapState.zoom = Math.max(mapState.zoom - 0.1, 0.5); if(wrapper) wrapper.style.transform = `scale(${mapState.zoom})`; };
@@ -247,7 +258,6 @@ async function loadMapList() {
         const snap = await getDocs(collection(db, 'chronicles', stState.activeChronicleId, 'coterie'));
         mapState.availableMaps = [];
         snap.forEach(doc => {
-            // Only list docs that have character/rel data (not empty metadata)
             mapState.availableMaps.push(doc.id);
         });
         
@@ -304,7 +314,7 @@ async function deleteCurrentMap() {
 function switchMap(mapId) {
     if (mapId === mapState.currentMapId) return;
     mapState.currentMapId = mapId;
-    mapState.mapHistory = []; // Reset history on manual switch
+    mapState.mapHistory = []; 
     startMapSync(mapId);
     
     const sel = document.getElementById('cmap-select-map');
@@ -315,15 +325,9 @@ function switchMap(mapId) {
 
 // Group Navigation
 window.cmapEnterGroup = (groupId) => {
-    // Push current map to history
     mapState.mapHistory.push(mapState.currentMapId);
-    
-    // Switch context to group ID
-    // Note: Group IDs should serve as Map IDs.
-    // If the map doesn't exist yet, it will be empty (good).
     mapState.currentMapId = groupId;
     startMapSync(groupId);
-    
     renderBreadcrumbs();
 };
 
@@ -344,7 +348,6 @@ function renderBreadcrumbs() {
         document.getElementById('cmap-current-label').innerText = mapState.currentMapId;
     } else {
         bc.classList.add('hidden');
-        // Sync main dropdown to match
         const sel = document.getElementById('cmap-select-map');
         if(sel) sel.value = mapState.currentMapId;
     }
@@ -396,21 +399,23 @@ async function addCharacter() {
     const nameInput = document.getElementById('cmap-name');
     const clanInput = document.getElementById('cmap-clan');
     const typeInput = document.getElementById('cmap-type');
+    const parentSelect = document.getElementById('cmap-parent-group');
     
     const name = nameInput.value.trim();
     const clan = clanInput.value.trim();
     const type = typeInput.value;
+    const parent = parentSelect.value || null;
 
     if (!name) return showNotification("Name required!", "error");
 
-    // Allow group IDs to be cleaner
     const id = name.replace(/[^a-zA-Z0-9_-]/g, '').toLowerCase(); 
     if (mapState.characters.some(c => c.id === id)) return showNotification("Exists!", "error");
 
-    mapState.characters.push({ id, name, clan, type, visibility: 'st' });
+    mapState.characters.push({ id, name, clan, type, parent, visibility: 'st' });
     
     nameInput.value = '';
     clanInput.value = '';
+    parentSelect.value = '';
     
     refreshMapUI(); 
     await saveMapData();
@@ -527,34 +532,51 @@ function refreshMapUI() {
 function updateDropdowns() {
     const sourceSelect = document.getElementById('cmap-source');
     const targetSelect = document.getElementById('cmap-target');
-    if (!sourceSelect || !targetSelect) return;
+    const parentSelect = document.getElementById('cmap-parent-group');
+
+    if (!sourceSelect || !targetSelect || !parentSelect) return;
 
     const currentS = sourceSelect.value;
     const currentT = targetSelect.value;
+    const currentP = parentSelect.value;
 
-    const opts = '<option value="">-- Select --</option>' + 
-        mapState.characters.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+    let opts = '<option value="">-- Select --</option>';
+    let groupOpts = '<option value="">-- No Parent Group --</option>';
+
+    mapState.characters.forEach(c => {
+        opts += `<option value="${c.id}">${c.name}</option>`;
+        if(c.type === 'group') groupOpts += `<option value="${c.id}">${c.name}</option>`;
+    });
 
     sourceSelect.innerHTML = opts;
     targetSelect.innerHTML = opts;
+    parentSelect.innerHTML = groupOpts;
 
     if (mapState.characters.some(c => c.id === currentS)) sourceSelect.value = currentS;
     if (mapState.characters.some(c => c.id === currentT)) targetSelect.value = currentT;
+    if (mapState.characters.some(c => c.id === currentP)) parentSelect.value = currentP;
 }
 
 function updateLists() {
     const charList = document.getElementById('cmap-char-list');
     if (charList) {
-        charList.innerHTML = mapState.characters.map(c => {
+        // Organize hierarchy: Groups -> Items
+        const roots = mapState.characters.filter(c => !c.parent);
+        let html = '';
+
+        const renderItem = (c, level) => {
             const vis = c.visibility;
             let iconClass = 'fa-eye-slash text-gray-500'; 
             if (vis === 'all') iconClass = 'fa-eye text-[#4ade80]';
             if (Array.isArray(vis)) iconClass = 'fa-user-secret text-[#d4af37]'; 
-
+            
+            const indent = level * 10;
+            const borderClass = vis !== 'all' ? 'border-l-gray-600' : 'border-l-[#4ade80]';
+            
             return `
-            <li class="flex justify-between items-center bg-[#222] p-1.5 rounded text-[10px] border border-[#333] ${vis !== 'all' ? 'opacity-70 border-l-2 border-l-gray-600' : 'border-l-2 border-l-[#4ade80]'}">
+            <li class="flex justify-between items-center bg-[#222] p-1.5 rounded text-[10px] border border-[#333] border-l-2 ${borderClass} mb-1" style="margin-left:${indent}px">
                 <div class="flex items-center gap-2">
-                    <button onclick="window.cmapOpenVisModal('${c.id}', 'char')" class="hover:text-white transition-colors" title="Change Visibility">
+                    <button onclick="window.cmapToggleChar('${c.id}')" class="hover:text-white transition-colors" title="Change Visibility">
                         <i class="fas ${iconClass}"></i>
                     </button>
                     <div>
@@ -567,7 +589,17 @@ function updateLists() {
                     <button onclick="window.cmapRemoveChar('${c.id}')" class="text-gray-600 hover:text-red-500 px-1"><i class="fas fa-trash"></i></button>
                 </div>
             </li>`;
-        }).join('');
+        };
+
+        const renderTree = (parent, level) => {
+             html += renderItem(parent, level);
+             // Find children
+             const children = mapState.characters.filter(c => c.parent === parent.id);
+             children.forEach(child => renderTree(child, level + 1));
+        };
+
+        roots.forEach(root => renderTree(root, 0));
+        charList.innerHTML = html;
     }
 
     const relList = document.getElementById('cmap-rel-list');
@@ -624,7 +656,21 @@ async function renderMermaidChart() {
     graph += 'classDef hiddenNode stroke-dasharray: 5 5,opacity:0.6;\n';
 
     // RENDER NODES
-    mapState.characters.forEach(c => {
+    // To support nesting, we must use subgraphs for visual grouping in Mermaid
+    // BUT mermaid subgraphs are rigid. For now, we will just render structure normally.
+    // If a node has a parent, we could technically wrap it in `subgraph id [Label] ... end`
+    // However, dynamic subgraph generation is tricky with arbitrary depth.
+    // Let's stick to flat rendering for nodes but utilize the `parent` property for logic if needed later.
+    
+    // For Visual Grouping:
+    // We will iterate roots first, then children inside subgraphs.
+    
+    const renderedIds = new Set();
+    
+    const renderNode = (c) => {
+        if(renderedIds.has(c.id)) return "";
+        renderedIds.add(c.id);
+
         const safeName = c.name.replace(/"/g, "'");
         let label = c.clan ? `${safeName}<br/>(${c.clan})` : safeName;
         
@@ -633,15 +679,62 @@ async function renderMermaidChart() {
         if (c.type === 'group') {
              cls = ':::group';
              label = `${safeName}<br/>[Group]`;
-             // Make Group Clickable (Mermaid callback logic needs global hook)
              window.mermaidClick = (id) => window.cmapEnterGroup(id);
-             graph += `click ${c.id} call mermaidClick("${c.id}") "Enter Group"\n`;
         }
         
+        let line = "";
         if (c.visibility !== 'all') {
-             graph += `${c.id}("${label}"):::${c.type === 'group' ? 'group' : (c.type === 'npc' ? 'npc' : 'pc')} hiddenNode\n`;
+             line = `${c.id}("${label}"):::${c.type === 'group' ? 'group' : (c.type === 'npc' ? 'npc' : 'pc')} hiddenNode\n`;
         } else {
-             graph += `${c.id}("${label}")${cls}\n`;
+             line = `${c.id}("${label}")${cls}\n`;
+        }
+
+        if (c.type === 'group') {
+             line += `click ${c.id} call mermaidClick("${c.id}") "Enter Group"\n`;
+        }
+        return line;
+    };
+
+    const renderSubgraph = (group) => {
+        let output = `subgraph ${group.id} ["${group.name}"]\n`;
+        output += `direction TB\n`; // optional
+        
+        // Render Group Node Itself (often redundant in subgraph but useful for clicking)
+        // Actually, in Mermaid, a subgraph IS the group container. 
+        // But we want a CLICKABLE node to navigate.
+        // We will render the group node OUTSIDE or as a representative.
+        // Strategy: Render the children inside the subgraph. The group node itself is implicit or external.
+        // Let's try rendering the group node INSIDE the subgraph as a "header" node.
+        
+        output += renderNode(group); // Render the clickable group header node inside
+        
+        const children = mapState.characters.filter(c => c.parent === group.id);
+        children.forEach(child => {
+            if (child.type === 'group') {
+                output += renderSubgraph(child); // Recursion
+            } else {
+                output += renderNode(child);
+            }
+        });
+        output += `end\n`;
+        return output;
+    };
+
+    // 1. Render Roots (Nodes with no parent)
+    const roots = mapState.characters.filter(c => !c.parent);
+    
+    roots.forEach(root => {
+        if (root.type === 'group') {
+             graph += renderSubgraph(root);
+        } else {
+             graph += renderNode(root);
+        }
+    });
+
+    // 2. Cleanup: Ensure any orphaned nodes (if parent missing) are rendered
+    mapState.characters.forEach(c => {
+        if (!renderedIds.has(c.id)) {
+            graph += renderNode(c);
         }
     });
 
