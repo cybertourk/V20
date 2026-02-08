@@ -66,7 +66,7 @@ export async function renderCoterieMap(container) {
                         </select>
                     </div>
                     <button id="cmap-add-char" class="w-full bg-[#8a0303] hover:bg-[#6d0202] text-white font-bold py-2 rounded text-xs uppercase tracking-wider transition-colors">
-                        <i class="fas fa-plus mr-2"></i>ADD
+                        <i class="fas fa-plus mr-2"></i>ADD (Hidden)
                     </button>
 
                     <ul id="cmap-char-list" class="mt-4 space-y-1 max-h-40 overflow-y-auto custom-scrollbar"></ul>
@@ -93,7 +93,7 @@ export async function renderCoterieMap(container) {
                     </div>
 
                     <button id="cmap-add-rel" class="w-full bg-[#334155] hover:bg-[#1e293b] text-white font-bold py-2 rounded text-xs uppercase tracking-wider transition-colors">
-                        <i class="fas fa-link mr-2"></i>Connect
+                        <i class="fas fa-link mr-2"></i>Connect (Hidden)
                     </button>
 
                     <ul id="cmap-rel-list" class="mt-4 space-y-1 max-h-40 overflow-y-auto custom-scrollbar"></ul>
@@ -121,7 +121,8 @@ export async function renderCoterieMap(container) {
                 <div class="bg-[#111] text-gray-400 text-[10px] p-2 text-center border-t border-[#333] uppercase font-bold tracking-wider">
                     <span class="mr-4"><i class="fas fa-minus text-gray-500"></i> Social</span>
                     <span class="mr-4"><i class="fas fa-ellipsis-h text-gray-500"></i> Boon/Debt</span>
-                    <span><i class="fas fa-minus text-white font-black border-b-2 border-white"></i> Blood Bond</span>
+                    <span class="mr-4"><i class="fas fa-minus text-white font-black border-b-2 border-white"></i> Blood Bond</span>
+                    <span class="text-gray-600"><i class="fas fa-eye-slash mr-1"></i> Hidden from Players</span>
                 </div>
             </section>
         </div>
@@ -171,6 +172,7 @@ function startMapSync() {
             mapState.characters = data.characters || [];
             mapState.relationships = data.relationships || [];
         } else {
+            // Don't wipe local state if snapshot is empty but we have pending local changes
             if (mapState.characters.length === 0) {
                  mapState.characters = [];
                  mapState.relationships = [];
@@ -187,6 +189,7 @@ async function saveMapData() {
     try {
         const docRef = doc(db, 'chronicles', stState.activeChronicleId, 'coterie', 'map');
         
+        // Use setDoc with merge: true to handle creation automatically
         await setDoc(docRef, {
             characters: mapState.characters,
             relationships: mapState.relationships
@@ -214,8 +217,8 @@ async function addCharacter() {
     const id = name.replace(/[^a-zA-Z0-9]/g, '');
     if (mapState.characters.some(c => c.id === id)) return showNotification("Exists!", "error");
 
-    // Add with default visible
-    mapState.characters.push({ id, name, clan, type, hidden: false });
+    // Add with default visibility: 'st' (Storyteller Only / Hidden)
+    mapState.characters.push({ id, name, clan, type, visibility: 'st' });
     
     nameInput.value = '';
     clanInput.value = '';
@@ -238,8 +241,8 @@ async function addRelationship() {
     if (!source || !target) return showNotification("Select Source & Target", "error");
     if (source === target) return showNotification("Self-link invalid", "error");
 
-    // Add with default visible
-    mapState.relationships.push({ source, target, type, label, hidden: false });
+    // Add with default visibility: 'st' (Storyteller Only / Hidden)
+    mapState.relationships.push({ source, target, type, label, visibility: 'st' });
     
     labelInput.value = '';
     refreshMapUI(); 
@@ -262,10 +265,15 @@ window.cmapRemoveRel = async (idx) => {
     await saveMapData();
 };
 
+// Toggle Visibility: 'st' (Hidden) <-> 'all' (Visible)
 window.cmapToggleChar = async (id) => {
     const char = mapState.characters.find(c => c.id === id);
     if (char) {
-        char.hidden = !char.hidden;
+        // Toggle between 'all' and 'st'. Supports future ['uid'] arrays by treating array/st as "Restricted"
+        char.visibility = (char.visibility === 'all') ? 'st' : 'all';
+        // Legacy cleanup
+        if(char.hidden !== undefined) delete char.hidden;
+        
         refreshMapUI();
         await saveMapData();
     }
@@ -273,7 +281,11 @@ window.cmapToggleChar = async (id) => {
 
 window.cmapToggleRel = async (idx) => {
     if (mapState.relationships[idx]) {
-        mapState.relationships[idx].hidden = !mapState.relationships[idx].hidden;
+        const rel = mapState.relationships[idx];
+        rel.visibility = (rel.visibility === 'all') ? 'st' : 'all';
+        // Legacy cleanup
+        if(rel.hidden !== undefined) delete rel.hidden;
+
         refreshMapUI();
         await saveMapData();
     }
@@ -309,11 +321,13 @@ function updateLists() {
     const charList = document.getElementById('cmap-char-list');
     if (charList) {
         charList.innerHTML = mapState.characters.map(c => {
-            const isHidden = c.hidden === true;
+            // Determine visibility state
+            const isHidden = c.visibility !== 'all' && (!c.visibility || c.visibility === 'st' || Array.isArray(c.visibility));
+            
             return `
-            <li class="flex justify-between items-center bg-[#222] p-1.5 rounded text-[10px] border border-[#333] ${isHidden ? 'opacity-50' : ''}">
+            <li class="flex justify-between items-center bg-[#222] p-1.5 rounded text-[10px] border border-[#333] ${isHidden ? 'opacity-70 border-l-2 border-l-gray-600' : 'border-l-2 border-l-[#4ade80]'}">
                 <div class="flex items-center gap-2">
-                    <button onclick="window.cmapToggleChar('${c.id}')" class="text-gray-500 hover:text-white" title="Toggle Visibility">
+                    <button onclick="window.cmapToggleChar('${c.id}')" class="${isHidden ? 'text-gray-500' : 'text-[#4ade80]'} hover:text-white transition-colors" title="${isHidden ? 'Hidden (ST Only)' : 'Visible to All'}">
                         <i class="fas ${isHidden ? 'fa-eye-slash' : 'fa-eye'}"></i>
                     </button>
                     <div>
@@ -332,12 +346,13 @@ function updateLists() {
             const sName = mapState.characters.find(c => c.id === r.source)?.name || r.source;
             const tName = mapState.characters.find(c => c.id === r.target)?.name || r.target;
             let icon = r.type === 'blood' ? 'fa-link text-red-500' : (r.type === 'boon' ? 'fa-ellipsis-h' : 'fa-arrow-right');
-            const isHidden = r.hidden === true;
+            
+            const isHidden = r.visibility !== 'all' && (!r.visibility || r.visibility === 'st' || Array.isArray(r.visibility));
             
             return `
-            <li class="flex justify-between items-center bg-[#222] p-1.5 rounded text-[10px] border-l-2 ${r.type === 'blood' ? 'border-[#8a0303]' : 'border-gray-500'} border-t border-r border-b border-[#333] ${isHidden ? 'opacity-50' : ''}">
+            <li class="flex justify-between items-center bg-[#222] p-1.5 rounded text-[10px] border-l-2 ${r.type === 'blood' ? 'border-[#8a0303]' : 'border-gray-500'} border-t border-r border-b border-[#333] ${isHidden ? 'opacity-70' : ''}">
                 <div class="flex gap-2 items-center flex-1 truncate">
-                    <button onclick="window.cmapToggleRel(${i})" class="text-gray-500 hover:text-white flex-shrink-0" title="Toggle Visibility">
+                    <button onclick="window.cmapToggleRel(${i})" class="${isHidden ? 'text-gray-500' : 'text-[#4ade80]'} hover:text-white flex-shrink-0 transition-colors" title="${isHidden ? 'Hidden (ST Only)' : 'Visible to All'}">
                         <i class="fas ${isHidden ? 'fa-eye-slash' : 'fa-eye'}"></i>
                     </button>
                     <div class="truncate">
@@ -362,42 +377,75 @@ async function renderMermaidChart() {
         return;
     }
 
-    // Filter out hidden characters for the view
-    const visibleChars = mapState.characters.filter(c => !c.hidden);
+    // STORYTELLER VIEW: SHOW ALL, but style hidden ones differently
+    // In Player view (future), we would filter here.
     
-    // Filter out relationships where either node is hidden OR the relationship itself is hidden
-    const visibleRels = mapState.relationships.filter(r => {
-        if (r.hidden) return false;
-        const sVisible = visibleChars.some(c => c.id === r.source);
-        const tVisible = visibleChars.some(c => c.id === r.target);
-        return sVisible && tVisible;
-    });
-
-    if (visibleChars.length === 0) {
-        container.innerHTML = `<div class="text-center text-gray-500 text-xs mt-10 italic">No visible nodes to map...</div>`;
+    if (mapState.characters.length === 0) {
+        container.innerHTML = `<div class="text-center text-gray-500 text-xs mt-10 italic">Add characters to begin mapping...</div>`;
         return;
     }
 
     let graph = 'graph TD\n';
+    
+    // Classes
     graph += 'classDef pc fill:#1e293b,stroke:#fff,stroke-width:2px,color:#fff;\n';
     graph += 'classDef npc fill:#000,stroke:#8a0303,stroke-width:3px,color:#8a0303,font-weight:bold;\n';
+    // Style for hidden nodes (Dashed border, lower opacity visual effect via stroke-dasharray)
+    graph += 'classDef hiddenNode stroke-dasharray: 5 5,opacity:0.7;\n';
 
-    visibleChars.forEach(c => {
+    // RENDER ALL CHARACTERS (ST View)
+    mapState.characters.forEach(c => {
         const safeName = c.name.replace(/"/g, "'");
         const label = c.clan ? `${safeName}<br/>(${c.clan})` : safeName;
-        const cls = c.type === 'npc' ? ':::npc' : ':::pc';
-        graph += `${c.id}("${label}")${cls}\n`;
+        
+        let cls = c.type === 'npc' ? ':::npc' : ':::pc';
+        
+        // Check visibility
+        if (c.visibility !== 'all') {
+            // Mermaid supports multiple classes? Yes, but simpler to append style or just indicate in label
+            // Let's modify the label to indicate hidden state to ST
+            // graph += `${c.id}("${label} [HIDDEN]"):::hiddenNode\n`; 
+            // Better: Just apply the class.
+             graph += `${c.id}("${label}"):::${c.type === 'npc' ? 'npc' : 'pc'} hiddenNode\n`;
+        } else {
+             graph += `${c.id}("${label}")${cls}\n`;
+        }
     });
 
-    visibleRels.forEach(r => {
+    // RENDER ALL RELATIONSHIPS (ST View)
+    mapState.relationships.forEach(r => {
         const label = r.label ? `"${r.label}"` : "";
-        if (r.type === 'blood') {
-            graph += label ? `${r.source} == ${label} ==> ${r.target}\n` : `${r.source} ==> ${r.target}\n`;
-        } else if (r.type === 'boon') {
-            graph += label ? `${r.source} -. ${label} .-> ${r.target}\n` : `${r.source} -.-> ${r.target}\n`;
-        } else {
-            graph += label ? `${r.source} -- ${label} --> ${r.target}\n` : `${r.source} --> ${r.target}\n`;
+        const isHidden = r.visibility !== 'all';
+        
+        // Mermaid styling for links
+        let linkStyle = "";
+        
+        // Base Arrow Types
+        let arrow = "-->"; 
+        if (r.type === 'boon') arrow = "-.->";
+        if (r.type === 'blood') arrow = "==>";
+        
+        // If hidden, we want to visually indicate it to ST.
+        // Mermaid link styles are applied by index which is hard to track here.
+        // Instead, we can append a visual marker to the label or use dotted lines if possible.
+        // Since 'boon' is already dotted, we rely on opacity or distinct markers.
+        
+        let displayLabel = label;
+        if (isHidden) {
+             // Mark label as hidden
+             if (displayLabel) displayLabel = `"${r.label} (H)"`;
+             else displayLabel = `"(Hidden)"`;
         }
+
+        if (displayLabel) {
+            if (r.type === 'blood') graph += `${r.source} == ${displayLabel} ==> ${r.target}\n`;
+            else if (r.type === 'boon') graph += `${r.source} -. ${displayLabel} .-> ${r.target}\n`;
+            else graph += `${r.source} -- ${displayLabel} --> ${r.target}\n`;
+        } else {
+            graph += `${r.source} ${arrow} ${r.target}\n`;
+        }
+        
+        // TODO: Apply link styles for hidden if mermaid API permits easily in dynamic strings
     });
 
     try {
