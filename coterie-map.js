@@ -40,6 +40,7 @@ let mapState = {
     availableMaps: [],    
     characters: [],
     relationships: [],
+    expandedGroups: new Set(), // Track which groups are expanded (Rings) vs collapsed (Nodes)
     zoom: 1.0,
     unsub: null,
     editingVisibilityId: null,
@@ -348,12 +349,14 @@ function switchMap(mapId) {
     document.getElementById('cmap-breadcrumbs').classList.add('hidden');
 }
 
-// Group Navigation
-window.cmapEnterGroup = (groupId) => {
-    mapState.mapHistory.push(mapState.currentMapId);
-    mapState.currentMapId = groupId;
-    startMapSync(groupId);
-    renderBreadcrumbs();
+// Group Toggle Logic
+window.cmapToggleGroup = (groupId) => {
+    if (mapState.expandedGroups.has(groupId)) {
+        mapState.expandedGroups.delete(groupId);
+    } else {
+        mapState.expandedGroups.add(groupId);
+    }
+    renderMermaidChart();
 };
 
 function navigateUp() {
@@ -585,9 +588,8 @@ function updateDropdowns() {
 function updateLists() {
     const charList = document.getElementById('cmap-char-list');
     if (charList) {
-        // --- ORPHAN HANDLING: Include nodes whose parent is missing ---
-        const validIds = new Set(mapState.characters.map(c => c.id));
-        const roots = mapState.characters.filter(c => !c.parent || !validIds.has(c.parent));
+        // Organize hierarchy: Groups -> Items
+        const roots = mapState.characters.filter(c => !c.parent);
         let html = '';
 
         const renderItem = (c, level) => {
@@ -611,7 +613,7 @@ function updateLists() {
                     </div>
                 </div>
                 <div class="flex gap-1">
-                    ${c.type === 'group' ? `<button onclick="window.cmapEnterGroup('${c.id}')" class="text-blue-400 hover:text-white px-1" title="Enter Group"><i class="fas fa-folder-open"></i></button>` : ''}
+                    ${c.type === 'group' ? `<button onclick="window.cmapToggleGroup('${c.id}')" class="text-blue-400 hover:text-white px-1" title="Toggle Expand/Collapse"><i class="fas ${mapState.expandedGroups.has(c.id) ? 'fa-minus-square' : 'fa-plus-square'}"></i></button>` : ''}
                     <button onclick="window.cmapRemoveChar('${c.id}')" class="text-gray-600 hover:text-red-500 px-1"><i class="fas fa-trash"></i></button>
                 </div>
             </li>`;
@@ -677,10 +679,15 @@ async function renderMermaidChart() {
     // Classes
     graph += 'classDef pc fill:#1e293b,stroke:#fff,stroke-width:2px,color:#fff;\n';
     graph += 'classDef npc fill:#000,stroke:#8a0303,stroke-width:3px,color:#8a0303,font-weight:bold;\n';
-    graph += 'classDef group fill:#1e3a8a,stroke:#60a5fa,stroke-width:2px,color:#fff,stroke-dasharray: 5 5;\n';
+    // Style for Expanded Group (The Ring) - Dashed, Transparent center
+    graph += 'classDef groupRing fill:none,stroke:#1e3a8a,stroke-width:2px,stroke-dasharray: 5 5;\n'; 
+    // Style for Collapsed Group (The Node) - Blue Circle
+    graph += 'classDef groupNode fill:#1e3a8a,stroke:#60a5fa,stroke-width:2px,color:#fff;\n';
+    
     graph += 'classDef hiddenNode stroke-dasharray: 5 5,opacity:0.6;\n';
 
     // RENDER NODES
+    
     const renderedIds = new Set();
     
     const renderNode = (c) => {
@@ -692,30 +699,53 @@ async function renderMermaidChart() {
         
         let cls = ':::pc';
         if (c.type === 'npc') cls = ':::npc';
+        
+        // Group Logic: Check if Expanded
         if (c.type === 'group') {
-             cls = ':::group';
-             label = `${safeName}<br/>[Group]`;
-             window.mermaidClick = (id) => window.cmapEnterGroup(id);
+             const isExpanded = mapState.expandedGroups.has(c.id);
+             
+             if (isExpanded) {
+                 // Render as Subgraph Wrapper (Ring) - Handled in renderSubgraph recursion
+                 // BUT we still need a clickable title for the ring.
+                 // We will render a "Header Node" inside the subgraph.
+                 cls = ':::groupNode';
+                 label = `<b>${safeName}</b>`; 
+             } else {
+                 // Render as Standard Node (Circle)
+                 cls = ':::groupNode';
+                 label = `${safeName}<br/>(Group)`;
+             }
+             
+             // Setup Click Handler for Toggling
+             window.mermaidClick = (id) => window.cmapToggleGroup(id);
         }
         
         let line = "";
+        // Visibility Check
         if (c.visibility !== 'all') {
-             line = `${c.id}("${label}"):::${c.type === 'group' ? 'group' : (c.type === 'npc' ? 'npc' : 'pc')} hiddenNode\n`;
+             line = `${c.id}("${label}"):::${c.type === 'group' ? 'groupNode' : (c.type === 'npc' ? 'npc' : 'pc')} hiddenNode\n`;
         } else {
              line = `${c.id}("${label}")${cls}\n`;
         }
 
         if (c.type === 'group') {
-             line += `click ${c.id} call mermaidClick("${c.id}") "Enter Group"\n`;
+             line += `click ${c.id} call mermaidClick("${c.id}") "Toggle Group"\n`;
         }
         return line;
     };
 
     const renderSubgraph = (group) => {
-        let output = `subgraph ${group.id}_sg ["${group.name}"]\n`;
+        // If NOT expanded, render as a single node
+        if (!mapState.expandedGroups.has(group.id)) {
+            return renderNode(group);
+        }
+
+        // If EXPANDED, render as a subgraph (Ring)
+        let output = `subgraph ${group.id}_sg [" "]\n`; // Empty string title to avoid double label
         output += `direction TB\n`; 
         
-        output += renderNode(group); 
+        // Render the clickable header node inside the ring
+        output += renderNode(group);
         
         const children = mapState.characters.filter(c => c.parent === group.id);
         children.forEach(child => {
@@ -726,6 +756,10 @@ async function renderMermaidChart() {
             }
         });
         output += `end\n`;
+        
+        // Apply class to the subgraph (Ring style)
+        output += `class ${group.id}_sg groupRing\n`;
+        
         return output;
     };
 
