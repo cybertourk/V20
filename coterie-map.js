@@ -59,7 +59,10 @@ export async function renderCoterieMap(container) {
                 <div class="bg-[#1a1a1a] border border-[#333] rounded p-4 shadow-lg shrink-0">
                     <h3 class="text-md font-cinzel font-bold text-gold border-b border-[#333] pb-2 mb-3 uppercase flex justify-between items-center">
                         <span>Active Map</span>
-                        <button id="cmap-delete-map" class="text-xs text-red-500 hover:text-white" title="Delete current map"><i class="fas fa-trash"></i></button>
+                        <div class="flex gap-2">
+                             <button id="cmap-cleanup-map" class="text-xs text-gray-500 hover:text-white" title="Fix Orphans / Cleanup"><i class="fas fa-broom"></i></button>
+                             <button id="cmap-delete-map" class="text-xs text-red-500 hover:text-white" title="Delete current map"><i class="fas fa-trash"></i></button>
+                        </div>
                     </h3>
                     
                     <div class="flex gap-2 mb-3">
@@ -200,14 +203,12 @@ function setupMapListeners() {
     document.getElementById('cmap-add-rel').onclick = addRelationship;
     document.getElementById('cmap-new-map-btn').onclick = createNewMap;
     document.getElementById('cmap-delete-map').onclick = deleteCurrentMap;
+    document.getElementById('cmap-cleanup-map').onclick = cleanupOrphans; // NEW CLEANUP
     document.getElementById('cmap-select-map').onchange = (e) => switchMap(e.target.value);
     document.getElementById('cmap-nav-up').onclick = navigateUp;
 
     // Toggle Parent Group Select visibility based on type
     document.getElementById('cmap-type').onchange = (e) => {
-        // We allow groups to be nested, but for simplicity let's allow all types to have parents
-        // Groups can act as sub-maps, so assigning a character to a group nests them visually in list
-        // and logically allows 'entering' that group as a map context.
         document.getElementById('cmap-parent-group').classList.remove('hidden');
     };
 
@@ -286,7 +287,6 @@ async function createNewMap() {
         return;
     }
     
-    // Switch context and save initial state
     switchMap(id);
     await saveMapData(); 
     
@@ -310,6 +310,30 @@ async function deleteCurrentMap() {
         updateMapSelect();
         showNotification("Map Deleted.");
     } catch(e) { console.error(e); }
+}
+
+// NEW: CLEANUP UTILITY
+async function cleanupOrphans() {
+    if (!confirm("Remove invalid nodes? (Resets parents if missing)")) return;
+    
+    const validIds = new Set(mapState.characters.map(c => c.id));
+    
+    // 1. Reset parents that point to non-existent nodes
+    mapState.characters.forEach(c => {
+        if (c.parent && !validIds.has(c.parent)) {
+            console.log(`Orphan found: ${c.name} (Parent: ${c.parent} missing). Moved to root.`);
+            c.parent = null; // Move to root so it's visible in list
+        }
+    });
+
+    // 2. Remove relationships pointing to non-existent nodes
+    mapState.relationships = mapState.relationships.filter(r => {
+        return validIds.has(r.source) && validIds.has(r.target);
+    });
+    
+    refreshMapUI();
+    await saveMapData();
+    showNotification("Cleanup Complete.");
 }
 
 function switchMap(mapId) {
@@ -561,8 +585,9 @@ function updateDropdowns() {
 function updateLists() {
     const charList = document.getElementById('cmap-char-list');
     if (charList) {
-        // Organize hierarchy: Groups -> Items
-        const roots = mapState.characters.filter(c => !c.parent);
+        // --- ORPHAN HANDLING: Include nodes whose parent is missing ---
+        const validIds = new Set(mapState.characters.map(c => c.id));
+        const roots = mapState.characters.filter(c => !c.parent || !validIds.has(c.parent));
         let html = '';
 
         const renderItem = (c, level) => {
@@ -574,7 +599,6 @@ function updateLists() {
             const indent = level * 10;
             const borderClass = vis !== 'all' ? 'border-l-gray-600' : 'border-l-[#4ade80]';
             
-            // FIX: Use window.cmapOpenVisModal instead of cmapToggleChar to open the menu
             return `
             <li class="flex justify-between items-center bg-[#222] p-1.5 rounded text-[10px] border border-[#333] border-l-2 ${borderClass} mb-1" style="margin-left:${indent}px">
                 <div class="flex items-center gap-2">
@@ -595,7 +619,6 @@ function updateLists() {
 
         const renderTree = (parent, level) => {
              html += renderItem(parent, level);
-             // Find children
              const children = mapState.characters.filter(c => c.parent === parent.id);
              children.forEach(child => renderTree(child, level + 1));
         };
@@ -616,7 +639,6 @@ function updateLists() {
             if (vis === 'all') iconClass = 'fa-eye text-[#4ade80]';
             if (Array.isArray(vis)) iconClass = 'fa-user-secret text-[#d4af37]';
 
-            // FIX: Use window.cmapOpenVisModal for relationship visibility too
             return `
             <li class="flex justify-between items-center bg-[#222] p-1.5 rounded text-[10px] border-l-2 ${r.type === 'blood' ? 'border-[#8a0303]' : 'border-gray-500'} border-t border-r border-b border-[#333] ${vis !== 'all' ? 'opacity-70' : ''}">
                 <div class="flex gap-2 items-center flex-1 truncate">
@@ -659,7 +681,6 @@ async function renderMermaidChart() {
     graph += 'classDef hiddenNode stroke-dasharray: 5 5,opacity:0.6;\n';
 
     // RENDER NODES
-    
     const renderedIds = new Set();
     
     const renderNode = (c) => {
@@ -691,16 +712,15 @@ async function renderMermaidChart() {
     };
 
     const renderSubgraph = (group) => {
-        // FIX: Ensure ID uniqueness for subgraph container vs node by appending _sg
         let output = `subgraph ${group.id}_sg ["${group.name}"]\n`;
-        output += `direction TB\n`; // optional
+        output += `direction TB\n`; 
         
-        output += renderNode(group); // Render the clickable group header node inside
+        output += renderNode(group); 
         
         const children = mapState.characters.filter(c => c.parent === group.id);
         children.forEach(child => {
             if (child.type === 'group') {
-                output += renderSubgraph(child); // Recursion
+                output += renderSubgraph(child); 
             } else {
                 output += renderNode(child);
             }
