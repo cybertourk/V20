@@ -203,10 +203,11 @@ function setupMapListeners() {
     document.getElementById('cmap-select-map').onchange = (e) => switchMap(e.target.value);
     document.getElementById('cmap-nav-up').onclick = navigateUp;
 
-    // Toggle Parent Group Select visibility based on type (Groups can't have parents here to prevent loops complexity for now)
+    // Toggle Parent Group Select visibility based on type
     document.getElementById('cmap-type').onchange = (e) => {
         // We allow groups to be nested, but for simplicity let's allow all types to have parents
-        const isGroup = e.target.value === 'group';
+        // Groups can act as sub-maps, so assigning a character to a group nests them visually in list
+        // and logically allows 'entering' that group as a map context.
         document.getElementById('cmap-parent-group').classList.remove('hidden');
     };
 
@@ -573,10 +574,11 @@ function updateLists() {
             const indent = level * 10;
             const borderClass = vis !== 'all' ? 'border-l-gray-600' : 'border-l-[#4ade80]';
             
+            // FIX: Use window.cmapOpenVisModal instead of cmapToggleChar to open the menu
             return `
             <li class="flex justify-between items-center bg-[#222] p-1.5 rounded text-[10px] border border-[#333] border-l-2 ${borderClass} mb-1" style="margin-left:${indent}px">
                 <div class="flex items-center gap-2">
-                    <button onclick="window.cmapToggleChar('${c.id}')" class="hover:text-white transition-colors" title="Change Visibility">
+                    <button onclick="window.cmapOpenVisModal('${c.id}', 'char')" class="hover:text-white transition-colors" title="Change Visibility">
                         <i class="fas ${iconClass}"></i>
                     </button>
                     <div>
@@ -614,6 +616,7 @@ function updateLists() {
             if (vis === 'all') iconClass = 'fa-eye text-[#4ade80]';
             if (Array.isArray(vis)) iconClass = 'fa-user-secret text-[#d4af37]';
 
+            // FIX: Use window.cmapOpenVisModal for relationship visibility too
             return `
             <li class="flex justify-between items-center bg-[#222] p-1.5 rounded text-[10px] border-l-2 ${r.type === 'blood' ? 'border-[#8a0303]' : 'border-gray-500'} border-t border-r border-b border-[#333] ${vis !== 'all' ? 'opacity-70' : ''}">
                 <div class="flex gap-2 items-center flex-1 truncate">
@@ -656,14 +659,6 @@ async function renderMermaidChart() {
     graph += 'classDef hiddenNode stroke-dasharray: 5 5,opacity:0.6;\n';
 
     // RENDER NODES
-    // To support nesting, we must use subgraphs for visual grouping in Mermaid
-    // BUT mermaid subgraphs are rigid. For now, we will just render structure normally.
-    // If a node has a parent, we could technically wrap it in `subgraph id [Label] ... end`
-    // However, dynamic subgraph generation is tricky with arbitrary depth.
-    // Let's stick to flat rendering for nodes but utilize the `parent` property for logic if needed later.
-    
-    // For Visual Grouping:
-    // We will iterate roots first, then children inside subgraphs.
     
     const renderedIds = new Set();
     
@@ -698,13 +693,6 @@ async function renderMermaidChart() {
     const renderSubgraph = (group) => {
         let output = `subgraph ${group.id} ["${group.name}"]\n`;
         output += `direction TB\n`; // optional
-        
-        // Render Group Node Itself (often redundant in subgraph but useful for clicking)
-        // Actually, in Mermaid, a subgraph IS the group container. 
-        // But we want a CLICKABLE node to navigate.
-        // We will render the group node OUTSIDE or as a representative.
-        // Strategy: Render the children inside the subgraph. The group node itself is implicit or external.
-        // Let's try rendering the group node INSIDE the subgraph as a "header" node.
         
         output += renderNode(group); // Render the clickable group header node inside
         
