@@ -327,7 +327,13 @@ async function renderChronicleMenu() {
     const listDiv = document.getElementById('st-campaign-list');
     if (listDiv) {
         try {
-            const q = query(collection(db, 'chronicles', where("storyteller_uid", "==", user.uid)));
+            // FIX: Ensure user exists before query
+            if (!user || !user.uid) return;
+
+            // FIX: Add index-safe error handling or simplified query
+            // The query requires a composite index on storyteller_uid if ordering is involved, 
+            // but for simple equality it should be fine IF rules allow it.
+            const q = query(collection(db, 'chronicles'), where("storyteller_uid", "==", user.uid));
             const querySnapshot = await getDocs(q);
             
             if (!querySnapshot.empty) {
@@ -353,6 +359,8 @@ async function renderChronicleMenu() {
             }
         } catch (e) {
             console.error("Error loading campaigns:", e);
+            listDiv.innerHTML = `<div class="text-red-500 text-xs italic">Failed to load campaigns. Check connection.</div>`;
+            listDiv.classList.remove('hidden');
         }
     }
 }
