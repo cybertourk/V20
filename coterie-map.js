@@ -41,7 +41,9 @@ let mapState = {
     characters: [],
     relationships: [],
     zoom: 1.0,
-    unsub: null
+    unsub: null,
+    editingVisibilityId: null, // Track which item is being edited for visibility
+    editingVisibilityType: null // 'char' or 'rel'
 };
 
 // --- MAIN RENDERER ---
@@ -49,7 +51,7 @@ export async function renderCoterieMap(container) {
     await initMermaid();
 
     container.innerHTML = `
-        <div class="flex h-full bg-[#0a0a0a] text-[#e5e5e5] font-sans overflow-hidden">
+        <div class="flex h-full bg-[#0a0a0a] text-[#e5e5e5] font-sans overflow-hidden relative">
             <!-- LEFT COLUMN: Editor -->
             <aside class="w-1/3 min-w-[300px] max-w-[400px] flex flex-col gap-4 h-full border-r border-[#333] bg-[#111] p-4 overflow-y-auto custom-scrollbar">
                 
@@ -122,9 +124,40 @@ export async function renderCoterieMap(container) {
                     <span class="mr-4"><i class="fas fa-minus text-gray-500"></i> Social</span>
                     <span class="mr-4"><i class="fas fa-ellipsis-h text-gray-500"></i> Boon/Debt</span>
                     <span class="mr-4"><i class="fas fa-minus text-white font-black border-b-2 border-white"></i> Blood Bond</span>
-                    <span class="text-gray-600"><i class="fas fa-eye-slash mr-1"></i> Hidden from Players</span>
+                    <span class="text-gray-600"><i class="fas fa-eye-slash mr-1"></i> Hidden</span>
                 </div>
             </section>
+
+            <!-- VISIBILITY MODAL -->
+            <div id="cmap-vis-modal" class="hidden absolute inset-0 bg-black/80 flex items-center justify-center z-50 backdrop-blur-sm">
+                <div class="bg-[#1a1a1a] border border-[#d4af37] p-4 w-64 shadow-2xl rounded">
+                    <h4 class="text-[#d4af37] font-cinzel font-bold text-sm mb-3 border-b border-[#333] pb-1 uppercase">Visibility Settings</h4>
+                    
+                    <div class="space-y-2 mb-4">
+                        <label class="flex items-center gap-2 cursor-pointer p-1 hover:bg-[#222] rounded">
+                            <input type="radio" name="cmap-vis-option" value="all" class="accent-[#d4af37]">
+                            <span class="text-xs text-white">Visible to Everyone</span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer p-1 hover:bg-[#222] rounded">
+                            <input type="radio" name="cmap-vis-option" value="st" class="accent-[#d4af37]">
+                            <span class="text-xs text-white">Hidden (ST Only)</span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer p-1 hover:bg-[#222] rounded">
+                            <input type="radio" name="cmap-vis-option" value="specific" class="accent-[#d4af37]">
+                            <span class="text-xs text-white">Specific Players</span>
+                        </label>
+                    </div>
+
+                    <div id="cmap-vis-players" class="hidden border border-[#333] bg-[#050505] p-2 max-h-32 overflow-y-auto custom-scrollbar mb-4 space-y-1">
+                        <!-- Player checkboxes injected here -->
+                    </div>
+
+                    <div class="flex justify-end gap-2">
+                        <button onclick="document.getElementById('cmap-vis-modal').classList.add('hidden')" class="px-3 py-1 text-[10px] uppercase font-bold text-gray-400 hover:text-white border border-[#444] rounded">Cancel</button>
+                        <button id="cmap-vis-save" class="px-3 py-1 text-[10px] uppercase font-bold bg-[#d4af37] text-black hover:bg-[#fcd34d] rounded">Save</button>
+                    </div>
+                </div>
+            </div>
         </div>
     `;
 
@@ -154,6 +187,39 @@ function setupMapListeners() {
     document.getElementById('cmap-reset-zoom').onclick = () => {
         mapState.zoom = 1.0;
         if(wrapper) wrapper.style.transform = `scale(1)`;
+    };
+
+    // VISIBILITY MODAL LOGIC
+    const radios = document.getElementsByName('cmap-vis-option');
+    radios.forEach(r => {
+        r.onchange = () => {
+            document.getElementById('cmap-vis-players').classList.toggle('hidden', r.value !== 'specific');
+        };
+    });
+
+    document.getElementById('cmap-vis-save').onclick = async () => {
+        const selected = document.querySelector('input[name="cmap-vis-option"]:checked')?.value;
+        let finalVal = 'st';
+
+        if (selected === 'all') finalVal = 'all';
+        else if (selected === 'specific') {
+            const checks = document.querySelectorAll('.cmap-player-check:checked');
+            finalVal = Array.from(checks).map(c => c.value);
+            if (finalVal.length === 0) finalVal = 'st'; // Fallback if none checked
+        }
+
+        if (mapState.editingVisibilityType === 'char') {
+            const char = mapState.characters.find(c => c.id === mapState.editingVisibilityId);
+            if(char) char.visibility = finalVal;
+        } else if (mapState.editingVisibilityType === 'rel') {
+            // Rel ID is index
+            const idx = parseInt(mapState.editingVisibilityId);
+            if(mapState.relationships[idx]) mapState.relationships[idx].visibility = finalVal;
+        }
+
+        document.getElementById('cmap-vis-modal').classList.add('hidden');
+        refreshMapUI();
+        await saveMapData();
     };
 }
 
@@ -265,31 +331,56 @@ window.cmapRemoveRel = async (idx) => {
     await saveMapData();
 };
 
-// Toggle Visibility: 'st' (Hidden) <-> 'all' (Visible)
-window.cmapToggleChar = async (id) => {
-    const char = mapState.characters.find(c => c.id === id);
-    if (char) {
-        // Toggle between 'all' and 'st'. Supports future ['uid'] arrays by treating array/st as "Restricted"
-        char.visibility = (char.visibility === 'all') ? 'st' : 'all';
-        // Legacy cleanup
-        if(char.hidden !== undefined) delete char.hidden;
-        
-        refreshMapUI();
-        await saveMapData();
+// Open Visibility Modal
+window.cmapOpenVisModal = (id, type) => {
+    mapState.editingVisibilityId = id;
+    mapState.editingVisibilityType = type;
+    
+    const modal = document.getElementById('cmap-vis-modal');
+    const list = document.getElementById('cmap-vis-players');
+    
+    let currentVis = 'st';
+    if (type === 'char') {
+        const c = mapState.characters.find(x => x.id === id);
+        if(c) currentVis = c.visibility || 'st';
+    } else {
+        const r = mapState.relationships[id];
+        if(r) currentVis = r.visibility || 'st';
     }
+
+    // Set Radio
+    const radios = document.getElementsByName('cmap-vis-option');
+    if (Array.isArray(currentVis)) {
+        radios[2].checked = true; // Specific
+        list.classList.remove('hidden');
+    } else if (currentVis === 'all') {
+        radios[0].checked = true;
+        list.classList.add('hidden');
+    } else {
+        radios[1].checked = true; // ST
+        list.classList.add('hidden');
+    }
+
+    // Build Player List
+    list.innerHTML = '';
+    const players = window.stState?.players || {};
+    Object.entries(players).forEach(([uid, p]) => {
+        if (!p.metadataType || p.metadataType !== 'journal') {
+            const isChecked = Array.isArray(currentVis) && currentVis.includes(uid);
+            list.innerHTML += `
+                <label class="flex items-center gap-2 p-1 hover:bg-[#222] rounded cursor-pointer">
+                    <input type="checkbox" class="cmap-player-check accent-[#d4af37]" value="${uid}" ${isChecked ? 'checked' : ''}>
+                    <span class="text-xs text-gray-300 truncate">${p.character_name || "Unknown"}</span>
+                </label>
+            `;
+        }
+    });
+
+    if (list.innerHTML === '') list.innerHTML = '<div class="text-gray-500 italic text-[10px]">No players found.</div>';
+
+    modal.classList.remove('hidden');
 };
 
-window.cmapToggleRel = async (idx) => {
-    if (mapState.relationships[idx]) {
-        const rel = mapState.relationships[idx];
-        rel.visibility = (rel.visibility === 'all') ? 'st' : 'all';
-        // Legacy cleanup
-        if(rel.hidden !== undefined) delete rel.hidden;
-
-        refreshMapUI();
-        await saveMapData();
-    }
-};
 
 // --- UI UPDATES ---
 
@@ -321,14 +412,16 @@ function updateLists() {
     const charList = document.getElementById('cmap-char-list');
     if (charList) {
         charList.innerHTML = mapState.characters.map(c => {
-            // Determine visibility state
-            const isHidden = c.visibility !== 'all' && (!c.visibility || c.visibility === 'st' || Array.isArray(c.visibility));
-            
+            const vis = c.visibility;
+            let iconClass = 'fa-eye-slash text-gray-500'; // Hidden
+            if (vis === 'all') iconClass = 'fa-eye text-[#4ade80]';
+            if (Array.isArray(vis)) iconClass = 'fa-user-secret text-[#d4af37]'; // Specific
+
             return `
-            <li class="flex justify-between items-center bg-[#222] p-1.5 rounded text-[10px] border border-[#333] ${isHidden ? 'opacity-70 border-l-2 border-l-gray-600' : 'border-l-2 border-l-[#4ade80]'}">
+            <li class="flex justify-between items-center bg-[#222] p-1.5 rounded text-[10px] border border-[#333] ${vis !== 'all' ? 'opacity-70 border-l-2 border-l-gray-600' : 'border-l-2 border-l-[#4ade80]'}">
                 <div class="flex items-center gap-2">
-                    <button onclick="window.cmapToggleChar('${c.id}')" class="${isHidden ? 'text-gray-500' : 'text-[#4ade80]'} hover:text-white transition-colors" title="${isHidden ? 'Hidden (ST Only)' : 'Visible to All'}">
-                        <i class="fas ${isHidden ? 'fa-eye-slash' : 'fa-eye'}"></i>
+                    <button onclick="window.cmapOpenVisModal('${c.id}', 'char')" class="hover:text-white transition-colors" title="Change Visibility">
+                        <i class="fas ${iconClass}"></i>
                     </button>
                     <div>
                         <span class="font-bold ${c.type === 'npc' ? 'text-[#8a0303]' : 'text-blue-300'}">${c.name}</span>
@@ -347,13 +440,16 @@ function updateLists() {
             const tName = mapState.characters.find(c => c.id === r.target)?.name || r.target;
             let icon = r.type === 'blood' ? 'fa-link text-red-500' : (r.type === 'boon' ? 'fa-ellipsis-h' : 'fa-arrow-right');
             
-            const isHidden = r.visibility !== 'all' && (!r.visibility || r.visibility === 'st' || Array.isArray(r.visibility));
-            
+            const vis = r.visibility;
+            let iconClass = 'fa-eye-slash text-gray-500'; 
+            if (vis === 'all') iconClass = 'fa-eye text-[#4ade80]';
+            if (Array.isArray(vis)) iconClass = 'fa-user-secret text-[#d4af37]';
+
             return `
-            <li class="flex justify-between items-center bg-[#222] p-1.5 rounded text-[10px] border-l-2 ${r.type === 'blood' ? 'border-[#8a0303]' : 'border-gray-500'} border-t border-r border-b border-[#333] ${isHidden ? 'opacity-70' : ''}">
+            <li class="flex justify-between items-center bg-[#222] p-1.5 rounded text-[10px] border-l-2 ${r.type === 'blood' ? 'border-[#8a0303]' : 'border-gray-500'} border-t border-r border-b border-[#333] ${vis !== 'all' ? 'opacity-70' : ''}">
                 <div class="flex gap-2 items-center flex-1 truncate">
-                    <button onclick="window.cmapToggleRel(${i})" class="${isHidden ? 'text-gray-500' : 'text-[#4ade80]'} hover:text-white flex-shrink-0 transition-colors" title="${isHidden ? 'Hidden (ST Only)' : 'Visible to All'}">
-                        <i class="fas ${isHidden ? 'fa-eye-slash' : 'fa-eye'}"></i>
+                    <button onclick="window.cmapOpenVisModal('${i}', 'rel')" class="hover:text-white flex-shrink-0 transition-colors" title="Change Visibility">
+                        <i class="fas ${iconClass}"></i>
                     </button>
                     <div class="truncate">
                         <span class="font-bold text-gray-300">${sName}</span>
@@ -377,9 +473,6 @@ async function renderMermaidChart() {
         return;
     }
 
-    // STORYTELLER VIEW: SHOW ALL, but style hidden ones differently
-    // In Player view (future), we would filter here.
-    
     if (mapState.characters.length === 0) {
         container.innerHTML = `<div class="text-center text-gray-500 text-xs mt-10 italic">Add characters to begin mapping...</div>`;
         return;
@@ -390,8 +483,8 @@ async function renderMermaidChart() {
     // Classes
     graph += 'classDef pc fill:#1e293b,stroke:#fff,stroke-width:2px,color:#fff;\n';
     graph += 'classDef npc fill:#000,stroke:#8a0303,stroke-width:3px,color:#8a0303,font-weight:bold;\n';
-    // Style for hidden nodes (Dashed border, lower opacity visual effect via stroke-dasharray)
-    graph += 'classDef hiddenNode stroke-dasharray: 5 5,opacity:0.7;\n';
+    // Style for hidden/restricted nodes (Dashed border)
+    graph += 'classDef hiddenNode stroke-dasharray: 5 5,opacity:0.6;\n';
 
     // RENDER ALL CHARACTERS (ST View)
     mapState.characters.forEach(c => {
@@ -402,10 +495,6 @@ async function renderMermaidChart() {
         
         // Check visibility
         if (c.visibility !== 'all') {
-            // Mermaid supports multiple classes? Yes, but simpler to append style or just indicate in label
-            // Let's modify the label to indicate hidden state to ST
-            // graph += `${c.id}("${label} [HIDDEN]"):::hiddenNode\n`; 
-            // Better: Just apply the class.
              graph += `${c.id}("${label}"):::${c.type === 'npc' ? 'npc' : 'pc'} hiddenNode\n`;
         } else {
              graph += `${c.id}("${label}")${cls}\n`;
@@ -418,23 +507,15 @@ async function renderMermaidChart() {
         const isHidden = r.visibility !== 'all';
         
         // Mermaid styling for links
-        let linkStyle = "";
-        
-        // Base Arrow Types
         let arrow = "-->"; 
         if (r.type === 'boon') arrow = "-.->";
         if (r.type === 'blood') arrow = "==>";
         
-        // If hidden, we want to visually indicate it to ST.
-        // Mermaid link styles are applied by index which is hard to track here.
-        // Instead, we can append a visual marker to the label or use dotted lines if possible.
-        // Since 'boon' is already dotted, we rely on opacity or distinct markers.
-        
         let displayLabel = label;
         if (isHidden) {
-             // Mark label as hidden
-             if (displayLabel) displayLabel = `"${r.label} (H)"`;
-             else displayLabel = `"(Hidden)"`;
+             // Visual marker for restricted links
+             if (displayLabel) displayLabel = `"${r.label} *"`; 
+             else displayLabel = `"* *"`;
         }
 
         if (displayLabel) {
@@ -445,7 +526,8 @@ async function renderMermaidChart() {
             graph += `${r.source} ${arrow} ${r.target}\n`;
         }
         
-        // TODO: Apply link styles for hidden if mermaid API permits easily in dynamic strings
+        // Apply styling to restricted links if supported by current mermaid theme
+        // (Mermaid link styling is complex by index, simpler to use labels for now)
     });
 
     try {
