@@ -186,6 +186,20 @@ export async function renderCoterieMap(container) {
                     </div>
                 </div>
             </div>
+
+            <!-- MOVE MODAL (NEW) -->
+            <div id="cmap-move-modal" class="hidden absolute inset-0 bg-black/80 flex items-center justify-center z-50 backdrop-blur-sm">
+                <div class="bg-[#1a1a1a] border border-blue-500 p-4 w-64 shadow-2xl rounded">
+                    <h4 class="text-blue-400 font-cinzel font-bold text-sm mb-3 border-b border-[#333] pb-1 uppercase">Move To Group</h4>
+                    <select id="cmap-move-select" class="w-full bg-[#111] border border-[#444] text-white p-2 rounded mb-4 text-xs outline-none focus:border-blue-500">
+                        <option value="">-- Root (No Group) --</option>
+                    </select>
+                    <div class="flex justify-end gap-2">
+                        <button onclick="document.getElementById('cmap-move-modal').classList.add('hidden')" class="px-3 py-1 text-[10px] uppercase font-bold text-gray-400 hover:text-white border border-[#444] rounded">Cancel</button>
+                        <button id="cmap-move-save" class="px-3 py-1 text-[10px] uppercase font-bold bg-blue-600 text-white hover:bg-blue-500 rounded">Move</button>
+                    </div>
+                </div>
+            </div>
         </div>
     `;
 
@@ -204,7 +218,7 @@ function setupMapListeners() {
     document.getElementById('cmap-add-rel').onclick = addRelationship;
     document.getElementById('cmap-new-map-btn').onclick = createNewMap;
     document.getElementById('cmap-delete-map').onclick = deleteCurrentMap;
-    document.getElementById('cmap-cleanup-map').onclick = cleanupOrphans; // NEW CLEANUP
+    document.getElementById('cmap-cleanup-map').onclick = cleanupOrphans; 
     document.getElementById('cmap-select-map').onchange = (e) => switchMap(e.target.value);
     document.getElementById('cmap-nav-up').onclick = navigateUp;
 
@@ -248,6 +262,35 @@ function setupMapListeners() {
         document.getElementById('cmap-vis-modal').classList.add('hidden');
         refreshMapUI();
         await saveMapData();
+    };
+    
+    // MOVE MODAL LOGIC (NEW)
+    document.getElementById('cmap-move-save').onclick = async () => {
+        const charId = mapState.editingVisibilityId; // reusing this ID holder
+        const newParent = document.getElementById('cmap-move-select').value || null;
+        
+        const char = mapState.characters.find(c => c.id === charId);
+        if (char) {
+            // Prevent self-parenting
+            if (newParent === charId) {
+                showNotification("Cannot put group inside itself.", "error");
+                return;
+            }
+            // Basic loop check (direct parent only) - Deep cycle check is complex, skipping for MVP
+            if (newParent) {
+                const parent = mapState.characters.find(c => c.id === newParent);
+                if (parent && parent.parent === charId) {
+                    showNotification("Loop detected.", "error");
+                    return;
+                }
+            }
+            
+            char.parent = newParent;
+            refreshMapUI();
+            await saveMapData();
+            document.getElementById('cmap-move-modal').classList.add('hidden');
+            showNotification("Node moved.");
+        }
     };
 }
 
@@ -313,7 +356,7 @@ async function deleteCurrentMap() {
     } catch(e) { console.error(e); }
 }
 
-// NEW: CLEANUP UTILITY
+// CLEANUP UTILITY
 async function cleanupOrphans() {
     if (!confirm("Remove invalid nodes? (Resets parents if missing)")) return;
     
@@ -323,7 +366,7 @@ async function cleanupOrphans() {
     mapState.characters.forEach(c => {
         if (c.parent && !validIds.has(c.parent)) {
             console.log(`Orphan found: ${c.name} (Parent: ${c.parent} missing). Moved to root.`);
-            c.parent = null; // Move to root so it's visible in list
+            c.parent = null; 
         }
     });
 
@@ -358,6 +401,27 @@ window.cmapToggleGroup = (groupId) => {
     }
     renderMermaidChart();
 };
+
+// Open Move Modal (NEW)
+window.cmapOpenMoveModal = (id) => {
+    mapState.editingVisibilityId = id; // reuse ID holder
+    const modal = document.getElementById('cmap-move-modal');
+    const select = document.getElementById('cmap-move-select');
+    
+    select.innerHTML = '<option value="">-- Root (No Group) --</option>';
+    
+    // Populate Groups
+    mapState.characters.filter(c => c.type === 'group' && c.id !== id).forEach(g => {
+        select.innerHTML += `<option value="${g.id}">${g.name}</option>`;
+    });
+
+    // Set current parent
+    const char = mapState.characters.find(c => c.id === id);
+    if(char) select.value = char.parent || "";
+
+    modal.classList.remove('hidden');
+};
+
 
 function navigateUp() {
     if (mapState.mapHistory.length === 0) return;
@@ -614,6 +678,8 @@ function updateLists() {
                 </div>
                 <div class="flex gap-1">
                     ${c.type === 'group' ? `<button onclick="window.cmapToggleGroup('${c.id}')" class="text-blue-400 hover:text-white px-1" title="Toggle Expand/Collapse"><i class="fas ${mapState.expandedGroups.has(c.id) ? 'fa-minus-square' : 'fa-plus-square'}"></i></button>` : ''}
+                    <!-- MOVE BUTTON -->
+                    <button onclick="window.cmapOpenMoveModal('${c.id}')" class="text-gray-500 hover:text-white px-1" title="Move to Group"><i class="fas fa-arrows-alt"></i></button>
                     <button onclick="window.cmapRemoveChar('${c.id}')" class="text-gray-600 hover:text-red-500 px-1"><i class="fas fa-trash"></i></button>
                 </div>
             </li>`;
