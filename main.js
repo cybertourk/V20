@@ -200,7 +200,22 @@ function handleExport() {
         window.state.meta.filename = window.state.textFields['c-name'];
     }
 
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(window.state, null, 2));
+    // --- SANITIZE DATA BEFORE EXPORT ---
+    // Create a deep copy to modify safely
+    const cleanState = JSON.parse(JSON.stringify(window.state));
+
+    // Remove sensitive or session-specific metadata
+    if (cleanState.meta) {
+        delete cleanState.meta.uid; // Remove User ID
+        delete cleanState.meta.folder; // Remove personal folder structure
+    }
+
+    // Remove UI state that shouldn't persist across users
+    delete cleanState.isPlayMode;
+    delete cleanState.currentPhase; 
+    delete cleanState.activePool; // Reset dice pool
+
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(cleanState, null, 2));
     const downloadAnchorNode = document.createElement('a');
     downloadAnchorNode.setAttribute("href", dataStr);
     
