@@ -584,6 +584,7 @@ function renderCodexView(container) {
                         <label class="block text-[10px] uppercase text-gray-500 font-bold mb-1">Type</label>
                         <select id="cx-type" class="w-full bg-[#111] border-b border-[#444] text-white p-2 outline-none focus:border-[#d4af37] transition-colors">
                             <option value="NPC">NPC</option>
+                            <option value="PC">PC</option>
                             <option value="Location">Location</option>
                             <option value="Faction">Faction</option>
                             <option value="Item">Item</option>
