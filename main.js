@@ -210,6 +210,16 @@ function handleExport() {
         delete cleanState.meta.folder; // Remove personal folder structure
     }
 
+    // Remove Auth Credentials if present in textFields
+    if (cleanState.textFields) {
+        delete cleanState.textFields['auth-email'];
+        delete cleanState.textFields['auth-password'];
+        // Remove UI state flags from textFields if they got in there
+        delete cleanState.textFields['import-input'];
+        delete cleanState.textFields['char-img-input'];
+        delete cleanState.textFields['codex-search'];
+    }
+
     // Remove UI state that shouldn't persist across users
     delete cleanState.isPlayMode;
     delete cleanState.currentPhase; 
