@@ -45,7 +45,7 @@ let mapState = {
     unsub: null,
     editingVisibilityId: null,
     editingVisibilityType: null,
-    editingNodeId: null // Track which node is being edited
+    editingNodeId: null 
 };
 
 // --- MAIN RENDERER ---
@@ -202,7 +202,7 @@ export async function renderCoterieMap(container) {
                 </div>
             </div>
 
-            <!-- EDIT NODE MODAL (NEW) -->
+            <!-- EDIT NODE MODAL -->
             <div id="cmap-edit-modal" class="hidden absolute inset-0 bg-black/80 flex items-center justify-center z-50 backdrop-blur-sm">
                 <div class="bg-[#1a1a1a] border border-[#8a0303] p-4 w-64 shadow-2xl rounded">
                     <h4 class="text-[#8a0303] font-cinzel font-bold text-sm mb-3 border-b border-[#333] pb-1 uppercase">Edit Node</h4>
@@ -311,12 +311,11 @@ function setupMapListeners() {
         }
     };
 
-    // EDIT NODE MODAL LOGIC (NEW)
+    // EDIT NODE MODAL LOGIC
     document.getElementById('cmap-edit-save').onclick = async () => {
         const id = mapState.editingNodeId;
         const char = mapState.characters.find(c => c.id === id);
         if (char) {
-            // Only update non-ID properties to prevent breaking links
             char.name = document.getElementById('cmap-edit-name').value.trim() || char.name;
             char.clan = document.getElementById('cmap-edit-clan').value.trim();
             char.type = document.getElementById('cmap-edit-type').value;
@@ -482,6 +481,105 @@ window.cmapOpenMoveModal = (id) => {
     modal.classList.remove('hidden');
 };
 
+// NEW: VIEW CODEX HANDLER
+window.cmapViewCodex = (id) => {
+    const stState = window.stState;
+    if (!stState || !stState.activeChronicleId) return;
+
+    // We can't know for sure if a Codex entry exists with the exact same ID,
+    // because Codex IDs are often 'cx_...' while Map IDs are names stripped of spaces.
+    // However, in 'ui-journal.js', we usually generate IDs or use names.
+    
+    // Try to find a matching codex entry by Name or ID in stState.journal (which includes shared codex)
+    // Note: stState.journal contains 'journal_...' IDs.
+    
+    // Better Approach: Check if the character on the map has a `codexId` property.
+    // If not, we will try to Open a Codex search or Create one.
+    
+    const char = mapState.characters.find(c => c.id === id);
+    const rel = mapState.relationships[id]; // ID might be index for relationship
+    
+    let targetName = "";
+    let targetId = "";
+    
+    if (char) {
+        targetName = char.name;
+        targetId = char.codexId;
+    } else if (rel) {
+        // For relationships, we might link to the target character?
+        // Or create a specific note.
+        // Based on prompt: "Create a corresponding codex entry... button to allow to view".
+        // Let's create a Note entry for this relationship if it doesn't exist.
+        targetName = `Relationship: ${rel.label}`;
+        targetId = rel.codexId;
+    }
+
+    if (!targetId) {
+        // Auto-Create Codex Entry if missing
+        if (confirm(`Create Codex Entry for "${targetName}"?`)) {
+            createCodexForMapItem(id, char ? 'char' : 'rel', targetName);
+        }
+    } else {
+        // Open Existing (Delegated to ui-journal.js via global)
+        if (window.viewCodex) {
+             // The ID in stState.journal likely has 'journal_' prefix if pushed, or 'cx_' if local.
+             // We stored the ID when we created it.
+             window.viewCodex(targetId);
+        } else {
+            showNotification("Journal System not ready.", "error");
+        }
+    }
+};
+
+async function createCodexForMapItem(mapId, type, name) {
+    const stState = window.stState;
+    if (!stState.activeChronicleId) return;
+
+    const newId = "cx_" + Date.now();
+    
+    // Prepare Data
+    const entry = {
+        id: newId,
+        name: name,
+        type: type === 'char' ? 'NPC' : 'Lore',
+        tags: ['Map Auto-Gen'],
+        desc: `Auto-generated entry from Coterie Map.\n\n${new Date().toLocaleDateString()}`,
+        image: null
+    };
+
+    try {
+        // Save to Firestore (using the journal path logic)
+        const safeId = 'journal_' + newId;
+        const docRef = doc(db, 'chronicles', stState.activeChronicleId, 'players', safeId);
+        
+        await setDoc(docRef, { 
+            ...entry, 
+            metadataType: 'journal', 
+            original_id: newId,
+            pushed: true // Auto-share? Maybe not. Let ST decide. Default hidden.
+        });
+
+        // Update Map Data with link
+        if (type === 'char') {
+            const char = mapState.characters.find(c => c.id === mapId);
+            if(char) char.codexId = newId;
+        } else {
+            const rel = mapState.relationships[mapId];
+            if(rel) rel.codexId = newId;
+        }
+        
+        await saveMapData();
+        showNotification("Codex Entry Created.");
+        
+        // Open it immediately
+        if (window.viewCodex) window.viewCodex(newId);
+
+    } catch (e) {
+        console.error("Codex Creation Failed:", e);
+        showNotification("Failed to create entry.", "error");
+    }
+}
+
 function navigateUp() {
     if (mapState.mapHistory.length === 0) return;
     const prevMap = mapState.mapHistory.pop();
@@ -586,11 +684,46 @@ async function addRelationship() {
     if (!source || !target) return showNotification("Select Nodes", "error");
     if (source === target) return showNotification("Self-link invalid", "error");
 
-    mapState.relationships.push({ source, target, type, label, visibility: 'st' });
+    // NEW: Auto-create a codex ID placeholder. 
+    // We don't create the full entry yet to save space/spam, but we prep the logic.
+    // Actually, prompt asked for "creates a corresponding codex entry".
+    // Let's create it immediately.
+    
+    const newRel = { source, target, type, label, visibility: 'st' };
+    
+    // Auto-Create Codex Entry Logic
+    if (label) {
+        const cxId = "cx_" + Date.now();
+        const entry = {
+            id: cxId,
+            name: `${label} (${source} -> ${target})`,
+            type: 'Lore',
+            tags: ['Relationship', 'Auto-Gen'],
+            desc: `Relationship: ${label}\nFrom: ${source}\nTo: ${target}\nType: ${type}`,
+            image: null
+        };
+        
+        // We need to save this to Firebase immediately to ensure the ID is valid
+        // We'll use the helper to fire-and-forget the save
+        saveRelationshipCodex(entry);
+        newRel.codexId = cxId;
+    }
+
+    mapState.relationships.push(newRel);
     
     labelInput.value = '';
     refreshMapUI(); 
     await saveMapData();
+}
+
+async function saveRelationshipCodex(entry) {
+    const stState = window.stState;
+    if (!stState.activeChronicleId) return;
+    try {
+        const safeId = 'journal_' + entry.id;
+        const docRef = doc(db, 'chronicles', stState.activeChronicleId, 'players', safeId);
+        await setDoc(docRef, { ...entry, metadataType: 'journal', original_id: entry.id, pushed: true });
+    } catch(e) { console.error("Auto-Codex Failed", e); }
 }
 
 window.cmapRemoveChar = async (id) => {
@@ -711,8 +844,8 @@ function updateDropdowns() {
 function updateLists() {
     const charList = document.getElementById('cmap-char-list');
     if (charList) {
-        // Organize hierarchy: Groups -> Items
-        const roots = mapState.characters.filter(c => !c.parent);
+        const validIds = new Set(mapState.characters.map(c => c.id));
+        const roots = mapState.characters.filter(c => !c.parent || !validIds.has(c.parent));
         let html = '';
 
         const renderItem = (c, level) => {
@@ -731,11 +864,12 @@ function updateLists() {
                         <i class="fas ${iconClass}"></i>
                     </button>
                     <div>
-                        <span class="font-bold ${c.type === 'npc' ? 'text-[#8a0303]' : (c.type === 'group' ? 'text-blue-400' : 'text-blue-300')}">${c.name}</span>
+                        <span class="font-bold ${c.type === 'npc' ? 'text-[#8a0303]' : (c.type === 'group' ? 'text-blue-400' : 'text-blue-300')} cursor-pointer hover:text-white" onclick="window.cmapViewCodex('${c.id}')">${c.name}</span>
                         <span class="text-gray-500 ml-1">(${c.clan || (c.type==='group'?'Group':'?')})</span>
                     </div>
                 </div>
                 <div class="flex gap-1">
+                    <button onclick="window.cmapViewCodex('${c.id}')" class="text-purple-400 hover:text-white px-1" title="View Codex"><i class="fas fa-book"></i></button>
                     <button onclick="window.cmapOpenEditModal('${c.id}')" class="text-gray-500 hover:text-white px-1" title="Edit Node Details"><i class="fas fa-edit"></i></button>
                     ${c.type === 'group' ? `<button onclick="window.cmapToggleGroup('${c.id}')" class="text-blue-400 hover:text-white px-1" title="Toggle Expand/Collapse"><i class="fas ${mapState.expandedGroups.has(c.id) ? 'fa-minus-square' : 'fa-plus-square'}"></i></button>` : ''}
                     <button onclick="window.cmapOpenMoveModal('${c.id}')" class="text-gray-500 hover:text-white px-1" title="Move to Group"><i class="fas fa-arrows-alt"></i></button>
@@ -776,10 +910,13 @@ function updateLists() {
                         <span class="font-bold text-gray-300">${sName}</span>
                         <i class="fas ${icon} mx-1 text-gray-600"></i>
                         <span class="font-bold text-gray-300">${tName}</span>
-                        <div class="text-[9px] text-[#d4af37] italic truncate">${r.label || r.type}</div>
+                        <div class="text-[9px] text-[#d4af37] italic truncate cursor-pointer hover:text-white" onclick="window.cmapViewCodex('${i}')">${r.label || r.type}</div>
                     </div>
                 </div>
-                <button onclick="window.cmapRemoveRel(${i})" class="text-gray-600 hover:text-red-500 px-1 ml-1 flex-shrink-0"><i class="fas fa-trash"></i></button>
+                <div class="flex gap-1 flex-shrink-0">
+                    <button onclick="window.cmapViewCodex('${i}')" class="text-purple-400 hover:text-white px-1" title="View Codex"><i class="fas fa-book"></i></button>
+                    <button onclick="window.cmapRemoveRel(${i})" class="text-gray-600 hover:text-red-500 px-1 ml-1"><i class="fas fa-trash"></i></button>
+                </div>
             </li>`;
         }).join('');
     }
