@@ -256,6 +256,17 @@ export async function renderCoterieMap(container) {
     startMapSync('main');
 }
 
+// --- HELPER: Save Codex for Relationship (Hoisted) ---
+async function saveRelationshipCodex(entry) {
+    const stState = window.stState;
+    if (!stState.activeChronicleId) return;
+    try {
+        const safeId = 'journal_' + entry.id;
+        const docRef = doc(db, 'chronicles', stState.activeChronicleId, 'players', safeId);
+        await setDoc(docRef, { ...entry, metadataType: 'journal', original_id: entry.id, pushed: true });
+    } catch(e) { console.error("Auto-Codex Failed", e); }
+}
+
 function setupMapListeners() {
     document.getElementById('cmap-add-char').onclick = addCharacter;
     document.getElementById('cmap-add-rel').onclick = addRelationship;
@@ -527,9 +538,6 @@ window.cmapViewCodex = (id) => {
     // CHECK IF ENTRY ACTUALLY EXISTS (Validation Update)
     let exists = false;
     if (targetId) {
-        // Journal entries are stored with 'journal_' prefix in database, but id property might not have it.
-        // We check the loaded journal array in stState
-        // The stState.journal keys are the document IDs (e.g. "journal_cx_123...")
         const journalKey = targetId.startsWith('journal_') ? targetId : 'journal_' + targetId;
         exists = !!stState.journal[journalKey];
     }
@@ -951,8 +959,11 @@ async function renderMermaidChart() {
     // Classes
     graph += 'classDef pc fill:#1e293b,stroke:#fff,stroke-width:2px,color:#fff;\n';
     graph += 'classDef npc fill:#000,stroke:#8a0303,stroke-width:3px,color:#8a0303,font-weight:bold;\n';
+    // Style for Expanded Group (The Ring) - Dashed, Transparent center
     graph += 'classDef groupRing fill:none,stroke:#1e3a8a,stroke-width:2px,stroke-dasharray: 5 5;\n'; 
+    // Style for Collapsed Group (The Node) - Blue Circle
     graph += 'classDef groupNode fill:#1e3a8a,stroke:#60a5fa,stroke-width:2px,color:#fff;\n';
+    
     graph += 'classDef hiddenNode stroke-dasharray: 5 5,opacity:0.6;\n';
 
     // RENDER NODES
@@ -969,38 +980,48 @@ async function renderMermaidChart() {
         let cls = ':::pc';
         if (c.type === 'npc') cls = ':::npc';
         
+        // Group Logic: Check if Expanded
         if (c.type === 'group') {
              const isExpanded = mapState.expandedGroups.has(c.id);
+             
              if (isExpanded) {
+                 // Render as Subgraph Wrapper (Ring) - Handled in renderSubgraph recursion
+                 // BUT we still need a clickable title for the ring.
+                 // We will render a "Header Node" inside the subgraph.
                  cls = ':::groupNode';
                  label = `<b>${safeName}</b>`; 
              } else {
+                 // Render as Standard Node (Circle)
                  cls = ':::groupNode';
                  label = `${safeName}<br/>(Group)`;
              }
         }
         
         let line = "";
+        // Visibility Check
         if (c.visibility !== 'all') {
              line = `${c.id}("${label}"):::${c.type === 'group' ? 'groupNode' : (c.type === 'npc' ? 'npc' : 'pc')} hiddenNode\n`;
         } else {
              line = `${c.id}("${label}")${cls}\n`;
         }
 
-        // Attach Click Interaction
+        // Attach Click Interaction to everything
         line += `click ${c.id} call cmapNodeClick("${c.id}") "Interact"\n`;
         
         return line;
     };
 
     const renderSubgraph = (group) => {
+        // If NOT expanded, render as a single node
         if (!mapState.expandedGroups.has(group.id)) {
             return renderNode(group);
         }
 
-        let output = `subgraph ${group.id}_sg [" "]\n`; 
+        // If EXPANDED, render as a subgraph (Ring)
+        let output = `subgraph ${group.id}_sg [" "]\n`; // Empty string title to avoid double label
         output += `direction TB\n`; 
         
+        // Render the clickable header node inside the ring
         output += renderNode(group);
         
         const children = mapState.characters.filter(c => c.parent === group.id);
@@ -1012,11 +1033,14 @@ async function renderMermaidChart() {
             }
         });
         output += `end\n`;
+        
+        // Apply class to the subgraph (Ring style)
         output += `class ${group.id}_sg groupRing\n`;
         
         return output;
     };
 
+    // 1. Render Roots (Nodes with no parent)
     const validIds = new Set(mapState.characters.map(c => c.id));
     const roots = mapState.characters.filter(c => !c.parent || !validIds.has(c.parent));
     
@@ -1028,12 +1052,14 @@ async function renderMermaidChart() {
         }
     });
 
+    // 2. Cleanup: Ensure any orphaned nodes (if parent missing) are rendered
     mapState.characters.forEach(c => {
         if (!renderedIds.has(c.id)) {
             graph += renderNode(c);
         }
     });
 
+    // RENDER LINKS
     mapState.relationships.forEach(r => {
         const label = r.label ? `"${r.label}"` : "";
         const isHidden = r.visibility !== 'all';
