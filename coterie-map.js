@@ -40,11 +40,12 @@ let mapState = {
     availableMaps: [],    
     characters: [],
     relationships: [],
-    expandedGroups: new Set(), // Track which groups are expanded (Rings) vs collapsed (Nodes)
+    expandedGroups: new Set(), 
     zoom: 1.0,
     unsub: null,
     editingVisibilityId: null,
-    editingVisibilityType: null
+    editingVisibilityType: null,
+    editingNodeId: null // Track which node is being edited
 };
 
 // --- MAIN RENDERER ---
@@ -187,7 +188,7 @@ export async function renderCoterieMap(container) {
                 </div>
             </div>
 
-            <!-- MOVE MODAL (NEW) -->
+            <!-- MOVE MODAL -->
             <div id="cmap-move-modal" class="hidden absolute inset-0 bg-black/80 flex items-center justify-center z-50 backdrop-blur-sm">
                 <div class="bg-[#1a1a1a] border border-blue-500 p-4 w-64 shadow-2xl rounded">
                     <h4 class="text-blue-400 font-cinzel font-bold text-sm mb-3 border-b border-[#333] pb-1 uppercase">Move To Group</h4>
@@ -197,6 +198,26 @@ export async function renderCoterieMap(container) {
                     <div class="flex justify-end gap-2">
                         <button onclick="document.getElementById('cmap-move-modal').classList.add('hidden')" class="px-3 py-1 text-[10px] uppercase font-bold text-gray-400 hover:text-white border border-[#444] rounded">Cancel</button>
                         <button id="cmap-move-save" class="px-3 py-1 text-[10px] uppercase font-bold bg-blue-600 text-white hover:bg-blue-500 rounded">Move</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- EDIT NODE MODAL (NEW) -->
+            <div id="cmap-edit-modal" class="hidden absolute inset-0 bg-black/80 flex items-center justify-center z-50 backdrop-blur-sm">
+                <div class="bg-[#1a1a1a] border border-[#8a0303] p-4 w-64 shadow-2xl rounded">
+                    <h4 class="text-[#8a0303] font-cinzel font-bold text-sm mb-3 border-b border-[#333] pb-1 uppercase">Edit Node</h4>
+                    <div class="space-y-3 mb-4">
+                        <input type="text" id="cmap-edit-name" class="w-full bg-[#111] border border-[#444] text-white p-2 rounded text-xs outline-none focus:border-[#8a0303]" placeholder="Name">
+                        <input type="text" id="cmap-edit-clan" class="w-full bg-[#111] border border-[#444] text-white p-2 rounded text-xs outline-none focus:border-[#8a0303]" placeholder="Clan / Type / Desc">
+                        <select id="cmap-edit-type" class="w-full bg-[#111] border border-[#444] text-white p-2 rounded text-xs outline-none focus:border-[#8a0303]">
+                            <option value="pc">PC</option>
+                            <option value="npc">NPC</option>
+                            <option value="group">Group</option>
+                        </select>
+                    </div>
+                    <div class="flex justify-end gap-2">
+                        <button onclick="document.getElementById('cmap-edit-modal').classList.add('hidden')" class="px-3 py-1 text-[10px] uppercase font-bold text-gray-400 hover:text-white border border-[#444] rounded">Cancel</button>
+                        <button id="cmap-edit-save" class="px-3 py-1 text-[10px] uppercase font-bold bg-[#8a0303] text-white hover:bg-[#6d0202] rounded">Save</button>
                     </div>
                 </div>
             </div>
@@ -222,7 +243,6 @@ function setupMapListeners() {
     document.getElementById('cmap-select-map').onchange = (e) => switchMap(e.target.value);
     document.getElementById('cmap-nav-up').onclick = navigateUp;
 
-    // Toggle Parent Group Select visibility based on type
     document.getElementById('cmap-type').onchange = (e) => {
         document.getElementById('cmap-parent-group').classList.remove('hidden');
     };
@@ -264,19 +284,17 @@ function setupMapListeners() {
         await saveMapData();
     };
     
-    // MOVE MODAL LOGIC (NEW)
+    // MOVE MODAL LOGIC
     document.getElementById('cmap-move-save').onclick = async () => {
-        const charId = mapState.editingVisibilityId; // reusing this ID holder
+        const charId = mapState.editingVisibilityId; 
         const newParent = document.getElementById('cmap-move-select').value || null;
         
         const char = mapState.characters.find(c => c.id === charId);
         if (char) {
-            // Prevent self-parenting
             if (newParent === charId) {
                 showNotification("Cannot put group inside itself.", "error");
                 return;
             }
-            // Basic loop check (direct parent only) - Deep cycle check is complex, skipping for MVP
             if (newParent) {
                 const parent = mapState.characters.find(c => c.id === newParent);
                 if (parent && parent.parent === charId) {
@@ -290,6 +308,23 @@ function setupMapListeners() {
             await saveMapData();
             document.getElementById('cmap-move-modal').classList.add('hidden');
             showNotification("Node moved.");
+        }
+    };
+
+    // EDIT NODE MODAL LOGIC (NEW)
+    document.getElementById('cmap-edit-save').onclick = async () => {
+        const id = mapState.editingNodeId;
+        const char = mapState.characters.find(c => c.id === id);
+        if (char) {
+            // Only update non-ID properties to prevent breaking links
+            char.name = document.getElementById('cmap-edit-name').value.trim() || char.name;
+            char.clan = document.getElementById('cmap-edit-clan').value.trim();
+            char.type = document.getElementById('cmap-edit-type').value;
+            
+            document.getElementById('cmap-edit-modal').classList.add('hidden');
+            refreshMapUI();
+            await saveMapData();
+            showNotification("Node updated.");
         }
     };
 }
@@ -362,7 +397,6 @@ async function cleanupOrphans() {
     
     const validIds = new Set(mapState.characters.map(c => c.id));
     
-    // 1. Reset parents that point to non-existent nodes
     mapState.characters.forEach(c => {
         if (c.parent && !validIds.has(c.parent)) {
             console.log(`Orphan found: ${c.name} (Parent: ${c.parent} missing). Moved to root.`);
@@ -370,7 +404,6 @@ async function cleanupOrphans() {
         }
     });
 
-    // 2. Remove relationships pointing to non-existent nodes
     mapState.relationships = mapState.relationships.filter(r => {
         return validIds.has(r.source) && validIds.has(r.target);
     });
@@ -402,7 +435,36 @@ window.cmapToggleGroup = (groupId) => {
     renderMermaidChart();
 };
 
-// Open Move Modal (NEW)
+// Node Edit Trigger (from Mermaid Graph)
+window.cmapNodeClick = (id) => {
+    const char = mapState.characters.find(c => c.id === id);
+    if (!char) return;
+
+    if (char.type === 'group') {
+        window.cmapToggleGroup(id);
+    } else {
+        // Open Edit Modal
+        mapState.editingNodeId = id;
+        document.getElementById('cmap-edit-name').value = char.name;
+        document.getElementById('cmap-edit-clan').value = char.clan || "";
+        document.getElementById('cmap-edit-type').value = char.type;
+        document.getElementById('cmap-edit-modal').classList.remove('hidden');
+    }
+};
+
+// Node Edit Trigger (from UI List for Groups)
+window.cmapOpenEditModal = (id) => {
+    const char = mapState.characters.find(c => c.id === id);
+    if (!char) return;
+
+    mapState.editingNodeId = id;
+    document.getElementById('cmap-edit-name').value = char.name;
+    document.getElementById('cmap-edit-clan').value = char.clan || "";
+    document.getElementById('cmap-edit-type').value = char.type;
+    document.getElementById('cmap-edit-modal').classList.remove('hidden');
+};
+
+// Open Move Modal 
 window.cmapOpenMoveModal = (id) => {
     mapState.editingVisibilityId = id; // reuse ID holder
     const modal = document.getElementById('cmap-move-modal');
@@ -410,18 +472,15 @@ window.cmapOpenMoveModal = (id) => {
     
     select.innerHTML = '<option value="">-- Root (No Group) --</option>';
     
-    // Populate Groups
     mapState.characters.filter(c => c.type === 'group' && c.id !== id).forEach(g => {
         select.innerHTML += `<option value="${g.id}">${g.name}</option>`;
     });
 
-    // Set current parent
     const char = mapState.characters.find(c => c.id === id);
     if(char) select.value = char.parent || "";
 
     modal.classList.remove('hidden');
 };
-
 
 function navigateUp() {
     if (mapState.mapHistory.length === 0) return;
@@ -677,8 +736,8 @@ function updateLists() {
                     </div>
                 </div>
                 <div class="flex gap-1">
+                    <button onclick="window.cmapOpenEditModal('${c.id}')" class="text-gray-500 hover:text-white px-1" title="Edit Node Details"><i class="fas fa-edit"></i></button>
                     ${c.type === 'group' ? `<button onclick="window.cmapToggleGroup('${c.id}')" class="text-blue-400 hover:text-white px-1" title="Toggle Expand/Collapse"><i class="fas ${mapState.expandedGroups.has(c.id) ? 'fa-minus-square' : 'fa-plus-square'}"></i></button>` : ''}
-                    <!-- MOVE BUTTON -->
                     <button onclick="window.cmapOpenMoveModal('${c.id}')" class="text-gray-500 hover:text-white px-1" title="Move to Group"><i class="fas fa-arrows-alt"></i></button>
                     <button onclick="window.cmapRemoveChar('${c.id}')" class="text-gray-600 hover:text-red-500 px-1"><i class="fas fa-trash"></i></button>
                 </div>
@@ -781,9 +840,6 @@ async function renderMermaidChart() {
                  cls = ':::groupNode';
                  label = `${safeName}<br/>(Group)`;
              }
-             
-             // Setup Click Handler for Toggling
-             window.mermaidClick = (id) => window.cmapToggleGroup(id);
         }
         
         let line = "";
@@ -794,9 +850,9 @@ async function renderMermaidChart() {
              line = `${c.id}("${label}")${cls}\n`;
         }
 
-        if (c.type === 'group') {
-             line += `click ${c.id} call mermaidClick("${c.id}") "Toggle Group"\n`;
-        }
+        // Attach Click Interaction to everything
+        line += `click ${c.id} call cmapNodeClick("${c.id}") "Interact"\n`;
+        
         return line;
     };
 
@@ -830,7 +886,8 @@ async function renderMermaidChart() {
     };
 
     // 1. Render Roots (Nodes with no parent)
-    const roots = mapState.characters.filter(c => !c.parent);
+    const validIds = new Set(mapState.characters.map(c => c.id));
+    const roots = mapState.characters.filter(c => !c.parent || !validIds.has(c.parent));
     
     roots.forEach(root => {
         if (root.type === 'group') {
