@@ -50,7 +50,6 @@ let mapState = {
 
 // --- GLOBAL CLICK HANDLER (Must be on window for Mermaid) ---
 window.cmapNodeClick = (id) => {
-    // console.log("Mermaid Node Clicked:", id); 
     const char = mapState.characters.find(c => c.id === id);
     if (!char) return;
 
@@ -457,6 +456,23 @@ window.cmapToggleGroup = (groupId) => {
     renderMermaidChart();
 };
 
+// Node Edit Trigger (from Mermaid Graph)
+window.cmapNodeClick = (id) => {
+    const char = mapState.characters.find(c => c.id === id);
+    if (!char) return;
+
+    if (char.type === 'group') {
+        window.cmapToggleGroup(id);
+    } else {
+        // Open Edit Modal
+        mapState.editingNodeId = id;
+        document.getElementById('cmap-edit-name').value = char.name;
+        document.getElementById('cmap-edit-clan').value = char.clan || "";
+        document.getElementById('cmap-edit-type').value = char.type;
+        document.getElementById('cmap-edit-modal').classList.remove('hidden');
+    }
+};
+
 // Node Edit Trigger (from UI List for Groups)
 window.cmapOpenEditModal = (id) => {
     const char = mapState.characters.find(c => c.id === id);
@@ -508,11 +524,30 @@ window.cmapViewCodex = (id) => {
         targetId = rel.codexId;
     }
 
-    if (!targetId) {
+    // CHECK IF ENTRY ACTUALLY EXISTS (Validation Update)
+    let exists = false;
+    if (targetId) {
+        // Journal entries are stored with 'journal_' prefix in database, but id property might not have it.
+        // We check the loaded journal array in stState
+        // The stState.journal keys are the document IDs (e.g. "journal_cx_123...")
+        const journalKey = targetId.startsWith('journal_') ? targetId : 'journal_' + targetId;
+        exists = !!stState.journal[journalKey];
+    }
+
+    if (!targetId || !exists) {
+        // Clean up stale ID if it exists but points to nothing
+        if (targetId && !exists) {
+            if (char) delete char.codexId;
+            if (rel) delete rel.codexId;
+            saveMapData(); // Async save cleanup
+        }
+
+        // Auto-Create Codex Entry if missing
         if (confirm(`Create Codex Entry for "${targetName}"?`)) {
             createCodexForMapItem(id, char ? 'char' : 'rel', targetName);
         }
     } else {
+        // Open Existing (Delegated to ui-journal.js via global)
         if (window.viewCodex) {
              window.viewCodex(targetId);
         } else {
@@ -527,6 +562,7 @@ async function createCodexForMapItem(mapId, type, name) {
 
     const newId = "cx_" + Date.now();
     
+    // Prepare Data
     const entry = {
         id: newId,
         name: name,
@@ -537,6 +573,7 @@ async function createCodexForMapItem(mapId, type, name) {
     };
 
     try {
+        // Save to Firestore (using the journal path logic)
         const safeId = 'journal_' + newId;
         const docRef = doc(db, 'chronicles', stState.activeChronicleId, 'players', safeId);
         
@@ -547,6 +584,7 @@ async function createCodexForMapItem(mapId, type, name) {
             pushed: true 
         });
 
+        // Update Map Data with link
         if (type === 'char') {
             const char = mapState.characters.find(c => c.id === mapId);
             if(char) char.codexId = newId;
@@ -558,6 +596,7 @@ async function createCodexForMapItem(mapId, type, name) {
         await saveMapData();
         showNotification("Codex Entry Created.");
         
+        // Open it immediately
         if (window.viewCodex) window.viewCodex(newId);
 
     } catch (e) {
@@ -912,14 +951,12 @@ async function renderMermaidChart() {
     // Classes
     graph += 'classDef pc fill:#1e293b,stroke:#fff,stroke-width:2px,color:#fff;\n';
     graph += 'classDef npc fill:#000,stroke:#8a0303,stroke-width:3px,color:#8a0303,font-weight:bold;\n';
-    // Style for Expanded Group (The Ring) - Dashed, Transparent center
     graph += 'classDef groupRing fill:none,stroke:#1e3a8a,stroke-width:2px,stroke-dasharray: 5 5;\n'; 
-    // Style for Collapsed Group (The Node) - Blue Circle
     graph += 'classDef groupNode fill:#1e3a8a,stroke:#60a5fa,stroke-width:2px,color:#fff;\n';
-    
     graph += 'classDef hiddenNode stroke-dasharray: 5 5,opacity:0.6;\n';
 
     // RENDER NODES
+    
     const renderedIds = new Set();
     
     const renderNode = (c) => {
@@ -932,48 +969,38 @@ async function renderMermaidChart() {
         let cls = ':::pc';
         if (c.type === 'npc') cls = ':::npc';
         
-        // Group Logic: Check if Expanded
         if (c.type === 'group') {
              const isExpanded = mapState.expandedGroups.has(c.id);
-             
              if (isExpanded) {
-                 // Render as Subgraph Wrapper (Ring) - Handled in renderSubgraph recursion
-                 // BUT we still need a clickable title for the ring.
-                 // We will render a "Header Node" inside the subgraph.
                  cls = ':::groupNode';
                  label = `<b>${safeName}</b>`; 
              } else {
-                 // Render as Standard Node (Circle)
                  cls = ':::groupNode';
                  label = `${safeName}<br/>(Group)`;
              }
         }
         
         let line = "";
-        // Visibility Check
         if (c.visibility !== 'all') {
              line = `${c.id}("${label}"):::${c.type === 'group' ? 'groupNode' : (c.type === 'npc' ? 'npc' : 'pc')} hiddenNode\n`;
         } else {
              line = `${c.id}("${label}")${cls}\n`;
         }
 
-        // Attach Click Interaction to everything
+        // Attach Click Interaction
         line += `click ${c.id} call cmapNodeClick("${c.id}") "Interact"\n`;
         
         return line;
     };
 
     const renderSubgraph = (group) => {
-        // If NOT expanded, render as a single node
         if (!mapState.expandedGroups.has(group.id)) {
             return renderNode(group);
         }
 
-        // If EXPANDED, render as a subgraph (Ring)
-        let output = `subgraph ${group.id}_sg [" "]\n`; // Empty string title to avoid double label
+        let output = `subgraph ${group.id}_sg [" "]\n`; 
         output += `direction TB\n`; 
         
-        // Render the clickable header node inside the ring
         output += renderNode(group);
         
         const children = mapState.characters.filter(c => c.parent === group.id);
@@ -985,14 +1012,11 @@ async function renderMermaidChart() {
             }
         });
         output += `end\n`;
-        
-        // Apply class to the subgraph (Ring style)
         output += `class ${group.id}_sg groupRing\n`;
         
         return output;
     };
 
-    // 1. Render Roots (Nodes with no parent)
     const validIds = new Set(mapState.characters.map(c => c.id));
     const roots = mapState.characters.filter(c => !c.parent || !validIds.has(c.parent));
     
@@ -1004,14 +1028,12 @@ async function renderMermaidChart() {
         }
     });
 
-    // 2. Cleanup: Ensure any orphaned nodes (if parent missing) are rendered
     mapState.characters.forEach(c => {
         if (!renderedIds.has(c.id)) {
             graph += renderNode(c);
         }
     });
 
-    // RENDER LINKS
     mapState.relationships.forEach(r => {
         const label = r.label ? `"${r.label}"` : "";
         const isHidden = r.visibility !== 'all';
@@ -1039,28 +1061,29 @@ async function renderMermaidChart() {
         const { svg, bindFunctions } = await window.mermaid.render('mermaid-svg-' + Date.now(), graph);
         container.innerHTML = svg;
         
-        // NEW: FORCE BIND CLICK HANDLERS AFTER RENDER
-        // Mermaid *should* do this, but sometimes needs a push if using raw HTML insertion
+        // --- IMPROVED CLICK BINDING ---
         if (bindFunctions) bindFunctions(container);
         
         // Manual fallback: Attach click handlers to node elements directly
-        // Mermaid nodes have IDs like `node-{id}` or similar in SVG
-        // Actually, mermaid often uses `id="flowchart-{id}-..."` 
-        // We will query all .node elements and try to map them back
+        // We query for 'g.node' which are the SVG groups for nodes in Mermaid
+        const nodes = container.querySelectorAll('g.node');
         
-        const nodes = container.querySelectorAll('.node');
         nodes.forEach(node => {
-            // The ID in the DOM usually contains the node ID defined in graph
-            // E.g. "flowchart-myNodeId-..."
-            // We iterate our known IDs to find matches
-            mapState.characters.forEach(c => {
-                 // Check if the node's text content or ID attributes match
-                 // This is a fuzzy match fallback
-                 if (node.id.includes(c.id)) {
-                     node.style.cursor = "pointer";
-                     node.onclick = () => window.cmapNodeClick(c.id);
-                 }
-            });
+            // Mermaid IDs look like "flowchart-myNodeId-..."
+            // We strip prefix to match our IDs
+            const domId = node.id;
+            
+            // Find which character this node corresponds to
+            const char = mapState.characters.find(c => domId.includes(c.id));
+            
+            if (char) {
+                node.style.cursor = "pointer";
+                node.addEventListener('click', (e) => {
+                    e.stopPropagation(); // Stop bubbling
+                    console.log("Manual Click:", char.id);
+                    window.cmapNodeClick(char.id);
+                });
+            }
         });
         
     } catch (e) {
