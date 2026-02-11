@@ -436,6 +436,7 @@ window.cmapToggleGroup = (groupId) => {
 
 // Node Edit Trigger (from Mermaid Graph)
 window.cmapNodeClick = (id) => {
+    console.log("Mermaid Node Clicked:", id); // DEBUG LOG
     const char = mapState.characters.find(c => c.id === id);
     if (!char) return;
 
