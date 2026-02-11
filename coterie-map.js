@@ -48,6 +48,29 @@ let mapState = {
     editingNodeId: null 
 };
 
+// --- GLOBAL CLICK HANDLER (Must be on window for Mermaid) ---
+window.cmapNodeClick = (id) => {
+    // console.log("Mermaid Node Clicked:", id); 
+    const char = mapState.characters.find(c => c.id === id);
+    if (!char) return;
+
+    if (char.type === 'group') {
+        window.cmapToggleGroup(id);
+    } else {
+        // Open Edit Modal for standard nodes
+        mapState.editingNodeId = id;
+        const nameInput = document.getElementById('cmap-edit-name');
+        const clanInput = document.getElementById('cmap-edit-clan');
+        const typeInput = document.getElementById('cmap-edit-type');
+        const modal = document.getElementById('cmap-edit-modal');
+        
+        if(nameInput) nameInput.value = char.name;
+        if(clanInput) clanInput.value = char.clan || "";
+        if(typeInput) typeInput.value = char.type;
+        if(modal) modal.classList.remove('hidden');
+    }
+};
+
 // --- MAIN RENDERER ---
 export async function renderCoterieMap(container) {
     await initMermaid();
@@ -434,24 +457,6 @@ window.cmapToggleGroup = (groupId) => {
     renderMermaidChart();
 };
 
-// Node Edit Trigger (from Mermaid Graph)
-window.cmapNodeClick = (id) => {
-    console.log("Mermaid Node Clicked:", id); // DEBUG LOG
-    const char = mapState.characters.find(c => c.id === id);
-    if (!char) return;
-
-    if (char.type === 'group') {
-        window.cmapToggleGroup(id);
-    } else {
-        // Open Edit Modal
-        mapState.editingNodeId = id;
-        document.getElementById('cmap-edit-name').value = char.name;
-        document.getElementById('cmap-edit-clan').value = char.clan || "";
-        document.getElementById('cmap-edit-type').value = char.type;
-        document.getElementById('cmap-edit-modal').classList.remove('hidden');
-    }
-};
-
 // Node Edit Trigger (from UI List for Groups)
 window.cmapOpenEditModal = (id) => {
     const char = mapState.characters.find(c => c.id === id);
@@ -487,18 +492,8 @@ window.cmapViewCodex = (id) => {
     const stState = window.stState;
     if (!stState || !stState.activeChronicleId) return;
 
-    // We can't know for sure if a Codex entry exists with the exact same ID,
-    // because Codex IDs are often 'cx_...' while Map IDs are names stripped of spaces.
-    // However, in 'ui-journal.js', we usually generate IDs or use names.
-    
-    // Try to find a matching codex entry by Name or ID in stState.journal (which includes shared codex)
-    // Note: stState.journal contains 'journal_...' IDs.
-    
-    // Better Approach: Check if the character on the map has a `codexId` property.
-    // If not, we will try to Open a Codex search or Create one.
-    
     const char = mapState.characters.find(c => c.id === id);
-    const rel = mapState.relationships[id]; // ID might be index for relationship
+    const rel = mapState.relationships[id]; 
     
     let targetName = "";
     let targetId = "";
@@ -507,25 +502,18 @@ window.cmapViewCodex = (id) => {
         targetName = char.name;
         targetId = char.codexId;
     } else if (rel) {
-        // Find names for source and target
         const sName = mapState.characters.find(c => c.id === rel.source)?.name || rel.source;
         const tName = mapState.characters.find(c => c.id === rel.target)?.name || rel.target;
-        
-        // Revised Name: Relationship: Label (Source -> Target)
         targetName = `Relationship: ${rel.label} (${sName} -> ${tName})`;
         targetId = rel.codexId;
     }
 
     if (!targetId) {
-        // Auto-Create Codex Entry if missing
         if (confirm(`Create Codex Entry for "${targetName}"?`)) {
             createCodexForMapItem(id, char ? 'char' : 'rel', targetName);
         }
     } else {
-        // Open Existing (Delegated to ui-journal.js via global)
         if (window.viewCodex) {
-             // The ID in stState.journal likely has 'journal_' prefix if pushed, or 'cx_' if local.
-             // We stored the ID when we created it.
              window.viewCodex(targetId);
         } else {
             showNotification("Journal System not ready.", "error");
@@ -539,18 +527,16 @@ async function createCodexForMapItem(mapId, type, name) {
 
     const newId = "cx_" + Date.now();
     
-    // Prepare Data
     const entry = {
         id: newId,
         name: name,
         type: type === 'char' ? 'NPC' : 'Lore',
         tags: ['Map Auto-Gen'],
-        desc: "", // CHANGED: Empty string as requested to minimize spam
+        desc: "", // Empty description
         image: null
     };
 
     try {
-        // Save to Firestore (using the journal path logic)
         const safeId = 'journal_' + newId;
         const docRef = doc(db, 'chronicles', stState.activeChronicleId, 'players', safeId);
         
@@ -558,10 +544,9 @@ async function createCodexForMapItem(mapId, type, name) {
             ...entry, 
             metadataType: 'journal', 
             original_id: newId,
-            pushed: true // Auto-share? Maybe not. Let ST decide. Default hidden.
+            pushed: true 
         });
 
-        // Update Map Data with link
         if (type === 'char') {
             const char = mapState.characters.find(c => c.id === mapId);
             if(char) char.codexId = newId;
@@ -573,7 +558,6 @@ async function createCodexForMapItem(mapId, type, name) {
         await saveMapData();
         showNotification("Codex Entry Created.");
         
-        // Open it immediately
         if (window.viewCodex) window.viewCodex(newId);
 
     } catch (e) {
@@ -686,18 +670,10 @@ async function addRelationship() {
     if (!source || !target) return showNotification("Select Nodes", "error");
     if (source === target) return showNotification("Self-link invalid", "error");
 
-    // NEW: Auto-create a codex ID placeholder. 
-    // We don't create the full entry yet to save space/spam, but we prep the logic.
-    // Actually, prompt asked for "creates a corresponding codex entry".
-    // Let's create it immediately.
-    
     const newRel = { source, target, type, label, visibility: 'st' };
     
-    // Auto-Create Codex Entry Logic
     if (label) {
         const cxId = "cx_" + Date.now();
-        
-        // Find Names for better title
         const sName = mapState.characters.find(c => c.id === source)?.name || source;
         const tName = mapState.characters.find(c => c.id === target)?.name || target;
 
@@ -706,12 +682,10 @@ async function addRelationship() {
             name: `${label} (${sName} -> ${tName})`,
             type: 'Lore',
             tags: ['Relationship', 'Auto-Gen'],
-            desc: "", // CHANGED: Empty string
+            desc: "", 
             image: null
         };
         
-        // We need to save this to Firebase immediately to ensure the ID is valid
-        // We'll use the helper to fire-and-forget the save
         saveRelationshipCodex(entry);
         newRel.codexId = cxId;
     }
@@ -946,7 +920,6 @@ async function renderMermaidChart() {
     graph += 'classDef hiddenNode stroke-dasharray: 5 5,opacity:0.6;\n';
 
     // RENDER NODES
-    
     const renderedIds = new Set();
     
     const renderNode = (c) => {
@@ -1063,8 +1036,33 @@ async function renderMermaidChart() {
     });
 
     try {
-        const { svg } = await window.mermaid.render('mermaid-svg-' + Date.now(), graph);
+        const { svg, bindFunctions } = await window.mermaid.render('mermaid-svg-' + Date.now(), graph);
         container.innerHTML = svg;
+        
+        // NEW: FORCE BIND CLICK HANDLERS AFTER RENDER
+        // Mermaid *should* do this, but sometimes needs a push if using raw HTML insertion
+        if (bindFunctions) bindFunctions(container);
+        
+        // Manual fallback: Attach click handlers to node elements directly
+        // Mermaid nodes have IDs like `node-{id}` or similar in SVG
+        // Actually, mermaid often uses `id="flowchart-{id}-..."` 
+        // We will query all .node elements and try to map them back
+        
+        const nodes = container.querySelectorAll('.node');
+        nodes.forEach(node => {
+            // The ID in the DOM usually contains the node ID defined in graph
+            // E.g. "flowchart-myNodeId-..."
+            // We iterate our known IDs to find matches
+            mapState.characters.forEach(c => {
+                 // Check if the node's text content or ID attributes match
+                 // This is a fuzzy match fallback
+                 if (node.id.includes(c.id)) {
+                     node.style.cursor = "pointer";
+                     node.onclick = () => window.cmapNodeClick(c.id);
+                 }
+            });
+        });
+        
     } catch (e) {
         console.warn("Mermaid Render Warning:", e);
     }
