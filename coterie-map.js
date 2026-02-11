@@ -506,11 +506,12 @@ window.cmapViewCodex = (id) => {
         targetName = char.name;
         targetId = char.codexId;
     } else if (rel) {
-        // For relationships, we might link to the target character?
-        // Or create a specific note.
-        // Based on prompt: "Create a corresponding codex entry... button to allow to view".
-        // Let's create a Note entry for this relationship if it doesn't exist.
-        targetName = `Relationship: ${rel.label}`;
+        // Find names for source and target
+        const sName = mapState.characters.find(c => c.id === rel.source)?.name || rel.source;
+        const tName = mapState.characters.find(c => c.id === rel.target)?.name || rel.target;
+        
+        // Revised Name: Relationship: Label (Source -> Target)
+        targetName = `Relationship: ${rel.label} (${sName} -> ${tName})`;
         targetId = rel.codexId;
     }
 
@@ -694,9 +695,14 @@ async function addRelationship() {
     // Auto-Create Codex Entry Logic
     if (label) {
         const cxId = "cx_" + Date.now();
+        
+        // Find Names for better title
+        const sName = mapState.characters.find(c => c.id === source)?.name || source;
+        const tName = mapState.characters.find(c => c.id === target)?.name || target;
+
         const entry = {
             id: cxId,
-            name: `${label} (${source} -> ${target})`,
+            name: `${label} (${sName} -> ${tName})`,
             type: 'Lore',
             tags: ['Relationship', 'Auto-Gen'],
             desc: "", // CHANGED: Empty string
@@ -714,16 +720,6 @@ async function addRelationship() {
     labelInput.value = '';
     refreshMapUI(); 
     await saveMapData();
-}
-
-async function saveRelationshipCodex(entry) {
-    const stState = window.stState;
-    if (!stState.activeChronicleId) return;
-    try {
-        const safeId = 'journal_' + entry.id;
-        const docRef = doc(db, 'chronicles', stState.activeChronicleId, 'players', safeId);
-        await setDoc(docRef, { ...entry, metadataType: 'journal', original_id: entry.id, pushed: true });
-    } catch(e) { console.error("Auto-Codex Failed", e); }
 }
 
 window.cmapRemoveChar = async (id) => {
