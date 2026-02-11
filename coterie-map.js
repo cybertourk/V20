@@ -543,7 +543,7 @@ async function createCodexForMapItem(mapId, type, name) {
         name: name,
         type: type === 'char' ? 'NPC' : 'Lore',
         tags: ['Map Auto-Gen'],
-        desc: `Auto-generated entry from Coterie Map.\n\n${new Date().toLocaleDateString()}`,
+        desc: "", // CHANGED: Empty string as requested to minimize spam
         image: null
     };
 
@@ -699,7 +699,7 @@ async function addRelationship() {
             name: `${label} (${source} -> ${target})`,
             type: 'Lore',
             tags: ['Relationship', 'Auto-Gen'],
-            desc: `Relationship: ${label}\nFrom: ${source}\nTo: ${target}\nType: ${type}`,
+            desc: "", // CHANGED: Empty string
             image: null
         };
         
@@ -844,8 +844,8 @@ function updateDropdowns() {
 function updateLists() {
     const charList = document.getElementById('cmap-char-list');
     if (charList) {
-        const validIds = new Set(mapState.characters.map(c => c.id));
-        const roots = mapState.characters.filter(c => !c.parent || !validIds.has(c.parent));
+        // Organize hierarchy: Groups -> Items
+        const roots = mapState.characters.filter(c => !c.parent);
         let html = '';
 
         const renderItem = (c, level) => {
