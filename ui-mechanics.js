@@ -14,7 +14,7 @@ import {
 } from "./ui-common.js";
 
 import { renderPrintSheet } from "./ui-print.js";
-
+import { auth } from "./firebase-config.js";
 
 // ==========================================================================
 // 1. CLAN MECHANICS & WEAKNESS UI
@@ -435,7 +435,6 @@ export function handleTraitClick(name, type) {
 }
 window.handleTraitClick = handleTraitClick;
 
-// ADDED: Direct toggle function for NPCs or manual overrides (accepts rating directly)
 export function toggleStat(name, rating, type) {
     const armorCont = document.getElementById('tray-armor-toggle-container');
     if(armorCont && armorCont.style.display !== 'none') {
@@ -482,22 +481,73 @@ window.toggleStat = toggleStat;
 export function rollPool() {
     // --- SPECIAL ROLL INTERCEPTION: INITIATIVE ---
     // Check if the current pool contains an Initiative entry
-    const initiativeItem = window.state.activePool.find(p => p.name.includes("Initiative"));
+    const isInit = window.state.activePool.some(p => p.name.startsWith("Init_") || p.name === "Initiative");
     
-    if (initiativeItem) {
-        // ROBUST PARSING: Prefer direct value, fallback to Regex parsing for legacy support
-        let mod = initiativeItem.val;
-        
-        // If val is 0, check if we need to parse it from the name (legacy behavior)
-        if (mod === 0 && initiativeItem.name.includes("(")) {
-            const match = initiativeItem.name.match(/[+(]\s*\+?\s*(\d+)/);
-            if (match) mod = parseInt(match[1]);
+    if (isInit) {
+        let dex = 0, wits = 0, celerity = 0, wounds = 0, legacyMod = 0;
+        let isLegacy = false;
+
+        window.state.activePool.forEach(p => {
+            if (p.name === 'Init_Dex') dex = p.val;
+            else if (p.name === 'Init_Wits') wits = p.val;
+            else if (p.name === 'Init_Celerity') celerity = p.val;
+            else if (p.name === 'Init_Wounds') wounds = Math.abs(p.val);
+            else if (p.name === 'Initiative') { 
+                isLegacy = true; 
+                legacyMod = p.val; 
+            }
+        });
+
+        // Use custom dice input for any ad-hoc modifiers
+        const custom = parseInt(document.getElementById('custom-dice-input')?.value) || 0;
+
+        let mod = 0;
+        let breakdownHTML = '';
+        let chatBreakdown = '';
+
+        if (isLegacy) {
+            mod = legacyMod + custom;
+            breakdownHTML = `
+                <span class="text-[#d4af37] font-bold" title="Rating">Rating (${legacyMod})</span>
+            `;
+            chatBreakdown = `Rating(${legacyMod})`;
+        } else {
+            mod = dex + wits + celerity - wounds + custom;
+            breakdownHTML = `
+                <span class="text-[#d4af37] font-bold" title="Dexterity">Dex (${dex})</span>
+                <span class="text-gray-500 font-black">+</span>
+                <span class="text-[#d4af37] font-bold" title="Wits">Wits (${wits})</span>
+            `;
+            chatBreakdown = `Dex(${dex}) + Wits(${wits})`;
+
+            if (celerity > 0) {
+                breakdownHTML += `
+                    <span class="text-gray-500 font-black">+</span>
+                    <span class="text-[#d4af37] font-bold" title="Celerity">Cel (${celerity})</span>
+                `;
+                chatBreakdown += ` + Cel(${celerity})`;
+            }
+            if (wounds > 0) {
+                breakdownHTML += `
+                    <span class="text-gray-500 font-black">-</span>
+                    <span class="text-red-500 font-bold" title="Wound Penalty">Wounds (${wounds})</span>
+                `;
+                chatBreakdown += ` - Wounds(${wounds})`;
+            }
         }
-        
-        // Roll 1d10
+
+        if (custom !== 0) {
+            const sign = custom > 0 ? '+' : '-';
+            breakdownHTML += `
+                <span class="text-gray-500 font-black">${sign}</span>
+                <span class="text-blue-400 font-bold" title="Custom Modifier">Mod (${Math.abs(custom)})</span>
+            `;
+            chatBreakdown += ` ${sign} Mod(${Math.abs(custom)})`;
+        }
+
         const die = Math.floor(Math.random() * 10) + 1;
         const total = die + mod;
-        
+
         // Render Result immediately
         const tray = document.getElementById('roll-results');
         const row = document.createElement('div');
@@ -508,10 +558,10 @@ export function rollPool() {
                 <span class="text-[#d4af37] font-bold uppercase">Initiative Roll</span>
                 <span class="text-white font-black text-sm">${total}</span>
             </div>
-            <div class="tracking-widest flex flex-wrap justify-center py-2 items-center gap-2">
-                <span class="text-gray-400 font-bold bg-black/50 px-2 py-1 rounded">1d10 <span class="text-white">(${die})</span></span>
+            <div class="tracking-widest flex flex-wrap justify-center py-2 items-center gap-2 text-[9px]">
+                <span class="text-gray-400 font-bold bg-black/50 px-2 py-1 rounded" title="1d10">1d10 <span class="text-white">(${die})</span></span>
                 <span class="text-gray-500 font-black">+</span>
-                <span class="text-[#d4af37] font-bold">${mod}</span>
+                ${breakdownHTML}
                 <span class="text-gray-500 font-black">=</span>
                 <span class="text-[#4ade80] font-black text-lg border border-[#d4af37] px-3 py-1 rounded bg-[#d4af37]/10">${total}</span>
             </div>
@@ -521,15 +571,27 @@ export function rollPool() {
         tray.insertBefore(row, tray.firstChild);
 
         // --- HOOK: SEND TO CHRONICLE IF CONNECTED ---
-        if (window.sendChronicleMessage && window.stState && window.stState.activeChronicleId) {
-            let msgContent = `Initiative Roll: <span class="text-[#4ade80] font-bold">${total}</span> <span class="opacity-50 text-[10px]">(1d10[${die}] + ${mod})</span>`;
-            window.sendChronicleMessage('roll', msgContent, {
-                pool: "Initiative",
-                diff: 0,
-                successes: total,
-                dice: 1,
-                results: [die] // Added for consistency
-            });
+        if (window.stState && window.stState.activeChronicleId) {
+            let msgContent = `Initiative Roll: <span class="text-[#4ade80] font-bold">${total}</span> <span class="opacity-50 text-[10px]">(1d10[${die}] + ${chatBreakdown})</span>`;
+            if (window.sendChronicleMessage) {
+                window.sendChronicleMessage('roll', msgContent, {
+                    pool: "Initiative",
+                    diff: 0,
+                    successes: total,
+                    dice: 1,
+                    results: [die]
+                });
+            }
+
+            // --- AUTO-UPDATE COMBAT TRACKER ---
+            if (window.combatTracker && window.combatTracker.updateInit) {
+                const targetId = window.state.meta?.uid || (auth?.currentUser?.uid || null);
+                if (targetId) {
+                    window.combatTracker.updateInit(targetId, total).catch(e => {
+                        console.warn("Combat Tracker Auto-Update failed (Requires ST or updated Firebase Rules):", e);
+                    });
+                }
+            }
         }
 
         return; // EXIT FUNCTION: Skip standard success counting
@@ -649,7 +711,6 @@ export function rollPool() {
         else if (ones > rawSuccesses && rawSuccesses === 0) headerColorClass = "text-red-600";
         else headerColorClass = "text-gray-400";
 
-        // HTML fallback for old clients, but we send raw results now
         let msgContent = `<span class="${headerColorClass} font-bold">${outcome}</span> <span class="opacity-50 text-[10px]">(${rawRolls})</span>`;
         if (autoSuccesses > 0) msgContent += ` <span class="text-blue-400 font-bold">[WP Spent]</span>`;
         
@@ -658,8 +719,8 @@ export function rollPool() {
             diff: diff,
             successes: net,
             dice: poolSize,
-            results: results, // ADDED: ARRAY OF RESULTS
-            isSpec: isSpec    // ADDED: SPECIALTY FLAG
+            results: results,
+            isSpec: isSpec
         });
     }
 }
@@ -690,15 +751,39 @@ export function rollCombat(name, diff, attr, ability) {
 }
 window.rollCombat = rollCombat;
 
-// --- ADDED INITIATIVE FUNCTION ---
+// --- UPDATED INITIATIVE FUNCTION (Detailed Breakdown) ---
 export function rollInitiative(rating) {
     window.clearPool();
-    // Add Special "Initiative" item to pool with rating as value
-    window.state.activePool.push({name: "Initiative", val: rating});
+    
+    // Retrieve directly from state to guarantee full context breakdown
+    const dex = window.state.dots.attr['Dexterity'] || 1;
+    const wits = window.state.dots.attr['Wits'] || 1;
+    const celerity = window.state.dots.disc['Celerity'] || 0;
+    
+    let wounds = 0;
+    const healthStates = window.state.status.health_states || [];
+    const dmgCount = healthStates.filter(x => x > 0).length;
+    if (dmgCount >= 7) wounds = 99; // Incapacitated
+    else if (dmgCount === 6) wounds = 5;
+    else if (dmgCount >= 4) wounds = 2;
+    else if (dmgCount >= 2) wounds = 1;
+
+    if (wounds >= 99) {
+        showNotification("Incapacitated! Cannot roll initiative.");
+        return;
+    }
+
+    window.state.activePool.push({name: "Init_Dex", val: dex});
+    window.state.activePool.push({name: "Init_Wits", val: wits});
+    if (celerity > 0) window.state.activePool.push({name: "Init_Celerity", val: celerity});
+    if (wounds > 0) window.state.activePool.push({name: "Init_Wounds", val: -wounds});
     
     const display = document.getElementById('pool-display');
     if (display) {
-        setSafeText('pool-display', `Initiative Rating: ${rating}`);
+        let text = `Initiative: Dex (${dex}) + Wits (${wits})`;
+        if (celerity > 0) text += ` + Cel (${celerity})`;
+        if (wounds > 0) text += ` - Wounds (${wounds})`;
+        setSafeText('pool-display', text);
         display.classList.add('text-yellow-500');
     }
     
@@ -1063,9 +1148,6 @@ window.healOneLevel = healOneLevel;
 
 // --- STATE MANAGEMENT & POOL UPDATES ---
 
-// FIX: Removed duplicate updatePools() definition. 
-// It is now defined in ui-renderer.js to handle the advanced XP math.
-
 export function refreshTraitRow(label, type, targetEl) {
     let rowDiv = targetEl;
     if (!rowDiv) {
@@ -1199,14 +1281,11 @@ export function setDots(name, type, val, min, max = 5) {
 
         // Prevent going below minimum (e.g. Attributes cannot go below 1, generally)
         if (val < min) {
-            // Usually silent return, or could show "Cannot lower below minimum"
             return;
         }
 
         // --- 1. REFUND LOGIC (Lowering value) ---
         if (val < currentVal) {
-            // Logic: Find the most recent log entry where 'new' equals currentVal.
-            // This ensures we refund the specific step that reached this level.
             let logType = type;
             if (type === 'status') {
                 if (name === 'Humanity') logType = 'humanity';
@@ -1407,11 +1486,5 @@ export function setDots(name, type, val, min, max = 5) {
     if(window.updatePools) window.updatePools();
     if(type === 'back') renderSocialProfile();
     if(renderPrintSheet) renderPrintSheet();
-
-    // --- HOOK: LOG SUCCESSFUL ROLL ---
-    if (window.sendChronicleMessage && window.stState && window.stState.activeChronicleId) {
-        // Optimization: Standard trait setting doesn't log unless it was a roll.
-        // Mechanics like frenzy/soak are handled in rollPool.
-    }
 }
 window.setDots = setDots;
