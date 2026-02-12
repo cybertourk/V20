@@ -283,7 +283,7 @@ function setupMapListeners() {
     document.getElementById('cmap-new-map-btn').onclick = createNewMap;
     document.getElementById('cmap-delete-map').onclick = deleteCurrentMap;
     document.getElementById('cmap-cleanup-map').onclick = cleanupOrphans; 
-    document.getElementById('cmap-sync-roster').onclick = window.cmapSyncRoster; // NEW SYNC LISTENER
+    document.getElementById('cmap-sync-roster').onclick = window.cmapSyncRoster; 
     document.getElementById('cmap-select-map').onchange = (e) => switchMap(e.target.value);
     document.getElementById('cmap-nav-up').onclick = navigateUp;
 
@@ -566,10 +566,17 @@ async function createCodexForMapItem(mapId, type, name) {
 
     const newId = "cx_" + Date.now();
     
+    // Properly detect 'PC' or 'NPC' based on map character data
+    let entryType = 'Lore';
+    if (type === 'char') {
+        const charObj = mapState.characters.find(c => c.id === mapId);
+        entryType = (charObj && charObj.type === 'pc') ? 'PC' : 'NPC';
+    }
+    
     const entry = {
         id: newId,
         name: name,
-        type: type === 'char' ? 'NPC' : 'Lore',
+        type: entryType,
         tags: ['Map Auto-Gen'],
         desc: "", 
         image: null
@@ -623,8 +630,9 @@ async function syncRosterToMap() {
 
         if (existingIndex > -1) {
             const c = mapState.characters[existingIndex];
-            if (c.name !== p.character_name || (c.clan === "Unknown" && clan !== "Unknown")) {
+            if (c.name !== p.character_name || (c.clan === "Unknown" && clan !== "Unknown") || c.type !== 'pc') {
                 c.name = p.character_name;
+                c.type = 'pc'; // Force PC type to fix old/wrong data
                 if (clan !== "Unknown" && clan !== "") c.clan = clan;
                 needsSave = true;
             }
@@ -633,6 +641,7 @@ async function syncRosterToMap() {
             const nameMatchIndex = mapState.characters.findIndex(c => c.name === p.character_name);
             if (nameMatchIndex > -1) {
                  mapState.characters[nameMatchIndex].id = uid;
+                 mapState.characters[nameMatchIndex].type = 'pc'; // Force PC
                  needsSave = true;
             } else {
                 mapState.characters.push({
