@@ -1,1296 +1,1194 @@
+import { db, doc, onSnapshot, setDoc, updateDoc, collection, getDocs, deleteDoc } from "./firebase-config.js";
 import { showNotification } from "./ui-common.js";
-import { db, doc, setDoc, deleteDoc } from "./firebase-config.js";
 
-// NOTE: We avoid importing stState directly to prevent circular dependency issues.
-// We will access window.stState (set by ui-storyteller.js) instead.
+// We need mermaid from CDN as it's not bundled. 
+let mermaidInitialized = false;
 
-// Global Codex Cache for Autosuggest & Linking
-let codexCache = [];
+async function initMermaid() {
+    if (mermaidInitialized) return;
+    try {
+        if (!window.mermaid) {
+            const module = await import('https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs');
+            window.mermaid = module.default;
+        }
+        window.mermaid.initialize({
+            startOnLoad: false,
+            theme: 'base',
+            themeVariables: {
+                primaryColor: '#2d2d2d',
+                primaryTextColor: '#fff',
+                primaryBorderColor: '#8a0303',
+                lineColor: '#aaa',
+                secondaryColor: '#000',
+                tertiaryColor: '#fff',
+                fontFamily: 'Lato'
+            },
+            securityLevel: 'loose',
+            flowchart: { curve: 'basis', htmlLabels: true }
+        });
+        mermaidInitialized = true;
+    } catch (e) {
+        console.error("Mermaid Init Failed:", e);
+        showNotification("Failed to load Graph Engine", "error");
+    }
+}
 
-// --- CONFIGURATION STATE ---
-// Allows switching between "Player Mode" (Local) and "Storyteller Mode" (Cloud)
-let activeContext = {
-    mode: 'player', // 'player' or 'storyteller'
-    data: null,     // Reference to window.state.codex or window.stState.journal
-    onSave: null,   
-    onDelete: null  
+// --- STATE ---
+let mapState = {
+    currentMapId: 'main', 
+    mapHistory: [],       
+    availableMaps: [],    
+    characters: [],
+    relationships: [],
+    expandedGroups: new Set(), 
+    zoom: 1.0,
+    unsub: null,
+    editingVisibilityId: null,
+    editingVisibilityType: null,
+    editingNodeId: null,
+    filterCharId: null
 };
 
-// ==========================================================================
-// PUBLIC EXPORTS & ENTRY POINTS
-// ==========================================================================
+// --- GLOBAL CLICK HANDLER (Must be on window for Mermaid) ---
+window.cmapNodeClick = (id) => {
+    const char = mapState.characters.find(c => c.id === id);
+    if (!char) return;
 
-export function renderJournalTab() {
-    // PLAYER ENTRY POINT
-    const container = document.getElementById('play-mode-5');
-    if (!container) return;
-
-    // Init Defaults
-    if (!window.state.sessionLogs) window.state.sessionLogs = [];
-    if (!window.state.codex) window.state.codex = [];
-    if (!window.state.journalTab) window.state.journalTab = 'sessions';
-
-    // Set Context: LOCAL
-    activeContext = {
-        mode: 'player',
-        data: window.state.codex,
-        onSave: () => { 
-            if (window.performSave) window.performSave(true); 
-        },
-        onDelete: () => { 
-            if (window.performSave) window.performSave(true); 
-        }
-    };
-
-    renderJournalInterface(container, window.state.journalTab);
-}
-
-export function renderStorytellerJournal(container) {
-    // STORYTELLER ENTRY POINT
-    const stState = window.stState || {};
-    const journalArray = Object.values(stState.journal || {});
-
-    // Set Context: CLOUD
-    activeContext = {
-        mode: 'storyteller',
-        data: journalArray, 
-        onSave: async (entry) => {
-            if (!stState.activeChronicleId) {
-                showNotification("No Active Chronicle", "error");
-                return;
-            }
-            try {
-                // Prefix ID with 'journal_' for the 'players' collection workaround
-                // This ensures we can store >1MB of data in total by splitting docs
-                const safeId = entry.id.startsWith('journal_') ? entry.id : 'journal_' + entry.id;
-                const docRef = doc(db, 'chronicles', stState.activeChronicleId, 'players', safeId);
-                
-                await setDoc(docRef, { 
-                    ...entry, 
-                    metadataType: 'journal', 
-                    original_id: entry.id 
-                }, { merge: true });
-                
-                showNotification("Journal Synced.");
-            } catch(e) { 
-                console.error("ST Journal Save Failed:", e);
-                showNotification("Sync Failed: " + e.message, "error");
-            }
-        },
-        onDelete: async (id) => {
-            if (!stState.activeChronicleId) return;
-            try {
-                const safeId = id.startsWith('journal_') ? id : 'journal_' + id;
-                await deleteDoc(doc(db, 'chronicles', stState.activeChronicleId, 'players', safeId));
-                showNotification("Entry Deleted.");
-            } catch(e) { console.error(e); }
-        }
-    };
-
-    // STs default to Codex view, using shared shell to ensure modals exist
-    renderJournalInterface(container, 'codex');
-}
-
-export function updateJournalList(newData) {
-    activeContext.data = newData || [];
-    // SAFELY build cache
-    codexCache = (activeContext.data || [])
-        .map(c => c.name)
-        .filter(n => typeof n === 'string' && n.trim() !== "");
-        
-    renderCodexList();
-}
-
-// ==========================================================================
-// SHARED UI SHELL
-// ==========================================================================
-
-function renderJournalInterface(container, activeTab) {
-    // SAFELY Refresh cache
-    codexCache = (activeContext.data || [])
-        .map(c => c.name)
-        .filter(n => typeof n === 'string' && n.trim() !== "");
-
-    const activeClass = "border-b-2 border-[#d4af37] text-[#d4af37] font-bold";
-    const inactiveClass = "text-gray-500 hover:text-white transition-colors";
-    const showTabs = activeContext.mode === 'player';
-
-    container.innerHTML = `
-        <div class="flex flex-col h-full relative">
-            ${showTabs ? `
-            <div class="flex gap-6 border-b border-[#333] pb-2 mb-2 px-2 shrink-0">
-                <button id="tab-sessions" class="text-xs uppercase tracking-wider px-2 pb-1 ${activeTab==='sessions'?activeClass:inactiveClass}">Session Logs</button>
-                <button id="tab-codex" class="text-xs uppercase tracking-wider px-2 pb-1 ${activeTab==='codex'?activeClass:inactiveClass}">Codex</button>
-            </div>
-            ` : ''}
-            
-            <!-- Main Content Area -->
-            <div id="journal-main-view" class="flex-1 overflow-hidden h-full relative"></div>
-            
-            <!-- Floating Autocomplete Box -->
-            <div id="autocomplete-suggestions" class="autocomplete-box"></div>
-        </div>
-        
-        <!-- Shared Codex Modal -->
-        ${renderPopupModal()} 
-        
-        <!-- NEW: Recipient Selection Modal -->
-        <div id="recipient-modal" class="fixed inset-0 bg-black/80 z-[20000] hidden flex items-center justify-center p-4 backdrop-blur-sm">
-            <div class="bg-[#1a1a1a] border border-[#d4af37] p-6 max-w-sm w-full shadow-2xl relative">
-                <h3 class="text-lg text-gold font-cinzel font-bold mb-4 border-b border-[#333] pb-2 uppercase">Select Recipients</h3>
-                
-                <div class="mb-4">
-                    <label class="flex items-center gap-3 p-2 bg-blue-900/10 border border-blue-900/30 rounded cursor-pointer hover:bg-blue-900/20 transition-colors">
-                        <input type="checkbox" id="push-all" checked class="w-4 h-4 accent-blue-500 cursor-pointer">
-                        <span class="text-xs font-bold text-white uppercase">Broadcast to Everyone</span>
-                    </label>
-                </div>
-                
-                <div class="text-[10px] text-gray-500 font-bold uppercase mb-2">Individual Players</div>
-                <div id="recipient-list" class="space-y-1 max-h-48 overflow-y-auto mb-4 custom-scrollbar border border-[#333] bg-[#050505] p-2 rounded">
-                    <!-- Players injected here -->
-                </div>
-                
-                <div class="flex justify-between gap-2 border-t border-[#333] pt-4">
-                    <button onclick="document.getElementById('recipient-modal').classList.add('hidden')" class="text-gray-500 hover:text-white text-xs uppercase font-bold px-4 py-2 border border-transparent hover:border-[#444]">Cancel</button>
-                    <button id="confirm-push-btn" class="bg-blue-900 text-white px-6 py-2 text-xs uppercase font-bold hover:bg-blue-700 shadow-lg border border-blue-700">Push Handout</button>
-                </div>
-            </div>
-        </div>
-    `;
-
-    if (showTabs) {
-        document.getElementById('tab-sessions').onclick = () => {
-            window.state.journalTab = 'sessions';
-            renderJournalInterface(container, 'sessions');
-        };
-        document.getElementById('tab-codex').onclick = () => {
-            window.state.journalTab = 'codex';
-            renderJournalInterface(container, 'codex');
-        };
-    }
-
-    const mainView = document.getElementById('journal-main-view');
-    if (activeContext.mode === 'storyteller') {
-        renderCodexView(mainView);
+    if (char.type === 'group') {
+        window.cmapToggleGroup(id);
     } else {
-        if (activeTab === 'sessions') renderSessionView(mainView);
-        else renderCodexView(mainView);
+        // Open Edit Modal for standard nodes
+        mapState.editingNodeId = id;
+        const nameInput = document.getElementById('cmap-edit-name');
+        const clanInput = document.getElementById('cmap-edit-clan');
+        const typeInput = document.getElementById('cmap-edit-type');
+        const modal = document.getElementById('cmap-edit-modal');
+        
+        if(nameInput) nameInput.value = char.name;
+        if(clanInput) clanInput.value = char.clan || "";
+        if(typeInput) typeInput.value = char.type;
+        if(modal) modal.classList.remove('hidden');
     }
+};
 
-    bindPopupListeners();
-}
+// --- MAIN RENDERER ---
+export async function renderCoterieMap(container) {
+    await initMermaid();
 
-function renderPopupModal() {
-    return `
-        <div id="codex-popup" class="fixed inset-0 bg-black/90 z-[10000] hidden flex items-center justify-center p-4 backdrop-blur-sm">
-            <div class="bg-[#1a1a1a] border border-[#d4af37] p-6 max-w-lg w-full shadow-[0_0_30px_rgba(0,0,0,0.8)] relative flex flex-col gap-4 max-h-[90vh] overflow-y-auto no-scrollbar">
-                <button onclick="document.getElementById('codex-popup').classList.add('hidden')" class="absolute top-2 right-3 text-gray-500 hover:text-white text-xl">&times;</button>
-                
-                <!-- VIEW MODE -->
-                <div id="codex-popup-view" class="hidden">
-                    <h3 id="codex-popup-title" class="text-xl text-[#d4af37] font-cinzel font-bold mb-2 border-b border-[#333] pb-2"></h3>
-                    <div id="codex-popup-img-container" class="hidden mb-4 rounded border border-[#333] overflow-hidden bg-black flex justify-center">
-                        <img id="codex-popup-img" src="" class="max-h-64 object-contain w-full">
-                    </div>
-                    <div class="flex gap-2 mb-3 flex-wrap" id="codex-popup-tags"></div>
-                    <div id="codex-popup-desc" class="text-sm text-gray-300 leading-relaxed font-serif whitespace-pre-wrap"></div>
-                    <div class="mt-4 pt-4 border-t border-[#333] text-right flex justify-between items-center">
-                        <div id="st-push-container"></div>
-                        <button id="codex-popup-edit-btn" class="text-xs text-gray-500 hover:text-white underline">Edit Entry</button>
-                    </div>
-                </div>
-
-                <!-- EDIT MODE (Quick Edit) -->
-                <div id="codex-popup-edit" class="hidden flex flex-col gap-3">
-                    <h3 class="text-lg text-[#d4af37] font-bold border-b border-[#333] pb-2">Define / Edit Entry</h3>
-                    <input type="hidden" id="quick-cx-id">
-                    <div>
-                        <label class="block text-[10px] uppercase text-gray-500 font-bold mb-1">Name</label>
-                        <input type="text" id="quick-cx-name" class="w-full bg-[#111] border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] outline-none">
-                    </div>
-                    <div>
-                        <label class="block text-[10px] uppercase text-gray-500 font-bold mb-1">Image</label>
-                        <div class="flex flex-col gap-2">
-                            <div id="quick-cx-img-preview" class="w-full h-48 bg-black border border-[#444] flex items-center justify-center overflow-hidden rounded">
-                                <i class="fas fa-image text-gray-700 text-3xl"></i>
-                            </div>
-                            <div class="flex gap-2">
-                                <input type="file" id="quick-cx-file" accept="image/*" class="hidden">
-                                <button onclick="document.getElementById('quick-cx-file').click()" class="bg-[#222] border border-[#444] text-gray-300 px-3 py-1 text-[10px] hover:text-white uppercase font-bold flex-1">Upload</button>
-                                <button id="quick-cx-btn-url" class="bg-[#222] border border-[#444] text-gray-300 px-3 py-1 text-[10px] hover:text-white uppercase font-bold flex-1">Link URL</button>
-                                <button id="quick-cx-remove-img" class="text-red-500 hover:text-red-300 text-[10px] border border-red-900/30 px-3 py-1 uppercase font-bold hidden">Remove</button>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-[10px] uppercase text-gray-500 font-bold mb-1">Type</label>
-                            <select id="quick-cx-type" class="w-full bg-[#111] border-b border-[#444] text-white p-1 text-xs outline-none">
-                                <option value="NPC">NPC</option>
-                                <option value="Location">Location</option>
-                                <option value="Faction">Faction</option>
-                                <option value="Item">Item</option>
-                                <option value="Handout">Handout</option>
-                                <option value="Lore">Lore / Rule</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-[10px] uppercase text-gray-500 font-bold mb-1">Tags</label>
-                            <input type="text" id="quick-cx-tags" class="w-full bg-[#111] border-b border-[#444] text-gray-300 p-1 text-xs outline-none" placeholder="e.g. Brujah, Ally">
-                        </div>
-                    </div>
-                    <div>
-                        <label class="block text-[10px] uppercase text-gray-500 font-bold mb-1">Description</label>
-                        <textarea id="quick-cx-desc" class="w-full h-32 bg-[#111] border border-[#444] text-gray-300 p-2 text-sm focus:border-[#d4af37] outline-none resize-none"></textarea>
-                    </div>
-                    <div class="flex justify-end gap-2 mt-2">
-                        <button onclick="document.getElementById('codex-popup').classList.add('hidden')" class="border border-[#444] text-gray-400 px-3 py-1 text-xs uppercase font-bold hover:bg-[#222]">Cancel</button>
-                        <button onclick="window.saveQuickCodex()" class="bg-[#d4af37] text-black px-4 py-1 text-xs uppercase font-bold hover:bg-[#fcd34d]">Save</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-}
-
-// ==========================================================================
-// VIEW 1: SESSION LOGS
-// ==========================================================================
-
-function renderSessionView(container) {
     container.innerHTML = `
-        <div class="flex h-full gap-4">
-            <div class="w-1/4 flex flex-col border-r border-[#333] pr-2">
-                <button onclick="window.initNewSessionLog()" class="bg-[#8b0000] hover:bg-red-700 text-white font-bold py-2 px-2 text-[10px] uppercase mb-3 flex items-center justify-center gap-1 shadow-md transition-colors">
-                    <i class="fas fa-plus"></i> New Session Log
-                </button>
-                <div id="journal-history-list" class="flex-1 overflow-y-auto space-y-1 pr-1 custom-scrollbar"></div>
-            </div>
-            <div class="w-3/4 h-full overflow-y-auto pr-2 bg-[#050505] p-2 custom-scrollbar" id="journal-content-area">
-                <div class="flex flex-col items-center justify-center h-full text-gray-500 italic text-xs">
-                    <i class="fas fa-book-open text-4xl mb-4 opacity-30"></i>
-                    Select a session from the list or create a new one.
-                </div>
-            </div>
-        </div>
-    `;
-    renderJournalHistoryList();
-}
-
-function renderJournalHistoryList() {
-    const list = document.getElementById('journal-history-list');
-    if (!list) return;
-    list.innerHTML = '';
-    
-    // Safely sort to prevent NaN issues
-    const sorted = [...(window.state.sessionLogs || [])].sort((a,b) => (parseInt(b.sessionNum) || 0) - (parseInt(a.sessionNum) || 0));
-    
-    if (sorted.length === 0) {
-        list.innerHTML = `<div class="text-gray-600 text-[10px] italic text-center mt-4">No logs recorded.</div>`;
-        return;
-    }
-
-    sorted.forEach(log => {
-        const item = document.createElement('div');
-        item.className = "bg-[#111] hover:bg-[#222] p-2 cursor-pointer border-l-2 border-transparent hover:border-gold transition-colors group relative mb-1";
-        
-        item.innerHTML = `
-            <div class="text-[10px] text-white font-bold truncate pr-4">${log.title || 'Untitled Session'}</div>
-            <div class="flex justify-between text-[8px] text-gray-500 mt-1 uppercase font-bold">
-                <span>Session #${log.sessionNum || '?'}</span>
-                <span>${log.datePlayed || '-'}</span>
-            </div>
-            <button class="absolute top-1 right-1 text-gray-600 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity px-1" onclick="event.stopPropagation(); window.deleteSessionLog(${log.id})">
-                &times;
-            </button>
-        `;
-        item.onclick = () => renderSessionLogForm(log);
-        list.appendChild(item);
-    });
-}
-
-window.initNewSessionLog = function() {
-    if (!window.state.sessionLogs) window.state.sessionLogs = [];
-    
-    const lastSession = window.state.sessionLogs.length > 0 
-        ? window.state.sessionLogs[window.state.sessionLogs.length - 1] 
-        : null;
-        
-    const nextNum = lastSession ? (parseInt(lastSession.sessionNum) || 0) + 1 : 1;
-
-    // Detect health
-    const healthLevels = ['Bruised', 'Hurt', 'Injured', 'Wounded', 'Mauled', 'Crippled', 'Incapacitated'];
-    let currentHealth = "Healthy";
-    if (window.state.status && window.state.status.health_states) {
-        window.state.status.health_states.forEach((v, i) => { if(v===1) currentHealth = healthLevels[i]; });
-    }
-
-    const newLog = {
-        id: Date.now(), 
-        isNew: true,
-        charName: window.state.textFields?.['c-name'] || '',
-        chronicle: window.state.textFields?.['c-chronicle'] || '',
-        sessionNum: nextNum.toString(),
-        datePlayed: new Date().toISOString().split('T')[0],
-        gameDate: '', 
-        title: '',
-        status: { 
-            blood: window.state.status?.blood||0, 
-            willpower: window.state.status?.willpower||0, 
-            health: currentHealth, 
-            effects: '' 
-        },
-        boonsOwed: [], 
-        boonsIOwe: [], 
-        npcs: [], 
-        scenes: [{id: 1, text: ''}], 
-        investigation: [{id: 1, text: ''}], 
-        downtime: '',
-        xp: 0
-    };
-    renderSessionLogForm(newLog);
-};
-
-window.deleteSessionLog = function(id) {
-    if(!confirm("Permanently delete this session log?")) return;
-    window.state.sessionLogs = window.state.sessionLogs.filter(l => l.id !== id);
-    renderJournalHistoryList();
-    document.getElementById('journal-content-area').innerHTML = `<div class="flex items-center justify-center h-full text-gray-500 italic text-xs">Log Deleted.</div>`;
-    if(window.performSave) window.performSave(true);
-};
-
-// --- DYNAMIC LOG BUILDER FUNCTIONS (GLOBAL) ---
-
-window.addLogScene = function() {
-    const container = document.getElementById('container-scenes');
-    if(!container) return;
-    const idx = container.children.length;
-    
-    // New scenes start in EDIT MODE by default
-    const html = `
-        <div class="mb-4 scene-row bg-[#0a0a0a] border border-[#333] p-1">
-            <div class="flex justify-between items-center bg-[#111] px-2 py-1 mb-1 border-b border-[#222]">
-                <span class="text-[9px] text-gray-500 font-bold uppercase">Scene ${idx + 1}</span>
-                <div class="flex gap-2">
-                    <button class="text-[9px] text-gray-400 hover:text-gold uppercase font-bold toggle-btn text-gold" onclick="window.toggleSceneView(this)">Edit Mode</button>
-                    <button class="text-[9px] text-gray-400 hover:text-blue-400 uppercase font-bold" onclick="window.defineSelection(this)">Define Selection</button>
-                    <button class="text-[9px] text-red-900 hover:text-red-500" onclick="this.closest('.scene-row').remove()">Remove</button>
-                </div>
-            </div>
-            <textarea class="scene-editor w-full bg-transparent text-white text-[11px] p-2 h-24 resize-y border-none focus:ring-0 leading-relaxed" 
-                placeholder="Describe the scene..." 
-                data-group="scenes"
-                oninput="window.handleSmartInput(this)"
-                spellcheck="false"></textarea>
-            <div class="scene-viewer hidden w-full text-gray-300 text-[11px] p-2 h-auto min-h-[6rem] leading-relaxed whitespace-pre-wrap font-serif"></div>
-        </div>`;
-    
-    container.insertAdjacentHTML('beforeend', html);
-};
-
-window.addLogClue = function() {
-    const container = document.getElementById('container-investigation');
-    if(!container) return;
-    const idx = container.children.length;
-    const html = `<div class="mb-1 flex gap-1 items-center clue-row"><span class="text-[9px] text-gray-500 w-4">${idx + 1}.</span><input type="text" class="flex-1 bg-[#111] border border-[#333] text-white px-1 text-[10px]" placeholder="Clue / Objective / Secret..." value="" data-group="investigation"><button class="text-gray-600 hover:text-red-500 font-bold px-1" onclick="this.closest('.clue-row').remove()">×</button></div>`;
-    container.insertAdjacentHTML('beforeend', html);
-};
-
-window.addLogBoon = function(type) { // type = 'boonsOwed' or 'boonsIOwe'
-    const container = document.getElementById('container-' + type);
-    if(!container) return;
-    const html = `<div class="flex gap-1 mb-1 text-[9px] items-center group boon-row"><input type="text" class="flex-1 bg-black/50 border border-[#333] text-white px-1" placeholder="Name" value="" data-group="${type}" data-field="name"><select class="w-20 bg-black/50 border border-[#333] text-white px-1" data-group="${type}" data-field="type"><option value="Trivial">Trivial</option><option value="Minor">Minor</option><option value="Major">Major</option><option value="Life">Life</option></select><input type="text" class="flex-1 bg-black/50 border border-[#333] text-white px-1" placeholder="Reason" value="" data-group="${type}" data-field="reason"><button class="text-gray-600 hover:text-red-500 font-bold px-1" onclick="this.closest('.boon-row').remove()">×</button></div>`;
-    container.insertAdjacentHTML('beforeend', html);
-};
-
-window.addLogNPC = function() {
-    const container = document.getElementById('container-npcs');
-    if(!container) return;
-    const id = Math.random().toString(36).substr(2, 5);
-    const html = `<div class="bg-[#111] p-2 mb-2 border border-[#333] relative group npc-row"><button class="absolute top-1 right-1 text-gray-600 hover:text-red-500 font-bold text-[10px]" onclick="this.closest('.npc-row').remove()">×</button><div class="grid grid-cols-2 gap-2 mb-1"><input type="text" list="npc-list" class="bg-black/50 border border-[#333] text-white px-1 text-[10px]" placeholder="Name" value="" data-group="npcs" data-field="name"><input type="text" class="bg-black/50 border border-[#333] text-white px-1 text-[10px]" placeholder="Clan/Role" value="" data-group="npcs" data-field="clan"></div><div class="flex gap-2 mb-1 text-[9px] text-gray-400"><label><input type="radio" name="att-${id}" value="Hostile" data-group="npcs" data-field="attitude"> Hostile</label><label><input type="radio" name="att-${id}" value="Neutral" checked data-group="npcs" data-field="attitude"> Neutral</label><label><input type="radio" name="att-${id}" value="Friendly" data-group="npcs" data-field="attitude"> Friendly</label><label><input type="radio" name="att-${id}" value="Dominated" data-group="npcs" data-field="attitude"> Dominated</label></div><input type="text" class="w-full bg-black/50 border border-[#333] text-white px-1 text-[10px]" placeholder="Key Notes" value="" data-group="npcs" data-field="notes"></div>`;
-    container.insertAdjacentHTML('beforeend', html);
-};
-
-function renderSessionLogForm(data) {
-    const area = document.getElementById('journal-content-area');
-    if(!area) return;
-
-    // Generators
-    const boonRow = (b, type) => `<div class="flex gap-1 mb-1 text-[9px] items-center group boon-row"><input type="text" class="flex-1 bg-black/50 border border-[#333] text-white px-1" placeholder="Name" value="${b.name}" data-group="${type}" data-field="name"><select class="w-20 bg-black/50 border border-[#333] text-white px-1" data-group="${type}" data-field="type"><option value="Trivial" ${b.type==='Trivial'?'selected':''}>Trivial</option><option value="Minor" ${b.type==='Minor'?'selected':''}>Minor</option><option value="Major" ${b.type==='Major'?'selected':''}>Major</option><option value="Life" ${b.type==='Life'?'selected':''}>Life</option></select><input type="text" class="flex-1 bg-black/50 border border-[#333] text-white px-1" placeholder="Reason" value="${b.reason}" data-group="${type}" data-field="reason"><button class="text-gray-600 hover:text-red-500 font-bold px-1" onclick="this.closest('.boon-row').remove()">×</button></div>`;
-    const npcRow = (n) => `<div class="bg-[#111] p-2 mb-2 border border-[#333] relative group npc-row"><button class="absolute top-1 right-1 text-gray-600 hover:text-red-500 font-bold text-[10px]" onclick="this.closest('.npc-row').remove()">×</button><div class="grid grid-cols-2 gap-2 mb-1"><input type="text" list="npc-list" class="bg-black/50 border border-[#333] text-white px-1 text-[10px]" placeholder="Name" value="${n.name}" data-group="npcs" data-field="name"><input type="text" class="bg-black/50 border border-[#333] text-white px-1 text-[10px]" placeholder="Clan/Role" value="${n.clan}" data-group="npcs" data-field="clan"></div><div class="flex gap-2 mb-1 text-[9px] text-gray-400"><label><input type="radio" name="att-${n.id}" value="Hostile" ${n.attitude==='Hostile'?'checked':''} data-group="npcs" data-field="attitude"> Hostile</label><label><input type="radio" name="att-${n.id}" value="Neutral" ${n.attitude==='Neutral'?'checked':''} data-group="npcs" data-field="attitude"> Neutral</label><label><input type="radio" name="att-${n.id}" value="Friendly" ${n.attitude==='Friendly'?'checked':''} data-group="npcs" data-field="attitude"> Friendly</label><label><input type="radio" name="att-${n.id}" value="Dominated" ${n.attitude==='Dominated'?'checked':''} data-group="npcs" data-field="attitude"> Dominated</label></div><input type="text" class="w-full bg-black/50 border border-[#333] text-white px-1 text-[10px]" placeholder="Key Notes" value="${n.notes}" data-group="npcs" data-field="notes"></div>`;
-    const clueRow = (c, idx) => `<div class="mb-1 flex gap-1 items-center clue-row"><span class="text-[9px] text-gray-500 w-4">${idx + 1}.</span><input type="text" class="flex-1 bg-[#111] border border-[#333] text-white px-1 text-[10px]" placeholder="Clue / Objective / Secret..." value="${c.text}" data-group="investigation"><button class="text-gray-600 hover:text-red-500 font-bold px-1" onclick="this.closest('.clue-row').remove()">×</button></div>`;
-
-    const sceneRow = (s, idx) => {
-        const hasText = s.text && s.text.trim().length > 0;
-        const viewModeClass = hasText ? '' : 'hidden';
-        const editModeClass = hasText ? 'hidden' : '';
-        const btnText = hasText ? 'Edit Mode' : 'Read Mode';
-        const btnClass = hasText ? 'text-gold' : '';
-        const viewContent = hasText ? parseSmartText(s.text) : '';
-
-        return `
-        <div class="mb-4 scene-row bg-[#0a0a0a] border border-[#333] p-1">
-            <div class="flex justify-between items-center bg-[#111] px-2 py-1 mb-1 border-b border-[#222]">
-                <span class="text-[9px] text-gray-500 font-bold uppercase">Scene ${idx + 1}</span>
-                <div class="flex gap-2">
-                    <button class="text-[9px] text-gray-400 hover:text-gold uppercase font-bold toggle-btn ${btnClass}" onclick="window.toggleSceneView(this)">${btnText}</button>
-                    <button class="text-[9px] text-gray-400 hover:text-blue-400 uppercase font-bold" onclick="window.defineSelection(this)">Define Selection</button>
-                    ${idx > 0 ? `<button class="text-[9px] text-red-900 hover:text-red-500" onclick="this.closest('.scene-row').remove()">Remove</button>` : ''}
-                </div>
-            </div>
-            <textarea class="scene-editor w-full bg-transparent text-white text-[11px] p-2 h-24 resize-y border-none focus:ring-0 leading-relaxed ${editModeClass}" 
-                placeholder="Describe the scene..." data-group="scenes" oninput="window.handleSmartInput(this)" spellcheck="false">${s.text}</textarea>
-            <div class="scene-viewer w-full text-gray-300 text-[11px] p-2 h-auto min-h-[6rem] leading-relaxed whitespace-pre-wrap font-serif ${viewModeClass}">${viewContent}</div>
-        </div>`;
-    };
-
-    area.innerHTML = `
-        <div class="bg-black border border-[#444] p-4 text-xs font-serif min-h-full relative" id="active-log-form">
-            <div class="flex justify-between items-start border-b-2 border-double border-gold pb-2 mb-4">
-                <div><h2 class="text-lg text-white font-bold uppercase tracking-wider">Session Journal</h2><div class="text-gold text-[10px]">${data.charName}</div></div>
-                <div class="flex gap-2"><button id="btn-save-log" class="bg-green-700 hover:bg-green-600 text-white px-3 py-1 text-[10px] font-bold uppercase rounded">Save</button>${!data.isNew ? `<button id="btn-delete-log" class="bg-red-900 hover:bg-red-700 text-white px-3 py-1 text-[10px] font-bold uppercase rounded">Delete</button>` : ''}</div>
-            </div>
-
-            <!-- Details & Status -->
-            <div class="grid grid-cols-2 gap-4 mb-4">
-                <div>
-                    <div class="text-[10px] font-bold text-gray-500 uppercase mb-1">Session Details</div>
-                    <div class="grid grid-cols-3 gap-2 mb-2"><input type="text" id="log-sess-num" class="bg-transparent border-b border-[#333] text-white" placeholder="#" value="${data.sessionNum}"><input type="date" id="log-date" class="bg-transparent border-b border-[#333] text-gray-300" value="${data.datePlayed}"><input type="text" id="log-game-date" class="bg-transparent border-b border-[#333] text-white" placeholder="Game Date" value="${data.gameDate}"></div>
-                    <input type="text" id="log-title" class="w-full bg-transparent border-b border-[#333] text-white font-bold text-sm" placeholder="Title" value="${data.title}">
-                </div>
-                <div class="bg-[#111] p-2 border border-[#333]">
-                    <div class="text-[10px] font-bold text-gray-500 uppercase mb-1">Status (Start)</div>
-                    <div class="grid grid-cols-3 gap-2 text-[10px] text-gray-300"><div>Blood: <span class="text-red-500 font-bold">${data.status?.blood||0}</span></div><div>WP: <span class="text-blue-400 font-bold">${data.status?.willpower||0}</span></div><div>HP: <span class="text-white font-bold">${data.status?.health||'Healthy'}</span></div></div>
-                    <input type="text" id="log-effects" class="w-full bg-transparent border-b border-[#333] text-white text-[10px] mt-1" value="${data.status?.effects||''}" placeholder="Effects...">
-                </div>
-            </div>
-
-            <!-- Scenes (Smart Text Enabled) -->
-            <div class="mb-4">
-                <div class="text-[10px] font-bold text-gray-500 uppercase mb-1 border-b border-gray-700/30">Scenes <button class="ml-2 text-gray-500 hover:text-white" onclick="window.addLogScene()">+</button></div>
-                <div id="container-scenes" class="space-y-2">${(data.scenes || [{id:1, text:''}]).map((s, i) => sceneRow(s, i)).join('')}</div>
-            </div>
-
-            <!-- Downtime -->
-            <div class="mb-4">
-                <div class="text-[10px] font-bold text-blue-400 uppercase mb-1 border-b border-blue-500/30">Downtime</div>
-                <textarea id="log-downtime" class="w-full h-24 bg-[#111] border border-[#333] text-gray-300 p-2 text-xs focus:border-gold outline-none resize-none smart-text-area" placeholder="Feeding, Training, Influence actions..." oninput="window.handleSmartInput(this)">${data.downtime}</textarea>
-            </div>
-
-            <!-- NPCs / Boons / Clues Toggles -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                    <div class="text-[10px] font-bold text-gold uppercase mb-1">Boons & NPCs</div>
-                    <button class="text-[9px] text-gray-400 border border-[#333] px-2 mb-1" onclick="document.getElementById('extra-ledger').classList.toggle('hidden')">Show Ledger</button>
-                    <div id="extra-ledger" class="hidden space-y-4 border-l border-[#333] pl-2 mt-2">
-                        <div><span class="text-green-400 text-[9px] font-bold">Owed Me</span> <button class="text-[9px] text-gray-500" onclick="window.addLogBoon('boonsOwed')">+</button><div id="container-boonsOwed">${(data.boonsOwed||[]).map(b => boonRow(b, 'boonsOwed')).join('')}</div></div>
-                        <div><span class="text-red-400 text-[9px] font-bold">I Owe</span> <button class="text-[9px] text-gray-500" onclick="window.addLogBoon('boonsIOwe')">+</button><div id="container-boonsIOwe">${(data.boonsIOwe||[]).map(b => boonRow(b, 'boonsIOwe')).join('')}</div></div>
-                        <div><span class="text-gold text-[9px] font-bold">NPCs</span> <button class="text-[9px] text-gray-500" onclick="window.addLogNPC()">+</button><div id="container-npcs">${(data.npcs||[]).map(n => { n.id = n.id || Math.random().toString(36).substr(2, 5); return npcRow(n); }).join('')}</div></div>
-                    </div>
-                </div>
-                <div>
-                    <div class="text-[10px] font-bold text-purple-400 uppercase mb-1">Investigation</div>
-                    <div id="container-investigation" class="space-y-1">${(data.investigation || [{id:1, text:''}]).map((c, i) => clueRow(c, i)).join('')}</div>
-                    <button class="text-[9px] text-gray-500 mt-1" onclick="window.addLogClue()">+ Clue</button>
-                </div>
-            </div>
-        </div>
-    `;
-
-    setupSmartTextAreas(area);
-
-    // Save Handling
-    const getVal = (id) => document.getElementById(id)?.value || '';
-    const readDyn = (id, mapper) => { const c = document.getElementById(id); return c ? Array.from(c.children).map(mapper).filter(x => x) : []; };
-
-    document.getElementById('btn-save-log').onclick = () => {
-        const updated = {
-            id: data.id,
-            sessionNum: getVal('log-sess-num'),
-            datePlayed: getVal('log-date'),
-            gameDate: getVal('log-game-date'),
-            title: getVal('log-title'),
-            status: { ...(data.status || {}), effects: getVal('log-effects') },
-            downtime: getVal('log-downtime'),
-            boonsOwed: readDyn('container-boonsOwed', r => ({ name: r.querySelector('[data-field="name"]').value, type: r.querySelector('[data-field="type"]').value, reason: r.querySelector('[data-field="reason"]').value })),
-            boonsIOwe: readDyn('container-boonsIOwe', r => ({ name: r.querySelector('[data-field="name"]').value, type: r.querySelector('[data-field="type"]').value, reason: r.querySelector('[data-field="reason"]').value })),
-            npcs: readDyn('container-npcs', r => ({ name: r.querySelector('[data-field="name"]').value, clan: r.querySelector('[data-field="clan"]').value, notes: r.querySelector('[data-field="notes"]').value, attitude: r.querySelector('input:checked')?.value, id: Math.random().toString(36).substr(2,5) })),
-            scenes: readDyn('container-scenes', (r, i) => ({ id: i+1, text: r.querySelector('textarea').value })),
-            investigation: readDyn('container-investigation', (r, i) => ({ id: i+1, text: r.querySelector('input').value })),
-            xp: 0 // Keep for legacy
-        };
-
-        if (data.isNew) { 
-            delete updated.isNew; 
-            if(!window.state.sessionLogs) window.state.sessionLogs = [];
-            window.state.sessionLogs.push(updated); 
-        } else { 
-            const idx = window.state.sessionLogs.findIndex(l => l.id === data.id); 
-            if(idx !== -1) window.state.sessionLogs[idx] = updated; 
-        }
-        
-        renderJournalHistoryList();
-        renderSessionLogForm(updated);
-        
-        if (window.performSave) { window.performSave(true); showNotification("Session Saved & Synced"); } 
-        else showNotification("Session Saved Locally");
-    };
-
-    if(document.getElementById('btn-delete-log')) {
-        document.getElementById('btn-delete-log').onclick = () => {
-            if(confirm("Delete log?")) {
-                window.state.sessionLogs = window.state.sessionLogs.filter(l => l.id !== data.id);
-                renderJournalTab();
-                if (window.performSave) window.performSave(true);
-            }
-        };
-    }
-}
-
-// ==========================================================================
-// VIEW 2: CODEX (DATABASE)
-// ==========================================================================
-
-function renderCodexView(container) {
-    const isST = activeContext.mode === 'storyteller';
-    const bgClass = "bg-[#080808]";
-    
-    container.innerHTML = `
-        <div class="flex h-full gap-4">
-            <!-- Sidebar -->
-            <div class="w-1/4 flex flex-col border-r border-[#333] pr-2">
-                <input type="text" id="codex-search" class="bg-[#111] border border-[#333] text-xs p-1 mb-2 text-white placeholder-gray-600" placeholder="Search...">
-                <button onclick="window.editCodexEntry()" class="bg-[#d4af37] hover:bg-[#fcd34d] text-black font-bold py-1 px-2 text-[10px] uppercase mb-3 text-center transition-colors">
-                    <i class="fas fa-plus mr-1"></i> Add Entry
-                </button>
-                <div id="codex-list" class="flex-1 overflow-y-auto space-y-1 pr-1 custom-scrollbar"></div>
-            </div>
-
-            <!-- Editor / Viewer -->
-            <div class="w-3/4 h-full ${bgClass} border border-[#333] p-6 relative hidden overflow-y-auto no-scrollbar custom-scrollbar" id="codex-editor">
-                <h3 class="text-xl font-cinzel text-[#d4af37] mb-6 border-b border-[#333] pb-2 uppercase tracking-widest">Entry Details</h3>
-                <input type="hidden" id="cx-id">
+        <div class="flex h-full bg-[#0a0a0a] text-[#e5e5e5] font-sans overflow-hidden relative">
+            <!-- LEFT COLUMN: Editor -->
+            <aside class="w-1/3 min-w-[300px] max-w-[400px] flex flex-col gap-4 h-full border-r border-[#333] bg-[#111] p-4 overflow-y-auto custom-scrollbar">
                 
-                <div class="grid grid-cols-2 gap-4 mb-4">
-                    <div>
-                        <label class="block text-[10px] uppercase text-gray-500 font-bold mb-1">Name (Trigger)</label>
-                        <input type="text" id="cx-name" class="w-full bg-[#111] border-b border-[#444] text-white p-2 font-bold focus:border-[#d4af37] outline-none transition-colors">
-                    </div>
-                    <div>
-                        <label class="block text-[10px] uppercase text-gray-500 font-bold mb-1">Image / Map</label>
-                        <div class="flex flex-col gap-2">
-                            <div id="cx-img-preview" class="w-full h-48 bg-black border border-[#444] flex items-center justify-center overflow-hidden rounded relative group">
-                                <i class="fas fa-image text-gray-700 text-4xl group-hover:text-gray-500 transition-colors"></i>
-                            </div>
-                            <div class="flex gap-2">
-                                <input type="file" id="cx-file" accept="image/*" class="hidden">
-                                <button onclick="document.getElementById('cx-file').click()" class="bg-[#222] border border-[#444] text-gray-300 px-3 py-1 text-[10px] hover:text-white uppercase font-bold flex-1 transition-colors">Upload</button>
-                                <button id="cx-btn-url" class="bg-[#222] border border-[#444] text-gray-300 px-3 py-1 text-[10px] hover:text-white uppercase font-bold flex-1 transition-colors">Link URL</button>
-                                <button id="cx-remove-img" class="text-red-500 hover:text-red-300 text-[10px] border border-red-900/30 px-3 py-1 uppercase font-bold hidden transition-colors">Remove</button>
-                            </div>
+                <!-- MAP CONTROLS -->
+                <div class="bg-[#1a1a1a] border border-[#333] rounded p-4 shadow-lg shrink-0">
+                    <h3 class="text-md font-cinzel font-bold text-gold border-b border-[#333] pb-2 mb-3 uppercase flex justify-between items-center">
+                        <span>Active Map</span>
+                        <div class="flex gap-2">
+                             <button id="cmap-sync-roster" class="text-xs text-blue-500 hover:text-white" title="Sync Roster to Map"><i class="fas fa-users-viewfinder"></i></button>
+                             <button id="cmap-cleanup-map" class="text-xs text-gray-500 hover:text-white" title="Fix Orphans / Cleanup"><i class="fas fa-broom"></i></button>
+                             <button id="cmap-delete-map" class="text-xs text-red-500 hover:text-white" title="Delete current map"><i class="fas fa-trash"></i></button>
                         </div>
+                    </h3>
+                    
+                    <div class="flex gap-2 mb-3">
+                        <select id="cmap-select-map" class="bg-[#262626] border border-[#404040] text-white p-2 rounded text-xs w-full outline-none focus:border-gold"></select>
+                        <button id="cmap-new-map-btn" class="bg-[#333] hover:bg-[#444] border border-[#444] text-white px-3 rounded text-xs"><i class="fas fa-plus"></i></button>
                     </div>
-                </div>
 
-                <div class="grid grid-cols-2 gap-4 mb-4">
-                    <div>
-                        <label class="block text-[10px] uppercase text-gray-500 font-bold mb-1">Type</label>
-                        <select id="cx-type" class="w-full bg-[#111] border-b border-[#444] text-white p-2 outline-none focus:border-[#d4af37] transition-colors">
-                            <option value="NPC">NPC</option>
-                            <option value="Location">Location</option>
-                            <option value="Faction">Faction</option>
-                            <option value="Item">Item</option>
-                            <option value="Handout">Handout</option>
-                            <option value="Lore">Lore / Rule</option>
+                    <!-- FILTER DROPDOWN -->
+                    <div class="mb-3">
+                        <label class="text-[10px] text-gray-500 uppercase font-bold block mb-1">Filter View (POV)</label>
+                        <select id="cmap-filter-char" class="bg-[#262626] border border-[#404040] text-white p-2 rounded text-xs w-full outline-none focus:border-blue-500">
+                            <option value="">-- Show All --</option>
                         </select>
                     </div>
-                    <div>
-                        <label class="block text-[10px] uppercase text-gray-500 font-bold mb-1">Tags</label>
-                        <input type="text" id="cx-tags" class="w-full bg-[#111] border-b border-[#444] text-gray-300 p-2 text-xs focus:border-[#d4af37] outline-none transition-colors" placeholder="e.g. Brujah, Ally, Safehouse">
+
+                    <div id="cmap-breadcrumbs" class="text-[10px] text-gray-400 font-mono mb-1 hidden">
+                        <button id="cmap-nav-up" class="text-blue-400 hover:text-white mr-2"><i class="fas fa-level-up-alt mr-1"></i> Back to Parent</button>
+                        <span id="cmap-current-label" class="text-gold font-bold"></span>
                     </div>
                 </div>
 
-                <div class="mb-6">
-                    <label class="block text-[10px] uppercase text-gray-500 font-bold mb-1">Description</label>
-                    <textarea id="cx-desc" class="w-full h-64 bg-[#111] border border-[#444] text-gray-300 p-2 text-sm focus:border-[#d4af37] outline-none resize-none leading-relaxed font-serif"></textarea>
+                <!-- 1. Add Character / Group -->
+                <div class="bg-[#1a1a1a] border border-[#333] rounded p-4 shadow-lg shrink-0">
+                    <h3 class="text-md font-cinzel font-bold text-gray-300 border-l-4 border-[#8a0303] pl-2 mb-3 uppercase">Add Node</h3>
+                    
+                    <div class="grid grid-cols-2 gap-2 mb-3">
+                        <input type="text" id="cmap-name" placeholder="Name" class="bg-[#262626] border border-[#404040] text-white p-2 rounded text-xs focus:border-[#8a0303] outline-none col-span-2">
+                        <input type="text" id="cmap-clan" placeholder="Clan / Type / Desc" class="bg-[#262626] border border-[#404040] text-white p-2 rounded text-xs focus:border-[#8a0303] outline-none">
+                        <select id="cmap-type" class="bg-[#262626] border border-[#404040] text-white p-2 rounded text-xs focus:border-[#8a0303] outline-none">
+                            <option value="pc">PC</option>
+                            <option value="npc">NPC</option>
+                            <option value="group">Group (Sub-Map)</option> 
+                        </select>
+                        <select id="cmap-parent-group" class="bg-[#262626] border border-[#404040] text-white p-2 rounded text-xs focus:border-[#8a0303] outline-none col-span-2 hidden">
+                            <option value="">-- No Parent Group --</option>
+                        </select>
+                    </div>
+                    <button id="cmap-add-char" class="w-full bg-[#8a0303] hover:bg-[#6d0202] text-white font-bold py-2 rounded text-xs uppercase tracking-wider transition-colors">
+                        <i class="fas fa-plus mr-2"></i>ADD (Hidden)
+                    </button>
+
+                    <ul id="cmap-char-list" class="mt-4 space-y-1 max-h-60 overflow-y-auto custom-scrollbar"></ul>
                 </div>
 
-                <div class="flex justify-between mt-auto pt-4 border-t border-[#333]">
-                    <div class="flex gap-2">
-                        <!-- PUSH BUTTON WITH NEW HANDLER -->
-                        ${isST ? `<button onclick="window.handleJournalPush()" class="bg-blue-900/40 border border-blue-500 text-blue-200 px-4 py-2 text-xs uppercase font-bold hover:text-white hover:bg-blue-800 transition-colors"><i class="fas fa-share-alt mr-1"></i> Push to Players</button>` : ''}
-                        <button onclick="window.deleteCodexEntry()" class="text-red-500 text-xs hover:text-red-300 uppercase font-bold transition-colors">Delete Entry</button>
+                <!-- 2. Add Relationship -->
+                <div class="bg-[#1a1a1a] border border-[#333] rounded p-4 shadow-lg shrink-0">
+                    <h3 class="text-md font-cinzel font-bold text-gray-300 border-l-4 border-[#8a0303] pl-2 mb-3 uppercase">Connect</h3>
+                    
+                    <div class="space-y-3 mb-4">
+                        <div class="flex gap-2 items-center">
+                            <select id="cmap-source" class="bg-[#262626] border border-[#404040] text-white p-2 rounded text-xs w-full outline-none"></select>
+                            <i class="fas fa-arrow-right text-gray-500 text-xs"></i>
+                            <select id="cmap-target" class="bg-[#262626] border border-[#404040] text-white p-2 rounded text-xs w-full outline-none"></select>
+                        </div>
+                        
+                        <select id="cmap-rel-type" class="bg-[#262626] border border-[#404040] text-white p-2 rounded text-xs w-full outline-none">
+                            <option value="social">Social (Solid)</option>
+                            <option value="boon">Boon/Debt (Dotted)</option>
+                            <option value="blood">Blood Bond (Thick)</option>
+                        </select>
+
+                        <input type="text" id="cmap-label" placeholder="Label (e.g. Sire of)" class="bg-[#262626] border border-[#404040] text-white p-2 rounded text-xs w-full outline-none">
                     </div>
-                    <div class="flex gap-2">
-                        <button onclick="document.getElementById('codex-editor').classList.add('hidden')" class="border border-[#444] text-gray-400 px-4 py-2 text-xs uppercase font-bold hover:bg-[#222] transition-colors">Close</button>
-                        <!-- SAVE BUTTON -->
-                        <button onclick="window.saveCodexEntry(false)" class="bg-[#d4af37] text-black px-6 py-2 text-xs uppercase font-bold hover:bg-[#fcd34d] shadow-lg transition-colors">Save</button>
+
+                    <button id="cmap-add-rel" class="w-full bg-[#334155] hover:bg-[#1e293b] text-white font-bold py-2 rounded text-xs uppercase tracking-wider transition-colors">
+                        <i class="fas fa-link mr-2"></i>Connect (Hidden)
+                    </button>
+
+                    <ul id="cmap-rel-list" class="mt-4 space-y-1 max-h-40 overflow-y-auto custom-scrollbar"></ul>
+                </div>
+            </aside>
+
+            <!-- RIGHT COLUMN: Visualization -->
+            <section class="flex-1 bg-[#050505] relative flex flex-col overflow-hidden">
+                
+                <!-- Toolbar -->
+                <div class="absolute top-4 right-4 z-10 flex gap-2 bg-black/50 p-1 rounded backdrop-blur border border-[#333]">
+                    <button id="cmap-zoom-out" class="w-8 h-8 flex items-center justify-center bg-[#222] hover:bg-[#333] text-white rounded font-bold transition-colors">-</button>
+                    <button id="cmap-reset-zoom" class="w-8 h-8 flex items-center justify-center bg-[#222] hover:bg-[#333] text-white rounded font-bold transition-colors"><i class="fas fa-compress"></i></button>
+                    <button id="cmap-zoom-in" class="w-8 h-8 flex items-center justify-center bg-[#222] hover:bg-[#333] text-white rounded font-bold transition-colors">+</button>
+                </div>
+
+                <!-- Canvas -->
+                <div class="flex-1 overflow-auto p-4 flex items-center justify-center bg-[radial-gradient(#333_1px,transparent_1px)] [background-size:20px_20px]">
+                    <div id="mermaid-wrapper" class="origin-center transition-transform duration-200">
+                        <div id="mermaid-container" class="mermaid"></div>
+                    </div>
+                </div>
+
+                <!-- Legend -->
+                <div class="bg-[#111] text-gray-400 text-[10px] p-2 text-center border-t border-[#333] uppercase font-bold tracking-wider">
+                    <span class="mr-4"><i class="fas fa-minus text-gray-500"></i> Social</span>
+                    <span class="mr-4"><i class="fas fa-ellipsis-h text-gray-500"></i> Boon</span>
+                    <span class="mr-4"><i class="fas fa-minus text-white font-black border-b-2 border-white"></i> Bond</span>
+                    <span class="mr-4 text-blue-400"><i class="fas fa-layer-group"></i> Group</span>
+                    <span class="text-gray-600"><i class="fas fa-eye-slash mr-1"></i> Hidden</span>
+                </div>
+            </section>
+
+            <!-- VISIBILITY MODAL -->
+            <div id="cmap-vis-modal" class="hidden absolute inset-0 bg-black/80 flex items-center justify-center z-50 backdrop-blur-sm">
+                <div class="bg-[#1a1a1a] border border-[#d4af37] p-4 w-64 shadow-2xl rounded">
+                    <h4 class="text-[#d4af37] font-cinzel font-bold text-sm mb-3 border-b border-[#333] pb-1 uppercase">Visibility Settings</h4>
+                    
+                    <div class="space-y-2 mb-4">
+                        <label class="flex items-center gap-2 cursor-pointer p-1 hover:bg-[#222] rounded">
+                            <input type="radio" name="cmap-vis-option" value="all" class="accent-[#d4af37]">
+                            <span class="text-xs text-white">Visible to Everyone</span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer p-1 hover:bg-[#222] rounded">
+                            <input type="radio" name="cmap-vis-option" value="st" class="accent-[#d4af37]">
+                            <span class="text-xs text-white">Hidden (ST Only)</span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer p-1 hover:bg-[#222] rounded">
+                            <input type="radio" name="cmap-vis-option" value="specific" class="accent-[#d4af37]">
+                            <span class="text-xs text-white">Specific Players</span>
+                        </label>
+                    </div>
+
+                    <div id="cmap-vis-players" class="hidden border border-[#333] bg-[#050505] p-2 max-h-32 overflow-y-auto custom-scrollbar mb-4 space-y-1">
+                        <!-- Player checkboxes injected here -->
+                    </div>
+
+                    <div class="flex justify-end gap-2">
+                        <button onclick="document.getElementById('cmap-vis-modal').classList.add('hidden')" class="px-3 py-1 text-[10px] uppercase font-bold text-gray-400 hover:text-white border border-[#444] rounded">Cancel</button>
+                        <button id="cmap-vis-save" class="px-3 py-1 text-[10px] uppercase font-bold bg-[#d4af37] text-black hover:bg-[#fcd34d] rounded">Save</button>
                     </div>
                 </div>
             </div>
-            
-            <div id="codex-empty-state" class="w-3/4 flex flex-col items-center justify-center text-gray-600 italic text-xs h-full">
-                <i class="fas fa-search text-4xl mb-4 opacity-30"></i>
-                <p>Select an entry to view details or create a new one.</p>
-                <p class="mt-2 text-[10px] text-gray-700">Entries will auto-link when typed in Journal Logs.</p>
+
+            <!-- MOVE MODAL -->
+            <div id="cmap-move-modal" class="hidden absolute inset-0 bg-black/80 flex items-center justify-center z-50 backdrop-blur-sm">
+                <div class="bg-[#1a1a1a] border border-blue-500 p-4 w-64 shadow-2xl rounded">
+                    <h4 class="text-blue-400 font-cinzel font-bold text-sm mb-3 border-b border-[#333] pb-1 uppercase">Move To Group</h4>
+                    <select id="cmap-move-select" class="w-full bg-[#111] border border-[#444] text-white p-2 rounded mb-4 text-xs outline-none focus:border-blue-500">
+                        <option value="">-- Root (No Group) --</option>
+                    </select>
+                    <div class="flex justify-end gap-2">
+                        <button onclick="document.getElementById('cmap-move-modal').classList.add('hidden')" class="px-3 py-1 text-[10px] uppercase font-bold text-gray-400 hover:text-white border border-[#444] rounded">Cancel</button>
+                        <button id="cmap-move-save" class="px-3 py-1 text-[10px] uppercase font-bold bg-blue-600 text-white hover:bg-blue-500 rounded">Move</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- EDIT NODE MODAL -->
+            <div id="cmap-edit-modal" class="hidden absolute inset-0 bg-black/80 flex items-center justify-center z-50 backdrop-blur-sm">
+                <div class="bg-[#1a1a1a] border border-[#8a0303] p-4 w-64 shadow-2xl rounded">
+                    <h4 class="text-[#8a0303] font-cinzel font-bold text-sm mb-3 border-b border-[#333] pb-1 uppercase">Edit Node</h4>
+                    <div class="space-y-3 mb-4">
+                        <input type="text" id="cmap-edit-name" class="w-full bg-[#111] border border-[#444] text-white p-2 rounded text-xs outline-none focus:border-[#8a0303]" placeholder="Name">
+                        <input type="text" id="cmap-edit-clan" class="w-full bg-[#111] border border-[#444] text-white p-2 rounded text-xs outline-none focus:border-[#8a0303]" placeholder="Clan / Type / Desc">
+                        <select id="cmap-edit-type" class="w-full bg-[#111] border border-[#444] text-white p-2 rounded text-xs outline-none focus:border-[#8a0303]">
+                            <option value="pc">PC</option>
+                            <option value="npc">NPC</option>
+                            <option value="group">Group</option>
+                        </select>
+                    </div>
+                    <div class="flex justify-end gap-2">
+                        <button onclick="document.getElementById('cmap-edit-modal').classList.add('hidden')" class="px-3 py-1 text-[10px] uppercase font-bold text-gray-400 hover:text-white border border-[#444] rounded">Cancel</button>
+                        <button id="cmap-edit-save" class="px-3 py-1 text-[10px] uppercase font-bold bg-[#8a0303] text-white hover:bg-[#6d0202] rounded">Save</button>
+                    </div>
+                </div>
             </div>
         </div>
     `;
+
+    // Initialize Listeners
+    setupMapListeners();
     
-    renderCodexList();
-    document.getElementById('codex-search').oninput = (e) => renderCodexList(e.target.value);
+    // Load Available Maps
+    await loadMapList();
     
-    bindImageHandlersInEditor();
+    // Start Data Sync (Default 'main')
+    startMapSync('main');
 }
 
-function renderCodexList(filter = "") {
-    const list = document.getElementById('codex-list');
-    if(!list) return;
-    list.innerHTML = "";
-    
-    const entries = activeContext.data || [];
-    
-    // SAFE SORT: Handle missing names gracefully
-    const sorted = [...entries].sort((a,b) => {
-        const nameA = a.name || "Unnamed Entry";
-        const nameB = b.name || "Unnamed Entry";
-        return nameA.localeCompare(nameB);
+// --- HELPER: Save Codex for Relationship (Hoisted) ---
+async function saveRelationshipCodex(entry) {
+    const stState = window.stState;
+    if (!stState || !stState.activeChronicleId) return;
+    try {
+        const safeId = 'journal_' + entry.id;
+        const docRef = doc(db, 'chronicles', stState.activeChronicleId, 'players', safeId);
+        await setDoc(docRef, { ...entry, metadataType: 'journal', original_id: entry.id, pushed: true });
+    } catch(e) { console.error("Auto-Codex Failed", e); }
+}
+
+function setupMapListeners() {
+    document.getElementById('cmap-add-char').onclick = addCharacter;
+    document.getElementById('cmap-add-rel').onclick = addRelationship;
+    document.getElementById('cmap-new-map-btn').onclick = createNewMap;
+    document.getElementById('cmap-delete-map').onclick = deleteCurrentMap;
+    document.getElementById('cmap-cleanup-map').onclick = cleanupOrphans; 
+    document.getElementById('cmap-sync-roster').onclick = window.cmapSyncRoster; 
+    document.getElementById('cmap-select-map').onchange = (e) => switchMap(e.target.value);
+    document.getElementById('cmap-nav-up').onclick = navigateUp;
+
+    // Filter Listener
+    document.getElementById('cmap-filter-char').onchange = (e) => {
+        mapState.filterCharId = e.target.value;
+        renderMermaidChart();
+    };
+
+    document.getElementById('cmap-type').onchange = (e) => {
+        document.getElementById('cmap-parent-group').classList.remove('hidden');
+    };
+
+    const wrapper = document.getElementById('mermaid-wrapper');
+    document.getElementById('cmap-zoom-in').onclick = () => { mapState.zoom = Math.min(mapState.zoom + 0.1, 3.0); if(wrapper) wrapper.style.transform = `scale(${mapState.zoom})`; };
+    document.getElementById('cmap-zoom-out').onclick = () => { mapState.zoom = Math.max(mapState.zoom - 0.1, 0.5); if(wrapper) wrapper.style.transform = `scale(${mapState.zoom})`; };
+    document.getElementById('cmap-reset-zoom').onclick = () => { mapState.zoom = 1.0; if(wrapper) wrapper.style.transform = `scale(1)`; };
+
+    // VISIBILITY MODAL LOGIC
+    const radios = document.getElementsByName('cmap-vis-option');
+    radios.forEach(r => {
+        r.onchange = () => {
+            document.getElementById('cmap-vis-players').classList.toggle('hidden', r.value !== 'specific');
+        };
     });
-    
-    sorted.forEach(entry => {
-        const eName = entry.name || "Unnamed Entry";
-        const eTags = entry.tags || [];
-        
-        if (filter && !eName.toLowerCase().includes(filter.toLowerCase()) && !eTags.some(t => t.toLowerCase().includes(filter.toLowerCase()))) {
-            return;
+
+    document.getElementById('cmap-vis-save').onclick = async () => {
+        const selected = document.querySelector('input[name="cmap-vis-option"]:checked')?.value;
+        let finalVal = 'st';
+
+        if (selected === 'all') finalVal = 'all';
+        else if (selected === 'specific') {
+            const checks = document.querySelectorAll('.cmap-player-check:checked');
+            finalVal = Array.from(checks).map(c => c.value);
+            if (finalVal.length === 0) finalVal = 'st';
         }
+
+        if (mapState.editingVisibilityType === 'char') {
+            const char = mapState.characters.find(c => c.id === mapState.editingVisibilityId);
+            if(char) char.visibility = finalVal;
+        } else if (mapState.editingVisibilityType === 'rel') {
+            const idx = parseInt(mapState.editingVisibilityId);
+            if(mapState.relationships[idx]) mapState.relationships[idx].visibility = finalVal;
+        }
+
+        document.getElementById('cmap-vis-modal').classList.add('hidden');
+        refreshMapUI();
+        await saveMapData();
+    };
+    
+    // MOVE MODAL LOGIC
+    document.getElementById('cmap-move-save').onclick = async () => {
+        const charId = mapState.editingVisibilityId; 
+        const newParent = document.getElementById('cmap-move-select').value || null;
         
-        const item = document.createElement('div');
-        item.className = "p-2 border-b border-[#222] cursor-pointer hover:bg-[#1a1a1a] group transition-colors";
-        
-        let typeColor = "text-gray-500";
-        if (entry.type === 'NPC' || entry.type === 'PC') typeColor = "text-blue-400";
-        if (entry.type === 'Location') typeColor = "text-green-400";
-        if (entry.type === 'Handout') typeColor = "text-purple-400";
-
-        item.innerHTML = `
-            <div class="text-xs font-bold text-gray-200 group-hover:text-[#d4af37] flex items-center justify-between">
-                <span>${eName}</span>
-                ${entry.image ? '<i class="fas fa-image text-[8px] text-gray-600"></i>' : ''}
-            </div>
-            <div class="flex justify-between items-center mt-0.5">
-                <span class="text-[9px] ${typeColor} uppercase font-bold">${entry.type || 'Lore'}</span>
-                ${entry.pushed && activeContext.mode==='storyteller' ? '<i class="fas fa-share-alt text-[8px] text-green-500" title="Pushed"></i>' : ''}
-            </div>
-        `;
-        item.onclick = () => window.editCodexEntry(entry.id);
-        list.appendChild(item);
-    });
-}
-
-// --- IMAGE HANDLERS (EDITOR) ---
-function bindImageHandlersInEditor() {
-    const btnUrl = document.getElementById('cx-btn-url');
-    const inputUpload = document.getElementById('cx-file');
-    const btnRemove = document.getElementById('cx-remove-img');
-    const preview = document.getElementById('cx-img-preview');
-
-    if (btnUrl) {
-        btnUrl.onclick = () => {
-            let url = prompt("Paste Image URL (Discord, Imgur, Drive):");
-            if (url) {
-                if (window.convertGoogleDriveLink) url = window.convertGoogleDriveLink(url);
-                window.currentCodexImage = url;
-                preview.innerHTML = `<img src="${url}" class="w-full h-full object-contain">`;
-                btnRemove.classList.remove('hidden');
+        const char = mapState.characters.find(c => c.id === charId);
+        if (char) {
+            if (newParent === charId) {
+                showNotification("Cannot put group inside itself.", "error");
+                return;
             }
-        };
-    }
-
-    if (inputUpload) {
-        inputUpload.onchange = (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = function(event) {
-                const img = new Image();
-                img.onload = function() {
-                    const canvas = document.createElement('canvas');
-                    const MAX_WIDTH = 1200; 
-                    const MAX_HEIGHT = 1200;
-                    let width = img.width;
-                    let height = img.height;
-                    if (width > height) { if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; } } 
-                    else { if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; } }
-                    canvas.width = width; canvas.height = height;
-                    const ctxCanvas = canvas.getContext('2d');
-                    ctxCanvas.drawImage(img, 0, 0, width, height);
-                    const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
-                    
-                    window.currentCodexImage = dataUrl;
-                    preview.innerHTML = `<img src="${dataUrl}" class="w-full h-full object-contain">`;
-                    btnRemove.classList.remove('hidden');
-                };
-                img.src = event.target.result;
-            };
-            reader.readAsDataURL(file);
-        };
-    }
-
-    if (btnRemove) {
-        btnRemove.onclick = () => {
-            window.currentCodexImage = null;
-            preview.innerHTML = '<i class="fas fa-image text-gray-700 text-4xl group-hover:text-gray-500 transition-colors"></i>';
-            btnRemove.classList.add('hidden');
-        };
-    }
-}
-
-// --- ACTIONS (CONTEXT AWARE) ---
-
-window.editCodexEntry = function(id = null) {
-    const editor = document.getElementById('codex-editor');
-    document.getElementById('codex-empty-state').classList.add('hidden');
-    editor.classList.remove('hidden');
-    
-    let entry = { id: "", name: "", type: "NPC", tags: [], desc: "", image: null };
-    
-    const source = activeContext.data || [];
-    if (id) {
-        const found = source.find(c => c.id === id);
-        if(found) entry = found;
-    }
-    
-    document.getElementById('cx-id').value = entry.id;
-    document.getElementById('cx-name').value = entry.name || "";
-    
-    // SAFE TYPE MAPPING
-    const typeSelect = document.getElementById('cx-type');
-    const typeVal = entry.type || "NPC";
-    const options = Array.from(typeSelect.options).map(o => o.value);
-    
-    if (!options.includes(typeVal)) {
-        const newOpt = new Option(typeVal, typeVal, true, true);
-        typeSelect.add(newOpt);
-    }
-    typeSelect.value = typeVal;
-
-    document.getElementById('cx-tags').value = (entry.tags || []).join(', ');
-    document.getElementById('cx-desc').value = entry.desc || "";
-    
-    window.currentCodexImage = entry.image || null;
-    const preview = document.getElementById('cx-img-preview');
-    const removeBtn = document.getElementById('cx-remove-img');
-    
-    if(window.currentCodexImage) {
-        preview.innerHTML = `<img src="${window.currentCodexImage}" class="w-full h-full object-contain">`;
-        removeBtn.classList.remove('hidden');
-    } else {
-        preview.innerHTML = '<i class="fas fa-image text-gray-700 text-4xl"></i>';
-        removeBtn.classList.add('hidden');
-    }
-}
-
-// Updated Save Function (Returns Promise with ID)
-window.saveCodexEntry = async function(closeAfter = false) {
-    const idField = document.getElementById('cx-id');
-    const id = idField.value;
-    const name = document.getElementById('cx-name').value.trim();
-    if (!name) {
-        showNotification("Name required");
-        return null;
-    }
-    
-    // Generate ID immediately if new
-    const finalId = id || "cx_" + Date.now();
-    // CRITICAL: Update the hidden field so next clicks use this ID
-    idField.value = finalId;
-    
-    const newEntry = {
-        id: finalId,
-        name: name,
-        type: document.getElementById('cx-type').value || "NPC",
-        tags: document.getElementById('cx-tags').value.split(',').map(t=>t.trim()).filter(t=>t),
-        desc: document.getElementById('cx-desc').value,
-        image: window.currentCodexImage || null
-    };
-    
-    if (activeContext.mode === 'player') {
-        if (!window.state.codex) window.state.codex = [];
-        if (id) {
-            const idx = window.state.codex.findIndex(c => c.id === id);
-            if(idx !== -1) window.state.codex[idx] = newEntry;
-            else window.state.codex.push(newEntry); // Fallback
-        } else {
-            window.state.codex.push(newEntry);
+            if (newParent) {
+                const parent = mapState.characters.find(c => c.id === newParent);
+                if (parent && parent.parent === charId) {
+                    showNotification("Loop detected.", "error");
+                    return;
+                }
+            }
+            
+            char.parent = newParent;
+            refreshMapUI();
+            await saveMapData();
+            document.getElementById('cmap-move-modal').classList.add('hidden');
+            showNotification("Node moved.");
         }
-        activeContext.onSave(); 
-        showNotification("Entry Saved Locally.");
-        
-        // Ensure cache is updated immediately to prevent smart text breaking
-        codexCache = window.state.codex.map(c => c.name).filter(n => typeof n === 'string' && n.trim() !== "");
-        renderCodexList();
-    } else {
-        await activeContext.onSave(newEntry); // Cloud Save (Await ensures completion)
-    }
-    
-    if (closeAfter) {
-        document.getElementById('codex-editor').classList.add('hidden');
-        document.getElementById('codex-empty-state').classList.remove('hidden');
-    }
-    
-    return finalId;
+    };
+
+    // EDIT NODE MODAL LOGIC
+    document.getElementById('cmap-edit-save').onclick = async () => {
+        const id = mapState.editingNodeId;
+        const char = mapState.characters.find(c => c.id === id);
+        if (char) {
+            char.name = document.getElementById('cmap-edit-name').value.trim() || char.name;
+            char.clan = document.getElementById('cmap-edit-clan').value.trim();
+            char.type = document.getElementById('cmap-edit-type').value;
+            
+            document.getElementById('cmap-edit-modal').classList.add('hidden');
+            refreshMapUI();
+            await saveMapData();
+            showNotification("Node updated.");
+        }
+    };
 }
 
-// NEW: Push Handler (Saves first then opens Recipient Modal)
-window.handleJournalPush = async function() {
-    let id = document.getElementById('cx-id').value;
-    
-    // Auto-Save if dirty or new (and get the valid ID back)
-    id = await window.saveCodexEntry(false); // false = keep open
-    if (!id) return;
+// --- MAP MANAGEMENT ---
 
-    // Open Recipient Selection Modal
-    const modal = document.getElementById('recipient-modal');
-    const list = document.getElementById('recipient-list');
-    if (!modal || !list) return;
+async function loadMapList() {
+    const stState = window.stState;
+    if (!stState || !stState.activeChronicleId) return;
 
-    // Reset List
-    list.innerHTML = '';
-
-    // Filter players (Exclude Journal Entries from the players list)
-    // Use window.stState to ensure access
-    const stState = window.stState || {};
-    const players = Object.entries(stState.players || {}).filter(([_, p]) => !p.metadataType || p.metadataType !== 'journal');
-    
-    if (players.length === 0) {
-        list.innerHTML = `<div class="text-[10px] text-gray-500 italic text-center py-2">No players connected.</div>`;
-    } else {
-        players.forEach(([uid, p]) => {
-            const row = document.createElement('label');
-            row.className = "flex items-center justify-between p-2 hover:bg-[#222] rounded cursor-pointer group";
-            row.innerHTML = `
-                <div class="flex items-center gap-3">
-                    <input type="checkbox" class="recipient-checkbox w-4 h-4 accent-[#d4af37]" value="${uid}">
-                    <span class="text-xs text-gray-300 group-hover:text-white">${p.character_name || "Unknown"}</span>
-                </div>
-                <span class="text-[8px] text-gray-600 font-mono uppercase">${uid.substring(0, 8)}</span>
-            `;
-            list.appendChild(row);
+    try {
+        const snap = await getDocs(collection(db, 'chronicles', stState.activeChronicleId, 'coterie'));
+        mapState.availableMaps = [];
+        snap.forEach(doc => {
+            mapState.availableMaps.push(doc.id);
         });
+        
+        if (mapState.availableMaps.length === 0) mapState.availableMaps.push('main');
+        
+        updateMapSelect();
+    } catch(e) { console.error("Map List Load Error", e); }
+}
+
+function updateMapSelect() {
+    const sel = document.getElementById('cmap-select-map');
+    if(!sel) return;
+    
+    sel.innerHTML = mapState.availableMaps.map(id => `<option value="${id}">${id}</option>`).join('');
+    sel.value = mapState.currentMapId;
+}
+
+async function createNewMap() {
+    const name = prompt("New Map Name (ID):");
+    if (!name) return;
+    const id = name.replace(/[^a-zA-Z0-9_-]/g, '').toLowerCase();
+    
+    if (mapState.availableMaps.includes(id)) {
+        showNotification("Map ID exists.");
+        return;
     }
+    
+    switchMap(id);
+    await saveMapData(); 
+    
+    mapState.availableMaps.push(id);
+    updateMapSelect();
+}
 
-    // Auto-deselect individual boxes if All is checked
-    const allCheck = document.getElementById('push-all');
-    allCheck.addEventListener('change', () => {
-        const boxes = document.querySelectorAll('.recipient-checkbox');
-        boxes.forEach(b => { 
-            b.disabled = allCheck.checked; 
-            if(allCheck.checked) b.checked = false; 
-        });
+async function deleteCurrentMap() {
+    if (mapState.currentMapId === 'main') {
+        showNotification("Cannot delete 'main' map.");
+        return;
+    }
+    if (!confirm(`Delete map '${mapState.currentMapId}' permanently?`)) return;
+    
+    try {
+        const stState = window.stState;
+        await deleteDoc(doc(db, 'chronicles', stState.activeChronicleId, 'coterie', mapState.currentMapId));
+        
+        mapState.availableMaps = mapState.availableMaps.filter(id => id !== mapState.currentMapId);
+        switchMap('main');
+        updateMapSelect();
+        showNotification("Map Deleted.");
+    } catch(e) { console.error(e); }
+}
+
+// CLEANUP UTILITY
+async function cleanupOrphans() {
+    if (!confirm("Remove invalid nodes? (Resets parents if missing)")) return;
+    
+    const validIds = new Set(mapState.characters.map(c => c.id));
+    
+    mapState.characters.forEach(c => {
+        if (c.parent && !validIds.has(c.parent)) {
+            console.log(`Orphan found: ${c.name} (Parent: ${c.parent} missing). Moved to root.`);
+            c.parent = null; 
+        }
     });
 
-    const pushBtn = document.getElementById('confirm-push-btn');
-    pushBtn.onclick = async () => {
-        const isAll = document.getElementById('push-all').checked;
-        const selected = Array.from(document.querySelectorAll('.recipient-checkbox:checked')).map(cb => cb.value);
-        
-        if (!isAll && selected.length === 0) {
-            showNotification("Select at least one recipient", "error");
-            return;
-        }
+    mapState.relationships = mapState.relationships.filter(r => {
+        return validIds.has(r.source) && validIds.has(r.target);
+    });
+    
+    refreshMapUI();
+    await saveMapData();
+    showNotification("Cleanup Complete.");
+}
 
-        modal.classList.add('hidden');
-        
-        // Call ST Push Function with recipient list
-        if (window.stPushHandout) {
-            await window.stPushHandout(id, isAll ? null : selected);
-        } else {
-            console.error("stPushHandout not found on window");
-        }
-    };
+function switchMap(mapId) {
+    if (mapId === mapState.currentMapId) return;
+    mapState.currentMapId = mapId;
+    mapState.mapHistory = []; 
+    startMapSync(mapId);
+    
+    const sel = document.getElementById('cmap-select-map');
+    if(sel) sel.value = mapId;
+    
+    document.getElementById('cmap-breadcrumbs').classList.add('hidden');
+}
+
+// Group Toggle Logic
+window.cmapToggleGroup = (groupId) => {
+    if (mapState.expandedGroups.has(groupId)) {
+        mapState.expandedGroups.delete(groupId);
+    } else {
+        mapState.expandedGroups.add(groupId);
+    }
+    renderMermaidChart();
+};
+
+// Node Edit Trigger (from UI List for Groups)
+window.cmapOpenEditModal = (id) => {
+    const char = mapState.characters.find(c => c.id === id);
+    if (!char) return;
+
+    mapState.editingNodeId = id;
+    document.getElementById('cmap-edit-name').value = char.name;
+    document.getElementById('cmap-edit-clan').value = char.clan || "";
+    document.getElementById('cmap-edit-type').value = char.type;
+    document.getElementById('cmap-edit-modal').classList.remove('hidden');
+};
+
+// Open Move Modal 
+window.cmapOpenMoveModal = (id) => {
+    mapState.editingVisibilityId = id; // reuse ID holder
+    const modal = document.getElementById('cmap-move-modal');
+    const select = document.getElementById('cmap-move-select');
+    
+    select.innerHTML = '<option value="">-- Root (No Group) --</option>';
+    
+    mapState.characters.filter(c => c.type === 'group' && c.id !== id).forEach(g => {
+        select.innerHTML += `<option value="${g.id}">${g.name}</option>`;
+    });
+
+    const char = mapState.characters.find(c => c.id === id);
+    if(char) select.value = char.parent || "";
 
     modal.classList.remove('hidden');
-}
+};
 
-window.deleteCodexEntry = async function() {
-    const id = document.getElementById('cx-id').value;
-    if(!id) return;
-    if(!confirm("Delete this entry?")) return;
+// VIEW CODEX HANDLER
+window.cmapViewCodex = (id) => {
+    const stState = window.stState;
+    if (!stState || !stState.activeChronicleId) return;
+
+    const char = mapState.characters.find(c => c.id === id);
+    const rel = mapState.relationships[id]; 
     
-    if (activeContext.mode === 'player') {
-        if(window.state.codex) {
-            window.state.codex = window.state.codex.filter(c => c.id !== id);
-            activeContext.onSave();
-            codexCache = window.state.codex.map(c => c.name).filter(n => typeof n === 'string' && n.trim() !== "");
-        }
-        renderCodexList();
-    } else {
-        await activeContext.onDelete(id);
+    let targetName = "";
+    let targetId = "";
+    
+    if (char) {
+        targetName = char.name;
+        targetId = char.codexId;
+    } else if (rel) {
+        const sName = mapState.characters.find(c => c.id === rel.source)?.name || rel.source;
+        const tName = mapState.characters.find(c => c.id === rel.target)?.name || rel.target;
+        targetName = `Relationship: ${rel.label} (${sName} -> ${tName})`;
+        targetId = rel.codexId;
     }
-    document.getElementById('codex-editor').classList.add('hidden');
-    document.getElementById('codex-empty-state').classList.remove('hidden');
+
+    let exists = false;
+    if (targetId) {
+        const journalKey = targetId.startsWith('journal_') ? targetId : 'journal_' + targetId;
+        exists = !!stState.journal[journalKey];
+    }
+
+    if (!targetId || !exists) {
+        if (targetId && !exists) {
+            if (char) delete char.codexId;
+            if (rel) delete rel.codexId;
+            saveMapData(); 
+        }
+
+        if (confirm(`Create Codex Entry for "${targetName}"?`)) {
+            createCodexForMapItem(id, char ? 'char' : 'rel', targetName);
+        }
+    } else {
+        if (window.viewCodex) {
+             window.viewCodex(targetId);
+        } else {
+            showNotification("Journal System not ready.", "error");
+        }
+    }
+};
+
+async function createCodexForMapItem(mapId, type, name) {
+    const stState = window.stState;
+    if (!stState || !stState.activeChronicleId) return;
+
+    const newId = "cx_" + Date.now();
+    
+    // Properly detect 'PC' or 'NPC' based on map character data
+    let entryType = 'Lore';
+    if (type === 'char') {
+        const charObj = mapState.characters.find(c => c.id === mapId);
+        entryType = (charObj && charObj.type === 'pc') ? 'PC' : 'NPC';
+    }
+    
+    const entry = {
+        id: newId,
+        name: name,
+        type: entryType,
+        tags: ['Map Auto-Gen'],
+        desc: "", 
+        image: null
+    };
+
+    try {
+        const safeId = 'journal_' + newId;
+        const docRef = doc(db, 'chronicles', stState.activeChronicleId, 'players', safeId);
+        
+        await setDoc(docRef, { 
+            ...entry, 
+            metadataType: 'journal', 
+            original_id: newId,
+            pushed: true 
+        });
+
+        if (type === 'char') {
+            const char = mapState.characters.find(c => c.id === mapId);
+            if(char) char.codexId = newId;
+        } else {
+            const rel = mapState.relationships[mapId];
+            if(rel) rel.codexId = newId;
+        }
+        
+        await saveMapData();
+        showNotification("Codex Entry Created.");
+        
+        if (window.viewCodex) window.viewCodex(newId);
+
+    } catch (e) {
+        console.error("Codex Creation Failed:", e);
+        showNotification("Failed to create entry.", "error");
+    }
 }
 
-// ==========================================================================
-// SMART TEXT & PARSER (Auto-Linking Logic)
-// ==========================================================================
+// --- NEW: ROSTER AUTO-SYNC LOGIC ---
+async function syncRosterToMap() {
+    const stState = window.stState;
+    if (!stState || !stState.players || !stState.isStoryteller) return false;
 
-function setupSmartTextAreas(container) {
-    const textareas = container.querySelectorAll('.smart-text-area');
-    const suggestions = document.getElementById('autocomplete-suggestions');
+    let needsSave = false;
     
-    textareas.forEach(ta => {
-        ta.addEventListener('input', (e) => {
-            const val = ta.value;
-            const cursor = ta.selectionStart;
-            const textBefore = val.substring(0, cursor);
-            
-            // Detect "@" trigger
-            const match = textBefore.match(/@([\w\s]*)$/);
-            
-            if (match) {
-                const query = match[1].toLowerCase();
-                const matches = codexCache.filter(name => name.toLowerCase().includes(query));
-                
-                if (matches.length > 0) {
-                    showSuggestions(matches, ta, cursor, match[0].length);
-                } else {
-                    if (suggestions) suggestions.style.display = 'none';
-                }
+    Object.entries(stState.players).forEach(([uid, p]) => {
+        if (!p || p.metadataType === 'journal' || !p.character_name) return;
+
+        const existingIndex = mapState.characters.findIndex(c => c.id === uid);
+        const clan = (p.full_sheet && p.full_sheet.textFields && p.full_sheet.textFields['c-clan']) 
+            ? p.full_sheet.textFields['c-clan'] 
+            : "Unknown";
+
+        if (existingIndex > -1) {
+            const c = mapState.characters[existingIndex];
+            if (c.name !== p.character_name || (c.clan === "Unknown" && clan !== "Unknown") || c.type !== 'pc') {
+                c.name = p.character_name;
+                c.type = 'pc'; 
+                if (clan !== "Unknown" && clan !== "") c.clan = clan;
+                needsSave = true;
+            }
+        } else {
+            const nameMatchIndex = mapState.characters.findIndex(c => c.name === p.character_name);
+            if (nameMatchIndex > -1) {
+                 mapState.characters[nameMatchIndex].id = uid;
+                 mapState.characters[nameMatchIndex].type = 'pc'; 
+                 needsSave = true;
             } else {
-                if (suggestions) suggestions.style.display = 'none';
+                mapState.characters.push({
+                    id: uid,
+                    name: p.character_name,
+                    clan: clan,
+                    type: 'pc',
+                    parent: null,
+                    visibility: 'all'
+                });
+                needsSave = true;
+            }
+        }
+    });
+
+    return needsSave;
+}
+
+window.cmapSyncRoster = async () => {
+    const changed = await syncRosterToMap();
+    if (changed) {
+        refreshMapUI();
+        await saveMapData();
+        showNotification("Roster Synced to Map.");
+    } else {
+        showNotification("Map is already in sync with Roster.");
+    }
+};
+
+function navigateUp() {
+    if (mapState.mapHistory.length === 0) return;
+    const prevMap = mapState.mapHistory.pop();
+    mapState.currentMapId = prevMap;
+    startMapSync(prevMap);
+    renderBreadcrumbs();
+}
+
+function renderBreadcrumbs() {
+    const bc = document.getElementById('cmap-breadcrumbs');
+    if(!bc) return;
+    
+    if (mapState.mapHistory.length > 0) {
+        bc.classList.remove('hidden');
+        document.getElementById('cmap-current-label').innerText = mapState.currentMapId;
+    } else {
+        bc.classList.add('hidden');
+        const sel = document.getElementById('cmap-select-map');
+        if(sel) sel.value = mapState.currentMapId;
+    }
+}
+
+// --- FIREBASE SYNC ---
+function startMapSync(docId = 'main') {
+    const stState = window.stState;
+    if (!stState || !stState.activeChronicleId) return;
+    
+    if (mapState.unsub) mapState.unsub();
+    
+    const docRef = doc(db, 'chronicles', stState.activeChronicleId, 'coterie', docId);
+    
+    mapState.unsub = onSnapshot(docRef, async (snapshot) => {
+        if (snapshot.exists()) {
+            const data = snapshot.data();
+            mapState.characters = data.characters || [];
+            mapState.relationships = data.relationships || [];
+        } else {
+             mapState.characters = [];
+             mapState.relationships = [];
+        }
+
+        const rosterChanged = await syncRosterToMap();
+
+        refreshMapUI();
+
+        if (rosterChanged && stState.isStoryteller) {
+            saveMapData();
+        }
+    });
+}
+
+async function saveMapData() {
+    const stState = window.stState;
+    if (!stState || !stState.activeChronicleId) return;
+    
+    try {
+        const docRef = doc(db, 'chronicles', stState.activeChronicleId, 'coterie', mapState.currentMapId);
+        
+        await setDoc(docRef, {
+            characters: mapState.characters,
+            relationships: mapState.relationships
+        }, { merge: true });
+        
+    } catch(e) {
+        console.error("Map Save Failed:", e);
+        showNotification("Sync Failed", "error");
+    }
+}
+
+// --- LOGIC ---
+
+async function addCharacter() {
+    const nameInput = document.getElementById('cmap-name');
+    const clanInput = document.getElementById('cmap-clan');
+    const typeInput = document.getElementById('cmap-type');
+    const parentSelect = document.getElementById('cmap-parent-group');
+    
+    const name = nameInput.value.trim();
+    const clan = clanInput.value.trim();
+    const type = typeInput.value;
+    const parent = parentSelect.value || null;
+
+    if (!name) return showNotification("Name required!", "error");
+
+    const id = name.replace(/[^a-zA-Z0-9_-]/g, '').toLowerCase(); 
+    if (mapState.characters.some(c => c.id === id)) return showNotification("Exists!", "error");
+
+    mapState.characters.push({ id, name, clan, type, parent, visibility: 'st' });
+    
+    nameInput.value = '';
+    clanInput.value = '';
+    parentSelect.value = '';
+    
+    refreshMapUI(); 
+    await saveMapData();
+}
+
+async function addRelationship() {
+    const sourceInput = document.getElementById('cmap-source');
+    const targetInput = document.getElementById('cmap-target');
+    const typeInput = document.getElementById('cmap-rel-type');
+    const labelInput = document.getElementById('cmap-label');
+    
+    const source = sourceInput.value;
+    const target = targetInput.value;
+    const type = typeInput.value;
+    const label = labelInput.value.trim();
+
+    if (!source || !target) return showNotification("Select Nodes", "error");
+    if (source === target) return showNotification("Self-link invalid", "error");
+
+    const newRel = { source, target, type, label, visibility: 'st' };
+    
+    if (label) {
+        const cxId = "cx_" + Date.now();
+        const sName = mapState.characters.find(c => c.id === source)?.name || source;
+        const tName = mapState.characters.find(c => c.id === target)?.name || target;
+
+        const entry = {
+            id: cxId,
+            name: `${label} (${sName} -> ${tName})`,
+            type: 'Lore',
+            tags: ['Relationship', 'Auto-Gen'],
+            desc: "", 
+            image: null
+        };
+        
+        saveRelationshipCodex(entry);
+        newRel.codexId = cxId;
+    }
+
+    mapState.relationships.push(newRel);
+    
+    labelInput.value = '';
+    refreshMapUI(); 
+    await saveMapData();
+}
+
+window.cmapRemoveChar = async (id) => {
+    if(!confirm("Remove node?")) return;
+    mapState.characters = mapState.characters.filter(c => c.id !== id);
+    mapState.relationships = mapState.relationships.filter(r => r.source !== id && r.target !== id);
+    refreshMapUI();
+    await saveMapData();
+};
+
+window.cmapRemoveRel = async (idx) => {
+    mapState.relationships.splice(idx, 1);
+    refreshMapUI();
+    await saveMapData();
+};
+
+window.cmapToggleChar = async (id) => {
+    const char = mapState.characters.find(c => c.id === id);
+    if (char) {
+        char.visibility = (char.visibility === 'all') ? 'st' : 'all';
+        refreshMapUI();
+        await saveMapData();
+    }
+};
+
+window.cmapToggleRel = async (idx) => {
+    if (mapState.relationships[idx]) {
+        const rel = mapState.relationships[idx];
+        rel.visibility = (rel.visibility === 'all') ? 'st' : 'all';
+        refreshMapUI();
+        await saveMapData();
+    }
+};
+
+window.cmapOpenVisModal = (id, type) => {
+    mapState.editingVisibilityId = id;
+    mapState.editingVisibilityType = type;
+    
+    const modal = document.getElementById('cmap-vis-modal');
+    const list = document.getElementById('cmap-vis-players');
+    
+    let currentVis = 'st';
+    if (type === 'char') {
+        const c = mapState.characters.find(x => x.id === id);
+        if(c) currentVis = c.visibility || 'st';
+    } else {
+        const r = mapState.relationships[id];
+        if(r) currentVis = r.visibility || 'st';
+    }
+
+    const radios = document.getElementsByName('cmap-vis-option');
+    if (Array.isArray(currentVis)) {
+        radios[2].checked = true; 
+        list.classList.remove('hidden');
+    } else if (currentVis === 'all') {
+        radios[0].checked = true;
+        list.classList.add('hidden');
+    } else {
+        radios[1].checked = true;
+        list.classList.add('hidden');
+    }
+
+    list.innerHTML = '';
+    const players = window.stState?.players || {};
+    Object.entries(players).forEach(([uid, p]) => {
+        if (!p.metadataType || p.metadataType !== 'journal') {
+            const isChecked = Array.isArray(currentVis) && currentVis.includes(uid);
+            list.innerHTML += `
+                <label class="flex items-center gap-2 p-1 hover:bg-[#222] rounded cursor-pointer">
+                    <input type="checkbox" class="cmap-player-check accent-[#d4af37]" value="${uid}" ${isChecked ? 'checked' : ''}>
+                    <span class="text-xs text-gray-300 truncate">${p.character_name || "Unknown"}</span>
+                </label>
+            `;
+        }
+    });
+
+    if (list.innerHTML === '') list.innerHTML = '<div class="text-gray-500 italic text-[10px]">No players found.</div>';
+
+    modal.classList.remove('hidden');
+};
+
+// --- UI UPDATES ---
+
+function refreshMapUI() {
+    renderMermaidChart();
+    updateDropdowns();
+    updateLists();
+}
+
+function updateDropdowns() {
+    const sourceSelect = document.getElementById('cmap-source');
+    const targetSelect = document.getElementById('cmap-target');
+    const parentSelect = document.getElementById('cmap-parent-group');
+    const filterSelect = document.getElementById('cmap-filter-char'); 
+
+    if (!sourceSelect || !targetSelect || !parentSelect || !filterSelect) return;
+
+    const currentS = sourceSelect.value;
+    const currentT = targetSelect.value;
+    const currentP = parentSelect.value;
+    const currentF = filterSelect.value; 
+
+    let opts = '<option value="">-- Select --</option>';
+    let groupOpts = '<option value="">-- No Parent Group --</option>';
+    let filterOpts = '<option value="">-- Show All --</option>'; 
+
+    mapState.characters.forEach(c => {
+        opts += `<option value="${c.id}">${c.name}</option>`;
+        if(c.type === 'group') groupOpts += `<option value="${c.id}">${c.name}</option>`;
+        filterOpts += `<option value="${c.id}">${c.name}</option>`; 
+    });
+
+    sourceSelect.innerHTML = opts;
+    targetSelect.innerHTML = opts;
+    parentSelect.innerHTML = groupOpts;
+    filterSelect.innerHTML = filterOpts;
+
+    if (mapState.characters.some(c => c.id === currentS)) sourceSelect.value = currentS;
+    if (mapState.characters.some(c => c.id === currentT)) targetSelect.value = currentT;
+    if (mapState.characters.some(c => c.id === currentP)) parentSelect.value = currentP;
+    
+    if (mapState.characters.some(c => c.id === currentF)) filterSelect.value = currentF;
+    mapState.filterCharId = filterSelect.value; 
+}
+
+function updateLists() {
+    const charList = document.getElementById('cmap-char-list');
+    if (charList) {
+        const roots = mapState.characters.filter(c => !c.parent);
+        let html = '';
+
+        const renderItem = (c, level) => {
+            const vis = c.visibility;
+            let iconClass = 'fa-eye-slash text-gray-500'; 
+            if (vis === 'all') iconClass = 'fa-eye text-[#4ade80]';
+            if (Array.isArray(vis)) iconClass = 'fa-user-secret text-[#d4af37]'; 
+            
+            const indent = level * 10;
+            const borderClass = vis !== 'all' ? 'border-l-gray-600' : 'border-l-[#4ade80]';
+            
+            return `
+            <li class="flex justify-between items-center bg-[#222] p-1.5 rounded text-[10px] border border-[#333] border-l-2 ${borderClass} mb-1" style="margin-left:${indent}px">
+                <div class="flex items-center gap-2">
+                    <button onclick="window.cmapOpenVisModal('${c.id}', 'char')" class="hover:text-white transition-colors" title="Change Visibility">
+                        <i class="fas ${iconClass}"></i>
+                    </button>
+                    <div>
+                        <span class="font-bold ${c.type === 'npc' ? 'text-[#8a0303]' : (c.type === 'group' ? 'text-blue-400' : 'text-blue-300')} cursor-pointer hover:text-white" onclick="window.cmapViewCodex('${c.id}')">${c.name}</span>
+                        <span class="text-gray-500 ml-1">(${c.clan || (c.type==='group'?'Group':'?')})</span>
+                    </div>
+                </div>
+                <div class="flex gap-1">
+                    <button onclick="window.cmapViewCodex('${c.id}')" class="text-purple-400 hover:text-white px-1" title="View Codex"><i class="fas fa-book"></i></button>
+                    <button onclick="window.cmapOpenEditModal('${c.id}')" class="text-gray-500 hover:text-white px-1" title="Edit Node Details"><i class="fas fa-edit"></i></button>
+                    ${c.type === 'group' ? `<button onclick="window.cmapToggleGroup('${c.id}')" class="text-blue-400 hover:text-white px-1" title="Toggle Expand/Collapse"><i class="fas ${mapState.expandedGroups.has(c.id) ? 'fa-minus-square' : 'fa-plus-square'}"></i></button>` : ''}
+                    <button onclick="window.cmapOpenMoveModal('${c.id}')" class="text-gray-500 hover:text-white px-1" title="Move to Group"><i class="fas fa-arrows-alt"></i></button>
+                    <button onclick="window.cmapRemoveChar('${c.id}')" class="text-gray-600 hover:text-red-500 px-1"><i class="fas fa-trash"></i></button>
+                </div>
+            </li>`;
+        };
+
+        const renderTree = (parent, level) => {
+             html += renderItem(parent, level);
+             const children = mapState.characters.filter(c => c.parent === parent.id);
+             children.forEach(child => renderTree(child, level + 1));
+        };
+
+        roots.forEach(root => renderTree(root, 0));
+        charList.innerHTML = html;
+    }
+
+    const relList = document.getElementById('cmap-rel-list');
+    if (relList) {
+        relList.innerHTML = mapState.relationships.map((r, i) => {
+            const sName = mapState.characters.find(c => c.id === r.source)?.name || r.source;
+            const tName = mapState.characters.find(c => c.id === r.target)?.name || r.target;
+            let icon = r.type === 'blood' ? 'fa-link text-red-500' : (r.type === 'boon' ? 'fa-ellipsis-h' : 'fa-arrow-right');
+            
+            const vis = r.visibility;
+            let iconClass = 'fa-eye-slash text-gray-500'; 
+            if (vis === 'all') iconClass = 'fa-eye text-[#4ade80]';
+            if (Array.isArray(vis)) iconClass = 'fa-user-secret text-[#d4af37]';
+
+            return `
+            <li class="flex justify-between items-center bg-[#222] p-1.5 rounded text-[10px] border-l-2 ${r.type === 'blood' ? 'border-[#8a0303]' : 'border-gray-500'} border-t border-r border-b border-[#333] ${vis !== 'all' ? 'opacity-70' : ''}">
+                <div class="flex gap-2 items-center flex-1 truncate">
+                    <button onclick="window.cmapOpenVisModal('${i}', 'rel')" class="hover:text-white flex-shrink-0 transition-colors" title="Change Visibility">
+                        <i class="fas ${iconClass}"></i>
+                    </button>
+                    <div class="truncate">
+                        <span class="font-bold text-gray-300">${sName}</span>
+                        <i class="fas ${icon} mx-1 text-gray-600"></i>
+                        <span class="font-bold text-gray-300">${tName}</span>
+                        <div class="text-[9px] text-[#d4af37] italic truncate cursor-pointer hover:text-white" onclick="window.cmapViewCodex('${i}')">${r.label || r.type}</div>
+                    </div>
+                </div>
+                <div class="flex gap-1 flex-shrink-0">
+                    <button onclick="window.cmapViewCodex('${i}')" class="text-purple-400 hover:text-white px-1" title="View Codex"><i class="fas fa-book"></i></button>
+                    <button onclick="window.cmapRemoveRel(${i})" class="text-gray-600 hover:text-red-500 px-1 ml-1"><i class="fas fa-trash"></i></button>
+                </div>
+            </li>`;
+        }).join('');
+    }
+}
+
+async function renderMermaidChart() {
+    const container = document.getElementById('mermaid-container');
+    if (!container) return;
+    
+    if (!window.mermaid) {
+        container.innerHTML = `<div class="text-center text-gray-500 text-xs mt-10">Loading Graph Engine...</div>`;
+        return;
+    }
+
+    if (mapState.characters.length === 0) {
+        container.innerHTML = `<div class="text-center text-gray-500 text-xs mt-10 italic">Add characters to begin mapping...</div>`;
+        return;
+    }
+
+    // --- APPLY FILTER LOGIC ---
+    let visibleChars = mapState.characters;
+    let visibleRels = mapState.relationships;
+
+    if (mapState.filterCharId) {
+        const connectedIds = new Set();
+        connectedIds.add(mapState.filterCharId);
+
+        mapState.relationships.forEach(r => {
+            if (r.source === mapState.filterCharId) connectedIds.add(r.target);
+            if (r.target === mapState.filterCharId) connectedIds.add(r.source);
+        });
+
+        const nodesToCheck = [...connectedIds];
+        nodesToCheck.forEach(id => {
+            let char = mapState.characters.find(c => c.id === id);
+            while (char && char.parent) {
+                connectedIds.add(char.parent);
+                char = mapState.characters.find(c => c.id === char.parent);
             }
         });
-    });
-}
 
-function showSuggestions(matches, inputEl, cursor, triggerLen) {
-    const suggestions = document.getElementById('autocomplete-suggestions');
-    if(!suggestions) return;
-    
-    suggestions.innerHTML = '';
-    const rect = inputEl.getBoundingClientRect();
-    
-    suggestions.style.left = (rect.left + 10) + 'px';
-    suggestions.style.top = (rect.top + 30) + 'px'; 
-    suggestions.style.display = 'block';
-    
-    matches.forEach(m => {
-        const div = document.createElement('div');
-        div.className = "autocomplete-item";
-        div.innerText = m;
-        div.onmousedown = (e) => { 
-            e.preventDefault();
-            const text = inputEl.value;
-            const before = text.substring(0, cursor - triggerLen);
-            const after = text.substring(cursor);
-            inputEl.value = before + m + after;
-            suggestions.style.display = 'none';
-        };
-        suggestions.appendChild(div);
-    });
-}
-
-// 1. Toggle between Textarea and Rich View
-window.toggleSceneView = function(btn) {
-    const row = btn.closest('.scene-row');
-    const editor = row.querySelector('.scene-editor');
-    const viewer = row.querySelector('.scene-viewer');
-    
-    if (editor.classList.contains('hidden')) {
-        editor.classList.remove('hidden');
-        viewer.classList.add('hidden');
-        btn.innerText = "Read Mode";
-        btn.classList.remove('text-gold');
-        btn.classList.remove('toggle-btn'); 
-    } else {
-        const rawText = editor.value;
-        const html = parseSmartText(rawText);
-        viewer.innerHTML = html;
-        editor.classList.add('hidden');
-        viewer.classList.remove('hidden');
-        btn.innerText = "Edit Mode";
-        btn.classList.add('text-gold');
-        btn.classList.add('toggle-btn');
+        visibleChars = mapState.characters.filter(c => connectedIds.has(c.id));
+        visibleRels = mapState.relationships.filter(r => connectedIds.has(r.source) && connectedIds.has(r.target));
     }
-}
 
-// 2. Parse Text to add Links
-function parseSmartText(text) {
-    if (!text) return "";
-    let safeText = text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    let graph = 'graph TD\n';
     
-    // Use codexCache derived from current context (safely filtered)
-    const sortedCache = [...codexCache].sort((a,b) => b.length - a.length);
+    // Classes
+    graph += 'classDef pc fill:#1e293b,stroke:#fff,stroke-width:2px,color:#fff;\n';
+    graph += 'classDef npc fill:#000,stroke:#8a0303,stroke-width:3px,color:#8a0303,font-weight:bold;\n';
+    graph += 'classDef groupRing fill:none,stroke:#1e3a8a,stroke-width:2px,stroke-dasharray: 5 5;\n'; 
+    graph += 'classDef groupNode fill:#1e3a8a,stroke:#60a5fa,stroke-width:2px,color:#fff;\n';
     
-    sortedCache.forEach(name => {
-        if (!name) return; // Paranoia check
-        const regex = new RegExp(`\\b${escapeRegExp(name)}\\b`, 'gi');
-        // Find corresponding ID in data safely
-        const entry = (activeContext.data || []).find(c => c.name === name);
-        if (entry) {
-            safeText = safeText.replace(regex, (match) => {
-                return `<span class="codex-link" onclick="window.viewCodex('${entry.id}')">${match}</span>`;
-            });
-        }
-    });
-    
-    return safeText.replace(/\n/g, '<br>');
-}
+    graph += 'classDef hiddenNode stroke-dasharray: 5 5,opacity:0.6;\n';
 
-function escapeRegExp(string) {
-    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
+    // RENDER NODES
+    const renderedIds = new Set();
+    
+    const renderNode = (c) => {
+        if(renderedIds.has(c.id)) return "";
+        renderedIds.add(c.id);
 
-// 3. View Codex Popup
-window.viewCodex = function(id) {
-    const entry = (activeContext.data || []).find(c => c.id === id);
-    if (!entry) return;
-    
-    const modal = document.getElementById('codex-popup');
-    const viewDiv = document.getElementById('codex-popup-view');
-    const editDiv = document.getElementById('codex-popup-edit');
-    
-    if (!modal || !viewDiv || !editDiv) return;
-    
-    viewDiv.classList.remove('hidden');
-    editDiv.classList.add('hidden');
-    
-    document.getElementById('codex-popup-title').innerText = entry.name || "Unnamed";
-    document.getElementById('codex-popup-desc').innerText = entry.desc || "No description provided.";
-    
-    const imgContainer = document.getElementById('codex-popup-img-container');
-    const imgEl = document.getElementById('codex-popup-img');
-    
-    if (entry.image && imgEl && imgContainer) {
-        imgEl.src = entry.image;
-        imgContainer.classList.remove('hidden');
-    } else if (imgContainer) {
-        imgContainer.classList.add('hidden');
-    }
-    
-    const tagCont = document.getElementById('codex-popup-tags');
-    if (tagCont) {
-        tagCont.innerHTML = `<span class="codex-tag border border-gray-600 text-gray-400">${entry.type || 'Lore'}</span>` + 
-            (entry.tags || []).map(t => `<span class="codex-tag">${t}</span>`).join('');
-    }
+        const safeName = c.name.replace(/"/g, "'");
+        let label = c.clan ? `${safeName}<br/>(${c.clan})` : safeName;
         
-    const editBtn = document.getElementById('codex-popup-edit-btn');
-    if (editBtn) {
-        editBtn.onclick = () => {
-            viewDiv.classList.add('hidden');
-            editDiv.classList.remove('hidden');
-            
-            document.getElementById('quick-cx-id').value = entry.id;
-            document.getElementById('quick-cx-name').value = entry.name || "";
-            
-            // Safe Type setting
-            const typeSelect = document.getElementById('quick-cx-type');
-            const typeVal = entry.type || "NPC";
-            if (typeSelect) {
-                const options = Array.from(typeSelect.options).map(o => o.value);
-                if (!options.includes(typeVal)) {
-                    typeSelect.add(new Option(typeVal, typeVal, true, true));
-                }
-                typeSelect.value = typeVal;
-            }
-            
-            document.getElementById('quick-cx-tags').value = (entry.tags || []).join(', ');
-            document.getElementById('quick-cx-desc').value = entry.desc || "";
-            
-            window.currentCodexImage = entry.image || null;
-            const preview = document.getElementById('quick-cx-img-preview');
-            const remBtn = document.getElementById('quick-cx-remove-img');
-            
-            if (preview && remBtn) {
-                if(window.currentCodexImage) {
-                    preview.innerHTML = `<img src="${window.currentCodexImage}" class="w-full h-full object-contain">`;
-                    remBtn.classList.remove('hidden');
-                } else {
-                    preview.innerHTML = '<i class="fas fa-image text-gray-700 text-3xl"></i>';
-                    remBtn.classList.add('hidden');
-                }
-            }
-        };
-    }
-    
-    // Inject "Push" button if ST
-    const pushCont = document.getElementById('st-push-container');
-    if (pushCont) {
-        if (activeContext.mode === 'storyteller' && window.stPushHandout) {
-            // Use handleJournalPush to open the selector
-            // Note: handleJournalPush expects cx-id to be set, but in view mode it's not the editor.
-            // We need to pass the ID directly or set a hidden field.
-            // Easier fix: just call stPushHandout directly from here for all, or build a mini-flow.
-            // Let's reuse the handleJournalPush logic by forcing cx-id, or just passing it.
-            // Actually, handleJournalPush saves the editor state. In view mode, we shouldn't save.
-            
-            pushCont.innerHTML = `<button onclick="window.stPushHandout('${entry.id}')" class="text-xs bg-blue-900/40 text-blue-200 border border-blue-500 px-3 py-1 uppercase font-bold hover:text-white mr-4"><i class="fas fa-share-alt mr-1"></i> Push Handout</button>`;
-        } else {
-            pushCont.innerHTML = '';
+        let cls = ':::pc';
+        if (c.type === 'npc') cls = ':::npc';
+        
+        if (c.type === 'group') {
+             const isExpanded = mapState.expandedGroups.has(c.id);
+             
+             if (isExpanded) {
+                 cls = ':::groupNode';
+                 label = `<b>${safeName}</b>`; 
+             } else {
+                 cls = ':::groupNode';
+                 label = `${safeName}<br/>(Group)`;
+             }
         }
-    }
-    
-    modal.classList.remove('hidden');
-}
+        
+        let line = "";
+        if (c.visibility !== 'all') {
+             line = `${c.id}("${label}"):::${c.type === 'group' ? 'groupNode' : (c.type === 'npc' ? 'npc' : 'pc')} hiddenNode\n`;
+        } else {
+             line = `${c.id}("${label}")${cls}\n`;
+        }
 
-// 4. Define Selection
-window.defineSelection = function(btn) {
-    const row = btn.closest('.scene-row');
-    const textarea = row.querySelector('.scene-editor');
-    
-    if (textarea.classList.contains('hidden')) return;
-    
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    
-    if (start === end) {
-        showNotification("Highlight text first.");
-        return;
-    }
-    
-    const selectedText = textarea.value.substring(start, end).trim();
-    if (!selectedText) return;
-    
-    const modal = document.getElementById('codex-popup');
-    const viewDiv = document.getElementById('codex-popup-view');
-    const editDiv = document.getElementById('codex-popup-edit');
-    
-    if (!modal || !viewDiv || !editDiv) return;
-    
-    viewDiv.classList.add('hidden');
-    editDiv.classList.remove('hidden');
-    
-    document.getElementById('quick-cx-id').value = "";
-    document.getElementById('quick-cx-name').value = selectedText;
-    document.getElementById('quick-cx-type').value = "NPC";
-    document.getElementById('quick-cx-tags').value = "";
-    document.getElementById('quick-cx-desc').value = "";
-    window.currentCodexImage = null;
-    document.getElementById('quick-cx-img-preview').innerHTML = '<i class="fas fa-image text-gray-700 text-3xl"></i>';
-    document.getElementById('quick-cx-remove-img').classList.add('hidden');
-    
-    modal.classList.remove('hidden');
-    document.getElementById('quick-cx-desc').focus();
-    
-    showNotification(`Defining: ${selectedText}`);
-}
-
-window.saveQuickCodex = function() {
-    const id = document.getElementById('quick-cx-id').value;
-    const name = document.getElementById('quick-cx-name').value.trim();
-    if (!name) return showNotification("Name required");
-    
-    const newEntry = {
-        id: id || "cx_" + Date.now(),
-        name: name,
-        type: document.getElementById('quick-cx-type').value || "NPC",
-        tags: document.getElementById('quick-cx-tags').value.split(',').map(t=>t.trim()).filter(t=>t),
-        desc: document.getElementById('quick-cx-desc').value,
-        image: window.currentCodexImage || null
+        line += `click ${c.id} call cmapNodeClick("${c.id}") "Interact"\n`;
+        
+        return line;
     };
-    
-    if (activeContext.mode === 'player') {
-        if (!window.state.codex) window.state.codex = [];
-        if (id) {
-            const idx = window.state.codex.findIndex(c => c.id === id);
-            if(idx !== -1) window.state.codex[idx] = newEntry;
-            else window.state.codex.push(newEntry);
-        } else {
-            window.state.codex.push(newEntry);
+
+    const renderSubgraph = (group) => {
+        if (!mapState.expandedGroups.has(group.id)) {
+            return renderNode(group);
         }
-        activeContext.onSave();
-        showNotification("Quick Entry Saved.");
+
+        let output = `subgraph ${group.id}_sg [" "]\n`; 
+        output += `direction TB\n`; 
         
-        codexCache = window.state.codex.map(c => c.name).filter(n => typeof n === 'string' && n.trim() !== "");
-        if (window.state.journalTab === 'codex') renderCodexList();
-    } else {
-        activeContext.onSave(newEntry); 
-    }
-    
-    document.getElementById('codex-popup').classList.add('hidden');
-}
-
-// --- GLOBAL LISTENERS ---
-function bindPopupListeners() {
-    const fileInput = document.getElementById('quick-cx-file');
-    const urlBtn = document.getElementById('quick-cx-btn-url');
-    const removeBtn = document.getElementById('quick-cx-remove-img');
-    const preview = document.getElementById('quick-cx-img-preview');
-
-    if(urlBtn) {
-        urlBtn.onclick = () => {
-            let url = prompt("Paste Image URL:");
-            if(url) {
-                if(window.convertGoogleDriveLink) url = window.convertGoogleDriveLink(url);
-                window.currentCodexImage = url;
-                if(preview) {
-                    preview.innerHTML = `<img src="${url}" class="w-full h-full object-contain">`;
-                    removeBtn.classList.remove('hidden');
-                }
+        output += renderNode(group);
+        
+        const children = visibleChars.filter(c => c.parent === group.id);
+        children.forEach(child => {
+            if (child.type === 'group') {
+                output += renderSubgraph(child); 
+            } else {
+                output += renderNode(child);
             }
-        };
-    }
-    if(removeBtn) {
-        removeBtn.onclick = () => {
-            window.currentCodexImage = null;
-            if (preview) preview.innerHTML = '<i class="fas fa-image text-gray-700 text-3xl"></i>';
-            removeBtn.classList.add('hidden');
-        };
+        });
+        output += `end\n`;
+        
+        output += `class ${group.id}_sg groupRing\n`;
+        
+        return output;
+    };
+
+    const validIds = new Set(visibleChars.map(c => c.id));
+    const roots = visibleChars.filter(c => !c.parent || !validIds.has(c.parent));
+    
+    roots.forEach(root => {
+        if (root.type === 'group') {
+             graph += renderSubgraph(root);
+        } else {
+             graph += renderNode(root);
+        }
+    });
+
+    visibleChars.forEach(c => {
+        if (!renderedIds.has(c.id)) {
+            graph += renderNode(c);
+        }
+    });
+
+    visibleRels.forEach(r => {
+        const label = r.label ? `"${r.label}"` : "";
+        const isHidden = r.visibility !== 'all';
+        
+        let arrow = "-->"; 
+        if (r.type === 'boon') arrow = "-.->";
+        if (r.type === 'blood') arrow = "==>";
+        
+        let displayLabel = label;
+        if (isHidden) {
+             if (displayLabel) displayLabel = `"${r.label} *"`; 
+             else displayLabel = `"* *"`;
+        }
+
+        if (displayLabel) {
+            if (r.type === 'blood') graph += `${r.source} == ${displayLabel} ==> ${r.target}\n`;
+            else if (r.type === 'boon') graph += `${r.source} -. ${displayLabel} .-> ${r.target}\n`;
+            else graph += `${r.source} -- ${displayLabel} --> ${r.target}\n`;
+        } else {
+            graph += `${r.source} ${arrow} ${r.target}\n`;
+        }
+    });
+
+    try {
+        const { svg, bindFunctions } = await window.mermaid.render('mermaid-svg-' + Date.now(), graph);
+        container.innerHTML = svg;
+        
+        if (bindFunctions) bindFunctions(container);
+        
+        const nodes = container.querySelectorAll('g.node');
+        
+        nodes.forEach(node => {
+            const domId = node.id;
+            const char = mapState.characters.find(c => domId.includes(c.id));
+            
+            if (char) {
+                node.style.cursor = "pointer";
+                node.style.pointerEvents = "all"; 
+                
+                const newNode = node.cloneNode(true);
+                node.parentNode.replaceChild(newNode, node);
+                
+                newNode.addEventListener('click', (e) => {
+                    e.stopPropagation(); 
+                    e.preventDefault();
+                    window.cmapNodeClick(char.id);
+                });
+            }
+        });
+        
+    } catch (e) {
+        console.warn("Mermaid Render Warning:", e);
     }
 }
-
-// Handle AutoComplete
-window.handleSmartInput = function(textarea) {
-    const text = textarea.value;
-    const cursorPos = textarea.selectionStart;
-    
-    const lastChunk = text.substring(0, cursorPos).split(/[\n\.\,\!\?]/).pop();
-    const lastWord = lastChunk.trim().split(" ").pop(); 
-    
-    if (lastWord.length < 2) {
-        const sug = document.getElementById('autocomplete-suggestions');
-        if (sug) sug.style.display = 'none';
-        return;
-    }
-    
-    const matches = codexCache.filter(name => name.toLowerCase().startsWith(lastWord.toLowerCase()) && name.toLowerCase() !== lastWord.toLowerCase());
-    
-    if (matches.length > 0) {
-        showSuggestions(matches, textarea, cursorPos, lastWord.length);
-    } else {
-        const sug = document.getElementById('autocomplete-suggestions');
-        if (sug) sug.style.display = 'none';
-    }
-}
-
-window.applyAutocomplete = function(fullName) {
-    const ta = window.activeSmartTextarea;
-    if (!ta) return;
-    
-    const partial = window.lastPartial;
-    const text = ta.value;
-    const pos = ta.selectionStart;
-    
-    const before = text.substring(0, pos - partial.length);
-    const after = text.substring(pos);
-    
-    ta.value = before + fullName + after;
-    
-    const sug = document.getElementById('autocomplete-suggestions');
-    if (sug) sug.style.display = 'none';
-    ta.focus();
-}
-
-document.addEventListener('click', (e) => {
-    const suggestions = document.getElementById('autocomplete-suggestions');
-    if (suggestions && !e.target.closest('.autocomplete-box')) {
-        suggestions.style.display = 'none';
-    }
-});
-
-// Exports
-window.saveQuickCodex = window.saveQuickCodex || (() => {});
-window.renderJournalTab = renderJournalTab;
