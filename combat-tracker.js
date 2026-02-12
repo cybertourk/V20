@@ -8,7 +8,8 @@ import { BESTIARY } from "./bestiary-data.js";
 export const combatState = {
     isActive: false,
     turn: 1, // Represents the "Round" number (V20 'Turn')
-    activeCombatantId: null, // ID of the character currently acting
+    phase: 'declare', // 'declare' (Lowest to Highest) or 'action' (Highest to Lowest)
+    activeCombatantId: null, // ID of the character currently declaring or acting
     combatants: [], // Array of objects
     unsub: null
 };
@@ -30,7 +31,8 @@ export function initCombatTracker(chronicleId) {
         if (snapshot.exists()) {
             const data = snapshot.data();
             combatState.isActive = true;
-            combatState.turn = data.turn || 1; // Round number
+            combatState.turn = data.turn || 1; 
+            combatState.phase = data.phase || 'declare';
             combatState.activeCombatantId = data.activeCombatantId || null;
             combatState.combatants = data.combatants || [];
             
@@ -45,20 +47,15 @@ export function initCombatTracker(chronicleId) {
             // Trigger UI Refresh
             if (window.renderCombatView) window.renderCombatView();
             
-            // Update Player Float if active (SAFE UPDATE instead of toggle)
+            // Update Player Float if active
             if (window.updatePlayerCombatView && document.getElementById('player-combat-float')) {
                 window.updatePlayerCombatView();
-            }
-            // Auto-show logic (initial)
-            else if (window.togglePlayerCombatView && !document.getElementById('player-combat-float')) {
-                // If it's active but float doesn't exist, we can force show or just let user click it.
-                // For now, let's keep it manual or triggered by specific events if needed.
-                // Actually, existing logic in ui-play handles initial show.
             }
         } else {
             combatState.isActive = false;
             combatState.combatants = [];
             combatState.activeCombatantId = null;
+            combatState.phase = 'declare';
             if (window.renderCombatView) window.renderCombatView();
             
             // If combat ends, remove float
@@ -83,11 +80,12 @@ export async function startCombat() {
         const docRef = doc(db, 'chronicles', stState.activeChronicleId, 'combat', 'active');
         await setDoc(docRef, {
             turn: 1,
-            activeCombatantId: null, // Will be set when combatants are added/sorted or manually next-turned
+            phase: 'declare', // Start in Declaration Phase
+            activeCombatantId: null, 
             combatants: []
         });
         
-        if(window.sendChronicleMessage) window.sendChronicleMessage('system', "Combat Started!");
+        if(window.sendChronicleMessage) window.sendChronicleMessage('system', "Combat Started! Stage One: Initiative & Declaration.");
         showNotification("Combat Started!");
     } catch (e) {
         console.error(e);
@@ -128,7 +126,7 @@ export async function addCombatant(entity, type = 'NPC') {
         type: type, // 'Player' or 'NPC'
         init: 0,
         health: type === 'NPC' ? (entity.health || { damage: 0, track: [0,0,0,0,0,0,0] }) : null,
-        status: 'pending',
+        status: 'pending', // 'pending', 'held', 'defending', 'multiple', 'done'
         sourceId: type === 'NPC' ? (entity.sourceId || null) : null
     };
 
@@ -172,51 +170,162 @@ export async function updateInitiative(id, newVal) {
     
     list[idx].init = parseInt(newVal) || 0;
     
-    // Sort logic handled on client receive, but good to keep data clean
     list.sort((a, b) => b.init - a.init);
-    
     await pushUpdate(list);
 }
 
+export async function setCombatantStatus(id, newStatus) {
+    const stState = window.stState;
+    if (!stState || !stState.activeChronicleId) return;
+
+    const list = [...combatState.combatants];
+    const idx = list.findIndex(c => c.id === id);
+    if (idx === -1) return;
+    
+    list[idx].status = newStatus;
+    await pushUpdate(list);
+}
+
+// --- V20 DYNAMIC TURN PROGRESSION ---
 export async function nextTurn() {
     const stState = window.stState;
     if (!stState || !stState.activeChronicleId) return;
 
     if (combatState.combatants.length === 0) return;
 
-    // 1. Sort current list (ensure sync)
-    const sorted = [...combatState.combatants].sort((a, b) => b.init - a.init);
+    let { turn, phase, activeCombatantId, combatants } = combatState;
     
-    // 2. Find current active index
+    // Sort descending (Highest to Lowest) - Standard Action Phase Order
+    const sortedDesc = [...combatants].sort((a, b) => b.init - a.init);
+    // Sort ascending (Lowest to Highest) - V20 Declaration Phase Order
+    const sortedAsc = [...combatants].sort((a, b) => a.init - b.init);
+
+    // Determine which list we are iterating through
+    const activeList = phase === 'declare' ? sortedAsc : sortedDesc;
+
+    // Find current index
     let currentIdx = -1;
-    if (combatState.activeCombatantId) {
-        currentIdx = sorted.findIndex(c => c.id === combatState.activeCombatantId);
+    if (activeCombatantId) {
+        currentIdx = activeList.findIndex(c => c.id === activeCombatantId);
     }
 
-    // 3. Determine next index
     let nextIdx = currentIdx + 1;
-    let nextRound = combatState.turn;
+    let nextRound = turn;
+    let nextPhase = phase;
+    let updatedCombatants = [...combatants];
 
-    // 4. Check for Round Wrap
-    if (nextIdx >= sorted.length) {
-        nextIdx = 0;
-        nextRound++;
-        showNotification(`Round ${nextRound} Started`);
-        if(window.sendChronicleMessage) window.sendChronicleMessage('system', `Round ${nextRound} Started`);
+    // Check if we hit the end of the list for the current phase
+    if (nextIdx >= activeList.length) {
+        if (phase === 'declare') {
+            // End of declarations -> Move to Actions
+            nextPhase = 'action';
+            activeCombatantId = sortedDesc[0].id; // Give it to fastest character
+            showNotification("Action Phase! Resolving Highest to Lowest.");
+            if(window.sendChronicleMessage) window.sendChronicleMessage('system', `Round ${nextRound}: Action Phase Started`);
+        } else {
+            // End of actions -> Move to Next Round Declarations
+            nextRound++;
+            nextPhase = 'declare';
+            activeCombatantId = sortedAsc[0].id; // Give it to slowest character
+            showNotification(`Round ${nextRound} Declaration Phase Started`);
+            if(window.sendChronicleMessage) window.sendChronicleMessage('system', `Round ${nextRound}: Declaration Phase Started`);
+            
+            // Clean up statuses for the new round
+            updatedCombatants = updatedCombatants.map(c => {
+                // Keep 'multiple' actions tag if needed, but usually reset to pending
+                return { ...c, status: 'pending' };
+            });
+        }
     } else {
-        // Just next person
-        showNotification(`Turn: ${sorted[nextIdx].name}`);
+        activeCombatantId = activeList[nextIdx].id;
+        const actor = activeList[nextIdx];
+        const phaseName = nextPhase === 'declare' ? 'Declaring' : 'Acting';
+        showNotification(`${phaseName}: ${actor.name}`);
     }
-
-    const nextId = sorted[nextIdx].id;
 
     try {
         const docRef = doc(db, 'chronicles', stState.activeChronicleId, 'combat', 'active');
-        await updateDoc(docRef, {
-            turn: nextRound,
-            activeCombatantId: nextId
-        });
+        const updates = { 
+            turn: nextRound, 
+            phase: nextPhase, 
+            activeCombatantId: activeCombatantId 
+        };
+        // If we cleaned up statuses due to round change, push the updated list
+        if (nextIdx >= activeList.length && phase === 'action') {
+            updates.combatants = updatedCombatants;
+        }
+        await updateDoc(docRef, updates);
     } catch (e) { console.error(e); }
+}
+
+// --- NPC AUTO-ROLLER ---
+export async function rollAllNPCInitiatives() {
+    const stState = window.stState;
+    if (!stState || !stState.activeChronicleId) return;
+
+    let updatedList = [...combatState.combatants];
+    let changed = false;
+    let systemLog = [];
+
+    updatedList.forEach(c => {
+        // Only roll if they are an NPC and haven't rolled yet (init is 0)
+        if (c.type === 'NPC' && (!c.init || c.init === 0)) {
+            // 1. DETERMINE STATS
+            let dex = 2, wits = 2, celerity = 0; 
+            let data = null;
+            
+            if (c.sourceId && stState.bestiary && stState.bestiary[c.sourceId]) {
+                data = stState.bestiary[c.sourceId].data;
+            } else {
+                for (const cat in BESTIARY) {
+                    if (BESTIARY[cat][c.name]) { data = BESTIARY[cat][c.name]; break; }
+                }
+            }
+
+            if (data) {
+                dex = data.attributes?.Dexterity || 2;
+                wits = data.attributes?.Wits || 2;
+                celerity = data.disciplines?.Celerity || 0;
+            }
+
+            // 2. WOUND PENALTY
+            let woundPen = 0;
+            if (c.health) {
+                let dmgCount = 0;
+                if (c.health.track && Array.isArray(c.health.track)) {
+                    dmgCount = c.health.track.filter(x => x > 0).length;
+                } else if (c.health.damage) {
+                    dmgCount = c.health.damage;
+                }
+                
+                if (dmgCount >= 7) woundPen = 99; // Incapacitated
+                else if (dmgCount === 6) woundPen = 5;
+                else if (dmgCount >= 4) woundPen = 2;
+                else if (dmgCount >= 2) woundPen = 1;
+            }
+
+            if (woundPen < 99) {
+                const rating = Math.max(0, dex + wits + celerity - woundPen);
+                const roll = Math.floor(Math.random() * 10) + 1; 
+                c.init = rating + roll;
+                changed = true;
+                systemLog.push(`${c.name}: ${c.init}`);
+            } else {
+                systemLog.push(`${c.name}: Incap.`);
+            }
+        }
+    });
+
+    if (changed) {
+        updatedList.sort((a, b) => b.init - a.init);
+        await pushUpdate(updatedList);
+        showNotification("NPC Initiatives Rolled.");
+        if(window.sendChronicleMessage && systemLog.length > 0) {
+            window.sendChronicleMessage('system', `NPC Initiative Results: ${systemLog.join(', ')}`);
+        }
+    } else {
+        showNotification("No eligible NPCs to roll.");
+    }
 }
 
 export async function rollNPCInitiative(id) {
@@ -274,7 +383,7 @@ export async function rollNPCInitiative(id) {
     
     await updateInitiative(id, total);
     showNotification(`${c.name} rolled ${total}`);
-    if(window.sendChronicleMessage) window.sendChronicleMessage('roll', `${c.name} rolled Initiative: ${total}`, { pool: "Initiative", diff: 0, successes: total, dice: 1 });
+    if(window.sendChronicleMessage) window.sendChronicleMessage('roll', `${c.name} rolled Initiative: ${total}`, { pool: "Initiative", diff: 0, successes: total, dice: 1, results: [roll] });
 }
 
 // --- HELPER ---
@@ -294,5 +403,7 @@ window.combatTracker = {
     add: addCombatant,
     remove: removeCombatant,
     updateInit: updateInitiative,
-    nextTurn: nextTurn
+    nextTurn: nextTurn,
+    setStatus: setCombatantStatus,
+    rollAllNPCs: rollAllNPCInitiatives
 };
