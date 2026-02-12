@@ -38,6 +38,7 @@ let mapState = {
     currentMapId: 'main', 
     mapHistory: [],       
     availableMaps: [],    
+    mapVisibility: {}, // NEW: Tracks privacy level of each map
     characters: [],
     relationships: [],
     expandedGroups: new Set(), 
@@ -134,9 +135,14 @@ export async function renderCoterieMap(container) {
                         </div>
                     </h3>
                     
-                    <div class="flex gap-2 mb-3">
+                    <div class="flex gap-2 mb-3 items-center">
                         <select id="cmap-select-map" class="bg-[#262626] border border-[#404040] text-white p-2 rounded text-xs w-full outline-none focus:border-gold"></select>
-                        ${isST ? `<button id="cmap-new-map-btn" class="bg-[#333] hover:bg-[#444] border border-[#444] text-white px-3 rounded text-xs"><i class="fas fa-plus"></i></button>` : ''}
+                        ${isST ? `
+                        <button id="cmap-toggle-map-vis" class="bg-[#333] hover:bg-[#444] border border-[#444] text-white px-3 py-2 rounded text-xs transition-colors shrink-0" title="Toggle Map Visibility">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                        <button id="cmap-new-map-btn" class="bg-[#333] hover:bg-[#444] border border-[#444] text-white px-3 py-2 rounded text-xs transition-colors shrink-0" title="Create New Map"><i class="fas fa-plus"></i></button>
+                        ` : ''}
                     </div>
 
                     <!-- FILTER DROPDOWN -->
@@ -336,6 +342,21 @@ function setupMapListeners() {
     safeBind('cmap-cleanup-map', 'onclick', cleanupOrphans);
     safeBind('cmap-sync-roster', 'onclick', window.cmapSyncRoster);
     
+    // Toggle Full Map Visibility
+    safeBind('cmap-toggle-map-vis', 'onclick', async () => {
+        if (mapState.currentMapId === 'main') {
+            showNotification("The 'main' map must remain public.", "error");
+            return;
+        }
+        const currentVis = mapState.mapVisibility[mapState.currentMapId] || 'all';
+        const newVis = currentVis === 'all' ? 'st' : 'all';
+        mapState.mapVisibility[mapState.currentMapId] = newVis;
+        
+        await saveMapData();
+        updateMapSelect();
+        showNotification(newVis === 'st' ? "Map is now Private (ST Only)." : "Map is now Public.");
+    });
+    
     // Shared actions
     safeBind('cmap-select-map', 'onchange', (e) => switchMap(e.target.value));
     safeBind('cmap-nav-up', 'onclick', navigateUp);
@@ -443,22 +464,55 @@ async function loadMapList() {
     try {
         const snap = await getDocs(collection(db, 'chronicles', stState.activeChronicleId, 'coterie'));
         mapState.availableMaps = [];
+        mapState.mapVisibility = {};
+        
         snap.forEach(doc => {
-            mapState.availableMaps.push(doc.id);
+            const data = doc.data();
+            const vis = data.visibility || 'all';
+            mapState.mapVisibility[doc.id] = vis;
+
+            // Only push to available list if ST, public, or 'main'
+            if (stState.isStoryteller || vis === 'all' || doc.id === 'main') {
+                mapState.availableMaps.push(doc.id);
+            }
         });
         
         if (mapState.availableMaps.length === 0) mapState.availableMaps.push('main');
         
-        updateMapSelect();
+        // Safety check: if currently selected map was made private and user is a player, kick to main
+        if (!stState.isStoryteller && mapState.mapVisibility[mapState.currentMapId] === 'st' && mapState.currentMapId !== 'main') {
+            switchMap('main');
+        } else {
+            updateMapSelect();
+        }
     } catch(e) { console.error("Map List Load Error", e); }
 }
 
 function updateMapSelect() {
     const sel = document.getElementById('cmap-select-map');
+    const isST = window.stState && window.stState.isStoryteller;
+    
     if(!sel) return;
     
-    sel.innerHTML = mapState.availableMaps.map(id => `<option value="${id}">${id}</option>`).join('');
+    sel.innerHTML = mapState.availableMaps.map(id => {
+        const vis = mapState.mapVisibility[id] || 'all';
+        const suffix = (isST && vis === 'st') ? ' (Private)' : '';
+        return `<option value="${id}">${id}${suffix}</option>`;
+    }).join('');
+    
     sel.value = mapState.currentMapId;
+
+    // Update toggle button UI
+    const visBtn = document.getElementById('cmap-toggle-map-vis');
+    if (visBtn) {
+        const isPrivate = mapState.mapVisibility[mapState.currentMapId] === 'st';
+        visBtn.innerHTML = isPrivate 
+            ? '<i class="fas fa-eye-slash text-red-500"></i>' 
+            : '<i class="fas fa-eye text-green-400"></i>';
+        visBtn.title = isPrivate 
+            ? "Map is Private (ST Only). Click to make Public." 
+            : "Map is Public. Click to make Private.";
+    }
 }
 
 async function createNewMap() {
@@ -471,10 +525,15 @@ async function createNewMap() {
         return;
     }
     
+    // Default new maps to public, saveMapData will grab from mapVisibility
+    mapState.mapVisibility[id] = 'all';
+    
     switchMap(id);
     await saveMapData(); 
     
-    mapState.availableMaps.push(id);
+    if (!mapState.availableMaps.includes(id)) {
+        mapState.availableMaps.push(id);
+    }
     updateMapSelect();
 }
 
@@ -779,9 +838,18 @@ function startMapSync(docId = 'main') {
             const data = snapshot.data();
             mapState.characters = data.characters || [];
             mapState.relationships = data.relationships || [];
+            mapState.mapVisibility[docId] = data.visibility || 'all';
         } else {
              mapState.characters = [];
              mapState.relationships = [];
+             mapState.mapVisibility[docId] = 'all';
+        }
+
+        // Kick non-ST users if the map becomes private
+        if (!stState.isStoryteller && mapState.mapVisibility[docId] === 'st' && docId !== 'main') {
+            showNotification("This map has been made private.");
+            switchMap('main');
+            return;
         }
 
         const rosterChanged = await syncRosterToMap();
@@ -800,10 +868,12 @@ async function saveMapData() {
     
     try {
         const docRef = doc(db, 'chronicles', stState.activeChronicleId, 'coterie', mapState.currentMapId);
-        
+        const currentVis = mapState.mapVisibility[mapState.currentMapId] || 'all';
+
         await setDoc(docRef, {
             characters: mapState.characters,
-            relationships: mapState.relationships
+            relationships: mapState.relationships,
+            visibility: currentVis // NEW: Save map visibility state
         }, { merge: true });
         
     } catch(e) {
