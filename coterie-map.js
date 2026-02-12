@@ -51,7 +51,6 @@ let mapState = {
 
 // --- GLOBAL CLICK HANDLER (Must be on window for Mermaid) ---
 window.cmapNodeClick = (id) => {
-    // console.log("Mermaid Node Clicked:", id);
     const char = mapState.characters.find(c => c.id === id);
     if (!char) return;
 
@@ -86,6 +85,7 @@ export async function renderCoterieMap(container) {
                     <h3 class="text-md font-cinzel font-bold text-gold border-b border-[#333] pb-2 mb-3 uppercase flex justify-between items-center">
                         <span>Active Map</span>
                         <div class="flex gap-2">
+                             <button id="cmap-sync-roster" class="text-xs text-blue-500 hover:text-white" title="Sync Roster to Map"><i class="fas fa-users-viewfinder"></i></button>
                              <button id="cmap-cleanup-map" class="text-xs text-gray-500 hover:text-white" title="Fix Orphans / Cleanup"><i class="fas fa-broom"></i></button>
                              <button id="cmap-delete-map" class="text-xs text-red-500 hover:text-white" title="Delete current map"><i class="fas fa-trash"></i></button>
                         </div>
@@ -266,12 +266,24 @@ export async function renderCoterieMap(container) {
     startMapSync('main');
 }
 
+// --- HELPER: Save Codex for Relationship (Hoisted) ---
+async function saveRelationshipCodex(entry) {
+    const stState = window.stState;
+    if (!stState.activeChronicleId) return;
+    try {
+        const safeId = 'journal_' + entry.id;
+        const docRef = doc(db, 'chronicles', stState.activeChronicleId, 'players', safeId);
+        await setDoc(docRef, { ...entry, metadataType: 'journal', original_id: entry.id, pushed: true });
+    } catch(e) { console.error("Auto-Codex Failed", e); }
+}
+
 function setupMapListeners() {
     document.getElementById('cmap-add-char').onclick = addCharacter;
     document.getElementById('cmap-add-rel').onclick = addRelationship;
     document.getElementById('cmap-new-map-btn').onclick = createNewMap;
     document.getElementById('cmap-delete-map').onclick = deleteCurrentMap;
     document.getElementById('cmap-cleanup-map').onclick = cleanupOrphans; 
+    document.getElementById('cmap-sync-roster').onclick = window.cmapSyncRoster; // NEW SYNC LISTENER
     document.getElementById('cmap-select-map').onchange = (e) => switchMap(e.target.value);
     document.getElementById('cmap-nav-up').onclick = navigateUp;
 
@@ -472,23 +484,6 @@ window.cmapToggleGroup = (groupId) => {
     renderMermaidChart();
 };
 
-// Node Edit Trigger (from Mermaid Graph)
-window.cmapNodeClick = (id) => {
-    const char = mapState.characters.find(c => c.id === id);
-    if (!char) return;
-
-    if (char.type === 'group') {
-        window.cmapToggleGroup(id);
-    } else {
-        // Open Edit Modal
-        mapState.editingNodeId = id;
-        document.getElementById('cmap-edit-name').value = char.name;
-        document.getElementById('cmap-edit-clan').value = char.clan || "";
-        document.getElementById('cmap-edit-type').value = char.type;
-        document.getElementById('cmap-edit-modal').classList.remove('hidden');
-    }
-};
-
 // Node Edit Trigger (from UI List for Groups)
 window.cmapOpenEditModal = (id) => {
     const char = mapState.characters.find(c => c.id === id);
@@ -519,7 +514,7 @@ window.cmapOpenMoveModal = (id) => {
     modal.classList.remove('hidden');
 };
 
-// NEW: VIEW CODEX HANDLER
+// VIEW CODEX HANDLER
 window.cmapViewCodex = (id) => {
     const stState = window.stState;
     if (!stState || !stState.activeChronicleId) return;
@@ -540,7 +535,6 @@ window.cmapViewCodex = (id) => {
         targetId = rel.codexId;
     }
 
-    // CHECK IF ENTRY ACTUALLY EXISTS (Validation Update)
     let exists = false;
     if (targetId) {
         const journalKey = targetId.startsWith('journal_') ? targetId : 'journal_' + targetId;
@@ -548,19 +542,16 @@ window.cmapViewCodex = (id) => {
     }
 
     if (!targetId || !exists) {
-        // Clean up stale ID if it exists but points to nothing
         if (targetId && !exists) {
             if (char) delete char.codexId;
             if (rel) delete rel.codexId;
-            saveMapData(); // Async save cleanup
+            saveMapData(); 
         }
 
-        // Auto-Create Codex Entry if missing
         if (confirm(`Create Codex Entry for "${targetName}"?`)) {
             createCodexForMapItem(id, char ? 'char' : 'rel', targetName);
         }
     } else {
-        // Open Existing (Delegated to ui-journal.js via global)
         if (window.viewCodex) {
              window.viewCodex(targetId);
         } else {
@@ -575,18 +566,16 @@ async function createCodexForMapItem(mapId, type, name) {
 
     const newId = "cx_" + Date.now();
     
-    // Prepare Data
     const entry = {
         id: newId,
         name: name,
         type: type === 'char' ? 'NPC' : 'Lore',
         tags: ['Map Auto-Gen'],
-        desc: "", // Empty description
+        desc: "", 
         image: null
     };
 
     try {
-        // Save to Firestore (using the journal path logic)
         const safeId = 'journal_' + newId;
         const docRef = doc(db, 'chronicles', stState.activeChronicleId, 'players', safeId);
         
@@ -597,7 +586,6 @@ async function createCodexForMapItem(mapId, type, name) {
             pushed: true 
         });
 
-        // Update Map Data with link
         if (type === 'char') {
             const char = mapState.characters.find(c => c.id === mapId);
             if(char) char.codexId = newId;
@@ -609,7 +597,6 @@ async function createCodexForMapItem(mapId, type, name) {
         await saveMapData();
         showNotification("Codex Entry Created.");
         
-        // Open it immediately
         if (window.viewCodex) window.viewCodex(newId);
 
     } catch (e) {
@@ -617,6 +604,63 @@ async function createCodexForMapItem(mapId, type, name) {
         showNotification("Failed to create entry.", "error");
     }
 }
+
+// --- NEW: ROSTER AUTO-SYNC LOGIC ---
+async function syncRosterToMap() {
+    const stState = window.stState;
+    // Only Storyteller should run sync to avoid multi-client overwrite conflicts
+    if (!stState || !stState.players || !stState.isStoryteller) return false;
+
+    let needsSave = false;
+    
+    Object.entries(stState.players).forEach(([uid, p]) => {
+        if (!p || p.metadataType === 'journal' || !p.character_name) return;
+
+        const existingIndex = mapState.characters.findIndex(c => c.id === uid);
+        const clan = (p.full_sheet && p.full_sheet.textFields && p.full_sheet.textFields['c-clan']) 
+            ? p.full_sheet.textFields['c-clan'] 
+            : "Unknown";
+
+        if (existingIndex > -1) {
+            const c = mapState.characters[existingIndex];
+            if (c.name !== p.character_name || (c.clan === "Unknown" && clan !== "Unknown")) {
+                c.name = p.character_name;
+                if (clan !== "Unknown" && clan !== "") c.clan = clan;
+                needsSave = true;
+            }
+        } else {
+            // Check if ST added them manually by exact name before they joined
+            const nameMatchIndex = mapState.characters.findIndex(c => c.name === p.character_name);
+            if (nameMatchIndex > -1) {
+                 mapState.characters[nameMatchIndex].id = uid;
+                 needsSave = true;
+            } else {
+                mapState.characters.push({
+                    id: uid,
+                    name: p.character_name,
+                    clan: clan,
+                    type: 'pc',
+                    parent: null,
+                    visibility: 'all'
+                });
+                needsSave = true;
+            }
+        }
+    });
+
+    return needsSave;
+}
+
+window.cmapSyncRoster = async () => {
+    const changed = await syncRosterToMap();
+    if (changed) {
+        refreshMapUI();
+        await saveMapData();
+        showNotification("Roster Synced to Map.");
+    } else {
+        showNotification("Map is already in sync with Roster.");
+    }
+};
 
 function navigateUp() {
     if (mapState.mapHistory.length === 0) return;
@@ -649,7 +693,7 @@ function startMapSync(docId = 'main') {
     
     const docRef = doc(db, 'chronicles', stState.activeChronicleId, 'coterie', docId);
     
-    mapState.unsub = onSnapshot(docRef, (snapshot) => {
+    mapState.unsub = onSnapshot(docRef, async (snapshot) => {
         if (snapshot.exists()) {
             const data = snapshot.data();
             mapState.characters = data.characters || [];
@@ -658,7 +702,16 @@ function startMapSync(docId = 'main') {
              mapState.characters = [];
              mapState.relationships = [];
         }
+
+        // Auto-Sync Players from Roster
+        const rosterChanged = await syncRosterToMap();
+
         refreshMapUI();
+
+        // If roster sync changed local state, save it immediately
+        if (rosterChanged && stState.isStoryteller) {
+            saveMapData();
+        }
     });
 }
 
@@ -840,23 +893,23 @@ function updateDropdowns() {
     const sourceSelect = document.getElementById('cmap-source');
     const targetSelect = document.getElementById('cmap-target');
     const parentSelect = document.getElementById('cmap-parent-group');
-    const filterSelect = document.getElementById('cmap-filter-char'); // NEW FILTER DROPDOWN
+    const filterSelect = document.getElementById('cmap-filter-char'); 
 
     if (!sourceSelect || !targetSelect || !parentSelect || !filterSelect) return;
 
     const currentS = sourceSelect.value;
     const currentT = targetSelect.value;
     const currentP = parentSelect.value;
-    const currentF = filterSelect.value; // Save Filter State
+    const currentF = filterSelect.value; 
 
     let opts = '<option value="">-- Select --</option>';
     let groupOpts = '<option value="">-- No Parent Group --</option>';
-    let filterOpts = '<option value="">-- Show All --</option>'; // Init filter
+    let filterOpts = '<option value="">-- Show All --</option>'; 
 
     mapState.characters.forEach(c => {
         opts += `<option value="${c.id}">${c.name}</option>`;
         if(c.type === 'group') groupOpts += `<option value="${c.id}">${c.name}</option>`;
-        filterOpts += `<option value="${c.id}">${c.name}</option>`; // Add to filter
+        filterOpts += `<option value="${c.id}">${c.name}</option>`; 
     });
 
     sourceSelect.innerHTML = opts;
@@ -868,15 +921,13 @@ function updateDropdowns() {
     if (mapState.characters.some(c => c.id === currentT)) targetSelect.value = currentT;
     if (mapState.characters.some(c => c.id === currentP)) parentSelect.value = currentP;
     
-    // Restore Filter if valid
     if (mapState.characters.some(c => c.id === currentF)) filterSelect.value = currentF;
-    mapState.filterCharId = filterSelect.value; // Ensure state matches UI
+    mapState.filterCharId = filterSelect.value; 
 }
 
 function updateLists() {
     const charList = document.getElementById('cmap-char-list');
     if (charList) {
-        // Organize hierarchy: Groups -> Items
         const roots = mapState.characters.filter(c => !c.parent);
         let html = '';
 
@@ -973,18 +1024,14 @@ async function renderMermaidChart() {
     let visibleRels = mapState.relationships;
 
     if (mapState.filterCharId) {
-        // Find connected nodes
         const connectedIds = new Set();
         connectedIds.add(mapState.filterCharId);
 
-        // 1. Direct Relationships
         mapState.relationships.forEach(r => {
             if (r.source === mapState.filterCharId) connectedIds.add(r.target);
             if (r.target === mapState.filterCharId) connectedIds.add(r.source);
         });
 
-        // 2. Include Parents (Groups) of connected nodes to maintain structure
-        // Iterating to ensure we capture the hierarchy for displayed nodes
         const nodesToCheck = [...connectedIds];
         nodesToCheck.forEach(id => {
             let char = mapState.characters.find(c => c.id === id);
@@ -997,7 +1044,6 @@ async function renderMermaidChart() {
         visibleChars = mapState.characters.filter(c => connectedIds.has(c.id));
         visibleRels = mapState.relationships.filter(r => connectedIds.has(r.source) && connectedIds.has(r.target));
     }
-    // --- END FILTER LOGIC ---
 
     let graph = 'graph TD\n';
     
@@ -1010,7 +1056,6 @@ async function renderMermaidChart() {
     graph += 'classDef hiddenNode stroke-dasharray: 5 5,opacity:0.6;\n';
 
     // RENDER NODES
-    
     const renderedIds = new Set();
     
     const renderNode = (c) => {
