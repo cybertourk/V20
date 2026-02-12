@@ -327,12 +327,8 @@ async function renderChronicleMenu() {
     const listDiv = document.getElementById('st-campaign-list');
     if (listDiv) {
         try {
-            // FIX: Ensure user exists before query
             if (!user || !user.uid) return;
 
-            // FIX: Add index-safe error handling or simplified query
-            // The query requires a composite index on storyteller_uid if ordering is involved, 
-            // but for simple equality it should be fine IF rules allow it.
             const q = query(collection(db, 'chronicles'), where("storyteller_uid", "==", user.uid));
             const querySnapshot = await getDocs(q);
             
@@ -934,16 +930,16 @@ function renderStorytellerDashboard(container = null) {
                     <h2 class="text-xl font-cinzel text-red-500 font-bold tracking-widest uppercase">
                         <i class="fas fa-crown mr-2"></i> Storyteller Mode
                     </h2>
-                    <span class="text-xs font-mono text-gray-500 border border-[#333] px-2 py-1 rounded bg-black">
+                    <span class="text-xs font-mono text-gray-500 border border-[#333] px-2 py-1 rounded bg-black hidden sm:inline">
                         ID: <span class="text-gold select-all cursor-pointer" onclick="navigator.clipboard.writeText('${stState.activeChronicleId}')">${stState.activeChronicleId}</span>
                     </span>
                 </div>
                 <div class="flex gap-2">
                     <button class="bg-[#222] border border-[#444] text-gray-300 hover:text-white px-3 py-1 text-xs font-bold uppercase rounded transition-colors" onclick="window.exitStorytellerDashboard()">
-                        <i class="fas fa-arrow-left mr-1"></i> Character Creator
+                        <i class="fas fa-arrow-left mr-1"></i> <span class="hidden sm:inline">Character Creator</span>
                     </button>
                     <button class="bg-[#222] border border-red-900 text-red-500 hover:text-white hover:bg-red-900 px-3 py-1 text-xs font-bold uppercase rounded transition-colors" onclick="window.disconnectChronicle()">
-                        <i class="fas fa-sign-out-alt mr-1"></i> Disconnect
+                        <i class="fas fa-sign-out-alt mr-1"></i> <span class="hidden sm:inline">Disconnect</span>
                     </button>
                 </div>
             </div>
@@ -1260,7 +1256,7 @@ function renderCombatView() {
     const viewport = document.getElementById('st-viewport');
     if (!viewport || stState.currentView !== 'combat') return;
 
-    const { isActive, turn, combatants } = combatState;
+    const { isActive, turn, phase, combatants } = combatState; 
 
     if (!isActive) {
         viewport.innerHTML = `
@@ -1273,21 +1269,43 @@ function renderCombatView() {
         return;
     }
 
+    let phaseTitle = phase === 'declare' ? 'Declaration Phase' : 'Action Phase';
+    let phaseSubtitle = phase === 'declare' ? 'Slowest to Fastest (State Intentions)' : 'Fastest to Slowest (Roll & Resolve)';
+    let phaseColor = phase === 'declare' ? 'text-blue-400' : 'text-red-500';
+
     let html = `
         <div class="flex flex-col h-full">
-            <div class="bg-[#111] border-b border-[#333] p-4 flex justify-between items-center shadow-md z-20">
-                <div class="flex items-center gap-6">
+            <div class="bg-[#111] border-b border-[#333] p-4 flex justify-between items-center shadow-md z-20 shrink-0">
+                <div class="flex items-center gap-4">
                     <div class="text-center">
                         <div class="text-[10px] text-gray-500 uppercase font-bold tracking-widest">Round</div>
                         <div class="text-3xl font-black text-[#d4af37] leading-none">${turn}</div>
                     </div>
-                    <button onclick="window.stNextTurn()" class="bg-[#222] hover:bg-[#333] border border-[#444] text-white px-4 py-2 text-xs font-bold uppercase rounded flex items-center gap-2 transition-colors shadow-sm hover:shadow-[#d4af37]/20">
-                        Next Turn <i class="fas fa-step-forward"></i>
-                    </button>
+                    
+                    <div class="border-l border-[#333] pl-4 py-1 hidden sm:block">
+                        <div class="text-sm md:text-base ${phaseColor} uppercase font-bold tracking-widest">${phaseTitle}</div>
+                        <div class="text-[10px] text-gray-400 italic">${phaseSubtitle}</div>
+                    </div>
+
+                    <div class="flex gap-2 ml-2 sm:ml-4">
+                        <button onclick="window.stNextTurn()" class="bg-[#222] hover:bg-[#333] border border-[#444] text-white px-3 sm:px-4 py-2 text-xs font-bold uppercase rounded flex items-center gap-2 transition-colors shadow-sm hover:shadow-[#d4af37]/20">
+                            <span class="hidden sm:inline">Next</span> <i class="fas fa-step-forward"></i>
+                        </button>
+                        <button onclick="window.combatTracker.rollAllNPCs()" class="bg-[#1a1a1a] hover:bg-[#333] border border-[#444] text-gray-300 hover:text-white px-3 py-2 text-xs font-bold uppercase rounded transition-colors" title="Roll All NPC Initiatives">
+                            <i class="fas fa-dice-d10"></i> <span class="hidden sm:inline">NPCs</span>
+                        </button>
+                    </div>
                 </div>
-                <button onclick="window.stEndCombat()" class="text-red-500 hover:text-red-300 text-xs font-bold uppercase border border-red-900/30 px-4 py-2 rounded hover:bg-red-900/10">End Combat</button>
+                <button onclick="window.stEndCombat()" class="text-red-500 hover:text-red-300 text-xs font-bold uppercase border border-red-900/30 px-3 py-2 rounded hover:bg-red-900/10">End</button>
             </div>
-            <div class="flex-1 overflow-y-auto p-4 space-y-2 bg-black/50 pb-20">
+            
+            <!-- MOBILE PHASE LABEL (shows when screen is small) -->
+            <div class="sm:hidden bg-[#0a0a0a] border-b border-[#333] p-2 text-center shrink-0">
+                <div class="text-sm ${phaseColor} uppercase font-bold tracking-widest">${phaseTitle}</div>
+                <div class="text-[9px] text-gray-500 italic">${phaseSubtitle}</div>
+            </div>
+
+            <div class="flex-1 overflow-y-auto p-4 space-y-2 bg-black/50 pb-20 custom-scrollbar">
     `;
 
     if (combatants.length === 0) {
@@ -1297,6 +1315,13 @@ function renderCombatView() {
             const isNPC = c.type === 'NPC';
             const activeClass = c.active ? 'border-[#d4af37] bg-[#2a2a2a] shadow-[0_0_15px_rgba(212,175,55,0.2)] transform scale-[1.01]' : 'border-[#333] bg-[#1a1a1a] opacity-80';
             const activeIndicator = c.active ? `<div class="absolute left-0 top-0 bottom-0 w-1 bg-[#d4af37]"></div>` : '';
+
+            // Handle Status display color
+            let statusColor = 'text-gray-400';
+            if (c.status === 'held') statusColor = 'text-yellow-500';
+            if (c.status === 'defending') statusColor = 'text-blue-400';
+            if (c.status === 'multiple') statusColor = 'text-purple-400';
+            if (c.status === 'done') statusColor = 'text-gray-600';
 
             html += `
                 <div class="${activeClass} p-2 rounded flex items-center justify-between group hover:border-[#555] transition-all relative overflow-hidden">
@@ -1311,9 +1336,16 @@ function renderCombatView() {
                             <span class="text-[9px] text-gray-500 uppercase">${c.type}</span>
                         </div>
                     </div>
-                    <div class="flex items-center gap-2">
+                    <div class="flex items-center gap-3">
+                        <select onchange="window.combatTracker.setStatus('${c.id}', this.value)" class="bg-[#050505] border border-[#333] text-[9px] uppercase font-bold ${statusColor} rounded px-1 py-1 focus:outline-none focus:border-[#d4af37]">
+                            <option value="pending" class="text-gray-400" ${c.status === 'pending' ? 'selected' : ''}>Pending</option>
+                            <option value="held" class="text-yellow-500" ${c.status === 'held' ? 'selected' : ''}>Held Action</option>
+                            <option value="defending" class="text-blue-400" ${c.status === 'defending' ? 'selected' : ''}>Defending</option>
+                            <option value="multiple" class="text-purple-400" ${c.status === 'multiple' ? 'selected' : ''}>Multiple Actions</option>
+                            <option value="done" class="text-gray-600" ${c.status === 'done' ? 'selected' : ''}>Done</option>
+                        </select>
                         ${isNPC ? `<button onclick="window.stRollInit('${c.id}')" class="text-gray-500 hover:text-white" title="Roll Initiative"><i class="fas fa-dice-d10"></i></button>` : ''}
-                        <button onclick="window.stRemoveCombatant('${c.id}')" class="text-red-900 hover:text-red-500 px-2 transition-colors"><i class="fas fa-times"></i></button>
+                        <button onclick="window.stRemoveCombatant('${c.id}')" class="text-red-900 hover:text-red-500 px-2 transition-colors" title="Remove from Combat"><i class="fas fa-times"></i></button>
                     </div>
                 </div>
             `;
