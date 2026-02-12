@@ -238,6 +238,7 @@ export function renderPlaySheetModal() {
                 <div>
                     <h2 class="text-3xl font-cinzel font-bold text-[#d4af37] leading-none">${npc.name || "Unnamed NPC"}</h2>
                     <div class="text-xs text-gray-400 uppercase tracking-widest mt-1 font-bold">${typeLabel}</div>
+                    <input type="hidden" id="npc-name" value="${npc.name || "Unnamed NPC"}">
                 </div>
                 <div class="flex items-center gap-4">
                     <button id="close-play-modal" class="text-gray-500 hover:text-white text-2xl"><i class="fas fa-times"></i></button>
@@ -715,20 +716,21 @@ function bindPlayInteractions(modal) {
             const v2 = parseInt(el.dataset.v2) || 0;
             const v3 = parseInt(el.dataset.v3) || 0; 
 
-            if (typeof toggleStat === 'function') {
-                if (action === 'init') {
-                    // Initialize Initiative: 1 Die + Modifier (Dex + Wits)
-                    if (typeof clearPool === 'function') clearPool();
-                    
-                    const score = v1 + v2; // Dex + Wits
-                    
-                    // Load 1 Die into the pool, labeled explicitly with the modifier
-                    toggleStat(`Initiative (+${score})`, 1, 'custom');
-                    
-                    // Show notification with calculation
-                    showNotification(`Initiative: Roll 1d10 + ${score}. (Total Score: [Die Result] + ${score})`);
+            if (action === 'init') {
+                const score = v1 + v2; // Dex + Wits
+                // Check if the global rollInitiative function is available
+                if (window.rollInitiative) {
+                    window.rollInitiative(score);
+                } else {
+                    // Fallback to legacy generic pool loading
+                    if (typeof toggleStat === 'function') {
+                        toggleStat(`Initiative (+${score})`, 1, 'custom');
+                        showNotification(`Initiative: Roll 1d10 + ${score}.`);
+                    }
                 }
-                else if (action === 'soak') {
+            }
+            else if (typeof toggleStat === 'function') {
+                if (action === 'soak') {
                     toggleStat('Stamina', v1, 'attribute');
                     if (v2 > 0) toggleStat('Fortitude', v2, 'discipline');
                     if (v3 > 0) toggleStat('Armor', v3, 'custom');
