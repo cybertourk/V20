@@ -808,7 +808,7 @@ export function rollInitiative(rating) {
 
     // Detect if this is an NPC roll
     // 1. Is there an active NPC modal?
-    const npcModal = document.getElementById('npc-modal');
+    const npcModal = document.getElementById('npc-play-modal');
     const isNpcModalOpen = npcModal && (npcModal.classList.contains('active') || npcModal.style.display === 'flex' || npcModal.style.display === 'block');
     
     // 2. Is the rating passed significantly different from the PC's?
@@ -818,6 +818,12 @@ export function rollInitiative(rating) {
         // --- NPC ROLL (Fallback to generic rating) ---
         const safeRating = parseInt(rating) || 0;
         window.state.activePool.push({name: "Initiative", val: safeRating});
+        
+        // Pass NPC Context (Legacy style for non-play sheet)
+        const npcName = document.getElementById('npc-name')?.value || "NPC";
+        
+        // Add special marker for rollPool interception
+        window.state.activePool.push({name: "Init_NPC", val: 0, npcName: npcName});
         
         const display = document.getElementById('pool-display');
         if (display) {
@@ -1198,6 +1204,7 @@ export function healOneLevel() {
     window.state.status.health_states = newStates;
     
     if(renderPrintSheet) renderPrintSheet();
+    // Use Global updatePools from ui-renderer
     if(window.updatePools) window.updatePools();
     showNotification("Healed 1 wound level (1 BP).");
 }
