@@ -316,7 +316,6 @@ window.removeDerangement = function(idx) {
 window.suppressDerangement = function() {
     if ((window.state.status.tempWillpower || 0) > 0) {
         window.state.status.tempWillpower--;
-        // Use Global updatePools from ui-renderer
         if(window.updatePools) window.updatePools(); 
         if(renderPrintSheet) renderPrintSheet();
         showNotification("Spent 1 WP: Derangements suppressed for 1 Scene.");
@@ -1204,7 +1203,6 @@ export function healOneLevel() {
     window.state.status.health_states = newStates;
     
     if(renderPrintSheet) renderPrintSheet();
-    // Use Global updatePools from ui-renderer
     if(window.updatePools) window.updatePools();
     showNotification("Healed 1 wound level (1 BP).");
 }
