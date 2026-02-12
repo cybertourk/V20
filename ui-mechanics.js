@@ -480,7 +480,6 @@ window.toggleStat = toggleStat;
 
 export function rollPool() {
     // --- SPECIAL ROLL INTERCEPTION: INITIATIVE ---
-    // Check if the current pool contains an Initiative entry
     const isInit = window.state.activePool.some(p => p.name.startsWith("Init_") || p.name === "Initiative");
     
     if (isInit) {
@@ -573,6 +572,13 @@ export function rollPool() {
         // --- HOOK: SEND TO CHRONICLE IF CONNECTED ---
         if (window.stState && window.stState.activeChronicleId) {
             let msgContent = `Initiative Roll: <span class="text-[#4ade80] font-bold">${total}</span> <span class="opacity-50 text-[10px]">(1d10[${die}] + ${chatBreakdown})</span>`;
+            
+            if (isLegacy) {
+                const nameInput = document.getElementById('npc-name');
+                const npcName = nameInput ? nameInput.value : "NPC";
+                msgContent = `<span class="text-[#d4af37] font-bold">${npcName}</span> ` + msgContent;
+            }
+
             if (window.sendChronicleMessage) {
                 window.sendChronicleMessage('roll', msgContent, {
                     pool: "Initiative",
@@ -585,10 +591,20 @@ export function rollPool() {
 
             // --- AUTO-UPDATE COMBAT TRACKER ---
             if (window.combatTracker && window.combatTracker.updateInit) {
-                const targetId = window.state.meta?.uid || (auth?.currentUser?.uid || null);
+                let targetId = null;
+                
+                // Do not update PC tracker slot if it's an NPC roll
+                if (isLegacy) {
+                    const npcModal = document.getElementById('npc-modal');
+                    if (npcModal && npcModal.dataset.id) targetId = npcModal.dataset.id;
+                    else if (window.activeNpcId) targetId = window.activeNpcId;
+                } else {
+                    targetId = window.state.meta?.uid || (auth?.currentUser?.uid || null);
+                }
+
                 if (targetId) {
                     window.combatTracker.updateInit(targetId, total).catch(e => {
-                        console.warn("Combat Tracker Auto-Update failed (Requires ST or updated Firebase Rules):", e);
+                        console.warn("Combat Tracker Auto-Update failed:", e);
                     });
                 }
             }
@@ -751,11 +767,11 @@ export function rollCombat(name, diff, attr, ability) {
 }
 window.rollCombat = rollCombat;
 
-// --- UPDATED INITIATIVE FUNCTION (Detailed Breakdown) ---
+// --- UPDATED INITIATIVE FUNCTION (Detailed Breakdown & NPC Support) ---
 export function rollInitiative(rating) {
     window.clearPool();
     
-    // Retrieve directly from state to guarantee full context breakdown
+    // PC Stat Baseline
     const dex = window.state.dots.attr['Dexterity'] || 1;
     const wits = window.state.dots.attr['Wits'] || 1;
     const celerity = window.state.dots.disc['Celerity'] || 0;
@@ -768,23 +784,47 @@ export function rollInitiative(rating) {
     else if (dmgCount >= 4) wounds = 2;
     else if (dmgCount >= 2) wounds = 1;
 
-    if (wounds >= 99) {
-        showNotification("Incapacitated! Cannot roll initiative.");
-        return;
-    }
+    const expectedPcRating = Math.max(0, dex + wits + celerity - wounds);
+    const expectedBaseRating = dex + wits; // Play mode passes base rating often
 
-    window.state.activePool.push({name: "Init_Dex", val: dex});
-    window.state.activePool.push({name: "Init_Wits", val: wits});
-    if (celerity > 0) window.state.activePool.push({name: "Init_Celerity", val: celerity});
-    if (wounds > 0) window.state.activePool.push({name: "Init_Wounds", val: -wounds});
+    // Detect if this is an NPC roll
+    // 1. Is there an active NPC modal?
+    const npcModal = document.getElementById('npc-modal');
+    const isNpcModalOpen = npcModal && (npcModal.classList.contains('active') || npcModal.style.display === 'flex' || npcModal.style.display === 'block');
     
-    const display = document.getElementById('pool-display');
-    if (display) {
-        let text = `Initiative: Dex (${dex}) + Wits (${wits})`;
-        if (celerity > 0) text += ` + Cel (${celerity})`;
-        if (wounds > 0) text += ` - Wounds (${wounds})`;
-        setSafeText('pool-display', text);
-        display.classList.add('text-yellow-500');
+    // 2. Is the rating passed significantly different from the PC's?
+    const ratingMismatch = rating !== undefined && parseInt(rating) !== expectedPcRating && parseInt(rating) !== expectedBaseRating;
+
+    if (isNpcModalOpen || ratingMismatch) {
+        // --- NPC ROLL (Fallback to generic rating) ---
+        const safeRating = parseInt(rating) || 0;
+        window.state.activePool.push({name: "Initiative", val: safeRating});
+        
+        const display = document.getElementById('pool-display');
+        if (display) {
+            setSafeText('pool-display', `NPC Initiative: Rating (${safeRating})`);
+            display.classList.add('text-yellow-500');
+        }
+    } else {
+        // --- PC ROLL (Detailed Breakdown) ---
+        if (wounds >= 99) {
+            showNotification("Incapacitated! Cannot roll initiative.");
+            return;
+        }
+
+        window.state.activePool.push({name: "Init_Dex", val: dex});
+        window.state.activePool.push({name: "Init_Wits", val: wits});
+        if (celerity > 0) window.state.activePool.push({name: "Init_Celerity", val: celerity});
+        if (wounds > 0) window.state.activePool.push({name: "Init_Wounds", val: -wounds});
+        
+        const display = document.getElementById('pool-display');
+        if (display) {
+            let text = `Initiative: Dex (${dex}) + Wits (${wits})`;
+            if (celerity > 0) text += ` + Cel (${celerity})`;
+            if (wounds > 0) text += ` - Wounds (${wounds})`;
+            setSafeText('pool-display', text);
+            display.classList.add('text-yellow-500');
+        }
     }
     
     const tray = document.getElementById('dice-tray');
