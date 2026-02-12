@@ -485,12 +485,20 @@ export function rollPool() {
     if (isInit) {
         let dex = 0, wits = 0, celerity = 0, wounds = 0, legacyMod = 0;
         let isLegacy = false;
+        let isNPC = false;
+        let npcNameStr = "NPC";
+        let npcIdStr = null;
 
         window.state.activePool.forEach(p => {
             if (p.name === 'Init_Dex') dex = p.val;
             else if (p.name === 'Init_Wits') wits = p.val;
             else if (p.name === 'Init_Celerity') celerity = p.val;
             else if (p.name === 'Init_Wounds') wounds = Math.abs(p.val);
+            else if (p.name === 'Init_NPC') {
+                isNPC = true;
+                npcNameStr = p.npcName || "NPC";
+                npcIdStr = p.npcId || null;
+            }
             else if (p.name === 'Initiative') { 
                 isLegacy = true; 
                 legacyMod = p.val; 
@@ -552,9 +560,11 @@ export function rollPool() {
         const row = document.createElement('div');
         row.className = 'bg-black/60 p-2 border border-[#333] text-[10px] mb-2 animate-in fade-in slide-in-from-right-4 duration-300';
         
+        let displayTitle = isNPC ? `${npcNameStr} Initiative` : 'Initiative Roll';
+
         row.innerHTML = `
             <div class="flex justify-between border-b border-[#444] pb-1 mb-1">
-                <span class="text-[#d4af37] font-bold uppercase">Initiative Roll</span>
+                <span class="text-[#d4af37] font-bold uppercase">${displayTitle}</span>
                 <span class="text-white font-black text-sm">${total}</span>
             </div>
             <div class="tracking-widest flex flex-wrap justify-center py-2 items-center gap-2 text-[9px]">
@@ -573,10 +583,12 @@ export function rollPool() {
         if (window.stState && window.stState.activeChronicleId) {
             let msgContent = `Initiative Roll: <span class="text-[#4ade80] font-bold">${total}</span> <span class="opacity-50 text-[10px]">(1d10[${die}] + ${chatBreakdown})</span>`;
             
-            if (isLegacy) {
+            if (isNPC) {
+                msgContent = `<span class="text-[#d4af37] font-bold">${npcNameStr}</span> ` + msgContent;
+            } else if (isLegacy) {
                 const nameInput = document.getElementById('npc-name');
-                const npcName = nameInput ? nameInput.value : "NPC";
-                msgContent = `<span class="text-[#d4af37] font-bold">${npcName}</span> ` + msgContent;
+                const fallbackName = nameInput ? nameInput.value : "NPC";
+                msgContent = `<span class="text-[#d4af37] font-bold">${fallbackName}</span> ` + msgContent;
             }
 
             if (window.sendChronicleMessage) {
@@ -593,8 +605,9 @@ export function rollPool() {
             if (window.combatTracker && window.combatTracker.updateInit) {
                 let targetId = null;
                 
-                // Do not update PC tracker slot if it's an NPC roll
-                if (isLegacy) {
+                if (isNPC) {
+                    targetId = npcIdStr;
+                } else if (isLegacy) {
                     const npcModal = document.getElementById('npc-modal');
                     if (npcModal && npcModal.dataset.id) targetId = npcModal.dataset.id;
                     else if (window.activeNpcId) targetId = window.activeNpcId;
