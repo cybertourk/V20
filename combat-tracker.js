@@ -309,9 +309,14 @@ export async function rollAllNPCInitiatives() {
                 const roll = Math.floor(Math.random() * 10) + 1; 
                 c.init = rating + roll;
                 changed = true;
-                systemLog.push(`${c.name}: ${c.init}`);
+                
+                let chatBreakdown = `Dex(${dex}) + Wits(${wits})`;
+                if (celerity > 0) chatBreakdown += ` + Cel(${celerity})`;
+                if (woundPen > 0) chatBreakdown += ` - Wounds(${woundPen})`;
+
+                systemLog.push(`<div class="mb-1 pl-2 border-l border-[#333]"><span class="text-[#d4af37] font-bold">${c.name}</span>: <span class="text-[#4ade80]">${c.init}</span> <span class="text-[9px] text-gray-500">(1d10[${roll}] + ${chatBreakdown})</span></div>`);
             } else {
-                systemLog.push(`${c.name}: Incap.`);
+                systemLog.push(`<div class="mb-1 pl-2 border-l border-[#333]"><span class="text-red-500 font-bold">${c.name}</span>: Incapacitated</div>`);
             }
         }
     });
@@ -321,7 +326,8 @@ export async function rollAllNPCInitiatives() {
         await pushUpdate(updatedList);
         showNotification("NPC Initiatives Rolled.");
         if(window.sendChronicleMessage && systemLog.length > 0) {
-            window.sendChronicleMessage('system', `NPC Initiative Results: ${systemLog.join(', ')}`);
+            // Consolidate mass roll into one clean system message
+            window.sendChronicleMessage('system', `<div class="text-left font-sans mt-1"><div class="text-white text-[10px] font-bold mb-1 uppercase tracking-wider">Mass NPC Initiative</div>${systemLog.join('')}</div>`);
         }
     } else {
         showNotification("No eligible NPCs to roll.");
@@ -381,9 +387,18 @@ export async function rollNPCInitiative(id) {
     const roll = Math.floor(Math.random() * 10) + 1; 
     const total = rating + roll;
     
+    let chatBreakdown = `Dex(${dex}) + Wits(${wits})`;
+    if (celerity > 0) chatBreakdown += ` + Cel(${celerity})`;
+    if (woundPen > 0) chatBreakdown += ` - Wounds(${woundPen})`;
+
+    let msgContent = `${c.name} rolled Initiative: <span class="text-[#4ade80] font-bold">${total}</span> <span class="opacity-50 text-[10px]">(1d10[${roll}] + ${chatBreakdown})</span>`;
+
     await updateInitiative(id, total);
     showNotification(`${c.name} rolled ${total}`);
-    if(window.sendChronicleMessage) window.sendChronicleMessage('roll', `${c.name} rolled Initiative: ${total}`, { pool: "Initiative", diff: 0, successes: total, dice: 1, results: [roll] });
+    
+    if(window.sendChronicleMessage) {
+        window.sendChronicleMessage('roll', msgContent, { pool: "Initiative", diff: 0, successes: total, dice: 1, results: [roll] });
+    }
 }
 
 // --- HELPER ---
