@@ -1105,9 +1105,16 @@ async function renderMermaidChart() {
             
             if (char) {
                 node.style.cursor = "pointer";
-                node.addEventListener('click', (e) => {
-                    e.stopPropagation(); // Stop bubbling
-                    // console.log("Manual Click:", char.id);
+                node.style.pointerEvents = "all"; // FORCE POINTER EVENTS
+                
+                // Remove old listeners just in case by cloning
+                const newNode = node.cloneNode(true);
+                node.parentNode.replaceChild(newNode, node);
+                
+                newNode.addEventListener('click', (e) => {
+                    e.stopPropagation(); 
+                    e.preventDefault();
+                    // console.log("Manual Click Triggered:", char.id);
                     window.cmapNodeClick(char.id);
                 });
             }
