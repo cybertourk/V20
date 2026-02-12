@@ -480,7 +480,7 @@ window.toggleStat = toggleStat;
 
 export function rollPool() {
     // --- SPECIAL ROLL INTERCEPTION: INITIATIVE ---
-    const isInit = window.state.activePool.some(p => p.name.startsWith("Init_") || p.name === "Initiative");
+    const isInit = window.state.activePool.some(p => p.name.startsWith("Init_") || p.name.includes("Initiative"));
     
     if (isInit) {
         let dex = 0, wits = 0, celerity = 0, wounds = 0, legacyMod = 0;
@@ -499,9 +499,15 @@ export function rollPool() {
                 npcNameStr = p.npcName || "NPC";
                 npcIdStr = p.npcId || null;
             }
-            else if (p.name === 'Initiative') { 
+            else if (p.name.includes('Initiative')) { 
                 isLegacy = true; 
-                legacyMod = p.val; 
+                // Try to extract dynamic modifier like "Initiative (+5)" from NPC sheets
+                const match = p.name.match(/\(\+?(-?\d+)\)/);
+                if (match) {
+                    legacyMod = parseInt(match[1]);
+                } else {
+                    legacyMod = p.val; 
+                }
             }
         });
 
@@ -1192,7 +1198,6 @@ export function healOneLevel() {
     window.state.status.health_states = newStates;
     
     if(renderPrintSheet) renderPrintSheet();
-    // Use Global updatePools from ui-renderer
     if(window.updatePools) window.updatePools();
     showNotification("Healed 1 wound level (1 BP).");
 }
