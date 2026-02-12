@@ -79,6 +79,7 @@ export function initStorytellerSystem() {
     window.stRollInit = rollNPCInitiative;
     window.stAddToCombat = handleAddToCombat;
     window.renderCombatView = renderCombatView;
+    window.stViewCombatantSheet = stViewCombatantSheet; // Added for clickable names
 
     // Journal Bindings
     window.stPushHandout = pushHandoutToPlayers;
@@ -1096,7 +1097,7 @@ async function stRemovePlayer(id, name) {
     }
 }
 
-// --- NEW FUNCTION: VIEW PLAYER SHEET (Full App View) ---
+// --- VIEW PLAYER SHEET (Full App View) ---
 function stViewPlayerSheet(playerId) {
     const player = stState.players[playerId];
     if (!player || !player.full_sheet) {
@@ -1158,6 +1159,32 @@ function returnToStoryteller() {
     // 5. Ensure ST view is correct
     if (window.renderStorytellerDashboard) window.renderStorytellerDashboard();
 };
+
+// --- VIEW COMBATANT SHEET (For Tracker Clickable Names) ---
+export function stViewCombatantSheet(id, type, sourceId, name) {
+    if (type === 'Player') {
+        window.stViewPlayerSheet(id);
+    } else {
+        // Look up NPC data
+        let npcData = null;
+        if (sourceId && stState.bestiary && stState.bestiary[sourceId]) {
+            npcData = stState.bestiary[sourceId].data;
+        } else {
+            for (const cat in BESTIARY) {
+                if (BESTIARY[cat][name]) {
+                    npcData = BESTIARY[cat][name];
+                    break;
+                }
+            }
+        }
+        
+        if (npcData && window.openNpcSheet) {
+            window.openNpcSheet(npcData);
+        } else {
+            showNotification("Detailed sheet not found for this NPC.", "error");
+        }
+    }
+}
 
 
 // --- VIEW 1: ROSTER ---
@@ -1272,7 +1299,7 @@ function renderCombatView() {
 
     let html = `
         <div class="flex flex-col h-full">
-            <!-- TOP STATUS BAR (UPDATED TO BE CLEARER AND PERSISTENT) -->
+            <!-- TOP STATUS BAR -->
             <div class="bg-[#111] border-b border-[#333] p-4 flex justify-between items-center shadow-md z-20 shrink-0">
                 <div class="flex items-center gap-4">
                     <div class="text-center">
@@ -1289,6 +1316,10 @@ function renderCombatView() {
 
                 <!-- CONTROLS -->
                 <div class="flex flex-col gap-2 items-end">
+                    <div class="flex items-center gap-2 mb-1" title="If checked, initiatives reset to 0 at the end of the round.">
+                        <input type="checkbox" id="reroll-init-toggle" class="accent-[#d4af37] cursor-pointer w-3 h-3" ${combatState.rerollInitiative ? 'checked' : ''} onchange="window.combatTracker.toggleReroll()">
+                        <label for="reroll-init-toggle" class="text-[9px] text-gray-400 font-bold uppercase tracking-wider cursor-pointer select-none hover:text-white transition-colors">Reroll Each Round</label>
+                    </div>
                     <div class="flex gap-2">
                         <button onclick="window.stNextTurn()" class="bg-[#222] hover:bg-[#333] border border-[#444] text-white px-4 py-2 text-xs font-bold uppercase rounded flex items-center gap-2 transition-colors shadow-sm hover:shadow-[#d4af37]/20">
                             Next <i class="fas fa-step-forward"></i>
@@ -1320,6 +1351,8 @@ function renderCombatView() {
             if (c.status === 'multiple') statusColor = 'text-purple-400';
             if (c.status === 'done') statusColor = 'text-gray-600';
 
+            const safeName = c.name.replace(/'/g, "\\'");
+
             html += `
                 <div class="${activeClass} p-2 rounded flex items-center justify-between group hover:border-[#555] transition-all relative overflow-hidden">
                     ${activeIndicator}
@@ -1329,7 +1362,7 @@ function renderCombatView() {
                             <span class="text-[8px] text-gray-600 uppercase font-bold mt-0.5">Init</span>
                         </div>
                         <div class="flex flex-col">
-                            <span class="text-white font-bold text-sm ${c.status === 'done' ? 'line-through opacity-50' : ''}">${c.name}</span>
+                            <span class="text-white font-bold text-sm cursor-pointer hover:text-[#d4af37] hover:underline transition-colors ${c.status === 'done' ? 'line-through opacity-50' : ''}" onclick="window.stViewCombatantSheet('${c.id}', '${c.type}', '${c.sourceId}', '${safeName}')" title="Click to View Sheet">${c.name}</span>
                             <span class="text-[9px] text-gray-500 uppercase">${c.type}</span>
                         </div>
                     </div>
