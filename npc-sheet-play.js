@@ -360,10 +360,11 @@ export function renderPlaySheetModal() {
                                 <span class="font-bold cursor-pointer hover:text-white npc-combat-interact text-[#d4af37] uppercase tracking-wide" 
                                       data-action="init" 
                                       data-v1="${dexPenalized}" 
-                                      data-v2="${wits}">
+                                      data-v2="${wits}"
+                                      data-v3="${cel}">
                                     <i class="fas fa-bolt mr-1"></i> Initiative
                                 </span>
-                                <span class="text-white font-bold">1d10 + ${dexPenalized + wits}</span>
+                                <span class="text-white font-bold">1d10 + ${dexPenalized + wits + cel}</span>
                             </div>
 
                             <!-- Attacks Table -->
@@ -717,17 +718,46 @@ function bindPlayInteractions(modal) {
             const v3 = parseInt(el.dataset.v3) || 0; 
 
             if (action === 'init') {
-                const score = v1 + v2; // Dex + Wits
-                // Check if the global rollInitiative function is available
-                if (window.rollInitiative) {
-                    window.rollInitiative(score);
-                } else {
-                    // Fallback to legacy generic pool loading
-                    if (typeof toggleStat === 'function') {
-                        toggleStat(`Initiative (+${score})`, 1, 'custom');
-                        showNotification(`Initiative: Roll 1d10 + ${score}.`);
-                    }
+                const dex = v1;
+                const wits = v2;
+                const cel = v3;
+                const npcName = document.getElementById('npc-name')?.value || "NPC";
+                
+                // Calculate Wounds explicitly for NPC
+                const healthTrack = ctx.activeNpc.health.track || [];
+                const dmgCount = healthTrack.filter(x => x > 0).length;
+                let wounds = 0;
+                if (dmgCount >= 7) wounds = 99;
+                else if (dmgCount === 6) wounds = 5;
+                else if (dmgCount >= 4) wounds = 2;
+                else if (dmgCount >= 2) wounds = 1;
+
+                if (wounds >= 99) {
+                    if(window.showNotification) window.showNotification("Incapacitated! Cannot roll initiative.");
+                    return;
                 }
+
+                // Push exact Breakdown format for rollPool to intercept
+                if(!window.state.activePool) window.state.activePool = [];
+                window.state.activePool.push({name: "Init_Dex", val: dex});
+                window.state.activePool.push({name: "Init_Wits", val: wits});
+                if (cel > 0) window.state.activePool.push({name: "Init_Celerity", val: cel});
+                if (wounds > 0) window.state.activePool.push({name: "Init_Wounds", val: -wounds});
+                
+                // Pass NPC identification
+                window.state.activePool.push({name: "Init_NPC", val: 0, npcName: npcName, npcId: ctx.activeNpc.id || npcName});
+
+                const display = document.getElementById('pool-display');
+                if (display) {
+                    let text = `${npcName} Init: Dex (${dex}) + Wits (${wits})`;
+                    if (cel > 0) text += ` + Cel (${cel})`;
+                    if (wounds > 0) text += ` - Wounds (${wounds})`;
+                    if(window.setSafeText) window.setSafeText('pool-display', text);
+                    display.classList.add('text-yellow-500');
+                }
+                
+                const tray = document.getElementById('dice-tray');
+                if (tray) tray.classList.add('open');
             }
             else if (typeof toggleStat === 'function') {
                 if (action === 'soak') {
