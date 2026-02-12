@@ -45,7 +45,8 @@ let mapState = {
     unsub: null,
     editingVisibilityId: null,
     editingVisibilityType: null,
-    editingNodeId: null 
+    editingNodeId: null,
+    filterCharId: null // NEW: Track active filter
 };
 
 // --- GLOBAL CLICK HANDLER (Must be on window for Mermaid) ---
@@ -93,6 +94,14 @@ export async function renderCoterieMap(container) {
                     <div class="flex gap-2 mb-3">
                         <select id="cmap-select-map" class="bg-[#262626] border border-[#404040] text-white p-2 rounded text-xs w-full outline-none focus:border-gold"></select>
                         <button id="cmap-new-map-btn" class="bg-[#333] hover:bg-[#444] border border-[#444] text-white px-3 rounded text-xs"><i class="fas fa-plus"></i></button>
+                    </div>
+
+                    <!-- NEW: FILTER DROPDOWN -->
+                    <div class="mb-3">
+                        <label class="text-[10px] text-gray-500 uppercase font-bold block mb-1">Filter View (POV)</label>
+                        <select id="cmap-filter-char" class="bg-[#262626] border border-[#404040] text-white p-2 rounded text-xs w-full outline-none focus:border-blue-500">
+                            <option value="">-- Show All --</option>
+                        </select>
                     </div>
 
                     <div id="cmap-breadcrumbs" class="text-[10px] text-gray-400 font-mono mb-1 hidden">
@@ -257,17 +266,6 @@ export async function renderCoterieMap(container) {
     startMapSync('main');
 }
 
-// --- HELPER: Save Codex for Relationship (Hoisted) ---
-async function saveRelationshipCodex(entry) {
-    const stState = window.stState;
-    if (!stState.activeChronicleId) return;
-    try {
-        const safeId = 'journal_' + entry.id;
-        const docRef = doc(db, 'chronicles', stState.activeChronicleId, 'players', safeId);
-        await setDoc(docRef, { ...entry, metadataType: 'journal', original_id: entry.id, pushed: true });
-    } catch(e) { console.error("Auto-Codex Failed", e); }
-}
-
 function setupMapListeners() {
     document.getElementById('cmap-add-char').onclick = addCharacter;
     document.getElementById('cmap-add-rel').onclick = addRelationship;
@@ -276,6 +274,12 @@ function setupMapListeners() {
     document.getElementById('cmap-cleanup-map').onclick = cleanupOrphans; 
     document.getElementById('cmap-select-map').onchange = (e) => switchMap(e.target.value);
     document.getElementById('cmap-nav-up').onclick = navigateUp;
+
+    // Filter Listener
+    document.getElementById('cmap-filter-char').onchange = (e) => {
+        mapState.filterCharId = e.target.value;
+        renderMermaidChart();
+    };
 
     document.getElementById('cmap-type').onchange = (e) => {
         document.getElementById('cmap-parent-group').classList.remove('hidden');
@@ -836,28 +840,37 @@ function updateDropdowns() {
     const sourceSelect = document.getElementById('cmap-source');
     const targetSelect = document.getElementById('cmap-target');
     const parentSelect = document.getElementById('cmap-parent-group');
+    const filterSelect = document.getElementById('cmap-filter-char'); // NEW FILTER DROPDOWN
 
-    if (!sourceSelect || !targetSelect || !parentSelect) return;
+    if (!sourceSelect || !targetSelect || !parentSelect || !filterSelect) return;
 
     const currentS = sourceSelect.value;
     const currentT = targetSelect.value;
     const currentP = parentSelect.value;
+    const currentF = filterSelect.value; // Save Filter State
 
     let opts = '<option value="">-- Select --</option>';
     let groupOpts = '<option value="">-- No Parent Group --</option>';
+    let filterOpts = '<option value="">-- Show All --</option>'; // Init filter
 
     mapState.characters.forEach(c => {
         opts += `<option value="${c.id}">${c.name}</option>`;
         if(c.type === 'group') groupOpts += `<option value="${c.id}">${c.name}</option>`;
+        filterOpts += `<option value="${c.id}">${c.name}</option>`; // Add to filter
     });
 
     sourceSelect.innerHTML = opts;
     targetSelect.innerHTML = opts;
     parentSelect.innerHTML = groupOpts;
+    filterSelect.innerHTML = filterOpts;
 
     if (mapState.characters.some(c => c.id === currentS)) sourceSelect.value = currentS;
     if (mapState.characters.some(c => c.id === currentT)) targetSelect.value = currentT;
     if (mapState.characters.some(c => c.id === currentP)) parentSelect.value = currentP;
+    
+    // Restore Filter if valid
+    if (mapState.characters.some(c => c.id === currentF)) filterSelect.value = currentF;
+    mapState.filterCharId = filterSelect.value; // Ensure state matches UI
 }
 
 function updateLists() {
@@ -955,14 +968,43 @@ async function renderMermaidChart() {
         return;
     }
 
+    // --- APPLY FILTER LOGIC ---
+    let visibleChars = mapState.characters;
+    let visibleRels = mapState.relationships;
+
+    if (mapState.filterCharId) {
+        // Find connected nodes
+        const connectedIds = new Set();
+        connectedIds.add(mapState.filterCharId);
+
+        // 1. Direct Relationships
+        mapState.relationships.forEach(r => {
+            if (r.source === mapState.filterCharId) connectedIds.add(r.target);
+            if (r.target === mapState.filterCharId) connectedIds.add(r.source);
+        });
+
+        // 2. Include Parents (Groups) of connected nodes to maintain structure
+        // Iterating to ensure we capture the hierarchy for displayed nodes
+        const nodesToCheck = [...connectedIds];
+        nodesToCheck.forEach(id => {
+            let char = mapState.characters.find(c => c.id === id);
+            while (char && char.parent) {
+                connectedIds.add(char.parent);
+                char = mapState.characters.find(c => c.id === char.parent);
+            }
+        });
+
+        visibleChars = mapState.characters.filter(c => connectedIds.has(c.id));
+        visibleRels = mapState.relationships.filter(r => connectedIds.has(r.source) && connectedIds.has(r.target));
+    }
+    // --- END FILTER LOGIC ---
+
     let graph = 'graph TD\n';
     
     // Classes
     graph += 'classDef pc fill:#1e293b,stroke:#fff,stroke-width:2px,color:#fff;\n';
     graph += 'classDef npc fill:#000,stroke:#8a0303,stroke-width:3px,color:#8a0303,font-weight:bold;\n';
-    // Style for Expanded Group (The Ring) - Dashed, Transparent center
     graph += 'classDef groupRing fill:none,stroke:#1e3a8a,stroke-width:2px,stroke-dasharray: 5 5;\n'; 
-    // Style for Collapsed Group (The Node) - Blue Circle
     graph += 'classDef groupNode fill:#1e3a8a,stroke:#60a5fa,stroke-width:2px,color:#fff;\n';
     
     graph += 'classDef hiddenNode stroke-dasharray: 5 5,opacity:0.6;\n';
@@ -981,51 +1023,41 @@ async function renderMermaidChart() {
         let cls = ':::pc';
         if (c.type === 'npc') cls = ':::npc';
         
-        // Group Logic: Check if Expanded
         if (c.type === 'group') {
              const isExpanded = mapState.expandedGroups.has(c.id);
              
              if (isExpanded) {
-                 // Render as Subgraph Wrapper (Ring) - Handled in renderSubgraph recursion
-                 // BUT we still need a clickable title for the ring.
-                 // We will render a "Header Node" inside the subgraph.
                  cls = ':::groupNode';
                  label = `<b>${safeName}</b>`; 
              } else {
-                 // Render as Standard Node (Circle)
                  cls = ':::groupNode';
                  label = `${safeName}<br/>(Group)`;
              }
         }
         
         let line = "";
-        // Visibility Check
         if (c.visibility !== 'all') {
              line = `${c.id}("${label}"):::${c.type === 'group' ? 'groupNode' : (c.type === 'npc' ? 'npc' : 'pc')} hiddenNode\n`;
         } else {
              line = `${c.id}("${label}")${cls}\n`;
         }
 
-        // Attach Click Interaction to everything
         line += `click ${c.id} call cmapNodeClick("${c.id}") "Interact"\n`;
         
         return line;
     };
 
     const renderSubgraph = (group) => {
-        // If NOT expanded, render as a single node
         if (!mapState.expandedGroups.has(group.id)) {
             return renderNode(group);
         }
 
-        // If EXPANDED, render as a subgraph (Ring)
-        let output = `subgraph ${group.id}_sg [" "]\n`; // Empty string title to avoid double label
+        let output = `subgraph ${group.id}_sg [" "]\n`; 
         output += `direction TB\n`; 
         
-        // Render the clickable header node inside the ring
         output += renderNode(group);
         
-        const children = mapState.characters.filter(c => c.parent === group.id);
+        const children = visibleChars.filter(c => c.parent === group.id);
         children.forEach(child => {
             if (child.type === 'group') {
                 output += renderSubgraph(child); 
@@ -1035,15 +1067,13 @@ async function renderMermaidChart() {
         });
         output += `end\n`;
         
-        // Apply class to the subgraph (Ring style)
         output += `class ${group.id}_sg groupRing\n`;
         
         return output;
     };
 
-    // 1. Render Roots (Nodes with no parent)
-    const validIds = new Set(mapState.characters.map(c => c.id));
-    const roots = mapState.characters.filter(c => !c.parent || !validIds.has(c.parent));
+    const validIds = new Set(visibleChars.map(c => c.id));
+    const roots = visibleChars.filter(c => !c.parent || !validIds.has(c.parent));
     
     roots.forEach(root => {
         if (root.type === 'group') {
@@ -1053,15 +1083,13 @@ async function renderMermaidChart() {
         }
     });
 
-    // 2. Cleanup: Ensure any orphaned nodes (if parent missing) are rendered
-    mapState.characters.forEach(c => {
+    visibleChars.forEach(c => {
         if (!renderedIds.has(c.id)) {
             graph += renderNode(c);
         }
     });
 
-    // RENDER LINKS
-    mapState.relationships.forEach(r => {
+    visibleRels.forEach(r => {
         const label = r.label ? `"${r.label}"` : "";
         const isHidden = r.visibility !== 'all';
         
@@ -1088,33 +1116,24 @@ async function renderMermaidChart() {
         const { svg, bindFunctions } = await window.mermaid.render('mermaid-svg-' + Date.now(), graph);
         container.innerHTML = svg;
         
-        // --- IMPROVED CLICK BINDING ---
         if (bindFunctions) bindFunctions(container);
         
-        // Manual fallback: Attach click handlers to node elements directly
-        // We query for 'g.node' which are the SVG groups for nodes in Mermaid
         const nodes = container.querySelectorAll('g.node');
         
         nodes.forEach(node => {
-            // Mermaid IDs look like "flowchart-myNodeId-..."
-            // We strip prefix to match our IDs
             const domId = node.id;
-            
-            // Find which character this node corresponds to
             const char = mapState.characters.find(c => domId.includes(c.id));
             
             if (char) {
                 node.style.cursor = "pointer";
-                node.style.pointerEvents = "all"; // FORCE POINTER EVENTS
+                node.style.pointerEvents = "all"; 
                 
-                // Remove old listeners just in case by cloning
                 const newNode = node.cloneNode(true);
                 node.parentNode.replaceChild(newNode, node);
                 
                 newNode.addEventListener('click', (e) => {
                     e.stopPropagation(); 
                     e.preventDefault();
-                    // console.log("Manual Click Triggered:", char.id);
                     window.cmapNodeClick(char.id);
                 });
             }
