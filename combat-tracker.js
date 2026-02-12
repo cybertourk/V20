@@ -10,6 +10,7 @@ export const combatState = {
     turn: 1, // Represents the "Round" number (V20 'Turn')
     phase: 'declare', // 'declare' (Lowest to Highest) or 'action' (Highest to Lowest)
     activeCombatantId: null, // ID of the character currently declaring or acting
+    rerollInitiative: true, // V20 Core: Reroll every round by default
     combatants: [], // Array of objects
     unsub: null
 };
@@ -34,6 +35,8 @@ export function initCombatTracker(chronicleId) {
             combatState.turn = data.turn || 1; 
             combatState.phase = data.phase || 'declare';
             combatState.activeCombatantId = data.activeCombatantId || null;
+            // Default to true if undefined
+            combatState.rerollInitiative = data.rerollInitiative !== false; 
             combatState.combatants = data.combatants || [];
             
             // Sort: Highest Result First. (V20 Rules)
@@ -56,6 +59,7 @@ export function initCombatTracker(chronicleId) {
             combatState.combatants = [];
             combatState.activeCombatantId = null;
             combatState.phase = 'declare';
+            combatState.rerollInitiative = true;
             if (window.renderCombatView) window.renderCombatView();
             
             // If combat ends, remove float
@@ -81,7 +85,8 @@ export async function startCombat() {
         await setDoc(docRef, {
             turn: 1,
             phase: 'declare', // Start in Declaration Phase
-            activeCombatantId: null, 
+            activeCombatantId: null,
+            rerollInitiative: true, 
             combatants: []
         });
         
@@ -186,6 +191,21 @@ export async function setCombatantStatus(id, newStatus) {
     await pushUpdate(list);
 }
 
+export async function toggleRerollInit() {
+    const stState = window.stState;
+    if (!stState || !stState.activeChronicleId) return;
+    
+    const newVal = !combatState.rerollInitiative;
+    try {
+        await updateDoc(doc(db, 'chronicles', stState.activeChronicleId, 'combat', 'active'), {
+            rerollInitiative: newVal
+        });
+        showNotification(`Reroll Initiative: ${newVal ? 'ON' : 'OFF'}`);
+    } catch (e) {
+        console.error(e);
+    }
+}
+
 // --- V20 DYNAMIC TURN PROGRESSION ---
 export async function nextTurn() {
     const stState = window.stState;
@@ -226,15 +246,28 @@ export async function nextTurn() {
             // End of actions -> Move to Next Round Declarations
             nextRound++;
             nextPhase = 'declare';
-            activeCombatantId = sortedAsc[0].id; // Give it to slowest character
-            showNotification(`Round ${nextRound} Declaration Phase Started`);
-            if(window.sendChronicleMessage) window.sendChronicleMessage('system', `Round ${nextRound}: Declaration Phase Started`);
             
-            // Clean up statuses for the new round
+            // Clean up statuses and potentially reset initiatives
             updatedCombatants = updatedCombatants.map(c => {
-                // Keep 'multiple' actions tag if needed, but usually reset to pending
-                return { ...c, status: 'pending' };
+                let newInit = c.init;
+                if (combatState.rerollInitiative) {
+                    newInit = 0; // Wipe initiative if reroll is required
+                }
+                return { ...c, status: 'pending', init: newInit };
             });
+
+            if (combatState.rerollInitiative) {
+                // If rerolling, drop active target so everyone can roll before we proceed
+                activeCombatantId = null;
+                showNotification(`Round ${nextRound}: Roll Initiatives!`);
+                if(window.sendChronicleMessage) window.sendChronicleMessage('system', `Round ${nextRound}: Roll Initiatives!`);
+            } else {
+                // If static init, keep sorting and highlight slowest person
+                updatedCombatants.sort((a, b) => a.init - b.init);
+                activeCombatantId = updatedCombatants.length > 0 ? updatedCombatants[0].id : null;
+                showNotification(`Round ${nextRound} Declaration Phase Started`);
+                if(window.sendChronicleMessage) window.sendChronicleMessage('system', `Round ${nextRound}: Declaration Phase Started`);
+            }
         }
     } else {
         activeCombatantId = activeList[nextIdx].id;
@@ -250,7 +283,7 @@ export async function nextTurn() {
             phase: nextPhase, 
             activeCombatantId: activeCombatantId 
         };
-        // If we cleaned up statuses due to round change, push the updated list
+        // If we cleaned up statuses or initiatives due to round change, push the updated list
         if (nextIdx >= activeList.length && phase === 'action') {
             updates.combatants = updatedCombatants;
         }
@@ -420,5 +453,6 @@ window.combatTracker = {
     updateInit: updateInitiative,
     nextTurn: nextTurn,
     setStatus: setCombatantStatus,
-    rollAllNPCs: rollAllNPCInitiatives
+    rollAllNPCs: rollAllNPCInitiatives,
+    toggleReroll: toggleRerollInit // Added the toggle export
 };
