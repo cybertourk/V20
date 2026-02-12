@@ -922,25 +922,18 @@ function renderStorytellerDashboard(container = null) {
     container.classList.remove('hidden');
     container.style.display = 'flex'; 
 
+    // --- REVERTED TO PREVIOUS HEADER LAYOUT (AS REQUESTED) ---
     container.innerHTML = `
         <div class="flex flex-col w-full h-full bg-[#050505] pt-16">
             <!-- ST Header -->
-            <div class="bg-[#1a0505] border-b border-[#500] p-4 flex justify-between items-center shadow-lg z-10 shrink-0">
-                <div class="flex items-center gap-4">
-                    <h2 class="text-xl font-cinzel text-red-500 font-bold tracking-widest uppercase">
-                        <i class="fas fa-crown mr-2"></i> Storyteller Mode
-                    </h2>
-                    <span class="text-xs font-mono text-gray-500 border border-[#333] px-2 py-1 rounded bg-black hidden sm:inline">
-                        ID: <span class="text-gold select-all cursor-pointer" onclick="navigator.clipboard.writeText('${stState.activeChronicleId}')">${stState.activeChronicleId}</span>
-                    </span>
+            <div class="flex justify-between items-center bg-[#111] p-4 border-b border-[#333] shrink-0">
+                <div>
+                    <h2 class="text-xl font-cinzel text-red-500 font-bold tracking-widest uppercase">Storyteller Mode</h2>
+                    <div class="text-gray-400 font-mono text-xs select-all cursor-pointer mt-1" title="Click to copy">Chronicle ID: <span class="text-white">${stState.activeChronicleId}</span></div>
                 </div>
-                <div class="flex gap-2">
-                    <button class="bg-[#222] border border-[#444] text-gray-300 hover:text-white px-3 py-1 text-xs font-bold uppercase rounded transition-colors" onclick="window.exitStorytellerDashboard()">
-                        <i class="fas fa-arrow-left mr-1"></i> <span class="hidden sm:inline">Character Creator</span>
-                    </button>
-                    <button class="bg-[#222] border border-red-900 text-red-500 hover:text-white hover:bg-red-900 px-3 py-1 text-xs font-bold uppercase rounded transition-colors" onclick="window.disconnectChronicle()">
-                        <i class="fas fa-sign-out-alt mr-1"></i> <span class="hidden sm:inline">Disconnect</span>
-                    </button>
+                <div class="flex gap-4">
+                    <button onclick="window.exitStorytellerDashboard()" class="text-gray-400 hover:text-white text-xs uppercase font-bold px-3 py-1 border border-transparent hover:border-[#444] rounded transition-colors">Character Creator</button>
+                    <button onclick="window.disconnectChronicle()" class="text-red-500 hover:text-red-300 text-xs uppercase font-bold px-3 py-1 border border-red-900/50 hover:bg-red-900/20 rounded transition-colors">Disconnect</button>
                 </div>
             </div>
 
@@ -1273,8 +1266,13 @@ function renderCombatView() {
     let phaseSubtitle = phase === 'declare' ? 'Slowest to Fastest (State Intentions)' : 'Fastest to Slowest (Roll & Resolve)';
     let phaseColor = phase === 'declare' ? 'text-blue-400' : 'text-red-500';
 
+    const activeCombatant = combatants.find(c => c.id === combatState.activeCombatantId);
+    const activeName = activeCombatant ? activeCombatant.name : "None";
+    const promptLabel = phase === 'declare' ? 'Declaring' : 'Acting';
+
     let html = `
         <div class="flex flex-col h-full">
+            <!-- TOP STATUS BAR (UPDATED TO BE CLEARER AND PERSISTENT) -->
             <div class="bg-[#111] border-b border-[#333] p-4 flex justify-between items-center shadow-md z-20 shrink-0">
                 <div class="flex items-center gap-4">
                     <div class="text-center">
@@ -1282,29 +1280,28 @@ function renderCombatView() {
                         <div class="text-3xl font-black text-[#d4af37] leading-none">${turn}</div>
                     </div>
                     
-                    <div class="border-l border-[#333] pl-4 py-1 hidden sm:block">
-                        <div class="text-sm md:text-base ${phaseColor} uppercase font-bold tracking-widest">${phaseTitle}</div>
+                    <div class="border-l border-[#333] pl-4 py-1">
+                        <div class="text-base ${phaseColor} uppercase font-bold tracking-widest">${phaseTitle}</div>
                         <div class="text-[10px] text-gray-400 italic">${phaseSubtitle}</div>
-                    </div>
-
-                    <div class="flex gap-2 ml-2 sm:ml-4">
-                        <button onclick="window.stNextTurn()" class="bg-[#222] hover:bg-[#333] border border-[#444] text-white px-3 sm:px-4 py-2 text-xs font-bold uppercase rounded flex items-center gap-2 transition-colors shadow-sm hover:shadow-[#d4af37]/20">
-                            <span class="hidden sm:inline">Next</span> <i class="fas fa-step-forward"></i>
-                        </button>
-                        <button onclick="window.combatTracker.rollAllNPCs()" class="bg-[#1a1a1a] hover:bg-[#333] border border-[#444] text-gray-300 hover:text-white px-3 py-2 text-xs font-bold uppercase rounded transition-colors" title="Roll All NPC Initiatives">
-                            <i class="fas fa-dice-d10"></i> <span class="hidden sm:inline">NPCs</span>
-                        </button>
+                        <div class="text-sm text-white mt-1 uppercase font-bold tracking-wider">${promptLabel}: <span class="text-[#d4af37]">${activeName}</span></div>
                     </div>
                 </div>
-                <button onclick="window.stEndCombat()" class="text-red-500 hover:text-red-300 text-xs font-bold uppercase border border-red-900/30 px-3 py-2 rounded hover:bg-red-900/10">End</button>
-            </div>
-            
-            <!-- MOBILE PHASE LABEL (shows when screen is small) -->
-            <div class="sm:hidden bg-[#0a0a0a] border-b border-[#333] p-2 text-center shrink-0">
-                <div class="text-sm ${phaseColor} uppercase font-bold tracking-widest">${phaseTitle}</div>
-                <div class="text-[9px] text-gray-500 italic">${phaseSubtitle}</div>
+
+                <!-- CONTROLS -->
+                <div class="flex flex-col gap-2 items-end">
+                    <div class="flex gap-2">
+                        <button onclick="window.stNextTurn()" class="bg-[#222] hover:bg-[#333] border border-[#444] text-white px-4 py-2 text-xs font-bold uppercase rounded flex items-center gap-2 transition-colors shadow-sm hover:shadow-[#d4af37]/20">
+                            Next <i class="fas fa-step-forward"></i>
+                        </button>
+                        <button onclick="window.combatTracker.rollAllNPCs()" class="bg-[#1a1a1a] hover:bg-[#333] border border-[#444] text-gray-300 hover:text-white px-3 py-2 text-xs font-bold uppercase rounded transition-colors" title="Roll All NPC Initiatives">
+                            <i class="fas fa-dice-d10"></i> NPCs
+                        </button>
+                    </div>
+                    <button onclick="window.stEndCombat()" class="text-red-500 hover:text-red-300 text-[10px] font-bold uppercase transition-colors">End Combat</button>
+                </div>
             </div>
 
+            <!-- LIST -->
             <div class="flex-1 overflow-y-auto p-4 space-y-2 bg-black/50 pb-20 custom-scrollbar">
     `;
 
