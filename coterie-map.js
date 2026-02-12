@@ -1,4 +1,4 @@
-import { db, doc, onSnapshot, setDoc, updateDoc, collection, getDocs, deleteDoc } from "./firebase-config.js";
+import { db, doc, onSnapshot, setDoc, updateDoc, collection, getDocs, deleteDoc, auth } from "./firebase-config.js";
 import { showNotification } from "./ui-common.js";
 
 // We need mermaid from CDN as it's not bundled. 
@@ -49,25 +49,61 @@ let mapState = {
     filterCharId: null
 };
 
+// --- VISIBILITY HELPERS ---
+function getVisibleCharacters() {
+    const uid = auth.currentUser?.uid;
+    const isST = window.stState && window.stState.isStoryteller;
+    
+    if (isST) return mapState.characters;
+    
+    return mapState.characters.filter(c => {
+        if (c.visibility === 'all') return true;
+        if (Array.isArray(c.visibility) && c.visibility.includes(uid)) return true;
+        return false;
+    });
+}
+
+function getVisibleRelationships() {
+    const uid = auth.currentUser?.uid;
+    const isST = window.stState && window.stState.isStoryteller;
+    const validChars = new Set(getVisibleCharacters().map(c => c.id));
+    
+    return mapState.relationships.filter(r => {
+        // Must have visible source and target
+        if (!validChars.has(r.source) || !validChars.has(r.target)) return false;
+        if (isST) return true;
+        if (r.visibility === 'all') return true;
+        if (Array.isArray(r.visibility) && r.visibility.includes(uid)) return true;
+        return false;
+    });
+}
+
 // --- GLOBAL CLICK HANDLER (Must be on window for Mermaid) ---
 window.cmapNodeClick = (id) => {
     const char = mapState.characters.find(c => c.id === id);
     if (!char) return;
 
+    const isST = window.stState && window.stState.isStoryteller;
+
     if (char.type === 'group') {
         window.cmapToggleGroup(id);
     } else {
-        // Open Edit Modal for standard nodes
-        mapState.editingNodeId = id;
-        const nameInput = document.getElementById('cmap-edit-name');
-        const clanInput = document.getElementById('cmap-edit-clan');
-        const typeInput = document.getElementById('cmap-edit-type');
-        const modal = document.getElementById('cmap-edit-modal');
-        
-        if(nameInput) nameInput.value = char.name;
-        if(clanInput) clanInput.value = char.clan || "";
-        if(typeInput) typeInput.value = char.type;
-        if(modal) modal.classList.remove('hidden');
+        if (isST) {
+            // Open Edit Modal for standard nodes (ST Only)
+            mapState.editingNodeId = id;
+            const nameInput = document.getElementById('cmap-edit-name');
+            const clanInput = document.getElementById('cmap-edit-clan');
+            const typeInput = document.getElementById('cmap-edit-type');
+            const modal = document.getElementById('cmap-edit-modal');
+            
+            if(nameInput) nameInput.value = char.name;
+            if(clanInput) clanInput.value = char.clan || "";
+            if(typeInput) typeInput.value = char.type;
+            if(modal) modal.classList.remove('hidden');
+        } else {
+            // Player clicks a character -> view their codex entry
+            if (window.cmapViewCodex) window.cmapViewCodex(id);
+        }
     }
 };
 
@@ -75,185 +111,244 @@ window.cmapNodeClick = (id) => {
 export async function renderCoterieMap(container) {
     await initMermaid();
 
-    container.innerHTML = `
-        <div class="flex h-full bg-[#0a0a0a] text-[#e5e5e5] font-sans overflow-hidden relative">
-            <!-- LEFT COLUMN: Editor -->
-            <aside class="w-1/3 min-w-[300px] max-w-[400px] flex flex-col gap-4 h-full border-r border-[#333] bg-[#111] p-4 overflow-y-auto custom-scrollbar">
-                
-                <!-- MAP CONTROLS -->
-                <div class="bg-[#1a1a1a] border border-[#333] rounded p-4 shadow-lg shrink-0">
-                    <h3 class="text-md font-cinzel font-bold text-gold border-b border-[#333] pb-2 mb-3 uppercase flex justify-between items-center">
-                        <span>Active Map</span>
-                        <div class="flex gap-2">
-                             <button id="cmap-sync-roster" class="text-xs text-blue-500 hover:text-white" title="Sync Roster to Map"><i class="fas fa-users-viewfinder"></i></button>
-                             <button id="cmap-cleanup-map" class="text-xs text-gray-500 hover:text-white" title="Fix Orphans / Cleanup"><i class="fas fa-broom"></i></button>
-                             <button id="cmap-delete-map" class="text-xs text-red-500 hover:text-white" title="Delete current map"><i class="fas fa-trash"></i></button>
-                        </div>
-                    </h3>
+    const isST = window.stState && window.stState.isStoryteller;
+
+    if (isST) {
+        // STORYTELLER VIEW (Editor Sidebar)
+        container.innerHTML = `
+            <div class="flex h-full bg-[#0a0a0a] text-[#e5e5e5] font-sans overflow-hidden relative">
+                <!-- LEFT COLUMN: Editor -->
+                <aside class="w-1/3 min-w-[300px] max-w-[400px] flex flex-col gap-4 h-full border-r border-[#333] bg-[#111] p-4 overflow-y-auto custom-scrollbar">
                     
-                    <div class="flex gap-2 mb-3">
-                        <select id="cmap-select-map" class="bg-[#262626] border border-[#404040] text-white p-2 rounded text-xs w-full outline-none focus:border-gold"></select>
-                        <button id="cmap-new-map-btn" class="bg-[#333] hover:bg-[#444] border border-[#444] text-white px-3 rounded text-xs"><i class="fas fa-plus"></i></button>
+                    <!-- MAP CONTROLS -->
+                    <div class="bg-[#1a1a1a] border border-[#333] rounded p-4 shadow-lg shrink-0">
+                        <h3 class="text-md font-cinzel font-bold text-gold border-b border-[#333] pb-2 mb-3 uppercase flex justify-between items-center">
+                            <span>Active Map</span>
+                            <div class="flex gap-2">
+                                 <button id="cmap-sync-roster" class="text-xs text-blue-500 hover:text-white" title="Sync Roster to Map"><i class="fas fa-users-viewfinder"></i></button>
+                                 <button id="cmap-cleanup-map" class="text-xs text-gray-500 hover:text-white" title="Fix Orphans / Cleanup"><i class="fas fa-broom"></i></button>
+                                 <button id="cmap-delete-map" class="text-xs text-red-500 hover:text-white" title="Delete current map"><i class="fas fa-trash"></i></button>
+                            </div>
+                        </h3>
+                        
+                        <div class="flex gap-2 mb-3">
+                            <select id="cmap-select-map" class="bg-[#262626] border border-[#404040] text-white p-2 rounded text-xs w-full outline-none focus:border-gold"></select>
+                            <button id="cmap-new-map-btn" class="bg-[#333] hover:bg-[#444] border border-[#444] text-white px-3 rounded text-xs"><i class="fas fa-plus"></i></button>
+                        </div>
+
+                        <!-- FILTER DROPDOWN -->
+                        <div class="mb-3">
+                            <label class="text-[10px] text-gray-500 uppercase font-bold block mb-1">Filter View (POV)</label>
+                            <select id="cmap-filter-char" class="bg-[#262626] border border-[#404040] text-white p-2 rounded text-xs w-full outline-none focus:border-blue-500">
+                                <option value="">-- Show All --</option>
+                            </select>
+                        </div>
+
+                        <div id="cmap-breadcrumbs" class="text-[10px] text-gray-400 font-mono mb-1 hidden">
+                            <button id="cmap-nav-up" class="text-blue-400 hover:text-white mr-2"><i class="fas fa-level-up-alt mr-1"></i> Back to Parent</button>
+                            <span id="cmap-current-label" class="text-gold font-bold"></span>
+                        </div>
                     </div>
 
-                    <!-- FILTER DROPDOWN -->
-                    <div class="mb-3">
-                        <label class="text-[10px] text-gray-500 uppercase font-bold block mb-1">Filter View (POV)</label>
-                        <select id="cmap-filter-char" class="bg-[#262626] border border-[#404040] text-white p-2 rounded text-xs w-full outline-none focus:border-blue-500">
+                    <!-- 1. Add Character / Group -->
+                    <div class="bg-[#1a1a1a] border border-[#333] rounded p-4 shadow-lg shrink-0">
+                        <h3 class="text-md font-cinzel font-bold text-gray-300 border-l-4 border-[#8a0303] pl-2 mb-3 uppercase">Add Node</h3>
+                        
+                        <div class="grid grid-cols-2 gap-2 mb-3">
+                            <input type="text" id="cmap-name" placeholder="Name" class="bg-[#262626] border border-[#404040] text-white p-2 rounded text-xs focus:border-[#8a0303] outline-none col-span-2">
+                            <input type="text" id="cmap-clan" placeholder="Clan / Type / Desc" class="bg-[#262626] border border-[#404040] text-white p-2 rounded text-xs focus:border-[#8a0303] outline-none">
+                            <select id="cmap-type" class="bg-[#262626] border border-[#404040] text-white p-2 rounded text-xs focus:border-[#8a0303] outline-none">
+                                <option value="pc">PC</option>
+                                <option value="npc">NPC</option>
+                                <option value="group">Group (Sub-Map)</option> 
+                            </select>
+                            <select id="cmap-parent-group" class="bg-[#262626] border border-[#404040] text-white p-2 rounded text-xs focus:border-[#8a0303] outline-none col-span-2 hidden">
+                                <option value="">-- No Parent Group --</option>
+                            </select>
+                        </div>
+                        <button id="cmap-add-char" class="w-full bg-[#8a0303] hover:bg-[#6d0202] text-white font-bold py-2 rounded text-xs uppercase tracking-wider transition-colors">
+                            <i class="fas fa-plus mr-2"></i>ADD (Hidden)
+                        </button>
+
+                        <ul id="cmap-char-list" class="mt-4 space-y-1 max-h-60 overflow-y-auto custom-scrollbar"></ul>
+                    </div>
+
+                    <!-- 2. Add Relationship -->
+                    <div class="bg-[#1a1a1a] border border-[#333] rounded p-4 shadow-lg shrink-0">
+                        <h3 class="text-md font-cinzel font-bold text-gray-300 border-l-4 border-[#8a0303] pl-2 mb-3 uppercase">Connect</h3>
+                        
+                        <div class="space-y-3 mb-4">
+                            <div class="flex gap-2 items-center">
+                                <select id="cmap-source" class="bg-[#262626] border border-[#404040] text-white p-2 rounded text-xs w-full outline-none"></select>
+                                <i class="fas fa-arrow-right text-gray-500 text-xs"></i>
+                                <select id="cmap-target" class="bg-[#262626] border border-[#404040] text-white p-2 rounded text-xs w-full outline-none"></select>
+                            </div>
+                            
+                            <select id="cmap-rel-type" class="bg-[#262626] border border-[#404040] text-white p-2 rounded text-xs w-full outline-none">
+                                <option value="social">Social (Solid)</option>
+                                <option value="boon">Boon/Debt (Dotted)</option>
+                                <option value="blood">Blood Bond (Thick)</option>
+                            </select>
+
+                            <input type="text" id="cmap-label" placeholder="Label (e.g. Sire of)" class="bg-[#262626] border border-[#404040] text-white p-2 rounded text-xs w-full outline-none">
+                        </div>
+
+                        <button id="cmap-add-rel" class="w-full bg-[#334155] hover:bg-[#1e293b] text-white font-bold py-2 rounded text-xs uppercase tracking-wider transition-colors">
+                            <i class="fas fa-link mr-2"></i>Connect (Hidden)
+                        </button>
+
+                        <ul id="cmap-rel-list" class="mt-4 space-y-1 max-h-40 overflow-y-auto custom-scrollbar"></ul>
+                    </div>
+                </aside>
+
+                <!-- RIGHT COLUMN: Visualization -->
+                <section class="flex-1 bg-[#050505] relative flex flex-col overflow-hidden">
+                    
+                    <!-- Toolbar -->
+                    <div class="absolute top-4 right-4 z-10 flex gap-2 bg-black/50 p-1 rounded backdrop-blur border border-[#333]">
+                        <button id="cmap-zoom-out" class="w-8 h-8 flex items-center justify-center bg-[#222] hover:bg-[#333] text-white rounded font-bold transition-colors">-</button>
+                        <button id="cmap-reset-zoom" class="w-8 h-8 flex items-center justify-center bg-[#222] hover:bg-[#333] text-white rounded font-bold transition-colors"><i class="fas fa-compress"></i></button>
+                        <button id="cmap-zoom-in" class="w-8 h-8 flex items-center justify-center bg-[#222] hover:bg-[#333] text-white rounded font-bold transition-colors">+</button>
+                    </div>
+
+                    <!-- Canvas -->
+                    <div class="flex-1 overflow-auto p-4 flex items-center justify-center bg-[radial-gradient(#333_1px,transparent_1px)] [background-size:20px_20px]">
+                        <div id="mermaid-wrapper" class="origin-center transition-transform duration-200">
+                            <div id="mermaid-container" class="mermaid"></div>
+                        </div>
+                    </div>
+
+                    <!-- Legend -->
+                    <div class="bg-[#111] text-gray-400 text-[10px] p-2 text-center border-t border-[#333] uppercase font-bold tracking-wider">
+                        <span class="mr-4"><i class="fas fa-minus text-gray-500"></i> Social</span>
+                        <span class="mr-4"><i class="fas fa-ellipsis-h text-gray-500"></i> Boon</span>
+                        <span class="mr-4"><i class="fas fa-minus text-white font-black border-b-2 border-white"></i> Bond</span>
+                        <span class="mr-4 text-blue-400"><i class="fas fa-layer-group"></i> Group</span>
+                        <span class="text-gray-600"><i class="fas fa-eye-slash mr-1"></i> Hidden</span>
+                    </div>
+                </section>
+
+                <!-- VISIBILITY MODAL -->
+                <div id="cmap-vis-modal" class="hidden absolute inset-0 bg-black/80 flex items-center justify-center z-50 backdrop-blur-sm">
+                    <div class="bg-[#1a1a1a] border border-[#d4af37] p-4 w-64 shadow-2xl rounded">
+                        <h4 class="text-[#d4af37] font-cinzel font-bold text-sm mb-3 border-b border-[#333] pb-1 uppercase">Visibility Settings</h4>
+                        
+                        <div class="space-y-2 mb-4">
+                            <label class="flex items-center gap-2 cursor-pointer p-1 hover:bg-[#222] rounded">
+                                <input type="radio" name="cmap-vis-option" value="all" class="accent-[#d4af37]">
+                                <span class="text-xs text-white">Visible to Everyone</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer p-1 hover:bg-[#222] rounded">
+                                <input type="radio" name="cmap-vis-option" value="st" class="accent-[#d4af37]">
+                                <span class="text-xs text-white">Hidden (ST Only)</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer p-1 hover:bg-[#222] rounded">
+                                <input type="radio" name="cmap-vis-option" value="specific" class="accent-[#d4af37]">
+                                <span class="text-xs text-white">Specific Players</span>
+                            </label>
+                        </div>
+
+                        <div id="cmap-vis-players" class="hidden border border-[#333] bg-[#050505] p-2 max-h-32 overflow-y-auto custom-scrollbar mb-4 space-y-1">
+                            <!-- Player checkboxes injected here -->
+                        </div>
+
+                        <div class="flex justify-end gap-2">
+                            <button onclick="document.getElementById('cmap-vis-modal').classList.add('hidden')" class="px-3 py-1 text-[10px] uppercase font-bold text-gray-400 hover:text-white border border-[#444] rounded">Cancel</button>
+                            <button id="cmap-vis-save" class="px-3 py-1 text-[10px] uppercase font-bold bg-[#d4af37] text-black hover:bg-[#fcd34d] rounded">Save</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- MOVE MODAL -->
+                <div id="cmap-move-modal" class="hidden absolute inset-0 bg-black/80 flex items-center justify-center z-50 backdrop-blur-sm">
+                    <div class="bg-[#1a1a1a] border border-blue-500 p-4 w-64 shadow-2xl rounded">
+                        <h4 class="text-blue-400 font-cinzel font-bold text-sm mb-3 border-b border-[#333] pb-1 uppercase">Move To Group</h4>
+                        <select id="cmap-move-select" class="w-full bg-[#111] border border-[#444] text-white p-2 rounded mb-4 text-xs outline-none focus:border-blue-500">
+                            <option value="">-- Root (No Group) --</option>
+                        </select>
+                        <div class="flex justify-end gap-2">
+                            <button onclick="document.getElementById('cmap-move-modal').classList.add('hidden')" class="px-3 py-1 text-[10px] uppercase font-bold text-gray-400 hover:text-white border border-[#444] rounded">Cancel</button>
+                            <button id="cmap-move-save" class="px-3 py-1 text-[10px] uppercase font-bold bg-blue-600 text-white hover:bg-blue-500 rounded">Move</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- EDIT NODE MODAL -->
+                <div id="cmap-edit-modal" class="hidden absolute inset-0 bg-black/80 flex items-center justify-center z-50 backdrop-blur-sm">
+                    <div class="bg-[#1a1a1a] border border-[#8a0303] p-4 w-64 shadow-2xl rounded">
+                        <h4 class="text-[#8a0303] font-cinzel font-bold text-sm mb-3 border-b border-[#333] pb-1 uppercase">Edit Node</h4>
+                        <div class="space-y-3 mb-4">
+                            <input type="text" id="cmap-edit-name" class="w-full bg-[#111] border border-[#444] text-white p-2 rounded text-xs outline-none focus:border-[#8a0303]" placeholder="Name">
+                            <input type="text" id="cmap-edit-clan" class="w-full bg-[#111] border border-[#444] text-white p-2 rounded text-xs outline-none focus:border-[#8a0303]" placeholder="Clan / Type / Desc">
+                            <select id="cmap-edit-type" class="w-full bg-[#111] border border-[#444] text-white p-2 rounded text-xs outline-none focus:border-[#8a0303]">
+                                <option value="pc">PC</option>
+                                <option value="npc">NPC</option>
+                                <option value="group">Group</option>
+                            </select>
+                        </div>
+                        <div class="flex justify-end gap-2">
+                            <button onclick="document.getElementById('cmap-edit-modal').classList.add('hidden')" class="px-3 py-1 text-[10px] uppercase font-bold text-gray-400 hover:text-white border border-[#444] rounded">Cancel</button>
+                            <button id="cmap-edit-save" class="px-3 py-1 text-[10px] uppercase font-bold bg-[#8a0303] text-white hover:bg-[#6d0202] rounded">Save</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    } else {
+        // PLAYER VIEW (Clean, single-column)
+        container.innerHTML = `
+            <div class="flex flex-col h-full bg-[#0a0a0a] text-[#e5e5e5] font-sans overflow-hidden relative">
+                <!-- TOP BAR FOR PLAYERS -->
+                <div class="bg-[#111] border-b border-[#333] p-2 flex justify-between items-center z-20 shrink-0">
+                    <div class="flex items-center gap-4">
+                        <div class="flex items-center gap-2 pl-2">
+                            <i class="fas fa-project-diagram text-[#d4af37]"></i>
+                            <span class="text-[#d4af37] font-cinzel font-bold text-sm uppercase tracking-widest hidden md:inline">Coterie Map</span>
+                        </div>
+                        <div class="flex gap-2 items-center border-l border-[#333] pl-4">
+                            <span class="text-[10px] text-gray-500 font-bold uppercase tracking-wider hidden sm:inline">Map:</span>
+                            <select id="cmap-select-map" class="bg-[#262626] border border-[#404040] text-white p-1 rounded text-xs outline-none focus:border-gold"></select>
+                        </div>
+                        <div id="cmap-breadcrumbs" class="text-[10px] text-gray-400 font-mono hidden items-center gap-2 border-l border-[#333] pl-4">
+                            <button id="cmap-nav-up" class="text-blue-400 hover:text-white"><i class="fas fa-level-up-alt mr-1"></i> Back</button>
+                            <span id="cmap-current-label" class="text-gold font-bold"></span>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2 pr-2">
+                        <span class="text-[10px] text-gray-500 font-bold uppercase tracking-wider hidden sm:inline">Filter (POV):</span>
+                        <select id="cmap-filter-char" class="bg-[#262626] border border-[#404040] text-white p-1 rounded text-xs outline-none focus:border-blue-500">
                             <option value="">-- Show All --</option>
                         </select>
                     </div>
-
-                    <div id="cmap-breadcrumbs" class="text-[10px] text-gray-400 font-mono mb-1 hidden">
-                        <button id="cmap-nav-up" class="text-blue-400 hover:text-white mr-2"><i class="fas fa-level-up-alt mr-1"></i> Back to Parent</button>
-                        <span id="cmap-current-label" class="text-gold font-bold"></span>
-                    </div>
                 </div>
 
-                <!-- 1. Add Character / Group -->
-                <div class="bg-[#1a1a1a] border border-[#333] rounded p-4 shadow-lg shrink-0">
-                    <h3 class="text-md font-cinzel font-bold text-gray-300 border-l-4 border-[#8a0303] pl-2 mb-3 uppercase">Add Node</h3>
-                    
-                    <div class="grid grid-cols-2 gap-2 mb-3">
-                        <input type="text" id="cmap-name" placeholder="Name" class="bg-[#262626] border border-[#404040] text-white p-2 rounded text-xs focus:border-[#8a0303] outline-none col-span-2">
-                        <input type="text" id="cmap-clan" placeholder="Clan / Type / Desc" class="bg-[#262626] border border-[#404040] text-white p-2 rounded text-xs focus:border-[#8a0303] outline-none">
-                        <select id="cmap-type" class="bg-[#262626] border border-[#404040] text-white p-2 rounded text-xs focus:border-[#8a0303] outline-none">
-                            <option value="pc">PC</option>
-                            <option value="npc">NPC</option>
-                            <option value="group">Group (Sub-Map)</option> 
-                        </select>
-                        <select id="cmap-parent-group" class="bg-[#262626] border border-[#404040] text-white p-2 rounded text-xs focus:border-[#8a0303] outline-none col-span-2 hidden">
-                            <option value="">-- No Parent Group --</option>
-                        </select>
+                <!-- RIGHT COLUMN: Visualization (Now Full Screen) -->
+                <section class="flex-1 bg-[#050505] relative flex flex-col overflow-hidden">
+                    <!-- Toolbar -->
+                    <div class="absolute top-4 right-4 z-10 flex gap-2 bg-black/50 p-1 rounded backdrop-blur border border-[#333]">
+                        <button id="cmap-zoom-out" class="w-8 h-8 flex items-center justify-center bg-[#222] hover:bg-[#333] text-white rounded font-bold transition-colors">-</button>
+                        <button id="cmap-reset-zoom" class="w-8 h-8 flex items-center justify-center bg-[#222] hover:bg-[#333] text-white rounded font-bold transition-colors"><i class="fas fa-compress"></i></button>
+                        <button id="cmap-zoom-in" class="w-8 h-8 flex items-center justify-center bg-[#222] hover:bg-[#333] text-white rounded font-bold transition-colors">+</button>
                     </div>
-                    <button id="cmap-add-char" class="w-full bg-[#8a0303] hover:bg-[#6d0202] text-white font-bold py-2 rounded text-xs uppercase tracking-wider transition-colors">
-                        <i class="fas fa-plus mr-2"></i>ADD (Hidden)
-                    </button>
 
-                    <ul id="cmap-char-list" class="mt-4 space-y-1 max-h-60 overflow-y-auto custom-scrollbar"></ul>
-                </div>
-
-                <!-- 2. Add Relationship -->
-                <div class="bg-[#1a1a1a] border border-[#333] rounded p-4 shadow-lg shrink-0">
-                    <h3 class="text-md font-cinzel font-bold text-gray-300 border-l-4 border-[#8a0303] pl-2 mb-3 uppercase">Connect</h3>
-                    
-                    <div class="space-y-3 mb-4">
-                        <div class="flex gap-2 items-center">
-                            <select id="cmap-source" class="bg-[#262626] border border-[#404040] text-white p-2 rounded text-xs w-full outline-none"></select>
-                            <i class="fas fa-arrow-right text-gray-500 text-xs"></i>
-                            <select id="cmap-target" class="bg-[#262626] border border-[#404040] text-white p-2 rounded text-xs w-full outline-none"></select>
+                    <!-- Canvas -->
+                    <div class="flex-1 overflow-auto p-4 flex items-center justify-center bg-[radial-gradient(#333_1px,transparent_1px)] [background-size:20px_20px]">
+                        <div id="mermaid-wrapper" class="origin-center transition-transform duration-200">
+                            <div id="mermaid-container" class="mermaid"></div>
                         </div>
-                        
-                        <select id="cmap-rel-type" class="bg-[#262626] border border-[#404040] text-white p-2 rounded text-xs w-full outline-none">
-                            <option value="social">Social (Solid)</option>
-                            <option value="boon">Boon/Debt (Dotted)</option>
-                            <option value="blood">Blood Bond (Thick)</option>
-                        </select>
-
-                        <input type="text" id="cmap-label" placeholder="Label (e.g. Sire of)" class="bg-[#262626] border border-[#404040] text-white p-2 rounded text-xs w-full outline-none">
                     </div>
 
-                    <button id="cmap-add-rel" class="w-full bg-[#334155] hover:bg-[#1e293b] text-white font-bold py-2 rounded text-xs uppercase tracking-wider transition-colors">
-                        <i class="fas fa-link mr-2"></i>Connect (Hidden)
-                    </button>
-
-                    <ul id="cmap-rel-list" class="mt-4 space-y-1 max-h-40 overflow-y-auto custom-scrollbar"></ul>
-                </div>
-            </aside>
-
-            <!-- RIGHT COLUMN: Visualization -->
-            <section class="flex-1 bg-[#050505] relative flex flex-col overflow-hidden">
-                
-                <!-- Toolbar -->
-                <div class="absolute top-4 right-4 z-10 flex gap-2 bg-black/50 p-1 rounded backdrop-blur border border-[#333]">
-                    <button id="cmap-zoom-out" class="w-8 h-8 flex items-center justify-center bg-[#222] hover:bg-[#333] text-white rounded font-bold transition-colors">-</button>
-                    <button id="cmap-reset-zoom" class="w-8 h-8 flex items-center justify-center bg-[#222] hover:bg-[#333] text-white rounded font-bold transition-colors"><i class="fas fa-compress"></i></button>
-                    <button id="cmap-zoom-in" class="w-8 h-8 flex items-center justify-center bg-[#222] hover:bg-[#333] text-white rounded font-bold transition-colors">+</button>
-                </div>
-
-                <!-- Canvas -->
-                <div class="flex-1 overflow-auto p-4 flex items-center justify-center bg-[radial-gradient(#333_1px,transparent_1px)] [background-size:20px_20px]">
-                    <div id="mermaid-wrapper" class="origin-center transition-transform duration-200">
-                        <div id="mermaid-container" class="mermaid"></div>
+                    <!-- Legend -->
+                    <div class="bg-[#111] text-gray-400 text-[10px] p-2 text-center border-t border-[#333] uppercase font-bold tracking-wider shrink-0">
+                        <span class="mr-4"><i class="fas fa-minus text-gray-500"></i> Social</span>
+                        <span class="mr-4"><i class="fas fa-ellipsis-h text-gray-500"></i> Boon</span>
+                        <span class="mr-4"><i class="fas fa-minus text-white font-black border-b-2 border-white"></i> Bond</span>
+                        <span class="mr-4 text-blue-400"><i class="fas fa-layer-group"></i> Group</span>
                     </div>
-                </div>
-
-                <!-- Legend -->
-                <div class="bg-[#111] text-gray-400 text-[10px] p-2 text-center border-t border-[#333] uppercase font-bold tracking-wider">
-                    <span class="mr-4"><i class="fas fa-minus text-gray-500"></i> Social</span>
-                    <span class="mr-4"><i class="fas fa-ellipsis-h text-gray-500"></i> Boon</span>
-                    <span class="mr-4"><i class="fas fa-minus text-white font-black border-b-2 border-white"></i> Bond</span>
-                    <span class="mr-4 text-blue-400"><i class="fas fa-layer-group"></i> Group</span>
-                    <span class="text-gray-600"><i class="fas fa-eye-slash mr-1"></i> Hidden</span>
-                </div>
-            </section>
-
-            <!-- VISIBILITY MODAL -->
-            <div id="cmap-vis-modal" class="hidden absolute inset-0 bg-black/80 flex items-center justify-center z-50 backdrop-blur-sm">
-                <div class="bg-[#1a1a1a] border border-[#d4af37] p-4 w-64 shadow-2xl rounded">
-                    <h4 class="text-[#d4af37] font-cinzel font-bold text-sm mb-3 border-b border-[#333] pb-1 uppercase">Visibility Settings</h4>
-                    
-                    <div class="space-y-2 mb-4">
-                        <label class="flex items-center gap-2 cursor-pointer p-1 hover:bg-[#222] rounded">
-                            <input type="radio" name="cmap-vis-option" value="all" class="accent-[#d4af37]">
-                            <span class="text-xs text-white">Visible to Everyone</span>
-                        </label>
-                        <label class="flex items-center gap-2 cursor-pointer p-1 hover:bg-[#222] rounded">
-                            <input type="radio" name="cmap-vis-option" value="st" class="accent-[#d4af37]">
-                            <span class="text-xs text-white">Hidden (ST Only)</span>
-                        </label>
-                        <label class="flex items-center gap-2 cursor-pointer p-1 hover:bg-[#222] rounded">
-                            <input type="radio" name="cmap-vis-option" value="specific" class="accent-[#d4af37]">
-                            <span class="text-xs text-white">Specific Players</span>
-                        </label>
-                    </div>
-
-                    <div id="cmap-vis-players" class="hidden border border-[#333] bg-[#050505] p-2 max-h-32 overflow-y-auto custom-scrollbar mb-4 space-y-1">
-                        <!-- Player checkboxes injected here -->
-                    </div>
-
-                    <div class="flex justify-end gap-2">
-                        <button onclick="document.getElementById('cmap-vis-modal').classList.add('hidden')" class="px-3 py-1 text-[10px] uppercase font-bold text-gray-400 hover:text-white border border-[#444] rounded">Cancel</button>
-                        <button id="cmap-vis-save" class="px-3 py-1 text-[10px] uppercase font-bold bg-[#d4af37] text-black hover:bg-[#fcd34d] rounded">Save</button>
-                    </div>
-                </div>
+                </section>
             </div>
-
-            <!-- MOVE MODAL -->
-            <div id="cmap-move-modal" class="hidden absolute inset-0 bg-black/80 flex items-center justify-center z-50 backdrop-blur-sm">
-                <div class="bg-[#1a1a1a] border border-blue-500 p-4 w-64 shadow-2xl rounded">
-                    <h4 class="text-blue-400 font-cinzel font-bold text-sm mb-3 border-b border-[#333] pb-1 uppercase">Move To Group</h4>
-                    <select id="cmap-move-select" class="w-full bg-[#111] border border-[#444] text-white p-2 rounded mb-4 text-xs outline-none focus:border-blue-500">
-                        <option value="">-- Root (No Group) --</option>
-                    </select>
-                    <div class="flex justify-end gap-2">
-                        <button onclick="document.getElementById('cmap-move-modal').classList.add('hidden')" class="px-3 py-1 text-[10px] uppercase font-bold text-gray-400 hover:text-white border border-[#444] rounded">Cancel</button>
-                        <button id="cmap-move-save" class="px-3 py-1 text-[10px] uppercase font-bold bg-blue-600 text-white hover:bg-blue-500 rounded">Move</button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- EDIT NODE MODAL -->
-            <div id="cmap-edit-modal" class="hidden absolute inset-0 bg-black/80 flex items-center justify-center z-50 backdrop-blur-sm">
-                <div class="bg-[#1a1a1a] border border-[#8a0303] p-4 w-64 shadow-2xl rounded">
-                    <h4 class="text-[#8a0303] font-cinzel font-bold text-sm mb-3 border-b border-[#333] pb-1 uppercase">Edit Node</h4>
-                    <div class="space-y-3 mb-4">
-                        <input type="text" id="cmap-edit-name" class="w-full bg-[#111] border border-[#444] text-white p-2 rounded text-xs outline-none focus:border-[#8a0303]" placeholder="Name">
-                        <input type="text" id="cmap-edit-clan" class="w-full bg-[#111] border border-[#444] text-white p-2 rounded text-xs outline-none focus:border-[#8a0303]" placeholder="Clan / Type / Desc">
-                        <select id="cmap-edit-type" class="w-full bg-[#111] border border-[#444] text-white p-2 rounded text-xs outline-none focus:border-[#8a0303]">
-                            <option value="pc">PC</option>
-                            <option value="npc">NPC</option>
-                            <option value="group">Group</option>
-                        </select>
-                    </div>
-                    <div class="flex justify-end gap-2">
-                        <button onclick="document.getElementById('cmap-edit-modal').classList.add('hidden')" class="px-3 py-1 text-[10px] uppercase font-bold text-gray-400 hover:text-white border border-[#444] rounded">Cancel</button>
-                        <button id="cmap-edit-save" class="px-3 py-1 text-[10px] uppercase font-bold bg-[#8a0303] text-white hover:bg-[#6d0202] rounded">Save</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
+        `;
+    }
 
     // Initialize Listeners
     setupMapListeners();
@@ -277,39 +372,51 @@ async function saveRelationshipCodex(entry) {
 }
 
 function setupMapListeners() {
-    document.getElementById('cmap-add-char').onclick = addCharacter;
-    document.getElementById('cmap-add-rel').onclick = addRelationship;
-    document.getElementById('cmap-new-map-btn').onclick = createNewMap;
-    document.getElementById('cmap-delete-map').onclick = deleteCurrentMap;
-    document.getElementById('cmap-cleanup-map').onclick = cleanupOrphans; 
-    document.getElementById('cmap-sync-roster').onclick = window.cmapSyncRoster; 
-    document.getElementById('cmap-select-map').onchange = (e) => switchMap(e.target.value);
-    document.getElementById('cmap-nav-up').onclick = navigateUp;
+    // Utility to bind safely if element exists
+    const safeBind = (id, event, fn) => {
+        const el = document.getElementById(id);
+        if (el) el[event] = fn;
+    };
 
-    // Filter Listener
-    document.getElementById('cmap-filter-char').onchange = (e) => {
+    // Storyteller actions
+    safeBind('cmap-add-char', 'onclick', addCharacter);
+    safeBind('cmap-add-rel', 'onclick', addRelationship);
+    safeBind('cmap-new-map-btn', 'onclick', createNewMap);
+    safeBind('cmap-delete-map', 'onclick', deleteCurrentMap);
+    safeBind('cmap-cleanup-map', 'onclick', cleanupOrphans);
+    safeBind('cmap-sync-roster', 'onclick', window.cmapSyncRoster);
+    
+    // Shared actions
+    safeBind('cmap-select-map', 'onchange', (e) => switchMap(e.target.value));
+    safeBind('cmap-nav-up', 'onclick', navigateUp);
+    safeBind('cmap-filter-char', 'onchange', (e) => {
         mapState.filterCharId = e.target.value;
         renderMermaidChart();
-    };
+    });
 
-    document.getElementById('cmap-type').onchange = (e) => {
-        document.getElementById('cmap-parent-group').classList.remove('hidden');
-    };
+    const typeEl = document.getElementById('cmap-type');
+    if (typeEl) {
+        typeEl.onchange = (e) => {
+            document.getElementById('cmap-parent-group').classList.remove('hidden');
+        };
+    }
 
     const wrapper = document.getElementById('mermaid-wrapper');
-    document.getElementById('cmap-zoom-in').onclick = () => { mapState.zoom = Math.min(mapState.zoom + 0.1, 3.0); if(wrapper) wrapper.style.transform = `scale(${mapState.zoom})`; };
-    document.getElementById('cmap-zoom-out').onclick = () => { mapState.zoom = Math.max(mapState.zoom - 0.1, 0.5); if(wrapper) wrapper.style.transform = `scale(${mapState.zoom})`; };
-    document.getElementById('cmap-reset-zoom').onclick = () => { mapState.zoom = 1.0; if(wrapper) wrapper.style.transform = `scale(1)`; };
+    safeBind('cmap-zoom-in', 'onclick', () => { mapState.zoom = Math.min(mapState.zoom + 0.1, 3.0); if(wrapper) wrapper.style.transform = `scale(${mapState.zoom})`; });
+    safeBind('cmap-zoom-out', 'onclick', () => { mapState.zoom = Math.max(mapState.zoom - 0.1, 0.5); if(wrapper) wrapper.style.transform = `scale(${mapState.zoom})`; });
+    safeBind('cmap-reset-zoom', 'onclick', () => { mapState.zoom = 1.0; if(wrapper) wrapper.style.transform = `scale(1)`; });
 
     // VISIBILITY MODAL LOGIC
     const radios = document.getElementsByName('cmap-vis-option');
-    radios.forEach(r => {
-        r.onchange = () => {
-            document.getElementById('cmap-vis-players').classList.toggle('hidden', r.value !== 'specific');
-        };
-    });
+    if (radios.length > 0) {
+        radios.forEach(r => {
+            r.onchange = () => {
+                document.getElementById('cmap-vis-players').classList.toggle('hidden', r.value !== 'specific');
+            };
+        });
+    }
 
-    document.getElementById('cmap-vis-save').onclick = async () => {
+    safeBind('cmap-vis-save', 'onclick', async () => {
         const selected = document.querySelector('input[name="cmap-vis-option"]:checked')?.value;
         let finalVal = 'st';
 
@@ -331,10 +438,10 @@ function setupMapListeners() {
         document.getElementById('cmap-vis-modal').classList.add('hidden');
         refreshMapUI();
         await saveMapData();
-    };
+    });
     
     // MOVE MODAL LOGIC
-    document.getElementById('cmap-move-save').onclick = async () => {
+    safeBind('cmap-move-save', 'onclick', async () => {
         const charId = mapState.editingVisibilityId; 
         const newParent = document.getElementById('cmap-move-select').value || null;
         
@@ -358,10 +465,10 @@ function setupMapListeners() {
             document.getElementById('cmap-move-modal').classList.add('hidden');
             showNotification("Node moved.");
         }
-    };
+    });
 
     // EDIT NODE MODAL LOGIC
-    document.getElementById('cmap-edit-save').onclick = async () => {
+    safeBind('cmap-edit-save', 'onclick', async () => {
         const id = mapState.editingNodeId;
         const char = mapState.characters.find(c => c.id === id);
         if (char) {
@@ -374,7 +481,7 @@ function setupMapListeners() {
             await saveMapData();
             showNotification("Node updated.");
         }
-    };
+    });
 }
 
 // --- MAP MANAGEMENT ---
@@ -501,6 +608,8 @@ window.cmapOpenMoveModal = (id) => {
     const modal = document.getElementById('cmap-move-modal');
     const select = document.getElementById('cmap-move-select');
     
+    if (!modal || !select) return;
+
     select.innerHTML = '<option value="">-- Root (No Group) --</option>';
     
     mapState.characters.filter(c => c.type === 'group' && c.id !== id).forEach(g => {
@@ -540,15 +649,22 @@ window.cmapViewCodex = (id) => {
         exists = !!stState.journal[journalKey];
     }
 
-    if (!targetId || !exists) {
-        if (targetId && !exists) {
-            if (char) delete char.codexId;
-            if (rel) delete rel.codexId;
-            saveMapData(); 
-        }
+    const isST = window.stState && window.stState.isStoryteller;
 
-        if (confirm(`Create Codex Entry for "${targetName}"?`)) {
-            createCodexForMapItem(id, char ? 'char' : 'rel', targetName);
+    if (!targetId || !exists) {
+        if (isST) {
+            // ST Mode: Clean up and prompt to create
+            if (targetId && !exists) {
+                if (char) delete char.codexId;
+                if (rel) delete rel.codexId;
+                saveMapData(); 
+            }
+            if (confirm(`Create Codex Entry for "${targetName}"?`)) {
+                createCodexForMapItem(id, char ? 'char' : 'rel', targetName);
+            }
+        } else {
+            // Player Mode: Cannot create entries for the ST map directly here
+            showNotification("No detailed records available for this entry.", "info");
         }
     } else {
         if (window.viewCodex) {
@@ -894,39 +1010,47 @@ function refreshMapUI() {
 }
 
 function updateDropdowns() {
+    const isST = window.stState && window.stState.isStoryteller;
     const sourceSelect = document.getElementById('cmap-source');
     const targetSelect = document.getElementById('cmap-target');
     const parentSelect = document.getElementById('cmap-parent-group');
     const filterSelect = document.getElementById('cmap-filter-char'); 
 
-    if (!sourceSelect || !targetSelect || !parentSelect || !filterSelect) return;
+    const visibleChars = getVisibleCharacters();
+    const allChars = mapState.characters;
 
-    const currentS = sourceSelect.value;
-    const currentT = targetSelect.value;
-    const currentP = parentSelect.value;
-    const currentF = filterSelect.value; 
+    if (sourceSelect && targetSelect && parentSelect) {
+        const currentS = sourceSelect.value;
+        const currentT = targetSelect.value;
+        const currentP = parentSelect.value;
 
-    let opts = '<option value="">-- Select --</option>';
-    let groupOpts = '<option value="">-- No Parent Group --</option>';
-    let filterOpts = '<option value="">-- Show All --</option>'; 
+        let opts = '<option value="">-- Select --</option>';
+        let groupOpts = '<option value="">-- No Parent Group --</option>';
 
-    mapState.characters.forEach(c => {
-        opts += `<option value="${c.id}">${c.name}</option>`;
-        if(c.type === 'group') groupOpts += `<option value="${c.id}">${c.name}</option>`;
-        filterOpts += `<option value="${c.id}">${c.name}</option>`; 
-    });
+        allChars.forEach(c => {
+            opts += `<option value="${c.id}">${c.name}</option>`;
+            if(c.type === 'group') groupOpts += `<option value="${c.id}">${c.name}</option>`;
+        });
 
-    sourceSelect.innerHTML = opts;
-    targetSelect.innerHTML = opts;
-    parentSelect.innerHTML = groupOpts;
-    filterSelect.innerHTML = filterOpts;
+        sourceSelect.innerHTML = opts;
+        targetSelect.innerHTML = opts;
+        parentSelect.innerHTML = groupOpts;
 
-    if (mapState.characters.some(c => c.id === currentS)) sourceSelect.value = currentS;
-    if (mapState.characters.some(c => c.id === currentT)) targetSelect.value = currentT;
-    if (mapState.characters.some(c => c.id === currentP)) parentSelect.value = currentP;
-    
-    if (mapState.characters.some(c => c.id === currentF)) filterSelect.value = currentF;
-    mapState.filterCharId = filterSelect.value; 
+        if (allChars.some(c => c.id === currentS)) sourceSelect.value = currentS;
+        if (allChars.some(c => c.id === currentT)) targetSelect.value = currentT;
+        if (allChars.some(c => c.id === currentP)) parentSelect.value = currentP;
+    }
+
+    if (filterSelect) {
+        const currentF = filterSelect.value; 
+        let filterOpts = '<option value="">-- Show All --</option>'; 
+        visibleChars.forEach(c => {
+            filterOpts += `<option value="${c.id}">${c.name}</option>`; 
+        });
+        filterSelect.innerHTML = filterOpts;
+        if (visibleChars.some(c => c.id === currentF)) filterSelect.value = currentF;
+        mapState.filterCharId = filterSelect.value; 
+    }
 }
 
 function updateLists() {
@@ -1024,29 +1148,29 @@ async function renderMermaidChart() {
     }
 
     // --- APPLY FILTER LOGIC ---
-    let visibleChars = mapState.characters;
-    let visibleRels = mapState.relationships;
+    let visibleChars = getVisibleCharacters();
+    let visibleRels = getVisibleRelationships();
 
     if (mapState.filterCharId) {
         const connectedIds = new Set();
         connectedIds.add(mapState.filterCharId);
 
-        mapState.relationships.forEach(r => {
+        visibleRels.forEach(r => {
             if (r.source === mapState.filterCharId) connectedIds.add(r.target);
             if (r.target === mapState.filterCharId) connectedIds.add(r.source);
         });
 
         const nodesToCheck = [...connectedIds];
         nodesToCheck.forEach(id => {
-            let char = mapState.characters.find(c => c.id === id);
+            let char = visibleChars.find(c => c.id === id);
             while (char && char.parent) {
                 connectedIds.add(char.parent);
-                char = mapState.characters.find(c => c.id === char.parent);
+                char = visibleChars.find(c => c.id === char.parent);
             }
         });
 
-        visibleChars = mapState.characters.filter(c => connectedIds.has(c.id));
-        visibleRels = mapState.relationships.filter(r => connectedIds.has(r.source) && connectedIds.has(r.target));
+        visibleChars = visibleChars.filter(c => connectedIds.has(c.id));
+        visibleRels = visibleRels.filter(r => connectedIds.has(r.source) && connectedIds.has(r.target));
     }
 
     let graph = 'graph TD\n';
@@ -1056,11 +1180,11 @@ async function renderMermaidChart() {
     graph += 'classDef npc fill:#000,stroke:#8a0303,stroke-width:3px,color:#8a0303,font-weight:bold;\n';
     graph += 'classDef groupRing fill:none,stroke:#1e3a8a,stroke-width:2px,stroke-dasharray: 5 5;\n'; 
     graph += 'classDef groupNode fill:#1e3a8a,stroke:#60a5fa,stroke-width:2px,color:#fff;\n';
-    
     graph += 'classDef hiddenNode stroke-dasharray: 5 5,opacity:0.6;\n';
 
     // RENDER NODES
     const renderedIds = new Set();
+    const isST = window.stState && window.stState.isStoryteller;
     
     const renderNode = (c) => {
         if(renderedIds.has(c.id)) return "";
@@ -1085,7 +1209,7 @@ async function renderMermaidChart() {
         }
         
         let line = "";
-        if (c.visibility !== 'all') {
+        if (isST && c.visibility !== 'all') {
              line = `${c.id}("${label}"):::${c.type === 'group' ? 'groupNode' : (c.type === 'npc' ? 'npc' : 'pc')} hiddenNode\n`;
         } else {
              line = `${c.id}("${label}")${cls}\n`;
@@ -1147,7 +1271,7 @@ async function renderMermaidChart() {
         if (r.type === 'blood') arrow = "==>";
         
         let displayLabel = label;
-        if (isHidden) {
+        if (isST && isHidden) {
              if (displayLabel) displayLabel = `"${r.label} *"`; 
              else displayLabel = `"* *"`;
         }
@@ -1171,7 +1295,7 @@ async function renderMermaidChart() {
         
         nodes.forEach(node => {
             const domId = node.id;
-            const char = mapState.characters.find(c => domId.includes(c.id));
+            const char = visibleChars.find(c => domId.includes(c.id));
             
             if (char) {
                 node.style.cursor = "pointer";
