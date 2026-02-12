@@ -1280,12 +1280,11 @@ async function renderMermaidChart() {
              }
         }
         
-        let line = "";
+        let line = `${c.id}("${label}")${cls}\n`;
+        
         const isPrivate = Array.isArray(c.visibility) && c.visibility.includes(uid) && !isST;
         if ((isST && c.visibility !== 'all') || isPrivate) {
-             line = `${c.id}("${label}"):::${c.type === 'group' ? 'groupNode' : (c.type === 'npc' ? 'npc' : 'pc')} hiddenNode\n`;
-        } else {
-             line = `${c.id}("${label}")${cls}\n`;
+             line += `class ${c.id} hiddenNode\n`;
         }
 
         line += `click ${c.id} call cmapNodeClick("${c.id}") "Interact"\n`;
