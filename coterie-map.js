@@ -50,6 +50,7 @@ let mapState = {
 
 // --- GLOBAL CLICK HANDLER (Must be on window for Mermaid) ---
 window.cmapNodeClick = (id) => {
+    // console.log("Mermaid Node Clicked:", id);
     const char = mapState.characters.find(c => c.id === id);
     if (!char) return;
 
@@ -1106,7 +1107,7 @@ async function renderMermaidChart() {
                 node.style.cursor = "pointer";
                 node.addEventListener('click', (e) => {
                     e.stopPropagation(); // Stop bubbling
-                    console.log("Manual Click:", char.id);
+                    // console.log("Manual Click:", char.id);
                     window.cmapNodeClick(char.id);
                 });
             }
