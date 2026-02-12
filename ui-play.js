@@ -18,6 +18,9 @@ import {
 import { db, doc, getDoc, collection, getDocs, query, auth, onSnapshot } from "./firebase-config.js";
 import { combatState } from "./combat-tracker.js";
 
+// MAP IMPORT
+import { renderCoterieMap } from "./coterie-map.js";
+
 // ==========================================================================
 // INFO MODALS & HELPERS
 // ==========================================================================
@@ -1111,14 +1114,17 @@ export async function renderChronicleTab() {
 
         container.innerHTML = `
             <div class="flex flex-col h-full relative">
-                <div class="flex gap-6 border-b border-[#333] pb-2 mb-4 px-2 shrink-0">
-                    <button id="tab-chron-info" class="text-xs uppercase tracking-wider px-2 pb-1 ${currentTab==='info'?activeClass:inactiveClass}">
+                <div class="flex gap-6 border-b border-[#333] pb-2 mb-4 px-2 shrink-0 overflow-x-auto no-scrollbar">
+                    <button id="tab-chron-info" class="text-xs uppercase tracking-wider px-2 pb-1 whitespace-nowrap ${currentTab==='info'?activeClass:inactiveClass}">
                         <i class="fas fa-info-circle mr-2"></i>Info
                     </button>
-                    <button id="tab-chron-roster" class="text-xs uppercase tracking-wider px-2 pb-1 ${currentTab==='roster'?activeClass:inactiveClass}">
+                    <button id="tab-chron-roster" class="text-xs uppercase tracking-wider px-2 pb-1 whitespace-nowrap ${currentTab==='roster'?activeClass:inactiveClass}">
                         <i class="fas fa-users mr-2"></i>Roster
                     </button>
-                    <button id="tab-chron-chat" class="text-xs uppercase tracking-wider px-2 pb-1 ${currentTab==='chat'?activeClass:inactiveClass}">
+                    <button id="tab-chron-map" class="text-xs uppercase tracking-wider px-2 pb-1 whitespace-nowrap ${currentTab==='map'?activeClass:inactiveClass}">
+                        <i class="fas fa-project-diagram mr-2"></i>Map
+                    </button>
+                    <button id="tab-chron-chat" class="text-xs uppercase tracking-wider px-2 pb-1 whitespace-nowrap ${currentTab==='chat'?activeClass:inactiveClass}">
                         <i class="fas fa-comments mr-2"></i>Chat
                     </button>
                 </div>
@@ -1131,6 +1137,7 @@ export async function renderChronicleTab() {
 
         document.getElementById('tab-chron-info').onclick = () => { window.state.chronicleSubTab = 'info'; renderChronicleTab(); };
         document.getElementById('tab-chron-roster').onclick = () => { window.state.chronicleSubTab = 'roster'; renderChronicleTab(); };
+        document.getElementById('tab-chron-map').onclick = () => { window.state.chronicleSubTab = 'map'; renderChronicleTab(); };
         document.getElementById('tab-chron-chat').onclick = () => { window.state.chronicleSubTab = 'chat'; renderChronicleTab(); };
 
         const contentArea = document.getElementById('chronicle-content-area');
@@ -1139,6 +1146,8 @@ export async function renderChronicleTab() {
             renderChronicleInfoView(contentArea, data);
         } else if (currentTab === 'roster') {
             renderChronicleRosterView(contentArea, chronicleId);
+        } else if (currentTab === 'map') {
+            renderCoterieMap(contentArea);
         } else {
             renderChronicleChatView(contentArea, chronicleId);
         }
@@ -1704,9 +1713,7 @@ export function updateRitualsPlayView() {
                                 <i class="fas fa-chevron-right text-[8px] text-gray-500"></i>
                                 <div class="font-bold text-gray-300 text-[10px] truncate">${name}</div>
                             </div>
-                            <button onclick="event.stopPropagation(); window.rollDiscipline('${name.replace(/'/g, "\\'")}', ['Intelligence', 'Occult'], ${diff})" class="bg-[#333] border border-gray-600 text-gray-400 hover:text-white hover:border-[#d4af37] text-[8px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider transition-all" title="Roll Int+Occult (Diff ${diff})">
-                                <i class="fas fa-dice-d20"></i>
-                            </button>
+                            <button onclick="event.stopPropagation(); window.rollDiscipline('${name.replace(/'/g, "\\'")}', ['Intelligence', 'Occult'], ${diff})" class="bg-[#333] border border-gray-600 text-gray-400 hover:text-white hover:border-[#d4af37] text-[8px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider transition-all shadow-sm hover:shadow-gold flex-shrink-0 ml-2"><i class="fas fa-dice-d20"></i></button>
                         </div>
                         <div id="${uid}" class="hidden p-2 border-t border-[#333] bg-black/50 text-[10px]">
                             <div class="text-gray-400 italic leading-snug mb-1">${rData.desc || "No description."}</div>
