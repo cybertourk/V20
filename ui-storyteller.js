@@ -80,6 +80,8 @@ export function initStorytellerSystem() {
     window.stAddToCombat = handleAddToCombat;
     window.renderCombatView = renderCombatView;
     window.stViewCombatantSheet = stViewCombatantSheet; 
+    window.stToggleCombatVisibility = stToggleCombatVisibility;
+    window.stOpenCombatVisibilityModal = stOpenCombatVisibilityModal;
 
     // Journal Bindings
     window.stPushHandout = pushHandoutToPlayers;
@@ -967,6 +969,24 @@ function renderStorytellerDashboard(container = null) {
             <div id="st-viewport" class="flex-1 overflow-hidden relative bg-[url('https://www.transparenttextures.com/patterns/black-linen.png')]">
                 <!-- Views injected here -->
             </div>
+            
+            <!-- ST VISIBILITY MODAL (REUSED / REPURPOSED FOR COMBAT) -->
+            <div id="st-combat-vis-modal" class="fixed inset-0 bg-black/80 z-[1000] hidden flex items-center justify-center p-4 backdrop-blur-sm">
+                <div class="bg-[#1a1a1a] border border-[#d4af37] p-6 max-w-sm w-full shadow-2xl relative">
+                    <h3 class="text-lg text-gold font-cinzel font-bold mb-4 border-b border-[#333] pb-2 uppercase">Targeted Visibility</h3>
+                    <input type="hidden" id="st-combat-vis-id">
+                    
+                    <div class="text-[10px] text-gray-500 font-bold uppercase mb-2">Hide from specific players:</div>
+                    <div id="st-combat-vis-player-list" class="space-y-1 max-h-48 overflow-y-auto mb-4 custom-scrollbar border border-[#333] bg-[#050505] p-2 rounded">
+                        <!-- Players injected here -->
+                    </div>
+                    
+                    <div class="flex justify-between gap-2 border-t border-[#333] pt-4">
+                        <button onclick="document.getElementById('st-combat-vis-modal').classList.add('hidden')" class="text-gray-500 hover:text-white text-xs uppercase font-bold px-4 py-2 border border-transparent hover:border-[#444]">Cancel</button>
+                        <button id="st-combat-vis-save" class="bg-[#d4af37] text-black px-6 py-2 text-xs uppercase font-bold hover:bg-[#fcd34d] shadow-lg">Save Selection</button>
+                    </div>
+                </div>
+            </div>
         </div>
     `;
     
@@ -1188,6 +1208,73 @@ export function stViewCombatantSheet(id, type, sourceId, name) {
     }
 }
 
+// --- VISIBILITY CONTROLS ---
+
+function stToggleCombatVisibility(id) {
+    const c = combatState.combatants.find(x => x.id === id);
+    if (!c) return;
+    
+    // Cycle: Visible -> Hidden from All -> Visible
+    // If it's an array (targeted), clicking simple toggle makes it hidden from all
+    const newVal = (c.hidden === true) ? false : true;
+    
+    if (window.combatTracker && window.combatTracker.setHidden) {
+        window.combatTracker.setHidden(id, newVal);
+    }
+}
+
+function stOpenCombatVisibilityModal(e, id) {
+    if(e) {
+        e.preventDefault(); // Block context menu
+        e.stopPropagation();
+    }
+
+    const c = combatState.combatants.find(x => x.id === id);
+    if (!c) return;
+
+    const modal = document.getElementById('st-combat-vis-modal');
+    const list = document.getElementById('st-combat-vis-player-list');
+    const idField = document.getElementById('st-combat-vis-id');
+    const saveBtn = document.getElementById('st-combat-vis-save');
+    
+    if (!modal || !list) return;
+
+    idField.value = id;
+    list.innerHTML = '';
+
+    const currentHidden = Array.isArray(c.hidden) ? c.hidden : [];
+
+    Object.entries(stState.players).forEach(([uid, p]) => {
+        if (p.metadataType === 'journal') return;
+        
+        const isChecked = currentHidden.includes(uid);
+        const row = document.createElement('label');
+        row.className = "flex items-center justify-between p-2 hover:bg-[#222] rounded cursor-pointer group";
+        row.innerHTML = `
+            <div class="flex items-center gap-3">
+                <input type="checkbox" class="vis-recipient-checkbox w-4 h-4 accent-[#d4af37]" value="${uid}" ${isChecked ? 'checked' : ''}>
+                <span class="text-xs text-gray-300 group-hover:text-white">${p.character_name || "Unknown"}</span>
+            </div>
+            <span class="text-[8px] text-gray-600 font-mono uppercase">${uid.substring(0, 8)}</span>
+        `;
+        list.appendChild(row);
+    });
+
+    saveBtn.onclick = () => {
+        const selected = Array.from(list.querySelectorAll('.vis-recipient-checkbox:checked')).map(cb => cb.value);
+        
+        if (window.combatTracker && window.combatTracker.setHidden) {
+            // If none selected, make it fully visible
+            const finalVal = selected.length > 0 ? selected : false;
+            window.combatTracker.setHidden(id, finalVal);
+        }
+        
+        modal.classList.add('hidden');
+    };
+
+    modal.classList.remove('hidden');
+}
+
 
 // --- VIEW 1: ROSTER ---
 function renderRosterView() {
@@ -1342,7 +1429,7 @@ function renderCombatView() {
     } else {
         combatants.forEach(c => {
             const isNPC = c.type === 'NPC';
-            const activeClass = c.active ? 'border-[#d4af37] bg-[#2a2a2a] shadow-[0_0_15px_rgba(212,175,55,0.2)] transform scale-[1.01]' : 'border-[#333] bg-[#1a1a1a] opacity-80';
+            const activeClass = c.active ? 'border-[#d4af37] bg-[#2a2a2a] shadow-[0_0_15px_rgba(212,175,55,0.2)] transform scale-[1.01]' : 'border-[#333] bg-[#111] opacity-80';
             const activeIndicator = c.active ? `<div class="absolute left-0 top-0 bottom-0 w-1 bg-[#d4af37]"></div>` : '';
 
             // Handle Status display color
@@ -1353,6 +1440,17 @@ function renderCombatView() {
             if (c.status === 'done') statusColor = 'text-gray-600';
 
             const safeName = c.name.replace(/'/g, "\\'");
+            
+            // Visibility Icon Logic
+            let visIconClass = "fa-eye text-gray-500";
+            let visTitle = "Visible to All. Click to Hide. Right-click for Targeted Hide.";
+            if (c.hidden === true) {
+                visIconClass = "fa-eye-slash text-red-500";
+                visTitle = "Hidden from All Players. Click to show.";
+            } else if (Array.isArray(c.hidden)) {
+                visIconClass = "fa-user-secret text-[#d4af37]";
+                visTitle = `Hidden from ${c.hidden.length} players. Click to Show All. Right-click to Edit.`;
+            }
 
             html += `
                 <div class="${activeClass} p-2 rounded flex items-center justify-between group hover:border-[#555] transition-all relative overflow-hidden">
@@ -1368,6 +1466,15 @@ function renderCombatView() {
                         </div>
                     </div>
                     <div class="flex items-center gap-3">
+                        
+                        <!-- Visibility Toggle -->
+                        <button class="w-8 h-8 flex items-center justify-center hover:bg-white/10 rounded transition-colors" 
+                                onclick="window.stToggleCombatVisibility('${c.id}')" 
+                                oncontextmenu="window.stOpenCombatVisibilityModal(event, '${c.id}')"
+                                title="${visTitle}">
+                            <i class="fas ${visIconClass}"></i>
+                        </button>
+
                         <select onchange="window.combatTracker.setStatus('${c.id}', this.value)" class="bg-[#050505] border border-[#333] text-[9px] uppercase font-bold ${statusColor} rounded px-1 py-1 focus:outline-none focus:border-[#d4af37]">
                             <option value="pending" class="text-gray-400" ${c.status === 'pending' ? 'selected' : ''}>Pending</option>
                             <option value="held" class="text-yellow-500" ${c.status === 'held' ? 'selected' : ''}>Held Action</option>
