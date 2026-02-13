@@ -4,11 +4,76 @@ import {
 } from "./data.js";
 
 // ==========================================================================
-// TOAST NOTIFICATION SYSTEM
+// AUDIO SYSTEM (Church Bell Chime)
 // ==========================================================================
 
 /**
- * Displays a stackable toast notification.
+ * Synthesizes a deep "Church Bell" chime using the Web Audio API.
+ * This avoids dependency on external audio files.
+ */
+function playBellChime() {
+    try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext) return;
+        
+        const ctx = new AudioContext();
+        const now = ctx.currentTime;
+        
+        // Create multiple oscillators for a rich, bell-like timbre
+        // Fundamental frequency (Deep bell)
+        const osc1 = ctx.createOscillator();
+        const gain1 = ctx.createGain();
+        osc1.type = 'sine';
+        osc1.frequency.setValueAtTime(110, now); // A2
+        
+        // Overtone 1
+        const osc2 = ctx.createOscillator();
+        const gain2 = ctx.createGain();
+        osc2.type = 'triangle';
+        osc2.frequency.setValueAtTime(220, now); // A3
+        
+        // Overtone 2 (The "Clonk")
+        const osc3 = ctx.createOscillator();
+        const gain3 = ctx.createGain();
+        osc3.type = 'sine';
+        osc3.frequency.setValueAtTime(330, now); // E4
+        
+        // Master Gain
+        const masterGain = ctx.createGain();
+        masterGain.gain.setValueAtTime(0.3, now);
+        masterGain.gain.exponentialRampToValueAtTime(0.001, now + 3);
+        
+        // Connect nodes
+        osc1.connect(gain1);
+        gain1.connect(masterGain);
+        osc2.connect(gain2);
+        gain2.connect(masterGain);
+        osc3.connect(gain3);
+        gain3.connect(masterGain);
+        masterGain.connect(ctx.destination);
+        
+        // Start oscillators
+        osc1.start(now);
+        osc2.start(now);
+        osc3.start(now);
+        
+        // Stop oscillators
+        osc1.stop(now + 3);
+        osc2.stop(now + 3);
+        osc3.stop(now + 3);
+        
+    } catch (e) {
+        console.warn("Audio playback blocked or not supported:", e);
+    }
+}
+
+// ==========================================================================
+// TOAST NOTIFICATION SYSTEM (PERSISTENT)
+// ==========================================================================
+
+/**
+ * Displays a stackable toast notification on the left side of the screen.
+ * REMAIN ON SCREEN: This version removes the auto-hide timer.
  * @param {string} msg - The message body.
  * @param {string} type - The toast style ('info', 'roll', 'system', 'chat', 'whisper', 'event').
  * @param {string} header - The small bold text at the top of the toast.
@@ -25,6 +90,9 @@ export function showNotification(msg, type = 'info', header = 'System') {
         } 
         return;
     }
+
+    // Play Church Bell Sound
+    playBellChime();
 
     // Create Toast Element
     const toast = document.createElement('div');
@@ -44,25 +112,21 @@ export function showNotification(msg, type = 'info', header = 'System') {
             <span class="opacity-50 text-[8px]">${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
         </div>
         <div class="toast-body">${msg}</div>
+        <div class="text-[8px] text-gray-600 mt-1 uppercase font-bold text-right">[ Click to Dismiss ]</div>
     `;
 
     // Add to container
     container.appendChild(toast);
 
-    // Auto-remove after 5 seconds
-    const duration = type === 'event' ? 8000 : 5000;
-    
-    setTimeout(() => {
-        toast.classList.add('hiding');
-        setTimeout(() => {
-            if (toast.parentNode) toast.remove();
-        }, 300);
-    }, duration);
+    // PERSISTENCE: Auto-hide timers removed. 
+    // Toasts remain until clicked.
 
-    // Click to dismiss early
+    // Click to dismiss logic (Includes animation)
     toast.onclick = () => {
         toast.classList.add('hiding');
-        setTimeout(() => { if (toast.parentNode) toast.remove(); }, 300);
+        setTimeout(() => { 
+            if (toast.parentNode) toast.remove(); 
+        }, 300); // Matches CSS toast-out-left animation duration
     };
 };
 window.showNotification = showNotification;
