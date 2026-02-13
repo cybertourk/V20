@@ -25,6 +25,10 @@ import { renderCoterieMap } from "./coterie-map.js";
 // INFO MODALS & HELPERS
 // ==========================================================================
 
+/**
+ * Displays detailed information about regaining Willpower based on the character's Nature.
+ * @param {Event} e - The click event.
+ */
 export function showWillpowerInfo(e) {
     if(e) e.stopPropagation();
     
@@ -49,6 +53,9 @@ export function showWillpowerInfo(e) {
 }
 window.showWillpowerInfo = showWillpowerInfo; 
 
+/**
+ * Displays the Hierarchy of Sins modal.
+ */
 export function showHumanityInfo(e) {
     if(e) e.stopPropagation();
     const modal = document.getElementById('humanity-info-modal');
@@ -56,6 +63,9 @@ export function showHumanityInfo(e) {
 }
 window.showHumanityInfo = showHumanityInfo;
 
+/**
+ * Displays the Blood usage and feeding rules modal.
+ */
 export function showBloodInfo(e) {
     if(e) e.stopPropagation();
     const modal = document.getElementById('blood-info-modal');
@@ -63,6 +73,9 @@ export function showBloodInfo(e) {
 }
 window.showBloodInfo = showBloodInfo;
 
+/**
+ * Sets up a Perception + Streetwise hunting pool for Blood recovery.
+ */
 export function setupHunting() {
     window.clearPool();
     
@@ -81,6 +94,9 @@ window.setupHunting = setupHunting;
 
 // --- INJECTION HELPERS ---
 
+/**
+ * Injects interactive icons and help buttons into the section titles of the Play Mode sheet.
+ */
 function injectWillpowerInfo() {
     const sections = document.querySelectorAll('#play-mode-sheet .section-title');
     let wpTitleEl = null;
@@ -159,8 +175,10 @@ function injectBloodInfo() {
 
 // --- PLAYER COMBAT HANDLERS ---
 
+/**
+ * Triggers a re-render of the combat sub-tab within the Chronicle view.
+ */
 export function updatePlayerCombatView() {
-    // If the Chronicle Tab is open AND the Combat Sub-tab is active, re-render it.
     const container = document.getElementById('chronicle-content-area');
     if (window.state.isPlayMode && 
         document.getElementById('play-mode-chronicle').classList.contains('active') && 
@@ -171,16 +189,19 @@ export function updatePlayerCombatView() {
 }
 window.updatePlayerCombatView = updatePlayerCombatView;
 
-// Player specific bindings for manual combat edits
+/**
+ * Specific update function for player-owned initiative within the tracker.
+ */
 window.plUpdateInit = (id, val) => {
-    // Check ownership before triggering update
     if (auth.currentUser && id === auth.currentUser.uid) {
         updateInitiative(id, val);
     }
 };
 
+/**
+ * Specific update function for player-owned combat status (Pending, Done, etc).
+ */
 window.plUpdateStatus = (id, val) => {
-    // Check ownership before triggering update
     if (auth.currentUser && id === auth.currentUser.uid) {
         setCombatantStatus(id, val);
     }
@@ -190,6 +211,9 @@ window.plUpdateStatus = (id, val) => {
 // PLAY MODE CORE LOGIC
 // ==========================================================================
 
+/**
+ * Switches the visual state of the application between "Edit/Creation" and "Play" modes.
+ */
 export function applyPlayModeUI() {
     const isPlay = window.state.isPlayMode;
     document.body.classList.toggle('play-mode', isPlay);
@@ -209,6 +233,7 @@ export function applyPlayModeUI() {
         else diceBtn.classList.add('hidden');
     }
     
+    // Disable inputs that shouldn't be edited during Play Mode
     document.querySelectorAll('input, select, textarea').forEach(el => {
         if (['save-filename', 'char-select', 'roll-diff', 'use-specialty', 'c-path-name', 'c-path-name-create', 'c-bearing-name', 'c-bearing-value', 'custom-weakness-input', 'xp-points-input', 'blood-per-turn-input', 'custom-dice-input', 'spend-willpower', 'c-xp-total', 'frenzy-diff', 'rotschreck-diff', 'play-merit-notes', 'dmg-input-val', 'tray-use-armor',
         'log-sess-num', 'log-date', 'log-game-date', 'log-title', 'log-effects', 'log-scene1', 'log-scene2', 'log-scene3', 'log-scene-outcome', 'log-xp-gain',
@@ -239,6 +264,7 @@ export function applyPlayModeUI() {
             el.classList.remove('hidden');
         });
 
+        // Trigger Sub-Renders
         renderPlayModeHeader();
         renderPlayModeAttributes();
         renderPlayModeAbilities();
@@ -253,19 +279,19 @@ export function applyPlayModeUI() {
         renderDetailedDisciplines();
         updateRitualsPlayView();
         
-        // AUTO-RENDER CHRONICLE & NPC TABS
+        // Auto-render complex tabs
         ensureChronicleTabContainer();
         renderChronicleTab();
         renderNpcTab();
         
-        // Removed checkCombatStatus(); as we no longer show float.
-        
+        // Finalize UI Injection
         setTimeout(() => {
             injectWillpowerInfo();
             injectHumanityInfo();
             injectBloodInfo(); 
         }, 50);
 
+        // Sync Equipment Display
         let carried = []; let owned = []; 
         if(window.state.inventory) { 
             window.state.inventory.forEach(i => { 
@@ -276,6 +302,7 @@ export function applyPlayModeUI() {
         setSafeText('play-gear-carried', carried.join(', ')); 
         setSafeText('play-gear-owned', owned.join(', '));
         
+        // Biography
         const bioDescEl = document.getElementById('play-bio-desc');
         if(bioDescEl) {
             bioDescEl.innerText = document.getElementById('bio-desc')?.value || "";
@@ -285,6 +312,7 @@ export function applyPlayModeUI() {
         if(bioHistoryEl) {
             bioHistoryEl.innerText = document.getElementById('char-history')?.value || "";
             
+            // Portrait handling
             if (window.state.characterImage) {
                 const histContainer = bioHistoryEl.closest('.sheet-section');
                 
@@ -327,6 +355,7 @@ export function applyPlayModeUI() {
         const feedSrc = document.getElementById('inv-feeding-grounds'); 
         if (feedSrc) setSafeText('play-feeding-grounds', feedSrc.value);
         
+        // Armor Aggregation
         if(document.getElementById('armor-rating-play')) { 
             let totalA = 0; let totalP = 0; let names = []; 
             if(window.state.inventory) { 
@@ -339,6 +368,7 @@ export function applyPlayModeUI() {
             setSafeText('armor-desc-play', names.join(', ')); 
         }
         
+        // Vehicle Display
         if (document.getElementById('play-vehicles')) { 
             const pv = document.getElementById('play-vehicles'); 
             pv.innerHTML = ''; 
@@ -350,6 +380,7 @@ export function applyPlayModeUI() {
             } 
         }
         
+        // Havens
         if (document.getElementById('play-havens-list')) { 
             const ph = document.getElementById('play-havens-list'); 
             ph.innerHTML = ''; 
@@ -400,6 +431,9 @@ export function applyPlayModeUI() {
 }
 window.applyPlayModeUI = applyPlayModeUI;
 
+/**
+ * Toggles play mode and synchronizes all text fields back to the global state.
+ */
 export function togglePlayMode() {
     const safeVal = (id) => {
         const el = document.getElementById(id);
@@ -422,7 +456,6 @@ export function togglePlayMode() {
 
     let gen = parseInt(window.state.textFields['c-gen']);
     if (isNaN(gen) || gen < 3 || gen > 15) {
-        console.warn("Invalid Generation detected (" + gen + "), defaulting to 13");
         gen = 13;
         window.state.textFields['c-gen'] = "13";
     }
@@ -438,7 +471,9 @@ export function togglePlayMode() {
 }
 window.togglePlayMode = togglePlayMode;
 
-// ... [Keep other render helpers (Attributes, Abilities, Advantages, etc.) unchanged] ...
+// ==========================================================================
+// SUB-RENDERERS (Attributes, Abilities, Advantages)
+// ==========================================================================
 
 function renderPlayModeHeader() {
     const row = document.getElementById('play-concept-row');
@@ -571,12 +606,10 @@ function renderPlayModeMeritsFlaws() {
     const mf = document.getElementById('merit-flaw-rows-play'); 
     if(mf) {
         mf.innerHTML = ''; 
-        
         const renderMFRow = (item, type, index) => {
             const row = document.createElement('div');
             row.className = "flex flex-col border-b border-[#222] py-2 mb-1";
             const valueColor = type === 'Merit' ? 'text-red-400' : 'text-green-400'; 
-            
             row.innerHTML = `
                 <div class="flex justify-between text-xs mb-1">
                     <span class="font-bold text-white">${item.name}</span>
@@ -585,7 +618,6 @@ function renderPlayModeMeritsFlaws() {
                 <textarea class="merit-flaw-desc bg-transparent border-none text-[10px] text-gray-400 w-full italic focus:text-white focus:not-italic resize-none overflow-hidden" 
                         placeholder="Description / Note..." rows="1" style="min-height: 20px;">${item.desc || ''}</textarea>
             `;
-            
             const input = row.querySelector('textarea');
             const resize = () => { input.style.height = 'auto'; input.style.height = (input.scrollHeight) + 'px'; };
             requestAnimationFrame(resize);
@@ -596,10 +628,8 @@ function renderPlayModeMeritsFlaws() {
             };
             mf.appendChild(row);
         };
-
         if(window.state.merits) window.state.merits.forEach((m, i) => renderMFRow(m, 'Merit', i));
         if(window.state.flaws) window.state.flaws.forEach((f, i) => renderMFRow(f, 'Flaw', i));
-        
         if (!window.state.merits?.length && !window.state.flaws?.length) {
             mf.innerHTML = '<div class="text-[10px] text-gray-600 italic text-center">No Merits or Flaws selected.</div>';
         }
@@ -611,7 +641,6 @@ function renderPlayModeOtherTraits() {
     if(ot) {
         ot.innerHTML = ''; 
         Object.entries(window.state.dots.other).forEach(([n,v]) => { if(v>0) renderRow(ot, n, 'other', 0); });
-        
         const plv = document.getElementById('play-vitals-list'); 
         if(plv) {
             plv.innerHTML = ''; 
@@ -627,12 +656,9 @@ function renderPlayModeCombat() {
     const cp = document.getElementById('combat-rows-play'); 
     if(cp) {
         cp.innerHTML = ''; 
-        
-        // Initiative
         const dexVal = window.state.dots.attr['Dexterity'] || 1;
         const witsVal = window.state.dots.attr['Wits'] || 1;
         const initRating = dexVal + witsVal;
-        
         const initRow = document.createElement('tr');
         initRow.className = 'bg-[#222] border-b border-[#444]';
         initRow.innerHTML = `
@@ -643,7 +669,6 @@ function renderPlayModeCombat() {
             </td>
         `;
         cp.appendChild(initRow);
-
         const standards = [
             {n:'Bite', diff:6, dmg:'Str+1(A)', attr:'Dexterity', abil:'Brawl'},
             {n:'Block', diff:6, dmg:'None (R)', attr:'Dexterity', abil:'Brawl'},
@@ -664,7 +689,6 @@ function renderPlayModeCombat() {
             {n:'3-Rnd Burst', diff:7, dmg:'Weapon', attr:'Dexterity', abil:'Firearms'},
             {n:'Two Weapons', diff:7, dmg:'Weapon', attr:'Dexterity', abil:'Firearms'}
         ];
-        
          standards.forEach(s => { 
             const r = document.createElement('tr'); 
             r.className='border-b border-[#222] text-[10px] text-gray-500 hover:bg-[#1a1a1a]'; 
@@ -683,8 +707,6 @@ function renderPlayModeCombat() {
             `; 
             cp.appendChild(r); 
         });
-
-        // Inventory Weapons
         const firearms = ['Pistol', 'Revolver', 'Rifle', 'SMG', 'Shotgun', 'Crossbow'];
         if(window.state.inventory) { 
             window.state.inventory.filter(i => i.type === 'Weapon' && i.status === 'carried').forEach(w => { 
@@ -717,14 +739,12 @@ function renderPlayModeDerangements() {
         const pd = document.getElementById('play-derangements'); 
         const clan = window.state.textFields['c-clan'] || "None";
         const isMalk = clan === "Malkavian";
-        
         let contentHtml = window.state.derangements.length > 0 
             ? window.state.derangements.map((d, i) => {
                 if (isMalk && i === 0) return `<div class="text-[#a855f7] font-bold"><i class="fas fa-lock text-[8px] mr-1"></i>${d} (Incurable)</div>`;
                 return `<div>• ${d}</div>`;
             }).join('') 
             : '<span class="text-gray-500 italic">None</span>';
-            
         if (isMalk) {
             contentHtml += `
                 <div class="mt-2 pt-2 border-t border-[#333] flex items-center justify-between">
@@ -746,7 +766,6 @@ function renderPlayModeWeakness() {
         const clan = window.state.textFields['c-clan'] || document.getElementById('c-clan')?.value || "None";
         const weaknessText = CLAN_WEAKNESSES[clan] || "Select a Clan to see weakness.";
         const customNote = window.state.textFields['custom-weakness'] || "";
-        
         weaknessCont.innerHTML = `
             <div class="section-title">Weakness</div>
             <div class="bg-[#111] p-3 border border-[#333] h-full flex flex-col mt-2">
@@ -756,12 +775,10 @@ function renderPlayModeWeakness() {
             </div>
         `;
         const ta = document.getElementById('custom-weakness-input');
-        if(ta) {
-            ta.addEventListener('blur', (e) => {
-                if(!window.state.textFields) window.state.textFields = {};
-                window.state.textFields['custom-weakness'] = e.target.value;
-            });
-        }
+        if(ta) ta.addEventListener('blur', (e) => {
+            if(!window.state.textFields) window.state.textFields = {};
+            window.state.textFields['custom-weakness'] = e.target.value;
+        });
     }
 }
 
@@ -775,11 +792,9 @@ function renderPlayModeBeast() {
             beastCont.className = 'sheet-section';
             weaknessCont.parentNode.insertBefore(beastCont, weaknessCont);
         }
-        
         beastCont.innerHTML = `
             <div class="section-title">The Beast</div>
             <div class="bg-[#111] p-3 border border-[#333] mt-2 space-y-4">
-                <!-- Frenzy -->
                 <div>
                     <div class="flex justify-between items-center text-[10px] uppercase font-bold text-gray-400 mb-1">
                         <span>Frenzy Check</span>
@@ -789,7 +804,6 @@ function renderPlayModeBeast() {
                         <i class="fas fa-bolt mr-1"></i> Check Frenzy
                     </button>
                 </div>
-                <!-- Rötschreck -->
                 <div class="border-t border-[#333] pt-2">
                     <div class="flex justify-between items-center text-[10px] uppercase font-bold text-gray-400 mb-1">
                         <span>Rötschreck (Fire/Sun)</span>
@@ -811,7 +825,6 @@ function renderPlayModeXp() {
         const xpVal = document.getElementById('c-xp-total')?.value || 0;
         const log = window.state.xpLog || [];
         const spent = log.reduce((a,b)=>a+b.cost,0);
-        
         xpCont.innerHTML = `
             <div class="section-title mt-6">Experience</div>
             <div class="bg-[#111] p-2 border border-[#333] mt-2">
@@ -827,61 +840,28 @@ function renderMovementSection() {
     if (!window.state.isPlayMode) return;
     const pm2 = document.getElementById('play-mode-2');
     if (!pm2) return;
-
     let moveSection = document.getElementById('play-movement-section');
     if (!moveSection) {
         moveSection = document.createElement('div');
         moveSection.id = 'play-movement-section';
         moveSection.className = 'sheet-section mt-6';
-        
         const combatSection = pm2.querySelector('.sheet-section:last-child');
         if(combatSection && combatSection.parentNode === pm2) pm2.insertBefore(moveSection, combatSection);
         else pm2.appendChild(moveSection);
     }
-    
     const dex = window.state.dots.attr['Dexterity'] || 1;
     const dmgBoxes = (window.state.status.health_states || []).filter(x => x > 0).length;
-    
-    let w = 7;
-    let j = 12 + dex;
-    let r = 20 + (3 * dex);
-    let note = "Normal Movement";
-    let noteColor = "text-gray-500";
-    
-    if (dmgBoxes === 4) { 
-        r = 0; 
-        note = "Wounded: Cannot Run"; 
-        noteColor = "text-orange-400";
-    } else if (dmgBoxes === 5) {
-        j = 0; r = 0;
-        if(w > 3) w = 3;
-        note = "Mauled: Max 3 yds/turn";
-        noteColor = "text-red-400";
-    } else if (dmgBoxes === 6) {
-        w = 1; j = 0; r = 0;
-        note = "Crippled: Crawl 1 yd/turn";
-        noteColor = "text-red-600 font-bold";
-    } else if (dmgBoxes >= 7) {
-        w = 0; j = 0; r = 0;
-        note = "Incapacitated: Immobile";
-        noteColor = "text-red-700 font-black";
-    }
-
+    let w = 7; let j = 12 + dex; let r = 20 + (3 * dex); let note = "Normal Movement"; let noteColor = "text-gray-500";
+    if (dmgBoxes === 4) { r = 0; note = "Wounded: Cannot Run"; noteColor = "text-orange-400"; } 
+    else if (dmgBoxes === 5) { j = 0; r = 0; if(w > 3) w = 3; note = "Mauled: Max 3 yds/turn"; noteColor = "text-red-400"; } 
+    else if (dmgBoxes === 6) { w = 1; j = 0; r = 0; note = "Crippled: Crawl 1 yd/turn"; noteColor = "text-red-600 font-bold"; } 
+    else if (dmgBoxes >= 7) { w = 0; j = 0; r = 0; note = "Incapacitated: Immobile"; noteColor = "text-red-700 font-black"; }
     moveSection.innerHTML = `
         <div class="section-title">Movement (Yards/Turn)</div>
         <div class="grid grid-cols-3 gap-4 text-center mt-2">
-            <div>
-                <div class="text-[10px] uppercase font-bold text-gray-400">Walk</div>
-                <div class="text-xl font-bold text-white">${w > 0 ? w : '-'} <span class="text-[9px] text-gray-500 font-normal">yds</span></div>
-            </div>
-            <div>
-                <div class="text-[10px] uppercase font-bold text-gray-400">Jog</div>
-                <div class="text-xl font-bold text-gold">${j > 0 ? j : '-'} <span class="text-[9px] text-gray-500 font-normal">yds</span></div>
-            </div>
-            <div>
-                <div class="text-[10px] uppercase font-bold text-gray-400">Run</div>
-                <div class="text-xl font-bold text-red-500">${r > 0 ? r : '-'} <span class="text-[9px] text-gray-500 font-normal">yds</span></div>
-            </div>
+            <div><div class="text-[10px] uppercase font-bold text-gray-400">Walk</div><div class="text-xl font-bold text-white">${w > 0 ? w : '-'} <span class="text-[9px] text-gray-500 font-normal">yds</span></div></div>
+            <div><div class="text-[10px] uppercase font-bold text-gray-400">Jog</div><div class="text-xl font-bold text-gold">${j > 0 ? j : '-'} <span class="text-[9px] text-gray-500 font-normal">yds</span></div></div>
+            <div><div class="text-[10px] uppercase font-bold text-gray-400">Run</div><div class="text-xl font-bold text-red-500">${r > 0 ? r : '-'} <span class="text-[9px] text-gray-500 font-normal">yds</span></div></div>
         </div>
         <div class="text-[10px] text-center mt-2 border-t border-[#333] pt-1 ${noteColor} font-bold uppercase">${note}</div>
     `;
@@ -891,30 +871,24 @@ window.renderMovementSection = renderMovementSection;
 function renderDetailedDisciplines() {
     const pm2 = document.getElementById('play-mode-2');
     if (!pm2) return;
-
     let container = document.getElementById('detailed-disciplines-list');
     if (!container) {
         const section = document.createElement('div');
         section.className = 'sheet-section !mt-0 mb-8';
         section.innerHTML = '<div class="section-title">Disciplines & Powers</div>';
-        
         container = document.createElement('div');
         container.id = 'detailed-disciplines-list';
         container.className = 'grid grid-cols-1 md:grid-cols-2 gap-6 mt-4';
-        
         section.appendChild(container);
         pm2.insertBefore(section, pm2.firstChild);
     }
-
     container.innerHTML = '';
     const safeData = typeof DISCIPLINES_DATA !== 'undefined' ? DISCIPLINES_DATA : {};
     const learned = Object.entries(window.state.dots.disc).filter(([name, val]) => val > 0);
-
     if (learned.length === 0) {
         container.innerHTML = '<div class="col-span-1 md:col-span-2 text-gray-500 italic text-xs text-center py-4">No Disciplines learned.</div>';
         return;
     }
-
     learned.forEach(([name, val]) => {
         const cleanName = name.trim();
         let data = safeData[cleanName];
@@ -922,36 +896,29 @@ function renderDetailedDisciplines() {
              const key = Object.keys(safeData).find(k => k.toLowerCase() === cleanName.toLowerCase());
              if(key) data = safeData[key];
         }
-
         const discBlock = document.createElement('div');
         discBlock.className = 'bg-black/40 border border-[#333] p-3 rounded flex flex-col h-fit';
-        
         discBlock.innerHTML = `
             <div class="flex justify-between items-center border-b border-[#555] pb-2 mb-2">
                 <h3 class="text-base text-[#d4af37] font-cinzel font-bold uppercase tracking-widest truncate mr-2">${name}</h3>
                 <div class="text-white font-bold text-xs bg-[#8b0000] px-2 py-0.5 rounded flex-shrink-0">${val} Dots</div>
             </div>
         `;
-
         if (data) {
             const listContainer = document.createElement('div');
             listContainer.className = "space-y-1";
-
             for (let i = 1; i <= val; i++) {
                 const power = data[i];
                 if (power) {
                     const pDiv = document.createElement('div');
                     pDiv.className = 'border border-[#333] bg-[#111] rounded overflow-hidden';
-                    
                     const pHeader = document.createElement('div');
                     pHeader.className = "flex justify-between items-center p-2 cursor-pointer hover:bg-[#222] transition-colors";
-                    
                     let rollHtml = '';
                     if (power.roll) {
                          const poolStr = JSON.stringify(power.roll.pool).replace(/"/g, "'");
                          rollHtml = `<button onclick="event.stopPropagation(); window.rollDiscipline('${power.name}', ${poolStr}, ${power.roll.defaultDiff})" class="bg-[#333] border border-gray-600 text-gray-300 hover:text-white hover:border-[#d4af37] text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-wider transition-all shadow-sm hover:shadow-gold flex-shrink-0 ml-2"><i class="fas fa-dice-d20"></i></button>`;
                     }
-
                     pHeader.innerHTML = `
                         <div class="flex items-center gap-2 overflow-hidden">
                             <i class="fas fa-chevron-right text-[9px] text-gray-500 transition-transform duration-200 chevron"></i>
@@ -961,14 +928,12 @@ function renderDetailedDisciplines() {
                         </div>
                         ${rollHtml}
                     `;
-
                     const pDetails = document.createElement('div');
                     pDetails.className = "hidden p-2 border-t border-[#333] bg-black/50 text-[10px]";
                     pDetails.innerHTML = `
                         <div class="text-gray-300 italic leading-snug mb-2">${power.desc}</div>
                         <div class="text-gray-500 font-mono"><span class="text-[#d4af37] font-bold">System:</span> ${power.system}</div>
                     `;
-
                     pHeader.onclick = () => {
                         const isHidden = pDetails.classList.contains('hidden');
                         if (isHidden) {
@@ -981,7 +946,6 @@ function renderDetailedDisciplines() {
                             pHeader.querySelector('.chevron').classList.replace('text-gold', 'text-gray-500');
                         }
                     };
-
                     pDiv.appendChild(pHeader);
                     pDiv.appendChild(pDetails);
                     listContainer.appendChild(pDiv);
@@ -991,7 +955,6 @@ function renderDetailedDisciplines() {
         } else {
             discBlock.innerHTML += `<div class="text-xs text-gray-500 italic">Detailed data not available.</div>`;
         }
-        
         container.appendChild(discBlock);
     });
 }
@@ -1000,10 +963,8 @@ function renderDetailedDisciplines() {
 // CHRONICLE & ROSTER VIEWS
 // ==========================================================================
 
-// --- AUTO-CREATION HELPER ---
 function ensureChronicleTabContainer() {
     let container = document.getElementById('play-mode-chronicle');
-    
     if (!container) {
         const parent = document.getElementById('play-mode-sheet');
         if (parent) {
@@ -1012,7 +973,6 @@ function ensureChronicleTabContainer() {
             parent.appendChild(container);
         }
     }
-    
     if (container) {
         container.classList.remove('h-full', 'min-h-[75vh]', 'overflow-y-auto'); 
         container.classList.add('w-full', 'overflow-hidden');
@@ -1020,15 +980,11 @@ function ensureChronicleTabContainer() {
     }
 }
 
-// --- MAIN ENTRY: RENDER CHRONICLE TAB ---
 export async function renderChronicleTab() {
     ensureChronicleTabContainer();
-    
     let container = document.getElementById('play-mode-chronicle');
     if (!container) return;
-
     const chronicleId = localStorage.getItem('v20_last_chronicle_id') || (window.stState && window.stState.activeChronicleId);
-    
     if (!chronicleId) {
         container.innerHTML = `
             <div class="h-full flex flex-col items-center justify-center text-gray-500">
@@ -1038,78 +994,40 @@ export async function renderChronicleTab() {
             </div>`;
         return;
     }
-
-    // Clean up previous Roster listener if switching away or re-rendering
-    if (window.rosterUnsub) {
-        window.rosterUnsub();
-        window.rosterUnsub = null;
-    }
-
+    if (window.rosterUnsub) { window.rosterUnsub(); window.rosterUnsub = null; }
     if (!window.state.chronicleSubTab) window.state.chronicleSubTab = 'info';
-
-    // Show Loading state without clearing container entirely if possible? No, we need to clear.
     container.innerHTML = `<div class="flex flex-col items-center justify-center h-full text-gold"><i class="fas fa-circle-notch fa-spin text-2xl mb-2"></i><span class="text-xs uppercase tracking-widest">Connecting to Chronicle...</span></div>`;
-
     try {
         const docRef = doc(db, 'chronicles', chronicleId);
         const snap = await getDoc(docRef);
-
-        if (!snap.exists()) {
-            container.innerHTML = `<div class="text-center text-red-500 mt-10">Chronicle Not Found.</div>`;
-            return;
-        }
-
+        if (!snap.exists()) { container.innerHTML = `<div class="text-center text-red-500 mt-10">Chronicle Not Found.</div>`; return; }
         const data = snap.data();
         const currentTab = window.state.chronicleSubTab;
         const activeClass = "border-b-2 border-[#d4af37] text-[#d4af37] font-bold";
         const inactiveClass = "text-gray-500 hover:text-white transition-colors";
-
         container.innerHTML = `
             <div class="flex flex-col h-full relative">
                 <div class="flex gap-6 border-b border-[#333] pb-2 mb-4 px-2 shrink-0 overflow-x-auto no-scrollbar">
-                    <button id="tab-chron-info" class="text-xs uppercase tracking-wider px-2 pb-1 whitespace-nowrap ${currentTab==='info'?activeClass:inactiveClass}">
-                        <i class="fas fa-info-circle mr-2"></i>Info
-                    </button>
-                    <button id="tab-chron-combat" class="text-xs uppercase tracking-wider px-2 pb-1 whitespace-nowrap ${currentTab==='combat'?activeClass:inactiveClass}">
-                        <i class="fas fa-swords mr-2"></i>Combat
-                    </button>
-                    <button id="tab-chron-roster" class="text-xs uppercase tracking-wider px-2 pb-1 whitespace-nowrap ${currentTab==='roster'?activeClass:inactiveClass}">
-                        <i class="fas fa-users mr-2"></i>Roster
-                    </button>
-                    <button id="tab-chron-map" class="text-xs uppercase tracking-wider px-2 pb-1 whitespace-nowrap ${currentTab==='map'?activeClass:inactiveClass}">
-                        <i class="fas fa-project-diagram mr-2"></i>Map
-                    </button>
-                    <button id="tab-chron-chat" class="text-xs uppercase tracking-wider px-2 pb-1 whitespace-nowrap ${currentTab==='chat'?activeClass:inactiveClass}">
-                        <i class="fas fa-comments mr-2"></i>Chat
-                    </button>
+                    <button id="tab-chron-info" class="text-xs uppercase tracking-wider px-2 pb-1 whitespace-nowrap ${currentTab==='info'?activeClass:inactiveClass}"><i class="fas fa-info-circle mr-2"></i>Info</button>
+                    <button id="tab-chron-combat" class="text-xs uppercase tracking-wider px-2 pb-1 whitespace-nowrap ${currentTab==='combat'?activeClass:inactiveClass}"><i class="fas fa-swords mr-2"></i>Combat</button>
+                    <button id="tab-chron-roster" class="text-xs uppercase tracking-wider px-2 pb-1 whitespace-nowrap ${currentTab==='roster'?activeClass:inactiveClass}"><i class="fas fa-users mr-2"></i>Roster</button>
+                    <button id="tab-chron-map" class="text-xs uppercase tracking-wider px-2 pb-1 whitespace-nowrap ${currentTab==='map'?activeClass:inactiveClass}"><i class="fas fa-project-diagram mr-2"></i>Map</button>
+                    <button id="tab-chron-chat" class="text-xs uppercase tracking-wider px-2 pb-1 whitespace-nowrap ${currentTab==='chat'?activeClass:inactiveClass}"><i class="fas fa-comments mr-2"></i>Chat</button>
                 </div>
-
-                <div id="chronicle-content-area" class="flex-1 overflow-hidden relative h-full">
-                    <!-- Views injected here -->
-                </div>
+                <div id="chronicle-content-area" class="flex-1 overflow-hidden relative h-full"></div>
             </div>
         `;
-
         document.getElementById('tab-chron-info').onclick = () => { window.state.chronicleSubTab = 'info'; renderChronicleTab(); };
         document.getElementById('tab-chron-combat').onclick = () => { window.state.chronicleSubTab = 'combat'; renderChronicleTab(); };
         document.getElementById('tab-chron-roster').onclick = () => { window.state.chronicleSubTab = 'roster'; renderChronicleTab(); };
         document.getElementById('tab-chron-map').onclick = () => { window.state.chronicleSubTab = 'map'; renderChronicleTab(); };
         document.getElementById('tab-chron-chat').onclick = () => { window.state.chronicleSubTab = 'chat'; renderChronicleTab(); };
-
         const contentArea = document.getElementById('chronicle-content-area');
-
-        if (currentTab === 'info') {
-            renderChronicleInfoView(contentArea, data);
-        } else if (currentTab === 'combat') {
-            renderChronicleCombatView(contentArea);
-        } else if (currentTab === 'roster') {
-            renderChronicleRosterView(contentArea, chronicleId);
-        } else if (currentTab === 'map') {
-            renderCoterieMap(contentArea);
-        } else {
-            renderChronicleChatView(contentArea, chronicleId);
-        }
-
+        if (currentTab === 'info') renderChronicleInfoView(contentArea, data);
+        else if (currentTab === 'combat') renderChronicleCombatView(contentArea);
+        else if (currentTab === 'roster') renderChronicleRosterView(contentArea, chronicleId);
+        else if (currentTab === 'map') renderCoterieMap(contentArea);
+        else renderChronicleChatView(contentArea, chronicleId);
     } catch (e) {
         console.error("Chronicle Render Error:", e);
         container.innerHTML = `<div class="text-center text-red-500 mt-10">Error loading chronicle data. Check connection.</div>`;
@@ -1117,7 +1035,10 @@ export async function renderChronicleTab() {
 }
 window.renderChronicleTab = renderChronicleTab;
 
-// --- SUB-VIEW: COMBAT (NEW) ---
+/**
+ * Renders the Combat Tracker sub-tab in the player's Chronicle view.
+ * @param {HTMLElement} container - Target container for rendering.
+ */
 function renderChronicleCombatView(container) {
     const { isActive, turn, phase, combatants } = combatState;
     if (!isActive) {
@@ -1131,7 +1052,17 @@ function renderChronicleCombatView(container) {
 
     const myId = auth.currentUser ? auth.currentUser.uid : null;
     
-    // Determine header style
+    // --- VISIBILITY FILTERING ---
+    // Filter out NPCs that the Storyteller has hidden from this specific player
+    const visibleCombatants = combatants.filter(c => {
+        if (c.type === 'Player') return true;
+        // If hidden is true, it's hidden from all players
+        if (c.hidden === true) return false;
+        // If hidden is an array, it's hidden from these specific UIDs
+        if (Array.isArray(c.hidden) && myId && c.hidden.includes(myId)) return false;
+        return true;
+    });
+    
     const phaseLabel = phase === 'declare' ? 'Declaration Phase' : 'Action Phase';
     const phaseColor = phase === 'declare' ? 'text-blue-400' : 'text-red-500';
     const activeCombatant = combatants.find(c => c.id === combatState.activeCombatantId);
@@ -1154,15 +1085,14 @@ function renderChronicleCombatView(container) {
             <div class="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar">
     `;
 
-    if (combatants.length === 0) {
-        html += `<div class="text-center text-gray-500 italic text-xs mt-10">Waiting for combatants...</div>`;
+    if (visibleCombatants.length === 0) {
+        html += `<div class="text-center text-gray-500 italic text-xs mt-10">No visible combatants in initiative.</div>`;
     } else {
-        combatants.forEach(c => {
+        visibleCombatants.forEach(c => {
             const isMe = c.id === myId;
             const activeClass = c.active ? 'border-[#d4af37] bg-[#222]' : 'border-[#333] bg-[#111]';
             const statusColor = c.status === 'done' ? 'text-gray-600 line-through' : (c.status === 'pending' ? 'text-gray-400' : 'text-blue-400 font-bold');
             
-            // Format Status Dropdown or Text
             let statusDisplay = `<span class="text-[10px] uppercase font-bold ${statusColor}">${c.status}</span>`;
             if (isMe) {
                 statusDisplay = `
@@ -1176,10 +1106,8 @@ function renderChronicleCombatView(container) {
                 `;
             }
 
-            // Format Initiative Input or Text
             let initDisplay = `<span class="text-[#d4af37] font-bold text-lg">${c.init}</span>`;
             if (isMe && combatState.phase === 'declare') {
-                 // Allow editing initiative during declaration phase
                  initDisplay = `<input type="number" value="${c.init}" onchange="window.plUpdateInit('${c.id}', this.value)" class="w-10 bg-black border border-[#444] text-center text-lg font-bold text-[#d4af37] focus:outline-none focus:border-[#d4af37] rounded">`;
             }
 
@@ -1204,7 +1132,6 @@ function renderChronicleCombatView(container) {
     container.innerHTML = html;
 }
 
-// --- SUB-VIEW: INFO ---
 function renderChronicleInfoView(container, data) {
     container.innerHTML = `
         <div class="overflow-y-auto h-full custom-scrollbar pr-2 space-y-6 pb-20">
@@ -1212,18 +1139,15 @@ function renderChronicleInfoView(container, data) {
                 <h2 class="text-3xl font-cinzel text-[#af0000] font-bold tracking-widest uppercase text-shadow-md">${data.name || "Untitled"}</h2>
                 <div class="text-xs text-gold font-serif italic uppercase tracking-widest mt-1">${data.timePeriod || "Modern Nights"}</div>
             </div>
-
             <div class="bg-[#111] p-6 border border-[#333] relative group hover:border-[#af0000] transition-colors shadow-lg">
                 <div class="absolute -top-2 left-4 bg-black px-2 text-[10px] text-gray-500 font-bold uppercase tracking-wider group-hover:text-[#af0000] transition-colors">Synopsis</div>
                 <div class="text-sm text-gray-300 font-serif leading-relaxed whitespace-pre-wrap">${data.synopsis || "No synopsis provided."}</div>
             </div>
-
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div class="bg-[#1a0505] p-4 border border-red-900/30 relative shadow-lg h-fit">
                     <div class="absolute -top-2 left-4 bg-black px-2 text-[10px] text-red-500 font-bold uppercase tracking-wider">House Rules</div>
                     <div class="text-xs text-gray-400 font-serif leading-relaxed whitespace-pre-wrap max-h-96 overflow-y-auto custom-scrollbar">${data.houseRules || "Standard V20 Rules apply."}</div>
                 </div>
-
                 <div class="bg-[#0a0a0a] p-4 border border-[#d4af37]/30 relative shadow-lg h-fit">
                     <div class="absolute -top-2 left-4 bg-black px-2 text-[10px] text-[#d4af37] font-bold uppercase tracking-wider">Lore & Setting</div>
                     <div class="text-xs text-gray-400 font-serif leading-relaxed whitespace-pre-wrap max-h-96 overflow-y-auto custom-scrollbar">${data.lore || "No specific setting details available."}</div>
@@ -1233,71 +1157,49 @@ function renderChronicleInfoView(container, data) {
     `;
 }
 
-// --- SUB-VIEW: CHAT (UPDATED FOR MOOD & ASYNC SAFETY) ---
+/**
+ * Renders the real-time chat interface for players in the Chronicle tab.
+ */
 async function renderChronicleChatView(container, chronicleId) {
-    // 1. Fetch Players for Dropdown (Async)
-    let players = [];
+    let players = []; 
     let stUID = null;
     
     try {
         const q = query(collection(db, 'chronicles', chronicleId, 'players'));
         const snap = await getDocs(q);
-        snap.forEach(doc => {
-            const data = doc.data();
-            if (!doc.id.startsWith('journal_')) {
-                players.push({ id: doc.id, ...data });
-            }
+        snap.forEach(doc => { 
+            const data = doc.data(); 
+            if (!doc.id.startsWith('journal_')) players.push({ id: doc.id, ...data }); 
         });
-        
         const cSnap = await getDoc(doc(db, 'chronicles', chronicleId));
-        if (cSnap.exists()) {
-            stUID = cSnap.data().storyteller_uid;
-        }
-    } catch(e) { console.error("Player fetch error", e); }
-
-    // SAFETY CHECK: If tab switched during await, container might be gone
-    if (!container || !document.body.contains(container)) return;
-
-    // Build options HTML for checkbox list
-    let optionsHtml = '';
-    
-    if (stUID && (!auth.currentUser || stUID !== auth.currentUser.uid)) {
-        optionsHtml += `
-        <label class="flex items-center gap-2 p-1 hover:bg-[#222] cursor-pointer">
-            <input type="checkbox" class="pl-recipient-checkbox accent-[#d4af37]" value="${stUID}">
-            <span class="text-xs text-[#d4af37] font-bold">Storyteller (Private)</span>
-        </label>`;
+        if (cSnap.exists()) stUID = cSnap.data().storyteller_uid;
+    } catch(e) { 
+        console.error("Player fetch error", e); 
     }
     
-    players.forEach(p => {
-        // Exclude self
-        if (auth.currentUser && p.id === auth.currentUser.uid) return;
-        // Also exclude if this player IS the ST (already added above)
-        if (p.id === stUID) return;
-        
+    if (!container || !document.body.contains(container)) return;
+    
+    let optionsHtml = '';
+    if (stUID && (!auth.currentUser || stUID !== auth.currentUser.uid)) {
         optionsHtml += `
-        <label class="flex items-center gap-2 p-1 hover:bg-[#222] cursor-pointer">
-            <input type="checkbox" class="pl-recipient-checkbox accent-[#d4af37]" value="${p.id}">
-            <span class="text-xs text-gray-300">${p.character_name} (${p.player_name || 'Player'})</span>
-        </label>`;
+            <label class="flex items-center gap-2 p-1 hover:bg-[#222] cursor-pointer">
+                <input type="checkbox" class="pl-recipient-checkbox accent-[#d4af37]" value="${stUID}">
+                <span class="text-xs text-[#d4af37] font-bold">Storyteller (Private)</span>
+            </label>`;
+    }
+    
+    players.forEach(p => { 
+        if (auth.currentUser && p.id === auth.currentUser.uid) return; 
+        if (p.id === stUID) return; 
+        optionsHtml += `
+            <label class="flex items-center gap-2 p-1 hover:bg-[#222] cursor-pointer">
+                <input type="checkbox" class="pl-recipient-checkbox accent-[#d4af37]" value="${p.id}">
+                <span class="text-xs text-gray-300">${p.character_name} (${p.player_name || 'Player'})</span>
+            </label>`; 
     });
-
-    // MOODS LIST
-    const moodOptions = `
-        <option value="">Mood (Optional)</option>
-        <option value="Angrily">Angrily</option>
-        <option value="Sadness">Sadness</option>
-        <option value="Pained">Pained</option>
-        <option value="Whispering">Whispering</option>
-        <option value="Shouting">Shouting</option>
-        <option value="Joyful">Joyful</option>
-        <option value="Sarcastic">Sarcastic</option>
-        <option value="Fearful">Fearful</option>
-        <option value="Serious">Serious</option>
-        <option value="Joking">Joking</option>
-    `;
-
-    // COMPACT LAYOUT FOR PLAYER CHAT
+    
+    const moodOptions = `<option value="">Mood (Optional)</option><option value="Angrily">Angrily</option><option value="Sadness">Sadness</option><option value="Pained">Pained</option><option value="Whispering">Whispering</option><option value="Shouting">Shouting</option><option value="Joyful">Joyful</option><option value="Sarcastic">Sarcastic</option><option value="Fearful">Fearful</option><option value="Serious">Serious</option><option value="Joking">Joking</option>`;
+    
     container.innerHTML = `
         <div class="flex flex-col h-full bg-[#0a0a0a] border border-[#333] shadow-lg relative">
             <div class="bg-[#111] p-3 border-b border-[#333] flex justify-between items-center shrink-0">
@@ -1309,11 +1211,10 @@ async function renderChronicleChatView(container, chronicleId) {
             </div>
             
             <div class="flex-1 overflow-y-auto min-h-0 space-y-3 p-4 bg-[url('https://www.transparenttextures.com/patterns/black-linen.png')] custom-scrollbar" id="chronicle-chat-history">
-                <div class="text-center text-gray-500 italic text-xs mt-10">Connecting...</div>
+                Connecting...
             </div>
             
             <div class="mt-auto border-t border-[#333] p-3 bg-[#111] space-y-2 shrink-0 relative">
-                <!-- Row 1: Recipient Selector & Mood -->
                 <div class="flex gap-2 mb-1">
                     <div class="relative">
                         <button id="pl-chat-recipient-btn" class="bg-[#050505] border border-[#333] text-gray-300 text-xs px-3 py-2 text-left flex items-center gap-2 hover:border-[#d4af37] transition-colors min-w-[140px] rounded" onclick="document.getElementById('pl-chat-recipients-dropdown').classList.toggle('hidden')">
@@ -1330,14 +1231,11 @@ async function renderChronicleChatView(container, chronicleId) {
                             </div>
                         </div>
                     </div>
-                    
                     <div class="relative flex-1">
-                         <input list="pl-mood-list" id="pl-chat-mood" class="w-full bg-[#050505] border border-[#333] text-gray-300 text-xs px-3 py-2 outline-none focus:border-[#d4af37] rounded" placeholder="Mood (Optional)">
-                         <datalist id="pl-mood-list">${moodOptions}</datalist>
+                        <input list="pl-mood-list" id="pl-chat-mood" class="w-full bg-[#050505] border border-[#333] text-gray-300 text-xs px-3 py-2 outline-none focus:border-[#d4af37] rounded" placeholder="Mood (Optional)">
+                        <datalist id="pl-mood-list">${moodOptions}</datalist>
                     </div>
                 </div>
-                
-                <!-- Row 2: Input -->
                 <div class="flex gap-2">
                     <input type="text" id="chronicle-chat-input" class="flex-1 bg-[#050505] border border-[#333] text-white px-3 py-2 text-sm outline-none focus:border-[#d4af37] rounded" placeholder="Send a message...">
                     <button id="chronicle-chat-send" class="bg-[#d4af37] text-black font-bold uppercase px-4 py-2 hover:bg-[#fcd34d] transition-colors text-xs rounded hover:scale-105">Send</button>
@@ -1346,195 +1244,153 @@ async function renderChronicleChatView(container, chronicleId) {
         </div>
     `;
 
-    // Bind Logic
-    const sendBtn = document.getElementById('chronicle-chat-send');
-    const input = document.getElementById('chronicle-chat-input');
-    const moodInput = document.getElementById('pl-chat-mood');
-    const allCheck = document.getElementById('pl-chat-all-checkbox');
-    const label = document.getElementById('pl-chat-recipient-label');
+    const sendBtn = document.getElementById('chronicle-chat-send'); 
+    const input = document.getElementById('chronicle-chat-input'); 
+    const moodInput = document.getElementById('pl-chat-mood'); 
+    const allCheck = document.getElementById('pl-chat-all-checkbox'); 
+    const label = document.getElementById('pl-chat-recipient-label'); 
     const dropdown = document.getElementById('pl-chat-recipients-dropdown');
     
-    // Auto-update label and checkboxes
-    const updateSelection = () => {
-        const checks = document.querySelectorAll('.pl-recipient-checkbox');
-        if (allCheck && allCheck.checked) {
-            checks.forEach(c => { c.checked = false; c.disabled = true; });
-            if (label) {
-                label.innerText = "Everyone";
-                label.className = "text-gray-300 text-xs";
-            }
-        } else {
-            checks.forEach(c => c.disabled = false);
-            const selected = Array.from(checks).filter(c => c.checked);
-            if (label) {
-                if (selected.length === 0) {
-                    label.innerText = "Select Recipients..."; 
-                    label.className = "text-red-500 font-bold text-xs";
-                } else {
-                    label.innerText = `Whisper (${selected.length})`;
-                    label.className = "text-purple-400 font-bold text-xs";
-                }
-            }
-        }
+    const updateSelection = () => { 
+        const checks = document.querySelectorAll('.pl-recipient-checkbox'); 
+        if (allCheck && allCheck.checked) { 
+            checks.forEach(c => { c.checked = false; c.disabled = true; }); 
+            if (label) { 
+                label.innerText = "Everyone"; label.className = "text-gray-300 text-xs"; 
+            } 
+        } else { 
+            checks.forEach(c => c.disabled = false); 
+            const selected = Array.from(checks).filter(c => c.checked); 
+            if (label) { 
+                if (selected.length === 0) { 
+                    label.innerText = "Select Recipients..."; label.className = "text-red-500 font-bold text-xs"; 
+                } else { 
+                    label.innerText = `Whisper (${selected.length})`; label.className = "text-purple-400 font-bold text-xs"; 
+                } 
+            } 
+        } 
     };
-
-    if (allCheck) {
-        allCheck.onchange = updateSelection;
-    }
     
-    // Bind individual checkboxes if they exist
+    if (allCheck) allCheck.onchange = updateSelection;
     document.querySelectorAll('.pl-recipient-checkbox').forEach(c => c.onchange = updateSelection);
-
-    // Close dropdown on click outside
-    document.addEventListener('click', (e) => {
-        const btn = document.getElementById('pl-chat-recipient-btn');
-        const menu = document.getElementById('pl-chat-recipients-dropdown');
-        if (menu && !menu.contains(e.target) && btn && !btn.contains(e.target)) {
-            menu.classList.add('hidden');
-        }
+    
+    document.addEventListener('click', (e) => { 
+        const btn = document.getElementById('pl-chat-recipient-btn'); 
+        const menu = document.getElementById('pl-chat-recipients-dropdown'); 
+        if (menu && !menu.contains(e.target) && btn && !btn.contains(e.target)) menu.classList.add('hidden'); 
     });
     
-    const sendHandler = () => {
-        if (!input) return;
-        const txt = input.value.trim();
-        if (txt && window.sendChronicleMessage) {
-            const isAll = allCheck ? allCheck.checked : true;
-            const selected = Array.from(document.querySelectorAll('.pl-recipient-checkbox:checked')).map(c => c.value);
-            const moodVal = moodInput ? moodInput.value.trim() : "";
-            
-            if (!isAll && selected.length === 0) {
-                showNotification("Select at least one recipient.", "error");
-                return;
-            }
-
-            const options = {};
-            if (!isAll) {
-                options.recipients = selected;
-                options.isWhisper = true;
-            }
-            if (moodVal) {
-                options.mood = moodVal;
-            }
-            
-            window.sendChronicleMessage('chat', txt, null, options);
-            input.value = '';
+    const sendHandler = () => { 
+        if (!input) return; 
+        const txt = input.value.trim(); 
+        if (txt && window.sendChronicleMessage) { 
+            const isAll = allCheck ? allCheck.checked : true; 
+            const selected = Array.from(document.querySelectorAll('.pl-recipient-checkbox:checked')).map(c => c.value); 
+            const moodVal = moodInput ? moodInput.value.trim() : ""; 
+            if (!isAll && selected.length === 0) { 
+                showNotification("Select at least one recipient.", "error"); return; 
+            } 
+            const options = {}; 
+            if (!isAll) { options.recipients = selected; options.isWhisper = true; } 
+            if (moodVal) options.mood = moodVal; 
+            window.sendChronicleMessage('chat', txt, null, options); 
+            input.value = ''; 
             if (moodInput) moodInput.value = ''; 
-            if (dropdown) dropdown.classList.add('hidden');
-        }
+            if (dropdown) dropdown.classList.add('hidden'); 
+        } 
     };
     
-    if(sendBtn) sendBtn.onclick = sendHandler;
+    if(sendBtn) sendBtn.onclick = sendHandler; 
     if(input) input.onkeydown = (e) => { if(e.key === 'Enter') sendHandler(); };
-
-    if (window.startChatListener) {
-        window.startChatListener(chronicleId);
-    } else {
-        console.warn("startChatListener not found on window object.");
-    }
+    
+    if (window.startChatListener) window.startChatListener(chronicleId);
 }
 
-// --- SUB-VIEW: ROSTER (ENRICHED WITH PORTRAIT & DESC & SCROLL PERSISTENCE) ---
+/**
+ * Renders the real-time player roster within the Chronicle tab.
+ */
 function renderChronicleRosterView(container, chronicleId) {
-    // Only set initial HTML if container is empty or switching views
     if (!container.querySelector('#roster-grid')) {
         container.innerHTML = `
-        <div class="p-6 overflow-y-auto h-full custom-scrollbar">
-            <!-- WIDER CARDS: Changed from lg:grid-cols-3 to lg:grid-cols-2 -->
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6" id="roster-grid">
-                <div id="roster-loading" class="text-center text-gray-500 italic text-xs col-span-full mt-10"><i class="fas fa-spinner fa-spin text-2xl mb-2"></i><br>Gathering Kindred...</div>
-            </div>
-        </div>`;
+            <div class="p-6 overflow-y-auto h-full custom-scrollbar">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6" id="roster-grid">
+                    <div id="roster-loading" class="text-center text-gray-500 italic text-xs col-span-full mt-10">
+                        <i class="fas fa-spinner fa-spin text-2xl mb-2"></i><br>Gathering Kindred...
+                    </div>
+                </div>
+            </div>`;
     }
-
+    
     const grid = document.getElementById('roster-grid');
     const q = query(collection(db, 'chronicles', chronicleId, 'players'));
     
     if (window.rosterUnsub) window.rosterUnsub();
-
+    
     window.rosterUnsub = onSnapshot(q, (snapshot) => {
         if(!grid) return;
-        
-        // Track active IDs to remove stale cards
-        const activeIds = new Set();
+        const activeIds = new Set(); 
         const players = [];
-
-        snapshot.forEach(doc => {
-            if(!doc.id.startsWith('journal_')) {
-                players.push({id: doc.id, ...doc.data()});
-                activeIds.add(doc.id);
-            }
+        snapshot.forEach(doc => { 
+            if(!doc.id.startsWith('journal_')) { 
+                players.push({id: doc.id, ...doc.data()}); 
+                activeIds.add(doc.id); 
+            } 
         });
-
-        // Remove loading indicator if we have data
+        
         const loader = document.getElementById('roster-loading');
         if (loader && players.length > 0) loader.remove();
-        
-        if (players.length === 0 && loader) {
-            loader.innerHTML = "No other kindred found within this Chronicle.";
-            return;
+        if (players.length === 0 && loader) { 
+            loader.innerHTML = "No other kindred found within this Chronicle."; return; 
         }
-
-        // 1. Remove Stale Cards
-        Array.from(grid.children).forEach(child => {
-            if (child.id.startsWith('roster-card-')) {
-                const uid = child.dataset.uid;
-                if (!activeIds.has(uid)) child.remove();
-            }
+        
+        Array.from(grid.children).forEach(child => { 
+            if (child.id.startsWith('roster-card-')) { 
+                const uid = child.dataset.uid; 
+                if (!activeIds.has(uid)) child.remove(); 
+            } 
         });
-
-        // 2. Update/Add Cards
-        players.forEach(p => {
-            updateRosterCard(grid, p, auth.currentUser?.uid);
-        });
+        
+        players.forEach(p => updateRosterCard(grid, p, auth.currentUser?.uid));
     });
 }
 
 function updateRosterCard(grid, p, myUid) {
     const isMe = myUid && p.id === myUid;
-    
-    // Extract Data
     const sheet = p.full_sheet || {};
     const tf = sheet.textFields || {};
-    
     const charName = p.character_name || "Unknown";
     const playerName = tf['c-player'] || "Unknown Player";
     const description = tf['bio-desc'] || "No physical description provided.";
     const demeanor = tf['c-demeanor'] || "Unknown Demeanor"; 
     const imgUrl = sheet.characterImage || null;
-
-    // Status Logic
-    const now = new Date();
+    const now = new Date(); 
     const lastActive = p.last_active ? new Date(p.last_active) : new Date(0);
     const diffSeconds = (now - lastActive) / 1000;
     const isOnline = diffSeconds < 300 && p.status !== 'Offline';
     const statusColor = isOnline ? 'bg-green-500 shadow-[0_0_8px_lime]' : 'bg-red-900 border border-red-500';
     const statusLabel = isOnline ? 'Present' : 'Absent';
-
-    // Check for existing card
-    let card = document.getElementById(`roster-card-${p.id}`);
     
-    // HTML Generation
+    let card = document.getElementById(`roster-card-${p.id}`);
     let portraitHtml = '';
-    if (imgUrl) {
-        let displayUrl = imgUrl;
-        if (window.convertGoogleDriveLink) displayUrl = window.convertGoogleDriveLink(imgUrl);
-        portraitHtml = `<div class="w-full h-48 bg-black bg-cover bg-center bg-no-repeat border-b border-[#333]" style="background-image: url('${displayUrl}')"></div>`;
-    } else {
+    
+    if (imgUrl) { 
+        let displayUrl = imgUrl; 
+        if (window.convertGoogleDriveLink) displayUrl = window.convertGoogleDriveLink(imgUrl); 
+        portraitHtml = `<div class="w-full h-48 bg-black bg-cover bg-center bg-no-repeat border-b border-[#333]" style="background-image: url('${displayUrl}')"></div>`; 
+    } else { 
         portraitHtml = `
-        <div class="w-full h-48 bg-[#080808] border-b border-[#333] flex flex-col items-center justify-center text-gray-700">
-            <i class="fas fa-user-secret text-6xl mb-2 opacity-50"></i>
-            <span class="text-[10px] uppercase font-bold tracking-widest">No Portrait</span>
-        </div>`;
+            <div class="w-full h-48 bg-[#080808] border-b border-[#333] flex flex-col items-center justify-center text-gray-700">
+                <i class="fas fa-user-secret text-6xl mb-2 opacity-50"></i>
+                <span class="text-[10px] uppercase font-bold tracking-widest">No Portrait</span>
+            </div>`; 
     }
-
+    
     const contentHtml = `
         ${portraitHtml}
-        
         <div class="absolute top-2 right-2 flex items-center gap-2 bg-black/80 px-2 py-1 rounded-full border border-[#333]">
             <div class="w-2 h-2 rounded-full ${statusColor}"></div>
             <span class="text-[9px] uppercase font-bold text-gray-300">${statusLabel}</span>
         </div>
-
         <div class="p-4 flex flex-col flex-1">
             <div class="mb-3">
                 <h3 class="text-xl font-cinzel font-bold text-[#d4af37] leading-none mb-1">${charName}</h3>
@@ -1543,75 +1399,62 @@ function updateRosterCard(grid, p, myUid) {
                     <span class="text-gray-500">Player: <span class="text-gray-300">${playerName}</span></span>
                 </div>
             </div>
-            
             <div class="mb-4">
                 <div class="text-[9px] text-gray-500 uppercase font-bold mb-1">Physical Description</div>
                 <div class="w-full max-h-24 overflow-y-auto custom-scrollbar border border-[#222] bg-[#0a0a0a] p-2 rounded text-xs text-gray-300 font-serif italic leading-relaxed description-content">
                     "${description}"
                 </div>
             </div>
-
-            ${!isMe ? `
-            <button class="w-full bg-[#1a1a1a] hover:bg-[#222] border border-[#333] text-gray-400 hover:text-[#d4af37] py-2 text-xs uppercase font-bold rounded transition-colors flex items-center justify-center gap-2" onclick="window.initWhisper('${p.id}', '${charName.replace(/'/g, "\\'")}')">
-                <i class="fas fa-comment-alt"></i> Whisper
-            </button>` : `<div class="text-center text-[10px] text-gray-600 italic py-2">You</div>`}
-        </div>
-    `;
-
-    if (!card) {
-        card = document.createElement('div');
-        card.id = `roster-card-${p.id}`;
-        card.dataset.uid = p.id;
-        card.className = `bg-[#111] border ${isMe ? 'border-[#d4af37]' : 'border-[#333]'} rounded-lg overflow-hidden relative group hover:border-[#666] transition-all flex flex-col shadow-lg`;
-        card.innerHTML = contentHtml;
-        grid.appendChild(card);
-    } else {
-        // PRESERVE SCROLL POSITION
-        const scrollBox = card.querySelector('.description-content');
-        const scrollTop = scrollBox ? scrollBox.scrollTop : 0;
+            ${!isMe ? `<button class="w-full bg-[#1a1a1a] hover:bg-[#222] border border-[#333] text-gray-400 hover:text-[#d4af37] py-2 text-xs uppercase font-bold rounded transition-colors flex items-center justify-center gap-2" onclick="window.initWhisper('${p.id}', '${charName.replace(/'/g, "\\'")}')"><i class="fas fa-comment-alt"></i> Whisper</button>` : `<div class="text-center text-[10px] text-gray-600 italic py-2">You</div>`}
+        </div>`;
         
-        card.innerHTML = contentHtml;
-        
-        // RESTORE SCROLL
-        const newScrollBox = card.querySelector('.description-content');
-        if (newScrollBox) newScrollBox.scrollTop = scrollTop;
-        
-        // Ensure styling matches (if isMe changed, though unlikely)
-        card.className = `bg-[#111] border ${isMe ? 'border-[#d4af37]' : 'border-[#333]'} rounded-lg overflow-hidden relative group hover:border-[#666] transition-all flex flex-col shadow-lg`;
+    if (!card) { 
+        card = document.createElement('div'); 
+        card.id = `roster-card-${p.id}`; 
+        card.dataset.uid = p.id; 
+        card.className = `bg-[#111] border ${isMe ? 'border-[#d4af37]' : 'border-[#333]'} rounded-lg overflow-hidden relative group hover:border-[#666] transition-all flex flex-col shadow-lg`; 
+        card.innerHTML = contentHtml; 
+        grid.appendChild(card); 
+    } else { 
+        const scrollBox = card.querySelector('.description-content'); 
+        const scrollTop = scrollBox ? scrollBox.scrollTop : 0; 
+        card.innerHTML = contentHtml; 
+        const newScrollBox = card.querySelector('.description-content'); 
+        if (newScrollBox) newScrollBox.scrollTop = scrollTop; 
+        card.className = `bg-[#111] border ${isMe ? 'border-[#d4af37]' : 'border-[#333]'} rounded-lg overflow-hidden relative group hover:border-[#666] transition-all flex flex-col shadow-lg`; 
     }
 }
 
-// --- WHISPER HELPER ---
+/**
+ * Initializes a private whisper to a specific character from the roster.
+ */
 window.initWhisper = function(id, name) {
     window.state.chronicleSubTab = 'chat';
     renderChronicleTab().then(() => {
-        // Wait a tick for chat to render
         setTimeout(() => {
-            const btn = document.getElementById('pl-chat-recipient-btn');
-            const menu = document.getElementById('pl-chat-recipients-dropdown');
+            const btn = document.getElementById('pl-chat-recipient-btn'); 
+            const menu = document.getElementById('pl-chat-recipients-dropdown'); 
             const allCheck = document.getElementById('pl-chat-all-checkbox');
             
-            if (menu) menu.classList.remove('hidden');
+            if (menu) menu.classList.remove('hidden'); 
             if (allCheck) { allCheck.checked = false; allCheck.dispatchEvent(new Event('change')); }
             
             const checks = document.querySelectorAll('.pl-recipient-checkbox');
-            checks.forEach(c => {
-                if (c.value === id) { c.checked = true; c.dispatchEvent(new Event('change')); }
+            checks.forEach(c => { 
+                if (c.value === id) { c.checked = true; c.dispatchEvent(new Event('change')); } 
             });
-            
             showNotification(`Drafting whisper to ${name}`);
         }, 300);
     });
 }
 
-// --- NPC & RETAINER TABS ---
-
+/**
+ * Renders the NPCs and Retainers tab for player-owned entities.
+ */
 export function renderNpcTab() {
     const container = document.getElementById('play-mode-6');
     if (!container) return;
-    
     const retainers = window.state.retainers || [];
-
     let html = `
         <div class="max-w-3xl mx-auto">
             <div class="flex justify-between items-center mb-6">
@@ -1619,37 +1462,28 @@ export function renderNpcTab() {
                 <button onclick="window.openNpcCreator('ghoul')" class="bg-red-900 hover:bg-red-800 text-white px-4 py-2 rounded text-sm flex items-center gap-2">
                     <span>+</span> Add NPC
                 </button>
-            </div>
-    `;
-
-    if (retainers.length === 0) {
+            </div>`;
+            
+    if (retainers.length === 0) { 
         html += `
             <div class="text-center p-8 border border-dashed border-gray-700 rounded bg-gray-900/50">
                 <p class="text-gray-400 mb-4">You have no recorded NPCs or Retainers.</p>
                 <button onclick="window.openNpcCreator('ghoul')" class="text-red-400 hover:text-red-300 underline">Add one now</button>
             </div>
-        </div>`;
-        container.innerHTML = html;
-        return;
+        </div>`; 
+        container.innerHTML = html; 
+        return; 
     }
-
+    
     html += `<div class="grid grid-cols-1 gap-4">`;
-
     retainers.forEach((npc, index) => {
         const name = npc.name || "Unnamed";
-        
         let displayType = "Unknown";
-        if (npc.template === 'animal') {
-            displayType = npc.ghouled ? "Ghouled Animal" : "Animal";
-            if (npc.species) displayType += ` (${npc.species})`;
-        } else if (npc.template === 'mortal') {
-            displayType = "Mortal";
-        } else {
-            displayType = npc.type || "Ghoul";
-        }
-        
+        if (npc.template === 'animal') { 
+            displayType = npc.ghouled ? "Ghouled Animal" : "Animal"; if (npc.species) displayType += ` (${npc.species})`; 
+        } 
+        else if (npc.template === 'mortal') displayType = "Mortal"; else displayType = npc.type || "Ghoul";
         const concept = npc.concept || "";
-        
         html += `
             <div class="bg-gray-900 border border-gray-700 rounded p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 hover:border-red-900/50 transition-colors">
                 <div class="flex-grow">
@@ -1658,125 +1492,95 @@ export function renderNpcTab() {
                         <span>Concept: <span class="text-gray-300">${concept || 'N/A'}</span></span>
                     </div>
                 </div>
-                
                 <div class="flex items-center gap-2 w-full md:w-auto mt-2 md:mt-0">
-                    <button onclick="window.viewNpc(${index})" 
-                        class="flex-1 md:flex-none bg-blue-900/40 hover:bg-blue-900/60 text-blue-200 border border-blue-800 px-3 py-1 rounded text-sm font-bold">
+                    <button onclick="window.viewNpc(${index})" class="flex-1 md:flex-none bg-blue-900/40 hover:bg-blue-900/60 text-blue-200 border border-blue-800 px-3 py-1 rounded text-sm font-bold">
                         <i class="fas fa-eye mr-1"></i> View Sheet
                     </button>
-                    <button onclick="window.editNpc(${index})" 
-                        class="flex-1 md:flex-none bg-yellow-900/40 hover:bg-yellow-900/60 text-yellow-200 border border-yellow-700 px-3 py-1 rounded text-sm font-bold">
+                    <button onclick="window.editNpc(${index})" class="flex-1 md:flex-none bg-yellow-900/40 hover:bg-yellow-900/60 text-yellow-200 border border-yellow-700 px-3 py-1 rounded text-sm font-bold">
                         <i class="fas fa-edit mr-1"></i> Edit
                     </button>
-                    <button onclick="window.deleteNpc(${index})" 
-                        class="flex-1 md:flex-none bg-red-900/20 hover:bg-red-900/50 text-red-500 border border-red-900/30 px-3 py-1 rounded text-sm" title="Delete">
-                        &times;
-                    </button>
+                    <button onclick="window.deleteNpc(${index})" class="flex-1 md:flex-none bg-red-900/20 hover:bg-red-900/50 text-red-500 border border-red-900/30 px-3 py-1 rounded text-sm" title="Delete">&times;</button>
                 </div>
-            </div>
-        `;
+            </div>`;
     });
-
     html += `</div></div>`;
     container.innerHTML = html;
 }
 window.renderNpcTab = renderNpcTab; 
 window.renderRetainersTab = renderNpcTab; 
 
-window.editNpc = function(index) {
-    if (window.state.retainers && window.state.retainers[index]) {
-        const npc = window.state.retainers[index];
-        const type = npc.template || 'ghoul';
-        if(window.openNpcCreator) window.openNpcCreator(type, npc, index);
-    }
-};
+window.editNpc = function(index) { if (window.state.retainers && window.state.retainers[index]) { const npc = window.state.retainers[index]; const type = npc.template || 'ghoul'; if(window.openNpcCreator) window.openNpcCreator(type, npc, index); } };
 window.editRetainer = window.editNpc;
 
-window.viewNpc = function(index) {
-    if (window.state.retainers && window.state.retainers[index]) {
-        const npc = window.state.retainers[index];
-        if(window.openNpcSheet) window.openNpcSheet(npc, index);
-        else console.error("openNpcSheet not found on window object.");
-    }
-}
+window.viewNpc = function(index) { if (window.state.retainers && window.state.retainers[index]) { const npc = window.state.retainers[index]; if(window.openNpcSheet) window.openNpcSheet(npc, index); } };
 
-window.deleteNpc = function(index) {
-    if(confirm("Permanently release this NPC? This cannot be undone.")) {
-        if(window.state.retainers) {
-            window.state.retainers.splice(index, 1);
-            renderNpcTab();
+window.deleteNpc = function(index) { 
+    if(confirm("Permanently release this NPC? This cannot be undone.")) { 
+        if(window.state.retainers) { 
+            window.state.retainers.splice(index, 1); 
+            renderNpcTab(); 
             if(window.performSave) window.performSave(true); 
-        }
-    }
+        } 
+    } 
 };
 window.deleteRetainer = window.deleteNpc;
 
+/**
+ * Updates the interactive Rituals list in Play Mode.
+ */
 export function updateRitualsPlayView() {
     const playCont = document.getElementById('rituals-list-play');
     if (!playCont) return;
-    
-    if (!window.state.rituals || window.state.rituals.length === 0) {
-        playCont.innerHTML = '<span class="text-gray-500 italic">No Rituals learned.</span>';
-        return;
+    if (!window.state.rituals || window.state.rituals.length === 0) { 
+        playCont.innerHTML = '<span class="text-gray-500 italic">No Rituals learned.</span>'; return; 
     }
-
-    const byLevel = {};
-    window.state.rituals.forEach(r => {
-        if (!byLevel[r.level]) byLevel[r.level] = [];
-        byLevel[r.level].push(r.name);
-    });
-
-    let html = '<div class="flex flex-col gap-4 mt-2">';
     
+    const byLevel = {};
+    window.state.rituals.forEach(r => { if (!byLevel[r.level]) byLevel[r.level] = []; byLevel[r.level].push(r.name); });
+    
+    let html = '<div class="flex flex-col gap-4 mt-2">';
     Object.keys(byLevel).sort((a,b) => a-b).forEach(lvl => {
         if (lvl > 0) {
             html += `
-            <div class="bg-black/30 border border-[#333] rounded p-2">
-                <div class="text-[#d4af37] font-bold text-[10px] uppercase border-b border-[#333] pb-1 mb-1">
-                    Level ${lvl} Rituals
-                </div>
-                <div class="space-y-1">`;
-                
+                <div class="bg-black/30 border border-[#333] rounded p-2">
+                    <div class="text-[#d4af37] font-bold text-[10px] uppercase border-b border-[#333] pb-1 mb-1">Level ${lvl} Rituals</div>
+                    <div class="space-y-1">`;
             byLevel[lvl].forEach(name => {
                 let rData = null;
-                if (window.RITUALS_DATA) {
+                if (window.RITUALS_DATA) { 
                     if (window.RITUALS_DATA.Thaumaturgy && window.RITUALS_DATA.Thaumaturgy[lvl] && window.RITUALS_DATA.Thaumaturgy[lvl][name]) {
-                        rData = window.RITUALS_DATA.Thaumaturgy[lvl][name];
+                        rData = window.RITUALS_DATA.Thaumaturgy[lvl][name]; 
                     } else if (window.RITUALS_DATA.Necromancy && window.RITUALS_DATA.Necromancy[lvl] && window.RITUALS_DATA.Necromancy[lvl][name]) {
-                        rData = window.RITUALS_DATA.Necromancy[lvl][name];
+                        rData = window.RITUALS_DATA.Necromancy[lvl][name]; 
                     }
                 }
-
+                
                 if (rData) {
                     const diff = Math.min(9, 3 + parseInt(lvl));
                     const uid = `rit-${name.replace(/[^a-zA-Z0-9]/g, '')}`;
-
                     html += `
-                    <div class="border border-[#333] bg-[#111] rounded overflow-hidden mb-1">
-                        <div class="flex justify-between items-center p-1.5 cursor-pointer hover:bg-[#222] transition-colors" onclick="document.getElementById('${uid}').classList.toggle('hidden');">
-                            <div class="flex items-center gap-2 overflow-hidden">
-                                <i class="fas fa-chevron-right text-[8px] text-gray-500"></i>
-                                <div class="font-bold text-gray-300 text-[10px] truncate">${name}</div>
+                        <div class="border border-[#333] bg-[#111] rounded overflow-hidden mb-1">
+                            <div class="flex justify-between items-center p-1.5 cursor-pointer hover:bg-[#222] transition-colors" onclick="document.getElementById('${uid}').classList.toggle('hidden');">
+                                <div class="flex items-center gap-2 overflow-hidden">
+                                    <i class="fas fa-chevron-right text-[8px] text-gray-500"></i>
+                                    <div class="font-bold text-gray-300 text-[10px] truncate">${name}</div>
+                                </div>
+                                <button onclick="event.stopPropagation(); window.rollDiscipline('${name.replace(/'/g, "\\'")}', ['Intelligence', 'Occult'], ${diff})" class="bg-[#333] border border-gray-600 text-gray-400 hover:text-white hover:border-[#d4af37] text-[8px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider transition-all shadow-sm hover:shadow-gold flex-shrink-0 ml-2"><i class="fas fa-dice-d20"></i></button>
                             </div>
-                            <button onclick="event.stopPropagation(); window.rollDiscipline('${name.replace(/'/g, "\\'")}', ['Intelligence', 'Occult'], ${diff})" class="bg-[#333] border border-gray-600 text-gray-400 hover:text-white hover:border-[#d4af37] text-[8px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider transition-all shadow-sm hover:shadow-gold flex-shrink-0 ml-2"><i class="fas fa-dice-d20"></i></button>
-                        </div>
-                        <div id="${uid}" class="hidden p-2 border-t border-[#333] bg-black/50 text-[10px]">
-                            <div class="text-gray-400 italic leading-snug mb-1">${rData.desc || "No description."}</div>
-                            <div class="text-gray-500 font-mono"><span class="text-[#d4af37] font-bold">System:</span> ${rData.system || "See rulebook."}</div>
-                        </div>
-                    </div>`;
-
-                } else {
-                    html += `<div class="text-xs text-gray-400 ml-2 flex items-start py-1"><span class="text-gold mr-1">•</span> ${name}</div>`;
+                            <div id="${uid}" class="hidden p-2 border-t border-[#333] bg-black/50 text-[10px]">
+                                <div class="text-gray-400 italic leading-snug mb-1">${rData.desc || "No description."}</div>
+                                <div class="text-gray-500 font-mono"><span class="text-[#d4af37] font-bold">System:</span> ${rData.system || "See rulebook."}</div>
+                            </div>
+                        </div>`;
+                } else { 
+                    html += `<div class="text-xs text-gray-400 ml-2 flex items-start py-1"><span class="text-gold mr-1">•</span> ${name}</div>`; 
                 }
             });
-            
             html += `</div></div>`;
         }
     });
     html += '</div>';
-    
-    playCont.innerHTML = html;
+    playCont.innerHTML = html; 
     playCont.className = "";
 }
 window.updateRitualsPlayView = updateRitualsPlayView;
