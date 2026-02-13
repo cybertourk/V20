@@ -8,72 +8,35 @@ import {
 // ==========================================================================
 
 /**
- * Synthesizes a deep "Church Bell" chime using the Web Audio API.
- * This avoids dependency on external audio files.
+ * Plays the specific church bell chime from the provided URL.
+ * Triggers on new incoming notifications.
  */
 function playBellChime() {
     try {
-        const AudioContext = window.AudioContext || window.webkitAudioContext;
-        if (!AudioContext) return;
+        // Using the specific church bell sound file provided by Zeb
+        const bell = new Audio('https://files.catbox.moe/7yeahl.WAV');
+        bell.volume = 0.5;
         
-        const ctx = new AudioContext();
-        const now = ctx.currentTime;
-        
-        // Create multiple oscillators for a rich, bell-like timbre
-        // Fundamental frequency (Deep bell)
-        const osc1 = ctx.createOscillator();
-        const gain1 = ctx.createGain();
-        osc1.type = 'sine';
-        osc1.frequency.setValueAtTime(110, now); // A2
-        
-        // Overtone 1
-        const osc2 = ctx.createOscillator();
-        const gain2 = ctx.createGain();
-        osc2.type = 'triangle';
-        osc2.frequency.setValueAtTime(220, now); // A3
-        
-        // Overtone 2 (The "Clonk")
-        const osc3 = ctx.createOscillator();
-        const gain3 = ctx.createGain();
-        osc3.type = 'sine';
-        osc3.frequency.setValueAtTime(330, now); // E4
-        
-        // Master Gain
-        const masterGain = ctx.createGain();
-        masterGain.gain.setValueAtTime(0.3, now);
-        masterGain.gain.exponentialRampToValueAtTime(0.001, now + 3);
-        
-        // Connect nodes
-        osc1.connect(gain1);
-        gain1.connect(masterGain);
-        osc2.connect(gain2);
-        gain2.connect(masterGain);
-        osc3.connect(gain3);
-        gain3.connect(masterGain);
-        masterGain.connect(ctx.destination);
-        
-        // Start oscillators
-        osc1.start(now);
-        osc2.start(now);
-        osc3.start(now);
-        
-        // Stop oscillators
-        osc1.stop(now + 3);
-        osc2.stop(now + 3);
-        osc3.stop(now + 3);
-        
+        // Play and handle potential browser-based auto-play blockages
+        const playPromise = bell.play();
+        if (playPromise !== undefined) {
+            playPromise.catch(error => {
+                // Browsers often block audio until the user interacts with the page once.
+                console.warn("Audio chime prevented by browser auto-play policy. Interact with the page to enable sounds.");
+            });
+        }
     } catch (e) {
-        console.warn("Audio playback blocked or not supported:", e);
+        console.error("Audio playback error:", e);
     }
 }
 
 // ==========================================================================
-// TOAST NOTIFICATION SYSTEM (PERSISTENT)
+// TOAST NOTIFICATION SYSTEM (PERSISTENT & LEFT-ALIGNED)
 // ==========================================================================
 
 /**
  * Displays a stackable toast notification on the left side of the screen.
- * REMAIN ON SCREEN: This version removes the auto-hide timer.
+ * REMAIN ON SCREEN: These toasts stay until clicked away by the user.
  * @param {string} msg - The message body.
  * @param {string} type - The toast style ('info', 'roll', 'system', 'chat', 'whisper', 'event').
  * @param {string} header - The small bold text at the top of the toast.
@@ -81,7 +44,7 @@ function playBellChime() {
 export function showNotification(msg, type = 'info', header = 'System') { 
     const container = document.getElementById('toast-container');
     if (!container) {
-        // Fallback to legacy notification if container is missing
+        // Fallback to legacy notification if the container element is missing from index.html
         const el = document.getElementById('notification'); 
         if (el) { 
             el.innerText = msg; 
@@ -91,14 +54,14 @@ export function showNotification(msg, type = 'info', header = 'System') {
         return;
     }
 
-    // Play Church Bell Sound
+    // Play the Church Bell Sound File
     playBellChime();
 
     // Create Toast Element
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
     
-    // Map icons to types
+    // Map font-awesome icons to message types
     let icon = 'fa-info-circle';
     if (type === 'roll') icon = 'fa-dice-d20';
     if (type === 'system') icon = 'fa-cog';
@@ -115,18 +78,16 @@ export function showNotification(msg, type = 'info', header = 'System') {
         <div class="text-[8px] text-gray-600 mt-1 uppercase font-bold text-right">[ Click to Dismiss ]</div>
     `;
 
-    // Add to container
+    // Add the toast to the stacking container on the left
     container.appendChild(toast);
 
-    // PERSISTENCE: Auto-hide timers removed. 
-    // Toasts remain until clicked.
-
-    // Click to dismiss logic (Includes animation)
+    // PERSISTENCE: Toasts remain until clicked.
+    // Click to dismiss logic (Triggers the slide-out animation defined in CSS)
     toast.onclick = () => {
         toast.classList.add('hiding');
         setTimeout(() => { 
             if (toast.parentNode) toast.remove(); 
-        }, 300); // Matches CSS toast-out-left animation duration
+        }, 300); 
     };
 };
 window.showNotification = showNotification;
