@@ -128,8 +128,12 @@ export function renderPlaySheetModal() {
         }
     });
 
-    // dexPenalized ensures we don't pass negative Dex, but Armor Penalty must be accounted for
+    // Penalized Dex for Attacks (V20 Rules)
     const dexPenalized = Math.max(0, dex - armorPenalty);
+    
+    // Display Rating for Init (Visual only)
+    // Actual roll will separate Dex and Armor for the breakdown
+    const initDisplayRating = Math.max(0, dex - armorPenalty + wits + cel);
 
     // --- MANEUVER GENERATION ---
     let maneuvers = [];
@@ -360,13 +364,14 @@ export function renderPlaySheetModal() {
                             <div class="flex justify-between border-b border-[#333] py-2 text-gray-400 mb-2 text-xs">
                                 <span class="font-bold cursor-pointer hover:text-white npc-combat-interact text-[#d4af37] uppercase tracking-wide" 
                                       data-action="init" 
-                                      data-v1="${dexPenalized}" 
+                                      data-v1="${dex}" 
                                       data-v2="${wits}"
-                                      data-v3="${cel}">
+                                      data-v3="${cel}"
+                                      data-armor-pen="${armorPenalty}">
                                     <i class="fas fa-bolt mr-1"></i> Initiative
                                 </span>
                                 <div class="text-right">
-                                    <span class="text-white font-bold">1d10 + ${dexPenalized + wits + cel}</span>
+                                    <span class="text-white font-bold">1d10 + ${initDisplayRating}</span>
                                     ${armorPenalty > 0 ? `<div class="text-[9px] text-red-400 font-normal">Armor Penalty: -${armorPenalty}</div>` : ''}
                                 </div>
                             </div>
@@ -720,9 +725,10 @@ function bindPlayInteractions(modal) {
             if (typeof clearPool === 'function') clearPool();
             
             const action = el.dataset.action;
-            const v1 = parseInt(el.dataset.v1) || 0; // Dex (Armor Penalty already subtracted in render)
+            const v1 = parseInt(el.dataset.v1) || 0; // Dex
             const v2 = parseInt(el.dataset.v2) || 0; // Wits
             const v3 = parseInt(el.dataset.v3) || 0; // Celerity
+            const armorPen = parseInt(el.dataset.armorPen) || 0; // Armor Penalty
 
             if (action === 'init') {
                 const dex = v1; 
@@ -770,6 +776,7 @@ function bindPlayInteractions(modal) {
                 window.state.activePool.push({name: "Init_Dex", val: dex});
                 window.state.activePool.push({name: "Init_Wits", val: wits});
                 if (cel > 0) window.state.activePool.push({name: "Init_Celerity", val: cel});
+                if (armorPen > 0) window.state.activePool.push({name: "Init_Armor", val: -armorPen});
                 if (wounds > 0) window.state.activePool.push({name: "Init_Wounds", val: -wounds});
                 
                 // Pass NPC identification
@@ -779,6 +786,7 @@ function bindPlayInteractions(modal) {
                 if (display) {
                     let text = `${npcName} Init: Dex (${dex}) + Wits (${wits})`;
                     if (cel > 0) text += ` + Cel (${cel})`;
+                    if (armorPen > 0) text += ` - Armor (${armorPen})`;
                     if (wounds > 0) text += ` - Wounds (${wounds})`;
                     if(window.setSafeText) window.setSafeText('pool-display', text);
                     display.classList.add('text-yellow-500');
