@@ -128,6 +128,7 @@ export function renderPlaySheetModal() {
         }
     });
 
+    // dexPenalized ensures we don't pass negative Dex, but Armor Penalty must be accounted for
     const dexPenalized = Math.max(0, dex - armorPenalty);
 
     // --- MANEUVER GENERATION ---
@@ -364,7 +365,10 @@ export function renderPlaySheetModal() {
                                       data-v3="${cel}">
                                     <i class="fas fa-bolt mr-1"></i> Initiative
                                 </span>
-                                <span class="text-white font-bold">1d10 + ${dexPenalized + wits + cel}</span>
+                                <div class="text-right">
+                                    <span class="text-white font-bold">1d10 + ${dexPenalized + wits + cel}</span>
+                                    ${armorPenalty > 0 ? `<div class="text-[9px] text-red-400 font-normal">Armor Penalty: -${armorPenalty}</div>` : ''}
+                                </div>
                             </div>
 
                             <!-- Attacks Table -->
@@ -649,8 +653,11 @@ function applyNpcDamage(type) {
     
     track.sort((a, b) => b - a);
     
-    if (track.length > 7) { 
-        ctx.activeNpc.health.track = track.slice(0, 7);
+    // Handle custom length based on config if exists
+    const maxLength = (ctx.activeNpc.healthConfig && ctx.activeNpc.healthConfig.length) || 7;
+    
+    if (track.length > maxLength) { 
+        ctx.activeNpc.health.track = track.slice(0, maxLength);
     }
     
     const filledCount = track.filter(s => s > 0).length;
@@ -713,24 +720,45 @@ function bindPlayInteractions(modal) {
             if (typeof clearPool === 'function') clearPool();
             
             const action = el.dataset.action;
-            const v1 = parseInt(el.dataset.v1) || 0;
-            const v2 = parseInt(el.dataset.v2) || 0;
-            const v3 = parseInt(el.dataset.v3) || 0; 
+            const v1 = parseInt(el.dataset.v1) || 0; // Dex (Armor Penalty already subtracted in render)
+            const v2 = parseInt(el.dataset.v2) || 0; // Wits
+            const v3 = parseInt(el.dataset.v3) || 0; // Celerity
 
             if (action === 'init') {
-                const dex = v1;
+                const dex = v1; 
                 const wits = v2;
                 const cel = v3;
                 const npcName = document.getElementById('npc-name')?.value || "NPC";
                 
-                // Calculate Wounds explicitly for NPC
+                // Calculate Wounds explicitly for NPC (handling Custom Tracks)
+                let wounds = 0;
                 const healthTrack = ctx.activeNpc.health.track || [];
                 const dmgCount = healthTrack.filter(x => x > 0).length;
-                let wounds = 0;
-                if (dmgCount >= 7) wounds = 99;
-                else if (dmgCount === 6) wounds = 5;
-                else if (dmgCount >= 4) wounds = 2;
-                else if (dmgCount >= 2) wounds = 1;
+                
+                if (ctx.activeNpc.healthConfig && Array.isArray(ctx.activeNpc.healthConfig)) {
+                    // If custom track exists, check if Incapacitated or use penalties
+                    if (dmgCount >= ctx.activeNpc.healthConfig.length) {
+                        // All boxes filled (or more) -> Incapacitated
+                        wounds = 99;
+                    } else if (dmgCount > 0) {
+                        // Find the penalty of the LAST FILLED box
+                        // E.g. 1 dmg (index 0 filled) -> config[0].p
+                        const lvl = ctx.activeNpc.healthConfig[dmgCount - 1];
+                        if (lvl) {
+                            if (lvl.l.toLowerCase().includes('incap') || lvl.l.toLowerCase().includes('dead')) {
+                                wounds = 99;
+                            } else {
+                                wounds = Math.abs(lvl.p || 0);
+                            }
+                        }
+                    }
+                } else {
+                    // Standard V20 Fallback
+                    if (dmgCount >= 7) wounds = 99;
+                    else if (dmgCount === 6) wounds = 5;
+                    else if (dmgCount >= 4) wounds = 2;
+                    else if (dmgCount >= 2) wounds = 1;
+                }
 
                 if (wounds >= 99) {
                     if(window.showNotification) window.showNotification("Incapacitated! Cannot roll initiative.");
