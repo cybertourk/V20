@@ -3,18 +3,73 @@ import {
     VIT
 } from "./data.js";
 
-// --- HELPERS ---
+// ==========================================================================
+// TOAST NOTIFICATION SYSTEM
+// ==========================================================================
 
-export function showNotification(msg) { 
-    const el = document.getElementById('notification'); 
-    if (el) { 
-        el.innerText = msg; 
-        el.style.display = 'block'; 
-        el.style.backgroundColor = 'rgba(15, 0, 0, 0.95)';
-        setTimeout(() => { el.style.display = 'none'; }, 4000); 
-    } 
+/**
+ * Displays a stackable toast notification.
+ * @param {string} msg - The message body.
+ * @param {string} type - The toast style ('info', 'roll', 'system', 'chat', 'whisper', 'event').
+ * @param {string} header - The small bold text at the top of the toast.
+ */
+export function showNotification(msg, type = 'info', header = 'System') { 
+    const container = document.getElementById('toast-container');
+    if (!container) {
+        // Fallback to legacy notification if container is missing
+        const el = document.getElementById('notification'); 
+        if (el) { 
+            el.innerText = msg; 
+            el.style.display = 'block'; 
+            setTimeout(() => { el.style.display = 'none'; }, 4000); 
+        } 
+        return;
+    }
+
+    // Create Toast Element
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    
+    // Map icons to types
+    let icon = 'fa-info-circle';
+    if (type === 'roll') icon = 'fa-dice-d20';
+    if (type === 'system') icon = 'fa-cog';
+    if (type === 'chat') icon = 'fa-comment';
+    if (type === 'whisper') icon = 'fa-user-secret';
+    if (type === 'event') icon = 'fa-bullhorn';
+
+    toast.innerHTML = `
+        <div class="toast-header">
+            <span><i class="fas ${icon} mr-1"></i> ${header}</span>
+            <span class="opacity-50 text-[8px]">${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+        </div>
+        <div class="toast-body">${msg}</div>
+    `;
+
+    // Add to container
+    container.appendChild(toast);
+
+    // Auto-remove after 5 seconds
+    const duration = type === 'event' ? 8000 : 5000;
+    
+    setTimeout(() => {
+        toast.classList.add('hiding');
+        setTimeout(() => {
+            if (toast.parentNode) toast.remove();
+        }, 300);
+    }, duration);
+
+    // Click to dismiss early
+    toast.onclick = () => {
+        toast.classList.add('hiding');
+        setTimeout(() => { if (toast.parentNode) toast.remove(); }, 300);
+    };
 };
 window.showNotification = showNotification;
+
+// ==========================================================================
+// CORE UI HELPERS
+// ==========================================================================
 
 export function setSafeText(id, val) { 
     const el = document.getElementById(id); 
@@ -36,17 +91,22 @@ export function renderBoxes(count, checked = 0, type = '') {
 }
 window.renderBoxes = renderBoxes;
 
+/**
+ * Syncs the visual sheet state with the data stored in window.state.textFields.
+ */
 export function hydrateInputs() {
     if(!window.state || !window.state.textFields) return;
     Object.entries(window.state.textFields).forEach(([id, val]) => { 
         const el = document.getElementById(id); 
         if (el) el.value = val; 
     });
-    // Use window check to prevent error if ui-nav isn't loaded yet
     if(window.renderPrintSheet) window.renderPrintSheet(); 
 }
 window.hydrateInputs = hydrateInputs;
 
+/**
+ * Renders textareas for each background that has at least one dot.
+ */
 export function renderSocialProfile() {
     const list = document.getElementById('social-profile-list');
     if (!list) return;
@@ -80,7 +140,9 @@ export function renderSocialProfile() {
 }
 window.renderSocialProfile = renderSocialProfile;
 
-// --- INVENTORY MANAGEMENT ---
+// ==========================================================================
+// INVENTORY MANAGEMENT
+// ==========================================================================
 
 export function setupInventoryListeners() {
     const typeSelect = document.getElementById('inv-type');
@@ -92,9 +154,13 @@ export function setupInventoryListeners() {
 
     typeSelect.onchange = () => {
         const t = typeSelect.value;
-        document.getElementById('inv-stats-row').classList.toggle('hidden', t !== 'Weapon');
-        document.getElementById('inv-armor-row').classList.toggle('hidden', t !== 'Armor');
-        document.getElementById('inv-vehicle-row').classList.toggle('hidden', t !== 'Vehicle');
+        const statsRow = document.getElementById('inv-stats-row');
+        const armorRow = document.getElementById('inv-armor-row');
+        const vehicleRow = document.getElementById('inv-vehicle-row');
+
+        if (statsRow) statsRow.classList.toggle('hidden', t !== 'Weapon');
+        if (armorRow) armorRow.classList.toggle('hidden', t !== 'Armor');
+        if (vehicleRow) vehicleRow.classList.toggle('hidden', t !== 'Vehicle');
         
         if (['Weapon', 'Armor', 'Vehicle'].includes(t)) {
             baseWrapper.classList.remove('hidden');
@@ -228,7 +294,6 @@ export function handleBoxClick(type, val, element) {
 
     if (type === 'wp') {
         let cur = window.state.status.tempWillpower || 0;
-        // If clicking current level, reduce by 1 (toggle off). Else set to click value.
         window.state.status.tempWillpower = (val === cur) ? val - 1 : val;
     } 
     else if (type === 'blood') {
@@ -236,19 +301,15 @@ export function handleBoxClick(type, val, element) {
         window.state.status.blood = (val === cur) ? val - 1 : val;
     } 
     else if (type === 'health') {
-        // Health boxes use index 0-6 (val 1-7)
         const idx = val - 1;
         const healthStates = window.state.status.health_states || [0,0,0,0,0,0,0];
         let s = healthStates[idx] || 0;
-        // Cycle: 0(Clear) -> 1(/) -> 2(X) -> 3(*) -> 0
         s = (s + 1) % 4; 
         healthStates[idx] = s;
         window.state.status.health_states = healthStates;
-        
-        // Visual feedback immediately
         if(element) element.dataset.state = s; 
     }
     if(window.updatePools) window.updatePools();
-    if(window.renderPrintSheet) window.renderPrintSheet(); // Update print health/boxes
+    if(window.renderPrintSheet) window.renderPrintSheet(); 
 }
 window.handleBoxClick = handleBoxClick;
