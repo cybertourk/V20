@@ -14,9 +14,9 @@ import {
     renderRow, rollCombat, rollFrenzy, rollRotschreck, rollDiscipline, rollInitiative, toggleStat
 } from "./ui-mechanics.js";
 
-// FIREBASE IMPORTS (Added auth for ID checks)
+// FIREBASE IMPORTS
 import { db, doc, getDoc, collection, getDocs, query, auth, onSnapshot } from "./firebase-config.js";
-import { combatState } from "./combat-tracker.js";
+import { combatState, updateInitiative, setCombatantStatus } from "./combat-tracker.js";
 
 // MAP IMPORT
 import { renderCoterieMap } from "./coterie-map.js";
@@ -157,82 +157,34 @@ function injectBloodInfo() {
     }
 }
 
-// --- COMBAT INTEGRATION ---
-
-function checkCombatStatus() {
-    // Rely on WINDOW.stState to avoid circular dependency
-    const stState = window.stState;
-    if (stState && stState.activeChronicleId && combatState.isActive) {
-        // Show floating combat indicator
-        showPlayerCombatFloat();
-    }
-}
-
-export function togglePlayerCombatView() {
-    const float = document.getElementById('player-combat-float');
-    if (!float) return;
-    
-    const isExpanded = float.classList.contains('expanded');
-    
-    if (isExpanded) {
-        float.classList.remove('expanded');
-        float.innerHTML = `<i class="fas fa-swords text-2xl"></i>`;
-    } else {
-        float.classList.add('expanded');
-        renderPlayerCombatOverlay(float);
-    }
-}
-window.togglePlayerCombatView = togglePlayerCombatView;
+// --- PLAYER COMBAT HANDLERS ---
 
 export function updatePlayerCombatView() {
-    const float = document.getElementById('player-combat-float');
-    if (!float) return;
-    
-    if (float.classList.contains('expanded')) {
-        renderPlayerCombatOverlay(float);
+    // If the Chronicle Tab is open AND the Combat Sub-tab is active, re-render it.
+    const container = document.getElementById('chronicle-content-area');
+    if (window.state.isPlayMode && 
+        document.getElementById('play-mode-chronicle').classList.contains('active') && 
+        window.state.chronicleSubTab === 'combat' &&
+        container) {
+        renderChronicleCombatView(container);
     }
 }
 window.updatePlayerCombatView = updatePlayerCombatView;
 
-function showPlayerCombatFloat() {
-    let float = document.getElementById('player-combat-float');
-    if (!float) {
-        float = document.createElement('button');
-        float.id = 'player-combat-float';
-        float.className = 'fixed top-20 right-4 z-50 bg-[#8b0000] text-white w-12 h-12 rounded-full shadow-[0_0_15px_red] border-2 border-[#d4af37] flex items-center justify-center transition-all animate-pulse hover:scale-110';
-        float.onclick = togglePlayerCombatView;
-        float.innerHTML = `<i class="fas fa-swords text-2xl"></i>`;
-        document.body.appendChild(float);
+// Player specific bindings for manual combat edits
+window.plUpdateInit = (id, val) => {
+    // Check ownership before triggering update
+    if (auth.currentUser && id === auth.currentUser.uid) {
+        updateInitiative(id, val);
     }
-    float.style.display = 'flex';
-}
+};
 
-function renderPlayerCombatOverlay(container) {
-    const turn = combatState.turn;
-    const combatants = combatState.combatants || [];
-    
-    container.innerHTML = `
-        <div class="absolute top-0 right-0 w-64 bg-[#1a0505] border border-red-500 rounded p-4 shadow-xl text-left cursor-default" onclick="event.stopPropagation()">
-            <div class="flex justify-between items-center mb-2 border-b border-red-900 pb-1">
-                <h3 class="text-red-500 font-bold font-cinzel">Combat - Round ${turn}</h3>
-                <button class="text-gray-500 hover:text-white" onclick="window.togglePlayerCombatView()">&times;</button>
-            </div>
-            <div class="space-y-1 max-h-60 overflow-y-auto custom-scrollbar">
-                ${combatants.length === 0 ? '<div class="text-gray-500 italic text-[10px]">Waiting for combatants...</div>' : ''}
-                ${combatants.map(c => `
-                    <div class="flex justify-between text-xs items-center p-1 rounded ${c.active ? 'bg-[#d4af37]/20 border border-[#d4af37]/50' : 'opacity-80'} ${c.status === 'done' ? 'opacity-30 line-through' : ''}">
-                        <div class="flex items-center gap-2 overflow-hidden">
-                            ${c.active ? '<i class="fas fa-caret-right text-[#d4af37]"></i>' : ''}
-                            <span class="text-[#d4af37] font-bold w-6 text-center">${c.init}</span>
-                            <span class="text-gray-300 truncate w-32 ${c.active ? 'text-white font-bold' : ''}">${c.name}</span>
-                        </div>
-                        <span class="text-[8px] text-gray-500 uppercase">${c.type}</span>
-                    </div>
-                `).join('')}
-            </div>
-        </div>
-    `;
-}
+window.plUpdateStatus = (id, val) => {
+    // Check ownership before triggering update
+    if (auth.currentUser && id === auth.currentUser.uid) {
+        setCombatantStatus(id, val);
+    }
+};
 
 // ==========================================================================
 // PLAY MODE CORE LOGIC
@@ -306,7 +258,7 @@ export function applyPlayModeUI() {
         renderChronicleTab();
         renderNpcTab();
         
-        checkCombatStatus();
+        // Removed checkCombatStatus(); as we no longer show float.
         
         setTimeout(() => {
             injectWillpowerInfo();
@@ -1118,6 +1070,9 @@ export async function renderChronicleTab() {
                     <button id="tab-chron-info" class="text-xs uppercase tracking-wider px-2 pb-1 whitespace-nowrap ${currentTab==='info'?activeClass:inactiveClass}">
                         <i class="fas fa-info-circle mr-2"></i>Info
                     </button>
+                    <button id="tab-chron-combat" class="text-xs uppercase tracking-wider px-2 pb-1 whitespace-nowrap ${currentTab==='combat'?activeClass:inactiveClass}">
+                        <i class="fas fa-swords mr-2"></i>Combat
+                    </button>
                     <button id="tab-chron-roster" class="text-xs uppercase tracking-wider px-2 pb-1 whitespace-nowrap ${currentTab==='roster'?activeClass:inactiveClass}">
                         <i class="fas fa-users mr-2"></i>Roster
                     </button>
@@ -1136,6 +1091,7 @@ export async function renderChronicleTab() {
         `;
 
         document.getElementById('tab-chron-info').onclick = () => { window.state.chronicleSubTab = 'info'; renderChronicleTab(); };
+        document.getElementById('tab-chron-combat').onclick = () => { window.state.chronicleSubTab = 'combat'; renderChronicleTab(); };
         document.getElementById('tab-chron-roster').onclick = () => { window.state.chronicleSubTab = 'roster'; renderChronicleTab(); };
         document.getElementById('tab-chron-map').onclick = () => { window.state.chronicleSubTab = 'map'; renderChronicleTab(); };
         document.getElementById('tab-chron-chat').onclick = () => { window.state.chronicleSubTab = 'chat'; renderChronicleTab(); };
@@ -1144,6 +1100,8 @@ export async function renderChronicleTab() {
 
         if (currentTab === 'info') {
             renderChronicleInfoView(contentArea, data);
+        } else if (currentTab === 'combat') {
+            renderChronicleCombatView(contentArea);
         } else if (currentTab === 'roster') {
             renderChronicleRosterView(contentArea, chronicleId);
         } else if (currentTab === 'map') {
@@ -1158,6 +1116,93 @@ export async function renderChronicleTab() {
     }
 }
 window.renderChronicleTab = renderChronicleTab;
+
+// --- SUB-VIEW: COMBAT (NEW) ---
+function renderChronicleCombatView(container) {
+    const { isActive, turn, phase, combatants } = combatState;
+    if (!isActive) {
+        container.innerHTML = `
+            <div class="h-full flex flex-col items-center justify-center text-gray-500 italic">
+                <i class="fas fa-peace text-4xl mb-4 opacity-30"></i>
+                <div>No active combat encounter.</div>
+            </div>`;
+        return;
+    }
+
+    const myId = auth.currentUser ? auth.currentUser.uid : null;
+    
+    // Determine header style
+    const phaseLabel = phase === 'declare' ? 'Declaration Phase' : 'Action Phase';
+    const phaseColor = phase === 'declare' ? 'text-blue-400' : 'text-red-500';
+    const activeCombatant = combatants.find(c => c.id === combatState.activeCombatantId);
+    
+    let html = `
+        <div class="flex flex-col h-full bg-[#0a0a0a]">
+            <div class="bg-[#111] p-3 border-b border-[#333] flex justify-between items-center shrink-0">
+                <div class="flex items-center gap-4">
+                    <div class="text-center">
+                        <div class="text-[9px] text-gray-500 uppercase font-bold tracking-widest">Round</div>
+                        <div class="text-2xl font-black text-[#d4af37] leading-none">${turn}</div>
+                    </div>
+                    <div class="border-l border-[#333] pl-4">
+                        <div class="text-sm ${phaseColor} uppercase font-bold tracking-widest">${phaseLabel}</div>
+                        <div class="text-[10px] text-gray-400">Current Actor: <span class="text-white font-bold">${activeCombatant ? activeCombatant.name : 'None'}</span></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar">
+    `;
+
+    if (combatants.length === 0) {
+        html += `<div class="text-center text-gray-500 italic text-xs mt-10">Waiting for combatants...</div>`;
+    } else {
+        combatants.forEach(c => {
+            const isMe = c.id === myId;
+            const activeClass = c.active ? 'border-[#d4af37] bg-[#222]' : 'border-[#333] bg-[#111]';
+            const statusColor = c.status === 'done' ? 'text-gray-600 line-through' : (c.status === 'pending' ? 'text-gray-400' : 'text-blue-400 font-bold');
+            
+            // Format Status Dropdown or Text
+            let statusDisplay = `<span class="text-[10px] uppercase font-bold ${statusColor}">${c.status}</span>`;
+            if (isMe) {
+                statusDisplay = `
+                    <select onchange="window.plUpdateStatus('${c.id}', this.value)" class="bg-[#050505] border border-[#333] text-[10px] uppercase font-bold text-gray-300 rounded px-1 py-1 focus:outline-none focus:border-[#d4af37]">
+                        <option value="pending" ${c.status === 'pending' ? 'selected' : ''}>Pending</option>
+                        <option value="held" ${c.status === 'held' ? 'selected' : ''}>Held</option>
+                        <option value="defending" ${c.status === 'defending' ? 'selected' : ''}>Defending</option>
+                        <option value="multiple" ${c.status === 'multiple' ? 'selected' : ''}>Multiple</option>
+                        <option value="done" ${c.status === 'done' ? 'selected' : ''}>Done</option>
+                    </select>
+                `;
+            }
+
+            // Format Initiative Input or Text
+            let initDisplay = `<span class="text-[#d4af37] font-bold text-lg">${c.init}</span>`;
+            if (isMe && combatState.phase === 'declare') {
+                 // Allow editing initiative during declaration phase
+                 initDisplay = `<input type="number" value="${c.init}" onchange="window.plUpdateInit('${c.id}', this.value)" class="w-10 bg-black border border-[#444] text-center text-lg font-bold text-[#d4af37] focus:outline-none focus:border-[#d4af37] rounded">`;
+            }
+
+            html += `
+                <div class="${activeClass} border rounded p-2 flex items-center justify-between transition-colors shadow-sm">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 text-center">${initDisplay}</div>
+                        <div class="flex flex-col">
+                            <span class="text-sm font-bold text-white ${c.active ? 'text-[#d4af37]' : ''}">${c.name} ${isMe ? '<span class="text-[8px] text-gray-500 italic ml-1">(You)</span>' : ''}</span>
+                            <span class="text-[9px] text-gray-500 uppercase">${c.type}</span>
+                        </div>
+                    </div>
+                    <div>
+                        ${statusDisplay}
+                    </div>
+                </div>
+            `;
+        });
+    }
+
+    html += `</div></div>`;
+    container.innerHTML = html;
+}
 
 // --- SUB-VIEW: INFO ---
 function renderChronicleInfoView(container, data) {
