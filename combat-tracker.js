@@ -16,6 +16,10 @@ export const combatState = {
 };
 
 // --- INITIALIZATION ---
+/**
+ * Initializes the real-time listener for the active combat session.
+ * @param {string} chronicleId - The ID of the current chronicle.
+ */
 export function initCombatTracker(chronicleId) {
     if (combatState.unsub) combatState.unsub();
     
@@ -47,21 +51,26 @@ export function initCombatTracker(chronicleId) {
                 c.active = (c.id === combatState.activeCombatantId);
             });
 
-            // Trigger ST UI Refresh
-            if (window.renderCombatView) window.renderCombatView();
+            // Trigger Storyteller Dashboard Refresh
+            if (window.renderCombatView) {
+                window.renderCombatView();
+            }
             
-            // Trigger Player UI Refresh (Decoupled from specific element ID)
+            // Trigger Player Character Sheet Refresh (Sub-tab in Chronicle)
             if (window.updatePlayerCombatView) {
                 window.updatePlayerCombatView();
             }
         } else {
+            // Combat session is terminated
             combatState.isActive = false;
             combatState.combatants = [];
             combatState.activeCombatantId = null;
             combatState.phase = 'declare';
             combatState.rerollInitiative = true;
             
-            if (window.renderCombatView) window.renderCombatView();
+            if (window.renderCombatView) {
+                window.renderCombatView();
+            }
             
             if (window.updatePlayerCombatView) {
                 window.updatePlayerCombatView();
@@ -69,15 +78,18 @@ export function initCombatTracker(chronicleId) {
         }
     }, (error) => {
         if (error.code === 'permission-denied') {
-            console.warn("Combat Tracker: Permission Denied (User likely not in chronicle yet).");
+            console.warn("Combat Tracker: Permission Denied. Access restricted until joined.");
         } else {
             console.error("Combat Tracker Error:", error);
         }
     });
 }
 
-// --- ACTIONS ---
+// --- CORE ACTIONS ---
 
+/**
+ * Initializes a new combat session in Firestore.
+ */
 export async function startCombat() {
     const stState = window.stState;
     if (!stState || !stState.activeChronicleId) return;
@@ -85,42 +97,51 @@ export async function startCombat() {
         const docRef = doc(db, 'chronicles', stState.activeChronicleId, 'combat', 'active');
         await setDoc(docRef, {
             turn: 1,
-            phase: 'declare', // Start in Declaration Phase
+            phase: 'declare', 
             activeCombatantId: null,
             rerollInitiative: true, 
             combatants: []
         });
         
-        if(window.sendChronicleMessage) window.sendChronicleMessage('system', "Combat Started! Stage One: Initiative & Declaration.");
+        if (window.sendChronicleMessage) {
+            window.sendChronicleMessage('system', "Combat Started! Stage One: Initiative & Declaration.");
+        }
         showNotification("Combat Started!");
     } catch (e) {
-        console.error(e);
-        showNotification("Error starting combat.");
+        console.error("Failed to start combat:", e);
+        showNotification("Error starting combat.", "error");
     }
 }
 
+/**
+ * Deletes the active combat document to end the session.
+ */
 export async function endCombat() {
     const stState = window.stState;
-    if (!confirm("End Combat? This clears the tracker.")) return;
+    if (!confirm("End Combat? This clears the tracker for all players.")) return;
     if (!stState || !stState.activeChronicleId) return;
 
     try {
         const docRef = doc(db, 'chronicles', stState.activeChronicleId, 'combat', 'active');
-        // We delete the doc to signal Inactive state
         await deleteDoc(docRef); 
         
-        if(window.sendChronicleMessage) window.sendChronicleMessage('system', "Combat Ended.");
+        if (window.sendChronicleMessage) {
+            window.sendChronicleMessage('system', "Combat Ended.");
+        }
         showNotification("Combat Ended.");
     } catch (e) {
-        console.error(e);
+        console.error("Failed to end combat:", e);
     }
 }
 
+/**
+ * Adds a new character or NPC to the combat list.
+ */
 export async function addCombatant(entity, type = 'NPC') {
     const stState = window.stState;
     if (!stState || !stState.activeChronicleId) return;
     
-    // Check if already exists
+    // Deduplication check
     if (combatState.combatants.some(c => c.id === entity.id)) {
         showNotification(`${entity.name} is already in combat.`);
         return;
@@ -133,11 +154,13 @@ export async function addCombatant(entity, type = 'NPC') {
         init: 0,
         health: type === 'NPC' ? (entity.health || { damage: 0, track: [0,0,0,0,0,0,0] }) : null,
         status: 'pending', // 'pending', 'held', 'defending', 'multiple', 'done'
-        sourceId: type === 'NPC' ? (entity.sourceId || null) : null
+        sourceId: type === 'NPC' ? (entity.sourceId || null) : null,
+        hidden: false // Default to visible to all
     };
 
     try {
         const docRef = doc(db, 'chronicles', stState.activeChronicleId, 'combat', 'active');
+        // Ensure turn exists before updating array
         await setDoc(docRef, { turn: combatState.turn || 1 }, { merge: true }); 
         
         await updateDoc(docRef, {
@@ -145,10 +168,13 @@ export async function addCombatant(entity, type = 'NPC') {
         });
         showNotification(`${entity.name} added.`);
     } catch (e) {
-        console.error(e);
+        console.error("Failed to add combatant:", e);
     }
 }
 
+/**
+ * Removes a specific combatant from the list.
+ */
 export async function removeCombatant(id) {
     const stState = window.stState;
     if (!stState || !stState.activeChronicleId) return;
@@ -162,10 +188,13 @@ export async function removeCombatant(id) {
             combatants: arrayRemove(c)
         });
     } catch (e) {
-        console.error(e);
+        console.error("Failed to remove combatant:", e);
     }
 }
 
+/**
+ * Updates the initiative value for a specific combatant.
+ */
 export async function updateInitiative(id, newVal) {
     const stState = window.stState;
     if (!stState || !stState.activeChronicleId) return;
@@ -176,20 +205,16 @@ export async function updateInitiative(id, newVal) {
     
     list[idx].init = parseInt(newVal) || 0;
     
+    // Sort descending for general state view
     list.sort((a, b) => b.init - a.init);
     await pushUpdate(list);
 }
 
+/**
+ * Updates the tactical status of a combatant (e.g. 'Defending').
+ */
 export async function setCombatantStatus(id, newStatus) {
     const stState = window.stState;
-    // ALLOW PLAYERS TO UPDATE THEIR OWN STATUS:
-    // If we are in player mode, we might not have stState fully populated or accessible
-    // BUT we need the chronicle ID.
-    // Let's assume stState.activeChronicleId is set for Players too (in ui-storyteller.js logic)
-    
-    // NOTE: For player-side updates, we might need a separate function or ensure this one works.
-    // The current implementation relies on `stState` which is populated for players in `ui-storyteller.js` -> `checkStaleSession`.
-    
     if (!stState || !stState.activeChronicleId) return;
 
     const list = [...combatState.combatants];
@@ -200,30 +225,40 @@ export async function setCombatantStatus(id, newStatus) {
     await pushUpdate(list);
 }
 
-// Helper for Player Self-Updates (Init)
-export async function playerUpdateInitiative(id, newVal, chronicleId) {
-    // Direct Firestore update for players (since they might not be ST)
-    // This requires fetching the array, modifying, and writing back.
-    // Race conditions are possible but rare in this turn-based flow.
-    try {
-        const docRef = doc(db, 'chronicles', chronicleId, 'combat', 'active');
-        
-        // Transaction or optimistic update is better, but simple read-write for now
-        // We can't use arrayUnion/Remove easily for field updates inside objects in arrays.
-        // We have to read the doc.
-        
-        // This relies on the UI calling this function specifically for players.
-        // Re-using pushUpdate logic but potentially bypassing ST check if needed.
-        
-        // However, the main `pushUpdate` checks stState.activeChronicleId.
-        // As a Player, `stState.activeChronicleId` IS set.
-        
-        // So we can reuse `updateInitiative` if `stState` is valid.
-        await updateInitiative(id, newVal);
-        
-    } catch(e) { console.error(e); }
+/**
+ * Toggles visibility of a combatant for players.
+ * @param {string} id - Combatant ID.
+ * @param {boolean|string[]} hiddenValue - true (all), false (none), or array of player UIDs to hide from.
+ */
+export async function setCombatantHidden(id, hiddenValue) {
+    const stState = window.stState;
+    if (!stState || !stState.activeChronicleId) return;
+
+    const list = [...combatState.combatants];
+    const idx = list.findIndex(c => c.id === id);
+    if (idx === -1) return;
+    
+    list[idx].hidden = hiddenValue;
+    await pushUpdate(list);
+    
+    const label = hiddenValue === true ? "Hidden from all" : (Array.isArray(hiddenValue) ? `Hidden from ${hiddenValue.length} players` : "Visible to all");
+    showNotification(`${list[idx].name}: ${label}`);
 }
 
+/**
+ * Allows players to update their own initiative values manually if enabled by phase.
+ */
+export async function playerUpdateInitiative(id, newVal, chronicleId) {
+    try {
+        await updateInitiative(id, newVal);
+    } catch(e) { 
+        console.error("Player Init Update Failed:", e); 
+    }
+}
+
+/**
+ * Toggles whether initiative resets at the end of every turn.
+ */
 export async function toggleRerollInit() {
     const stState = window.stState;
     if (!stState || !stState.activeChronicleId) return;
@@ -235,11 +270,17 @@ export async function toggleRerollInit() {
         });
         showNotification(`Reroll Initiative: ${newVal ? 'ON' : 'OFF'}`);
     } catch (e) {
-        console.error(e);
+        console.error("Toggle Reroll Failed:", e);
     }
 }
 
 // --- V20 DYNAMIC TURN PROGRESSION ---
+
+/**
+ * Moves the combat encounter forward following V20 turn order.
+ * Phase 1: Declare (Lowest to Highest)
+ * Phase 2: Action (Highest to Lowest)
+ */
 export async function nextTurn() {
     const stState = window.stState;
     if (!stState || !stState.activeChronicleId) return;
@@ -248,15 +289,13 @@ export async function nextTurn() {
 
     let { turn, phase, activeCombatantId, combatants } = combatState;
     
-    // Sort descending (Highest to Lowest) - Standard Action Phase Order
-    const sortedDesc = [...combatants].sort((a, b) => b.init - a.init);
-    // Sort ascending (Lowest to Highest) - V20 Declaration Phase Order
+    // V20 Declaration Order: Lowest Initiative to Highest
     const sortedAsc = [...combatants].sort((a, b) => a.init - b.init);
+    // V20 Action Order: Highest Initiative to Lowest
+    const sortedDesc = [...combatants].sort((a, b) => b.init - a.init);
 
-    // Determine which list we are iterating through
     const activeList = phase === 'declare' ? sortedAsc : sortedDesc;
 
-    // Find current index
     let currentIdx = -1;
     if (activeCombatantId) {
         currentIdx = activeList.findIndex(c => c.id === activeCombatantId);
@@ -267,42 +306,43 @@ export async function nextTurn() {
     let nextPhase = phase;
     let updatedCombatants = [...combatants];
 
-    // Check if we hit the end of the list for the current phase
     if (nextIdx >= activeList.length) {
         if (phase === 'declare') {
-            // End of declarations -> Move to Actions
+            // TRANSITION TO ACTION PHASE
             nextPhase = 'action';
-            activeCombatantId = sortedDesc[0].id; // Give it to fastest character
+            activeCombatantId = sortedDesc[0].id; // Give it to the fastest
             showNotification("Action Phase! Resolving Highest to Lowest.");
-            if(window.sendChronicleMessage) window.sendChronicleMessage('system', `Round ${nextRound}: Action Phase Started`);
+            if (window.sendChronicleMessage) {
+                window.sendChronicleMessage('system', `Round ${nextRound}: Action Phase Started`);
+            }
         } else {
-            // End of actions -> Move to Next Round Declarations
+            // TRANSITION TO NEW ROUND
             nextRound++;
             nextPhase = 'declare';
             
-            // Clean up statuses and potentially reset initiatives
+            // Clean up statuses and reset initiatives if 'Reroll' is enabled
             updatedCombatants = updatedCombatants.map(c => {
                 let newInit = c.init;
                 if (combatState.rerollInitiative) {
-                    newInit = 0; // Wipe initiative if reroll is required
+                    newInit = 0; 
                 }
                 return { ...c, status: 'pending', init: newInit };
             });
 
             if (combatState.rerollInitiative) {
-                // If rerolling, drop active target so everyone can roll before we proceed
-                activeCombatantId = null;
+                activeCombatantId = null; // Wait for everyone to roll
                 showNotification(`Round ${nextRound}: Roll Initiatives!`);
-                if(window.sendChronicleMessage) window.sendChronicleMessage('system', `Round ${nextRound}: Roll Initiatives!`);
+                if (window.sendChronicleMessage) {
+                    window.sendChronicleMessage('system', `Round ${nextRound}: Roll Initiatives!`);
+                }
             } else {
-                // If static init, keep sorting and highlight slowest person
                 updatedCombatants.sort((a, b) => a.init - b.init);
                 activeCombatantId = updatedCombatants.length > 0 ? updatedCombatants[0].id : null;
                 showNotification(`Round ${nextRound} Declaration Phase Started`);
-                if(window.sendChronicleMessage) window.sendChronicleMessage('system', `Round ${nextRound}: Declaration Phase Started`);
             }
         }
     } else {
+        // CONTINUE THROUGH LIST
         activeCombatantId = activeList[nextIdx].id;
         const actor = activeList[nextIdx];
         const phaseName = nextPhase === 'declare' ? 'Declaring' : 'Acting';
@@ -316,15 +356,21 @@ export async function nextTurn() {
             phase: nextPhase, 
             activeCombatantId: activeCombatantId 
         };
-        // If we cleaned up statuses or initiatives due to round change, push the updated list
+        // Only push combatants array if we actually modified it (round change)
         if (nextIdx >= activeList.length && phase === 'action') {
             updates.combatants = updatedCombatants;
         }
         await updateDoc(docRef, updates);
-    } catch (e) { console.error(e); }
+    } catch (e) { 
+        console.error("Turn update failed:", e); 
+    }
 }
 
 // --- NPC AUTO-ROLLER ---
+
+/**
+ * Batch rolls initiative for all NPCs currently at 0 initiative.
+ */
 export async function rollAllNPCInitiatives() {
     const stState = window.stState;
     if (!stState || !stState.activeChronicleId) return;
@@ -334,9 +380,7 @@ export async function rollAllNPCInitiatives() {
     let systemLog = [];
 
     updatedList.forEach(c => {
-        // Only roll if they are an NPC and haven't rolled yet (init is 0)
         if (c.type === 'NPC' && (!c.init || c.init === 0)) {
-            // 1. DETERMINE STATS
             let dex = 2, wits = 2, celerity = 0; 
             let data = null;
             
@@ -354,17 +398,13 @@ export async function rollAllNPCInitiatives() {
                 celerity = data.disciplines?.Celerity || 0;
             }
 
-            // 2. WOUND PENALTY
             let woundPen = 0;
             if (c.health) {
-                let dmgCount = 0;
-                if (c.health.track && Array.isArray(c.health.track)) {
-                    dmgCount = c.health.track.filter(x => x > 0).length;
-                } else if (c.health.damage) {
-                    dmgCount = c.health.damage;
-                }
+                let dmgCount = (c.health.track && Array.isArray(c.health.track)) 
+                    ? c.health.track.filter(x => x > 0).length 
+                    : (c.health.damage || 0);
                 
-                if (dmgCount >= 7) woundPen = 99; // Incapacitated
+                if (dmgCount >= 7) woundPen = 99; 
                 else if (dmgCount === 6) woundPen = 5;
                 else if (dmgCount >= 4) woundPen = 2;
                 else if (dmgCount >= 2) woundPen = 1;
@@ -391,8 +431,7 @@ export async function rollAllNPCInitiatives() {
         updatedList.sort((a, b) => b.init - a.init);
         await pushUpdate(updatedList);
         showNotification("NPC Initiatives Rolled.");
-        if(window.sendChronicleMessage && systemLog.length > 0) {
-            // Consolidate mass roll into one clean system message
+        if (window.sendChronicleMessage && systemLog.length > 0) {
             window.sendChronicleMessage('system', `<div class="text-left font-sans mt-1"><div class="text-white text-[10px] font-bold mb-1 uppercase tracking-wider">Mass NPC Initiative</div>${systemLog.join('')}</div>`);
         }
     } else {
@@ -400,24 +439,22 @@ export async function rollAllNPCInitiatives() {
     }
 }
 
+/**
+ * Rolls initiative for a single NPC by ID.
+ */
 export async function rollNPCInitiative(id) {
     const stState = window.stState;
     const c = combatState.combatants.find(x => x.id === id);
     if (!c) return;
     
-    // 1. DETERMINE STATS
     let dex = 2, wits = 2, celerity = 0; 
-
-    // Lookup Logic
     let data = null;
+    
     if (c.sourceId && stState.bestiary && stState.bestiary[c.sourceId]) {
         data = stState.bestiary[c.sourceId].data;
     } else {
         for (const cat in BESTIARY) {
-            if (BESTIARY[cat][c.name]) {
-                data = BESTIARY[cat][c.name];
-                break;
-            }
+            if (BESTIARY[cat][c.name]) { data = BESTIARY[cat][c.name]; break; }
         }
     }
 
@@ -427,17 +464,13 @@ export async function rollNPCInitiative(id) {
         celerity = data.disciplines?.Celerity || 0;
     }
 
-    // 2. WOUND PENALTY
     let woundPen = 0;
     if (c.health) {
-        let dmgCount = 0;
-        if (c.health.track && Array.isArray(c.health.track)) {
-            dmgCount = c.health.track.filter(x => x > 0).length;
-        } else if (c.health.damage) {
-            dmgCount = c.health.damage;
-        }
+        let dmgCount = (c.health.track && Array.isArray(c.health.track)) 
+            ? c.health.track.filter(x => x > 0).length 
+            : (c.health.damage || 0);
         
-        if (dmgCount >= 7) woundPen = 99; // Incapacitated
+        if (dmgCount >= 7) woundPen = 99;
         else if (dmgCount === 6) woundPen = 5;
         else if (dmgCount >= 4) woundPen = 2;
         else if (dmgCount >= 2) woundPen = 1;
@@ -448,7 +481,6 @@ export async function rollNPCInitiative(id) {
         return;
     }
 
-    // 3. ROLL LOGIC
     const rating = Math.max(0, dex + wits + celerity - woundPen);
     const roll = Math.floor(Math.random() * 10) + 1; 
     const total = rating + roll;
@@ -462,22 +494,28 @@ export async function rollNPCInitiative(id) {
     await updateInitiative(id, total);
     showNotification(`${c.name} rolled ${total}`);
     
-    if(window.sendChronicleMessage) {
+    if (window.sendChronicleMessage) {
         window.sendChronicleMessage('roll', msgContent, { pool: "Initiative", diff: 0, successes: total, dice: 1, results: [roll] });
     }
 }
 
-// --- HELPER ---
+// --- PERSISTENCE HELPER ---
+
+/**
+ * Pushes local combat list modifications to Firestore.
+ */
 async function pushUpdate(newList) {
     const stState = window.stState;
     if (!stState || !stState.activeChronicleId) return;
     try {
         const docRef = doc(db, 'chronicles', stState.activeChronicleId, 'combat', 'active');
         await updateDoc(docRef, { combatants: newList });
-    } catch (e) { console.error(e); }
+    } catch (e) { 
+        console.error("Firestore update failed:", e); 
+    }
 }
 
-// Window bindings
+// Global API Bindings
 window.combatTracker = {
     start: startCombat,
     end: endCombat,
@@ -486,7 +524,8 @@ window.combatTracker = {
     updateInit: updateInitiative,
     nextTurn: nextTurn,
     setStatus: setCombatantStatus,
+    setHidden: setCombatantHidden,
     rollAllNPCs: rollAllNPCInitiatives,
     toggleReroll: toggleRerollInit,
-    playerUpdateInit: playerUpdateInitiative // Added for Player Manual Entry
+    playerUpdateInit: playerUpdateInitiative
 };
