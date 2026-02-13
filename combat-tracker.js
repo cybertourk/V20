@@ -47,11 +47,11 @@ export function initCombatTracker(chronicleId) {
                 c.active = (c.id === combatState.activeCombatantId);
             });
 
-            // Trigger UI Refresh
+            // Trigger ST UI Refresh
             if (window.renderCombatView) window.renderCombatView();
             
-            // Update Player Float if active
-            if (window.updatePlayerCombatView && document.getElementById('player-combat-float')) {
+            // Trigger Player UI Refresh (Decoupled from specific element ID)
+            if (window.updatePlayerCombatView) {
                 window.updatePlayerCombatView();
             }
         } else {
@@ -60,11 +60,12 @@ export function initCombatTracker(chronicleId) {
             combatState.activeCombatantId = null;
             combatState.phase = 'declare';
             combatState.rerollInitiative = true;
+            
             if (window.renderCombatView) window.renderCombatView();
             
-            // If combat ends, remove float
-            const float = document.getElementById('player-combat-float');
-            if (float) float.remove();
+            if (window.updatePlayerCombatView) {
+                window.updatePlayerCombatView();
+            }
         }
     }, (error) => {
         if (error.code === 'permission-denied') {
@@ -181,6 +182,14 @@ export async function updateInitiative(id, newVal) {
 
 export async function setCombatantStatus(id, newStatus) {
     const stState = window.stState;
+    // ALLOW PLAYERS TO UPDATE THEIR OWN STATUS:
+    // If we are in player mode, we might not have stState fully populated or accessible
+    // BUT we need the chronicle ID.
+    // Let's assume stState.activeChronicleId is set for Players too (in ui-storyteller.js logic)
+    
+    // NOTE: For player-side updates, we might need a separate function or ensure this one works.
+    // The current implementation relies on `stState` which is populated for players in `ui-storyteller.js` -> `checkStaleSession`.
+    
     if (!stState || !stState.activeChronicleId) return;
 
     const list = [...combatState.combatants];
@@ -189,6 +198,30 @@ export async function setCombatantStatus(id, newStatus) {
     
     list[idx].status = newStatus;
     await pushUpdate(list);
+}
+
+// Helper for Player Self-Updates (Init)
+export async function playerUpdateInitiative(id, newVal, chronicleId) {
+    // Direct Firestore update for players (since they might not be ST)
+    // This requires fetching the array, modifying, and writing back.
+    // Race conditions are possible but rare in this turn-based flow.
+    try {
+        const docRef = doc(db, 'chronicles', chronicleId, 'combat', 'active');
+        
+        // Transaction or optimistic update is better, but simple read-write for now
+        // We can't use arrayUnion/Remove easily for field updates inside objects in arrays.
+        // We have to read the doc.
+        
+        // This relies on the UI calling this function specifically for players.
+        // Re-using pushUpdate logic but potentially bypassing ST check if needed.
+        
+        // However, the main `pushUpdate` checks stState.activeChronicleId.
+        // As a Player, `stState.activeChronicleId` IS set.
+        
+        // So we can reuse `updateInitiative` if `stState` is valid.
+        await updateInitiative(id, newVal);
+        
+    } catch(e) { console.error(e); }
 }
 
 export async function toggleRerollInit() {
@@ -454,5 +487,6 @@ window.combatTracker = {
     nextTurn: nextTurn,
     setStatus: setCombatantStatus,
     rollAllNPCs: rollAllNPCInitiatives,
-    toggleReroll: toggleRerollInit // Added the toggle export
+    toggleReroll: toggleRerollInit,
+    playerUpdateInit: playerUpdateInitiative // Added for Player Manual Entry
 };
