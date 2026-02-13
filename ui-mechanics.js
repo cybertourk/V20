@@ -316,6 +316,7 @@ window.removeDerangement = function(idx) {
 window.suppressDerangement = function() {
     if ((window.state.status.tempWillpower || 0) > 0) {
         window.state.status.tempWillpower--;
+        // Use Global updatePools from ui-renderer
         if(window.updatePools) window.updatePools(); 
         if(renderPrintSheet) renderPrintSheet();
         showNotification("Spent 1 WP: Derangements suppressed for 1 Scene.");
@@ -482,23 +483,12 @@ export function rollPool() {
     const isInit = window.state.activePool.some(p => p.name.startsWith("Init_") || p.name.includes("Initiative"));
     
     if (isInit) {
-        let dex = 0, wits = 0, celerity = 0, wounds = 0, legacyMod = 0, armorPenalty = 0;
+        let dex = 0, wits = 0, celerity = 0, wounds = 0, legacyMod = 0;
         let isLegacy = false;
         let isNPC = false;
         let npcNameStr = "NPC";
         let npcIdStr = null;
 
-        // Check for Armor Penalty
-        if (window.state.inventory) {
-             const wornArmor = window.state.inventory.filter(i => i.type === 'Armor' && i.status === 'carried');
-             wornArmor.forEach(a => {
-                 if (a.stats && a.stats.penalty) armorPenalty += parseInt(a.stats.penalty);
-             });
-        }
-        
-        // If NPC mode, we need to extract penalty from NPC sheet data if available, but here we assume standard PC context or manual param injection.
-        // For NPC Initiative rolled via npc-sheet-play.js, penalties are pre-calculated in the passed value or params.
-        
         window.state.activePool.forEach(p => {
             if (p.name === 'Init_Dex') dex = p.val;
             else if (p.name === 'Init_Wits') wits = p.val;
@@ -511,6 +501,7 @@ export function rollPool() {
             }
             else if (p.name.includes('Initiative')) { 
                 isLegacy = true; 
+                // Try to extract dynamic modifier like "Initiative (+5)" from NPC sheets
                 const match = p.name.match(/\(\+?(-?\d+)\)/);
                 if (match) {
                     legacyMod = parseInt(match[1]);
@@ -520,6 +511,7 @@ export function rollPool() {
             }
         });
 
+        // Use custom dice input for any ad-hoc modifiers
         const custom = parseInt(document.getElementById('custom-dice-input')?.value) || 0;
 
         let mod = 0;
@@ -533,25 +525,13 @@ export function rollPool() {
             `;
             chatBreakdown = `Rating(${legacyMod})`;
         } else {
-            // Apply armor penalty to DEX
-            const effectiveDex = Math.max(0, dex - armorPenalty);
-            
-            mod = effectiveDex + wits + celerity - wounds + custom;
+            mod = dex + wits + celerity - wounds + custom;
             breakdownHTML = `
                 <span class="text-[#d4af37] font-bold" title="Dexterity">Dex (${dex})</span>
-            `;
-            chatBreakdown = `Dex(${dex})`;
-
-            if (armorPenalty > 0) {
-                 breakdownHTML += `<span class="text-red-500 font-bold" title="Armor Penalty">-${armorPenalty}</span>`;
-                 chatBreakdown += `-${armorPenalty}(Armor)`;
-            }
-
-            breakdownHTML += `
                 <span class="text-gray-500 font-black">+</span>
                 <span class="text-[#d4af37] font-bold" title="Wits">Wits (${wits})</span>
             `;
-            chatBreakdown += ` + Wits(${wits})`;
+            chatBreakdown = `Dex(${dex}) + Wits(${wits})`;
 
             if (celerity > 0) {
                 breakdownHTML += `
@@ -581,6 +561,7 @@ export function rollPool() {
         const die = Math.floor(Math.random() * 10) + 1;
         const total = die + mod;
 
+        // Render Result immediately
         const tray = document.getElementById('roll-results');
         const row = document.createElement('div');
         row.className = 'bg-black/60 p-2 border border-[#333] text-[10px] mb-2 animate-in fade-in slide-in-from-right-4 duration-300';
@@ -604,6 +585,7 @@ export function rollPool() {
         
         tray.insertBefore(row, tray.firstChild);
 
+        // --- HOOK: SEND TO CHRONICLE IF CONNECTED ---
         if (window.stState && window.stState.activeChronicleId) {
             let msgContent = `Initiative Roll: <span class="text-[#4ade80] font-bold">${total}</span> <span class="opacity-50 text-[10px]">(1d10[${die}] + ${chatBreakdown})</span>`;
             
@@ -625,6 +607,7 @@ export function rollPool() {
                 });
             }
 
+            // --- AUTO-UPDATE COMBAT TRACKER ---
             if (window.combatTracker && window.combatTracker.updateInit) {
                 let targetId = null;
                 
@@ -646,7 +629,7 @@ export function rollPool() {
             }
         }
 
-        return; 
+        return; // EXIT FUNCTION: Skip standard success counting
     }
 
     // --- STANDARD DICE POOL LOGIC ---
@@ -657,6 +640,7 @@ export function rollPool() {
         if ((window.state.status.tempWillpower || 0) > 0) {
              window.state.status.tempWillpower--;
              autoSuccesses = 1;
+             // Use Global updatePools from ui-renderer
              if(window.updatePools) window.updatePools(); 
              window.showNotification("Willpower spent: +1 Auto Success");
              document.getElementById('spend-willpower').checked = false; 
@@ -752,6 +736,7 @@ export function rollPool() {
     row.innerHTML = `<div class="flex justify-between border-b border-[#444] pb-1 mb-1"><span class="text-gray-400">Diff ${diff}${isSpec ? '*' : ''}</span><span class="${outcomeClass} font-black text-sm">${outcome}</span></div><div class="tracking-widest flex flex-wrap justify-center py-2">${diceRender}</div>${extras}`;
     tray.insertBefore(row, tray.firstChild);
 
+    // --- HOOK: SEND TO CHRONICLE IF CONNECTED ---
     if (window.sendChronicleMessage && window.stState && window.stState.activeChronicleId) {
         const poolNames = window.state.activePool.map(i=>i.name).join('+');
         const rawRolls = results.map(r => r).join(', ');
@@ -822,18 +807,17 @@ export function rollInitiative(rating) {
     const expectedBaseRating = dex + wits; // Play mode passes base rating often
 
     // Detect if this is an NPC roll
-    const npcModal = document.getElementById('npc-play-modal');
+    // 1. Is there an active NPC modal?
+    const npcModal = document.getElementById('npc-modal');
     const isNpcModalOpen = npcModal && (npcModal.classList.contains('active') || npcModal.style.display === 'flex' || npcModal.style.display === 'block');
     
+    // 2. Is the rating passed significantly different from the PC's?
     const ratingMismatch = rating !== undefined && parseInt(rating) !== expectedPcRating && parseInt(rating) !== expectedBaseRating;
 
     if (isNpcModalOpen || ratingMismatch) {
         // --- NPC ROLL (Fallback to generic rating) ---
         const safeRating = parseInt(rating) || 0;
         window.state.activePool.push({name: "Initiative", val: safeRating});
-        
-        const npcName = document.getElementById('npc-name')?.value || "NPC";
-        window.state.activePool.push({name: "Init_NPC", val: 0, npcName: npcName});
         
         const display = document.getElementById('pool-display');
         if (display) {
@@ -874,18 +858,23 @@ export function rollDiscipline(powerName, poolKeys, defaultDiff) {
     let displayParts = [];
     
     poolKeys.forEach(key => {
+        // Search Attributes
         let val = window.state.dots.attr[key];
         
+        // Search Abilities
         if (val === undefined) val = window.state.dots.abil[key];
+        
+        // Search Virtues
         if (val === undefined) val = window.state.dots.virt[key];
         
+        // Fallback or specific lookups (Self-Control vs Instincts, etc.)
         if (key === 'Self-Control/Instinct') {
             const hasInstinct = window.state.dots.virt['Instincts'] > 0;
             key = hasInstinct ? 'Instincts' : 'Self-Control';
             val = window.state.dots.virt[key] || 1;
         }
         
-        if (val === undefined) val = 0; 
+        if (val === undefined) val = 0; // Default if not found
         
         window.state.activePool.push({name: key, val: val});
         displayParts.push(`${key} (${val})`);
