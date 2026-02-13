@@ -483,7 +483,7 @@ export function rollPool() {
     const isInit = window.state.activePool.some(p => p.name.startsWith("Init_") || p.name.includes("Initiative"));
     
     if (isInit) {
-        let dex = 0, wits = 0, celerity = 0, wounds = 0, legacyMod = 0;
+        let dex = 0, wits = 0, celerity = 0, wounds = 0, legacyMod = 0, armorPen = 0;
         let isLegacy = false;
         let isNPC = false;
         let npcNameStr = "NPC";
@@ -494,6 +494,7 @@ export function rollPool() {
             else if (p.name === 'Init_Wits') wits = p.val;
             else if (p.name === 'Init_Celerity') celerity = p.val;
             else if (p.name === 'Init_Wounds') wounds = Math.abs(p.val);
+            else if (p.name === 'Init_Armor') armorPen = Math.abs(p.val);
             else if (p.name === 'Init_NPC') {
                 isNPC = true;
                 npcNameStr = p.npcName || "NPC";
@@ -525,7 +526,7 @@ export function rollPool() {
             `;
             chatBreakdown = `Rating(${legacyMod})`;
         } else {
-            mod = dex + wits + celerity - wounds + custom;
+            mod = dex + wits + celerity - wounds - armorPen + custom;
             breakdownHTML = `
                 <span class="text-[#d4af37] font-bold" title="Dexterity">Dex (${dex})</span>
                 <span class="text-gray-500 font-black">+</span>
@@ -539,6 +540,13 @@ export function rollPool() {
                     <span class="text-[#d4af37] font-bold" title="Celerity">Cel (${celerity})</span>
                 `;
                 chatBreakdown += ` + Cel(${celerity})`;
+            }
+            if (armorPen > 0) {
+                breakdownHTML += `
+                    <span class="text-gray-500 font-black">-</span>
+                    <span class="text-gray-400 font-bold" title="Armor Penalty">Armor (${armorPen})</span>
+                `;
+                chatBreakdown += ` - Armor(${armorPen})`;
             }
             if (wounds > 0) {
                 breakdownHTML += `
@@ -795,6 +803,16 @@ export function rollInitiative(rating) {
     const wits = window.state.dots.attr['Wits'] || 1;
     const celerity = window.state.dots.disc['Celerity'] || 0;
     
+    // Calculate Armor Penalty
+    let armorPenalty = 0;
+    if (window.state.inventory && Array.isArray(window.state.inventory)) {
+        window.state.inventory.forEach(item => {
+            if (item.type === 'Armor' && item.status === 'carried') {
+                armorPenalty += parseInt(item.stats?.penalty || 0);
+            }
+        });
+    }
+
     let wounds = 0;
     const healthStates = window.state.status.health_states || [];
     const dmgCount = healthStates.filter(x => x > 0).length;
@@ -803,8 +821,11 @@ export function rollInitiative(rating) {
     else if (dmgCount >= 4) wounds = 2;
     else if (dmgCount >= 2) wounds = 1;
 
-    const expectedPcRating = Math.max(0, dex + wits + celerity - wounds);
-    const expectedBaseRating = dex + wits; // Play mode passes base rating often
+    // V20 Core p. 265: "Armor penalties are subtracted from the character's Dexterity"
+    // Effectively reduces base rating
+    const effectiveDex = Math.max(0, dex - armorPenalty);
+    const expectedPcRating = Math.max(0, effectiveDex + wits + celerity - wounds);
+    const expectedBaseRating = dex + wits; 
 
     // Detect if this is an NPC roll
     // 1. Is there an active NPC modal?
@@ -812,6 +833,7 @@ export function rollInitiative(rating) {
     const isNpcModalOpen = npcModal && (npcModal.classList.contains('active') || npcModal.style.display === 'flex' || npcModal.style.display === 'block');
     
     // 2. Is the rating passed significantly different from the PC's?
+    // Note: The UI might pass just Dex+Wits without modifications. 
     const ratingMismatch = rating !== undefined && parseInt(rating) !== expectedPcRating && parseInt(rating) !== expectedBaseRating;
 
     if (isNpcModalOpen || ratingMismatch) {
@@ -834,12 +856,14 @@ export function rollInitiative(rating) {
         window.state.activePool.push({name: "Init_Dex", val: dex});
         window.state.activePool.push({name: "Init_Wits", val: wits});
         if (celerity > 0) window.state.activePool.push({name: "Init_Celerity", val: celerity});
+        if (armorPenalty > 0) window.state.activePool.push({name: "Init_Armor", val: -armorPenalty});
         if (wounds > 0) window.state.activePool.push({name: "Init_Wounds", val: -wounds});
         
         const display = document.getElementById('pool-display');
         if (display) {
             let text = `Initiative: Dex (${dex}) + Wits (${wits})`;
             if (celerity > 0) text += ` + Cel (${celerity})`;
+            if (armorPenalty > 0) text += ` - Armor (${armorPenalty})`;
             if (wounds > 0) text += ` - Wounds (${wounds})`;
             setSafeText('pool-display', text);
             display.classList.add('text-yellow-500');
