@@ -79,7 +79,7 @@ export function initStorytellerSystem() {
     window.stRollInit = rollNPCInitiative;
     window.stAddToCombat = handleAddToCombat;
     window.renderCombatView = renderCombatView;
-    window.stViewCombatantSheet = stViewCombatantSheet; // Added for clickable names
+    window.stViewCombatantSheet = stViewCombatantSheet; 
 
     // Journal Bindings
     window.stPushHandout = pushHandoutToPlayers;
@@ -1169,10 +1169,12 @@ export function stViewCombatantSheet(id, type, sourceId, name) {
         let npcData = null;
         if (sourceId && stState.bestiary && stState.bestiary[sourceId]) {
             npcData = stState.bestiary[sourceId].data;
+            if(npcData) npcData.id = id; 
         } else {
             for (const cat in BESTIARY) {
                 if (BESTIARY[cat][name]) {
-                    npcData = BESTIARY[cat][name];
+                    npcData = JSON.parse(JSON.stringify(BESTIARY[cat][name])); 
+                    npcData.id = id;
                     break;
                 }
             }
@@ -1219,7 +1221,6 @@ function renderRosterView() {
         const statusColor = isOnline ? 'bg-green-500 shadow-[0_0_5px_lime]' : 'bg-red-500 opacity-50';
         const statusTitle = isOnline ? 'Online' : `Offline (Last seen: ${lastActive.toLocaleTimeString()})`;
         
-        // Check if full sheet data is available
         const hasSheet = !!p.full_sheet;
         const sheetBtnClass = hasSheet 
             ? "text-blue-400 hover:text-white border-blue-900/30 hover:bg-blue-900" 
@@ -1491,8 +1492,8 @@ function renderNpcCard(entry, id, isCustom, container, clearFirst = false) {
     
     // Attach click listener to the entire card, but ensure propagation is handled in inner buttons
     card.onclick = (e) => { 
-        // If clicking buttons inside, don't trigger
         if (e.target.closest('button')) return;
+        if (id && npc && typeof npc === 'object') npc.id = id;
         if(window.openNpcSheet) window.openNpcSheet(npc); 
     };
     
