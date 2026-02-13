@@ -25,6 +25,9 @@ export function startChatListener(chronicleId) {
 
     if (stState.chatUnsub) stState.chatUnsub();
     
+    // Flag to prevent notifying for the initial 100 history items
+    let isInitialLoad = true;
+
     // Query messages (Limit to 100 recent)
     const q = query(
         collection(db, 'chronicles', chronicleId, 'messages'), 
@@ -34,11 +37,61 @@ export function startChatListener(chronicleId) {
 
     stState.chatUnsub = onSnapshot(q, (snapshot) => {
         const messages = [];
+        const uid = auth.currentUser?.uid;
+
         snapshot.forEach(doc => messages.push({ id: doc.id, ...doc.data() }));
         messages.reverse(); // Show oldest first (top to bottom)
         
         // Cache for export
         stState.chatHistory = messages;
+        
+        // --- REAL-TIME NOTIFICATIONS ---
+        if (!isInitialLoad) {
+            snapshot.docChanges().forEach(change => {
+                if (change.type === "added") {
+                    const msg = change.doc.data();
+                    const isSelf = msg.senderId === uid;
+
+                    // Don't notify for our own messages
+                    if (isSelf) return;
+
+                    // Visibility logic for Notifications (Mirroring render logic)
+                    let canSee = true;
+                    if (msg.isWhisper) {
+                        const recipients = msg.recipients || [];
+                        if (msg.recipientId) recipients.push(msg.recipientId);
+                        const isRecipient = recipients.includes(uid);
+                        if (!isRecipient) canSee = false;
+                    }
+
+                    if (canSee) {
+                        let notifyType = 'chat';
+                        let header = msg.sender;
+                        let content = msg.content;
+
+                        if (msg.type === 'roll') {
+                            notifyType = 'roll';
+                            header = `${msg.sender} Rolled`;
+                        } else if (msg.type === 'event') {
+                            notifyType = 'event';
+                            header = 'Chronicle Event';
+                        } else if (msg.type === 'system') {
+                            notifyType = 'system';
+                            header = 'System Message';
+                        } else if (msg.isWhisper) {
+                            notifyType = 'whisper';
+                            header = `Whisper from ${msg.sender}`;
+                        }
+
+                        // Clean HTML from content for notification
+                        const cleanContent = content.replace(/<[^>]*>/g, '');
+                        showNotification(cleanContent, notifyType, header);
+                    }
+                }
+            });
+        }
+        
+        isInitialLoad = false;
         
         // Trigger UI Updates
         refreshChatUI();
