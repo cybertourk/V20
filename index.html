@@ -40,7 +40,6 @@
             z-index: 100006; /* Above the highlight */
             display: none;
             pointer-events: none; /* Pass clicks through (except for the box) */
-            /* NO background color or blur here, rely on the spotlight shadow */
         }
 
         #tutorial-overlay.active {
@@ -82,7 +81,7 @@
         <p class="text-[11px] text-gray-400 tracking-[0.4em] mt-6 uppercase font-bold">Initializing Character Sheet...</p>
     </div>
 
-    <!-- Notification system mounting point -->
+    <!-- Notification system mounting point (Styled to Left in CSS) -->
     <div id="toast-container"></div>
     <div id="notification"></div>
     
@@ -174,7 +173,7 @@
 
                 <div class="h-8 w-px bg-[#333]"></div>
 
-                <!-- UTILS (ADDED ID HERE) -->
+                <!-- UTILS -->
                 <div id="utils-group" class="flex gap-2 text-gray-500">
                     <button type="button" id="export-btn" class="hover:text-white w-8 h-8 rounded hover:bg-[#222] transition" title="Export JSON"><i class="fas fa-file-export"></i></button>
                     <button type="button" id="import-trigger" class="hover:text-white w-8 h-8 rounded hover:bg-[#222] transition" title="Import JSON"><i class="fas fa-file-import"></i></button>
@@ -291,6 +290,7 @@
 
         <div class="p-6 md:p-12">
             <!-- Edit Mode Phases -->
+            <!-- PHASE 1 -->
             <div id="phase-1" class="step-container active">
                 <div class="sheet-section !mt-0">
                     <div class="section-title">Character Concept</div>
@@ -318,6 +318,7 @@
                 </div>
             </div>
 
+            <!-- PHASE 2 -->
             <div id="phase-2" class="step-container">
                 <div class="sheet-section !mt-0">
                     <div class="section-title">Step Two: Attributes</div>
@@ -329,6 +330,7 @@
                 </div>
             </div>
 
+            <!-- PHASE 3 -->
             <div id="phase-3" class="step-container">
                 <div class="sheet-section !mt-0">
                     <div class="section-title">Step Three: Abilities</div>
@@ -340,6 +342,7 @@
                 </div>
             </div>
 
+            <!-- PHASE 4 -->
             <div id="phase-4" class="step-container">
                 <div class="sheet-section !mt-0">
                     <div class="section-title">Step Four: Advantages</div>
@@ -351,7 +354,7 @@
                 </div>
             </div>
 
-            <!-- PHASE 5: SUPERNATURAL & MERITS -->
+            <!-- PHASE 5 -->
             <div id="phase-5" class="step-container space-y-10">
                 <div class="flex flex-col gap-10">
                     <div class="sheet-section !mt-0">
@@ -397,7 +400,7 @@
                 </div>
             </div>
 
-            <!-- PHASE 6: GEAR, ASSETS & COMBAT -->
+            <!-- PHASE 6 -->
             <div id="phase-6" class="step-container space-y-10">
                 <div class="flex flex-col gap-10">
                     <div class="sheet-section !mt-0">
@@ -412,19 +415,16 @@
                                     <option value="Armor">Armor</option>
                                     <option value="Vehicle">Vehicle</option>
                                 </select>
-                                
                                 <div id="inv-base-wrapper" class="hidden">
-                                    <label class="label-text">2. Choose Base Template (Auto-fills Stats)</label>
+                                    <label class="label-text">2. Choose Base Template</label>
                                     <select id="inv-base-select" class="w-full text-[11px] bg-[#111] border border-[#444] text-white p-2"></select>
                                 </div>
-
                                 <div>
-                                    <label class="label-text">3. Specific Description / Name (Optional)</label>
-                                    <input type="text" id="inv-name" placeholder="e.g. 'Ceremonial Dagger' or 'Grandpa's Revolver'" class="w-full text-[11px] bg-transparent border-b border-[#444] text-white p-2">
+                                    <label class="label-text">3. Specific Description / Name</label>
+                                    <input type="text" id="inv-name" placeholder="Item Name..." class="w-full text-[11px] bg-transparent border-b border-[#444] text-white p-2">
                                 </div>
                             </div>
                             
-                            <!-- Stat Inputs -->
                             <div id="inv-stats-row" class="hidden grid grid-cols-5 gap-2">
                                 <input type="text" id="inv-diff" placeholder="Diff" class="text-center text-[9px] bg-transparent border-b border-[#444] text-white">
                                 <input type="text" id="inv-dmg" placeholder="Dmg" class="text-center text-[9px] bg-transparent border-b border-[#444] text-white">
@@ -454,25 +454,8 @@
                         </div>
 
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                            <div>
-                                <h3 class="column-title">Gear (Carried)</h3>
-                                <div id="inv-list-carried" class="space-y-2 min-h-[50px]"></div>
-                            </div>
-                            <div>
-                                <h3 class="column-title">Equipment (Owned)</h3>
-                                <div id="inv-list-owned" class="space-y-2 min-h-[50px]"></div>
-                            </div>
-                        </div>
-
-                        <div class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-8">
-                             <div>
-                                <h3 class="column-title">Feeding Grounds</h3>
-                                <textarea id="inv-feeding-grounds" class="h-24 w-full text-xs" placeholder="Describe your hunting grounds..."></textarea>
-                            </div>
-                             <div>
-                                <h3 class="column-title">Vehicles</h3>
-                                <div id="vehicle-list" class="space-y-2"></div>
-                            </div>
+                            <div><h3 class="column-title">Gear (Carried)</h3><div id="inv-list-carried" class="space-y-2 min-h-[50px]"></div></div>
+                            <div><h3 class="column-title">Equipment (Owned)</h3><div id="inv-list-owned" class="space-y-2 min-h-[50px]"></div></div>
                         </div>
                     </div>
 
@@ -483,70 +466,52 @@
                         <div class="flex flex-col">
                             <div class="grid grid-cols-6 gap-2 text-[10px] uppercase text-gray-400 font-bold border-b border-[#555] pb-1 mb-2 text-center">
                                 <div class="col-span-2 text-left pl-2">Attack</div>
-                                <div>Diff</div>
-                                <div>Dmg</div>
-                                <div>Range</div>
-                                <div>Clip</div>
+                                <div>Diff</div><div>Dmg</div><div>Range</div><div>Clip</div>
                             </div>
-                            <!-- Standard Maneuvers (Static) -->
-                            <div class="grid grid-cols-6 gap-2 text-[10px] border-b border-[#222] py-1 text-center text-gray-500">
-                                <div class="col-span-2 text-left pl-2 font-bold text-white">Bite</div>
-                                <div>5</div><div>Str+1(A)</div><div>-</div><div>-</div>
-                            </div>
-                            <!-- ... Other Static Maneuvers could go here ... -->
-                            
                             <div id="combat-list-create" class="space-y-1 mt-2"></div>
-                        </div>
-                        <div class="grid grid-cols-3 gap-6 mt-6 pt-4 border-t border-[#333] text-center">
-                            <div><label class="label-text">Total Armor Rating</label><div id="total-armor-rating" class="text-lg font-bold text-white">0</div></div>
-                            <div><label class="label-text">Total Penalty</label><div id="total-armor-penalty" class="text-lg font-bold text-red-400">0</div></div>
-                            <div><label class="label-text">Active Armor</label><div id="active-armor-names" class="text-[9px] text-gray-400">None</div></div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- PHASE 7: BIOGRAPHY -->
+            <!-- PHASE 7 -->
             <div id="phase-7" class="step-container space-y-10">
                 <div class="flex flex-col gap-10">
                     <div class="sheet-section !mt-0">
                         <div class="section-title">Background Descriptions</div>
                         <div id="social-profile-list" class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6"></div>
                     </div>
-
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
                         <div class="sheet-section !mt-0">
                             <div class="section-title">Physical Appearance</div>
                             <div id="vitals-create-inputs" class="grid grid-cols-2 gap-4"></div>
-                            <div class="mt-6"><label class="label-text">Description / Sketch Notes</label><textarea id="bio-desc" class="h-32"></textarea></div>
+                            <div class="mt-6"><label class="label-text">Description</label><textarea id="bio-desc" class="h-32"></textarea></div>
                         </div>
-                        <div class="space-y-6">
-                            <div class="sheet-section !mt-0">
-                                <div class="section-title">Goals & Languages</div>
-                                <div class="space-y-4">
-                                    <div><label class="label-text text-gold">Languages</label><textarea id="bio-languages" class="h-20"></textarea></div>
-                                    <div><label class="label-text text-gold">Short-Term Goals</label><textarea id="bio-goals-st" class="h-20"></textarea></div>
-                                    <div><label class="label-text text-gold">Long-Term Goals</label><textarea id="bio-goals-lt" class="h-20"></textarea></div>
-                                </div>
+                        <div class="sheet-section !mt-0">
+                            <div class="section-title">Goals & Languages</div>
+                            <div class="space-y-4">
+                                <div><label class="label-text text-gold">Languages</label><textarea id="bio-languages" class="h-20"></textarea></div>
+                                <div><label class="label-text text-gold">Short-Term Goals</label><textarea id="bio-goals-st" class="h-20"></textarea></div>
+                                <div><label class="label-text text-gold">Long-Term Goals</label><textarea id="bio-goals-lt" class="h-20"></textarea></div>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
 
+            <!-- PHASE 8 -->
             <div id="phase-8" class="step-container space-y-10">
                 <div class="sheet-section !mt-0">
                     <div class="section-title">Final Touches</div>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
                         <div class="space-y-8">
                             <div class="bg-black/30 p-6 border border-[#333]">
-                                <label class="label-text block text-center mb-4 text-gold font-bold">Check Base Totals</label>
+                                <label class="label-text block text-center mb-4 text-gold font-bold">Review Base Totals</label>
                                 <div class="flex flex-col gap-6">
                                     <div class="flex justify-between items-center text-[11px] py-1">
                                         <div class="flex flex-col flex-1 mr-4">
                                             <label class="label-text text-gold">Humanity / Path</label>
-                                            <select id="c-path-name-create" class="w-full text-xs bg-transparent border-b border-[#333] text-white p-1 appearance-none cursor-pointer">
-                                                </select>
+                                            <select id="c-path-name-create" class="w-full text-xs bg-transparent border-b border-[#333] text-white p-1 appearance-none cursor-pointer"></select>
                                         </div>
                                         <div class="dot-row" id="phase8-humanity-dots"></div>
                                     </div>
@@ -557,111 +522,75 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="space-y-6"><div class="sheet-section !m-0"><div class="section-title">Final Character History</div><textarea id="char-history" class="w-full h-64" placeholder="Full Background History..."></textarea></div><button type="button" id="finalize-btn" class="w-full bg-[#af0000] text-white py-4 heading text-sm tracking-widest hover:bg-red-600 transition shadow-2xl font-black uppercase" onclick="window.togglePlayMode()">Finalize Character Log</button></div>
+                        <div class="space-y-6">
+                            <div class="sheet-section !m-0"><div class="section-title">Final Character History</div><textarea id="char-history" class="w-full h-64" placeholder="Full Background History..."></textarea></div>
+                            <button type="button" id="finalize-btn" class="w-full bg-[#af0000] text-white py-4 heading text-sm tracking-widest hover:bg-red-600 transition shadow-2xl font-black uppercase" onclick="window.togglePlayMode()">Finalize Character Log</button>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Play Mode Sheet (NEW LAYOUT) -->
+            <!-- Play Mode Sheet (Sections 1-7) -->
             <div id="play-mode-sheet" class="hidden">
+                <!-- PM Section 1: Main Stats -->
                 <div id="play-mode-1" class="step-container space-y-10 active">
                     <div id="play-concept-row" class="grid grid-cols-3 gap-6 text-[11px] uppercase border-b border-[#333] pb-6 font-bold text-gold"></div>
-                    <div id="play-rows-container" class="space-y-10"><div id="play-row-attr" class="grid grid-cols-1 md:grid-cols-3 gap-10"></div><div id="play-row-abil" class="grid grid-cols-1 md:grid-cols-3 gap-10"></div><div id="play-row-adv" class="grid grid-cols-1 md:grid-cols-3 gap-10"></div></div>
-                    
-                    <!-- REARRANGED BOTTOM SECTION: 3 Columns -->
-                    <!-- Changed breakpoint to lg:grid-cols-3 to prevent overlap on tablets -->
+                    <div id="play-rows-container" class="space-y-10">
+                        <div id="play-row-attr" class="grid grid-cols-1 md:grid-cols-3 gap-10"></div>
+                        <div id="play-row-abil" class="grid grid-cols-1 md:grid-cols-3 gap-10"></div>
+                        <div id="play-row-adv" class="grid grid-cols-1 md:grid-cols-3 gap-10"></div>
+                    </div>
                     <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 border-t border-[#333] pt-10">
-                        
-                        <!-- COLUMN 1: Merits/Flaws & Notes & Weakness -->
                         <div class="flex flex-col gap-6">
-                            <div class="sheet-section">
-                                <div class="section-title">Merits & Flaws</div>
-                                <div id="merit-flaw-rows-play" class="space-y-2 text-white font-bold text-xs mb-4"></div>
-                            </div>
-                            <!-- Weakness now lives here -->
+                            <div class="sheet-section"><div class="section-title">Merits & Flaws</div><div id="merit-flaw-rows-play" class="space-y-2 text-white font-bold text-xs mb-4"></div></div>
                             <div class="sheet-section" id="weakness-play-container"></div>
                         </div>
-
-                        <!-- COLUMN 2: Status Stats (Humanity, Willpower, Blood) -->
                         <div class="flex flex-col gap-6">
-                            <!-- Humanity -->
                             <div class="sheet-section">
                                 <div class="section-title">Humanity / Path</div>
                                 <div class="flex flex-col items-center gap-4 py-2">
                                     <select id="c-path-name" class="text-center text-gold font-bold uppercase tracking-widest !bg-transparent !border-b !border-[#333] mb-1 appearance-none cursor-pointer w-full text-sm"></select>
                                     <div id="humanity-dots-play" class="flex justify-center"></div>
-                                    <div class="flex items-center gap-2 mt-2">
-                                        <span class="label-text text-gray-500">Bearing:</span>
-                                        <input type="text" id="c-bearing-name" class="w-24 text-xs !border-b !border-[#333]">
-                                        <input type="number" id="c-bearing-value" class="w-10 text-center text-xs !border-b !border-[#333]" placeholder="( )">
-                                    </div>
                                 </div>
                             </div>
-
-                            <!-- Willpower -->
                             <div class="sheet-section">
-                                <div class="section-title">
-                                    Willpower
-                                    <!-- Info Button Injected Here -->
-                                </div>
+                                <div class="section-title">Willpower</div>
                                 <div id="willpower-dots-play" class="flex justify-center mb-4"></div>
                                 <div id="willpower-boxes-play" class="flex justify-center gap-1"></div>
                             </div>
-
-                            <!-- Blood Pool -->
                             <div class="sheet-section">
                                 <div class="section-title">Blood Pool</div>
-                                <!-- Changed from grid-cols-10 to flex-wrap to prevent overlap/overflow on smaller screens -->
                                 <div id="blood-boxes-play" class="flex flex-wrap gap-1 justify-center mt-4 px-4"></div>
                                 <div class="text-center mt-4 text-xs text-gray-500 font-bold uppercase tracking-wider">Blood Per Turn: <input type="number" id="blood-per-turn-input" class="w-8 bg-transparent text-center border-b border-[#333] text-white" value="1"></div>
                             </div>
                         </div>
-
-                        <!-- COLUMN 3: Health, Frenzy, Rötschreck (One Box visually) -->
                         <div class="flex flex-col gap-6">
                             <div class="sheet-section h-full flex flex-col relative">
                                 <div class="section-title">Health</div>
-                                
-                                <!-- Health Chart with safe font size -->
                                 <div id="health-chart-play" class="space-y-2 mt-4 mb-4 flex-shrink-0 text-xs"></div>
-                                
-                                <!-- NEW DAMAGE CONTROLS WITHOUT REDUNDANT TOGGLE -->
                                 <div id="damage-app-container" class="mb-4 border-t border-[#333] pt-2">
-                                    <div class="flex items-center justify-between mb-2 gap-2">
-                                        <span class="text-[10px] font-bold text-gray-400 uppercase">Incoming Dmg:</span>
-                                        <input type="number" id="dmg-input-val" value="1" min="1" class="w-12 bg-[#111] border border-[#444] text-white text-center text-xs font-bold">
-                                    </div>
                                     <div class="grid grid-cols-3 gap-1 mb-2">
-                                        <button type="button" class="bg-[#1e3a8a] text-blue-200 text-[9px] font-bold py-1 px-1 rounded border border-blue-800 hover:bg-blue-900 uppercase" onclick="window.applyDamage('Bashing')">Bash (/)</button>
-                                        <button type="button" class="bg-[#7f1d1d] text-red-200 text-[9px] font-bold py-1 px-1 rounded border border-red-800 hover:bg-red-900 uppercase" onclick="window.applyDamage('Lethal')">Lethal (X)</button>
-                                        <button type="button" class="bg-[#713f12] text-yellow-200 text-[9px] font-bold py-1 px-1 rounded border border-yellow-800 hover:bg-yellow-900 uppercase" onclick="window.applyDamage('Aggravated')">Agg (*)</button>
+                                        <button type="button" class="bg-[#1e3a8a] text-blue-200 text-[9px] font-bold py-1 px-1 rounded border border-blue-800 hover:bg-blue-900 uppercase" onclick="window.applyDamage('Bashing')">Bash</button>
+                                        <button type="button" class="bg-[#7f1d1d] text-red-200 text-[9px] font-bold py-1 px-1 rounded border border-red-800 hover:bg-red-900 uppercase" onclick="window.applyDamage('Lethal')">Lethal</button>
+                                        <button type="button" class="bg-[#713f12] text-yellow-200 text-[9px] font-bold py-1 px-1 rounded border border-yellow-800 hover:bg-yellow-900 uppercase" onclick="window.applyDamage('Aggravated')">Agg</button>
                                     </div>
                                     <div class="flex gap-2">
                                         <button type="button" class="flex-1 bg-gray-800 text-gray-300 text-[9px] font-bold py-1 rounded border border-gray-600 hover:bg-gray-700 uppercase" onclick="window.setupSoak()">Roll Soak</button>
-                                        <button type="button" class="flex-1 bg-green-900/40 text-green-300 text-[9px] font-bold py-1 rounded border border-green-800 hover:bg-green-900 uppercase" onclick="window.healOneLevel()">Heal (1 BP)</button>
+                                        <button type="button" class="flex-1 bg-green-900/40 text-green-300 text-[9px] font-bold py-1 rounded border border-green-800 hover:bg-green-900 uppercase" onclick="window.healOneLevel()">Heal</button>
                                     </div>
                                 </div>
-
-                                <!-- Beast Container (Frenzy/Rotschreck) injected by JS -->
                                 <div id="beast-play-container" class="mt-auto pt-2 border-t border-[#333]"></div>
                             </div>
-                            
-                            <!-- Experience Container (Separated to handle overflow naturally) -->
                             <div class="sheet-section" id="experience-play-container"></div>
                         </div>
                     </div>
                 </div>
 
+                <!-- PM Section 2: Combat/Rituals -->
                 <div id="play-mode-2" class="step-container space-y-10">
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
-                        <div class="sheet-section !mt-0">
-                            <div class="section-title">Other Traits</div>
-                            <div id="other-traits-rows-play" class="space-y-1"></div>
-                        </div>
-                        <div class="sheet-section !mt-0">
-                            <div class="section-title">Rituals</div>
-                            <div id="rituals-list-play" class="text-xs text-white whitespace-pre-wrap mt-2 p-2 bg-black/40 border border-[#333] min-h-[100px]"></div>
-                        </div>
+                        <div class="sheet-section !mt-0"><div class="section-title">Other Traits</div><div id="other-traits-rows-play" class="space-y-1"></div></div>
+                        <div class="sheet-section !mt-0"><div class="section-title">Rituals</div><div id="rituals-list-play" class="text-xs text-white whitespace-pre-wrap mt-2 p-2 bg-black/40 border border-[#333] min-h-[100px]"></div></div>
                     </div>
                     <div class="sheet-section">
                         <div class="section-title">Combat Maneuvers</div>
@@ -669,60 +598,81 @@
                             <thead><tr class="border-b border-[#555] text-gray-400 font-bold"><th class="p-2">Weapon</th><th class="p-2">Diff</th><th class="p-2">Dmg</th><th class="p-2">Rng</th><th class="p-2">Rate</th><th class="p-2">Clip</th></tr></thead>
                             <tbody id="combat-rows-play"></tbody>
                         </table>
-                        <div class="grid grid-cols-3 gap-6 mt-6 pt-4 border-t border-[#333] font-bold"><div><label class="label-text">Armor Rating</label><div id="armor-rating-play" class="text-white"></div></div><div><label class="label-text">Armor Penalty</label><div id="armor-penalty-play" class="text-white"></div></div><div><label class="label-text">Armor Desc</label><div id="armor-desc-play" class="text-xs text-gray-400 whitespace-pre-wrap"></div></div></div>
+                        <div class="grid grid-cols-3 gap-6 mt-6 pt-4 border-t border-[#333] font-bold">
+                            <div><label class="label-text">Armor Rating</label><div id="armor-rating-play" class="text-white"></div></div>
+                            <div><label class="label-text">Armor Penalty</label><div id="armor-penalty-play" class="text-white"></div></div>
+                            <div><label class="label-text">Armor Desc</label><div id="armor-desc-play" class="text-xs text-gray-400"></div></div>
+                        </div>
                     </div>
                 </div>
 
+                <!-- PM Section 3: Backgrounds/Haven -->
                 <div id="play-mode-3" class="step-container space-y-10">
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-8"><div class="md:col-span-2 space-y-6"><div class="sheet-section !mt-0"><div class="section-title">Background Descriptions</div><div id="play-social-grid" class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4"></div></div><div class="sheet-section"><div class="section-title">Blood Bonds / Vinculi</div><div id="play-blood-bonds" class="space-y-2 mt-4 text-xs font-bold"></div></div></div><div class="space-y-6"><div class="sheet-section !mt-0"><div class="section-title">Possessions</div><div class="space-y-4 mt-2">
-                        <div><label class="label-text text-gold">Gear (Carried)</label><div id="play-gear-carried" class="text-xs text-white whitespace-pre-wrap"></div></div>
-                        <div><label class="label-text text-gold">Equipment (Owned)</label><div id="play-gear-owned" class="text-xs text-white whitespace-pre-wrap"></div></div>
-                        <div><label class="label-text text-gold">Vehicles</label><div id="play-vehicles" class="space-y-2 font-bold text-white"></div></div>
-                        <div><label class="label-text text-gold">Feeding Grounds</label><div id="play-feeding-grounds" class="text-xs text-white whitespace-pre-wrap"></div></div></div></div><div class="sheet-section"><div class="section-title">Havens</div><div id="play-havens-list" class="space-y-4 mt-2"></div></div></div></div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                        <div class="md:col-span-2 space-y-6">
+                            <div class="sheet-section !mt-0"><div class="section-title">Background Descriptions</div><div id="play-social-grid" class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4"></div></div>
+                            <div class="sheet-section"><div class="section-title">Blood Bonds / Vinculi</div><div id="play-blood-bonds" class="space-y-2 mt-4 text-xs font-bold"></div></div>
+                        </div>
+                        <div class="space-y-6">
+                            <div class="sheet-section !mt-0">
+                                <div class="section-title">Possessions</div>
+                                <div class="space-y-4 mt-2">
+                                    <div><label class="label-text text-gold">Gear (Carried)</label><div id="play-gear-carried" class="text-xs text-white"></div></div>
+                                    <div><label class="label-text text-gold">Equipment (Owned)</label><div id="play-gear-owned" class="text-xs text-white"></div></div>
+                                    <div><label class="label-text text-gold">Vehicles</label><div id="play-vehicles" class="space-y-2 font-bold text-white"></div></div>
+                                    <div><label class="label-text text-gold">Feeding Grounds</label><div id="play-feeding-grounds" class="text-xs text-white"></div></div>
+                                </div>
+                            </div>
+                            <div class="sheet-section"><div class="section-title">Havens</div><div id="play-havens-list" class="space-y-4 mt-2"></div></div>
+                        </div>
+                    </div>
                 </div>
 
-                <div id="play-mode-4" class="step-container space-y-10"><div class="grid grid-cols-1 md:grid-cols-3 gap-8"><div class="sheet-section !mt-0"><div class="section-title">Vitals</div><div id="play-vitals-list" class="space-y-3 py-2 text-[11px] uppercase font-bold text-white"></div><div class="mt-6 border-t border-[#333] pt-4"><label class="label-text text-gold">Physical Description</label><div id="play-bio-desc" class="text-xs text-gray-300 whitespace-pre-wrap"></div></div></div><div class="md:col-span-2 space-y-6"><div class="grid grid-cols-2 gap-6"><div class="sheet-section !mt-0"><div class="section-title">Derangements</div><div id="play-derangements" class="text-xs text-white p-2"></div></div><div class="sheet-section !mt-0"><div class="section-title">Languages</div><div id="play-languages" class="text-xs text-white p-2"></div></div></div><div class="sheet-section"><div class="section-title">Goals</div><div class="grid grid-cols-2 gap-6 mt-2"><div class="border-l-2 border-gold pl-4"><label class="label-text text-gold">Short-Term</label><div id="play-goals-st" class="text-xs text-gray-200 mt-1"></div></div><div class="border-l-2 border-gold pl-4"><label class="label-text text-gold">Long-Term</label><div id="play-goals-lt" class="text-xs text-gray-200 mt-1"></div></div></div></div><div class="sheet-section"><div class="section-title">Full History</div><div id="play-history" class="text-sm text-gray-300 whitespace-pre-wrap p-4"></div></div></div></div></div>
-                
-                <!-- NEW CONTAINERS (Hardcoded for stability) -->
+                <!-- PM Section 4: Bio/Vitals -->
+                <div id="play-mode-4" class="step-container space-y-10">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                        <div class="sheet-section !mt-0">
+                            <div class="section-title">Vitals</div>
+                            <div id="play-vitals-list" class="space-y-3 py-2 text-[11px] uppercase font-bold text-white"></div>
+                            <div class="mt-6 border-t border-[#333] pt-4"><label class="label-text text-gold">Physical Description</label><div id="play-bio-desc" class="text-xs text-gray-300"></div></div>
+                        </div>
+                        <div class="md:col-span-2 space-y-6">
+                            <div class="grid grid-cols-2 gap-6">
+                                <div class="sheet-section !mt-0"><div class="section-title">Derangements</div><div id="play-derangements" class="text-xs text-white p-2"></div></div>
+                                <div class="sheet-section !mt-0"><div class="section-title">Languages</div><div id="play-languages" class="text-xs text-white p-2"></div></div>
+                            </div>
+                            <div class="sheet-section">
+                                <div class="section-title">Goals</div>
+                                <div class="grid grid-cols-2 gap-6 mt-2">
+                                    <div class="border-l-2 border-gold pl-4"><label class="label-text text-gold">Short-Term</label><div id="play-goals-st" class="text-xs text-gray-200 mt-1"></div></div>
+                                    <div class="border-l-2 border-gold pl-4"><label class="label-text text-gold">Long-Term</label><div id="play-goals-lt" class="text-xs text-gray-200 mt-1"></div></div>
+                                </div>
+                            </div>
+                            <div class="sheet-section"><div class="section-title">Full History</div><div id="play-history" class="text-sm text-gray-300 p-4"></div></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Dynamic Step Containers (Injected via JS) -->
                 <div id="play-mode-5" class="step-container h-full hidden min-h-[600px]"></div>
                 <div id="play-mode-6" class="step-container hidden min-h-[500px]"></div>
-                <div id="play-mode-7" class="step-container hidden min-h-[500px]"></div>
-                
-                <!-- CHRONICLE TAB (New) -->
                 <div id="play-mode-chronicle" class="step-container hidden h-full min-h-[600px]"></div>
             </div>
 
         </div>
     </div>
     
-    <!-- NPC CREATOR MODAL -->
+    <!-- MODALS -->
     <div id="npc-modal" class="fixed inset-0 bg-black/90 z-[100] flex items-center justify-center hidden"></div>
-
-    <!-- NEW CHRONICLE MODAL -->
-    <div id="chronicle-modal" class="modal-overlay">
-        <div class="modal-box w-full max-w-3xl" id="chronicle-modal-content">
-            <!-- Content injected dynamically by ui-storyteller.js -->
-        </div>
-    </div>
-
-    <!-- ST DASHBOARD CONTAINER (FULL SCREEN OVERLAY) -->
-    <div id="st-dashboard-view" class="fixed inset-0 bg-[#050505] z-[200] hidden flex-col">
-        <!-- Content injected dynamically by ui-storyteller.js -->
-    </div>
-
+    <div id="chronicle-modal" class="modal-overlay"><div class="modal-box w-full max-w-3xl" id="chronicle-modal-content"></div></div>
+    <div id="st-dashboard-view" class="fixed inset-0 bg-[#050505] z-[200] hidden flex-col"></div>
+    
     <div id="save-modal" class="modal-overlay">
         <div class="modal-box">
             <h2 class="heading text-xl text-gold mb-4 border-b border-[#333] pb-2">Inscribe Character</h2>
             <div class="space-y-4">
-                <div>
-                    <label class="label-text">Character Name (Filename)</label>
-                    <input type="text" id="save-name-input" class="w-full text-sm font-bold bg-[#111] p-2 border border-[#333] focus:border-gold">
-                </div>
-                <div>
-                    <label class="label-text">Folder / Group</label>
-                    <input type="text" id="save-folder-input" list="folder-datalist" placeholder="e.g. Chronicle 1" class="w-full text-sm font-bold bg-[#111] p-2 border border-[#333] focus:border-gold">
-                    <datalist id="folder-datalist"></datalist>
-                </div>
+                <div><label class="label-text">Name</label><input type="text" id="save-name-input" class="w-full text-sm font-bold bg-[#111] p-2 border border-[#333]"></div>
+                <div><label class="label-text">Folder</label><input type="text" id="save-folder-input" list="folder-datalist" class="w-full text-sm font-bold bg-[#111] p-2 border border-[#333]"><datalist id="folder-datalist"></datalist></div>
             </div>
             <div class="flex justify-end gap-2 mt-6">
                 <button type="button" class="standard-button px-4 py-2 text-xs uppercase font-bold" onclick="document.getElementById('save-modal').classList.remove('active')">Cancel</button>
@@ -734,9 +684,7 @@
     <div id="load-modal" class="modal-overlay">
         <div class="modal-box w-[500px]">
             <h2 class="heading text-xl text-gold mb-4 border-b border-[#333] pb-2">Recall Character</h2>
-            <div id="file-browser" class="h-64 overflow-y-auto bg-[#050505] border border-[#333] p-2">
-                <div class="text-center text-gray-500 italic mt-10">Connecting to Archives...</div>
-            </div>
+            <div id="file-browser" class="h-64 overflow-y-auto bg-[#050505] border border-[#333] p-2"></div>
             <div class="flex justify-end gap-2 mt-6">
                 <button type="button" class="standard-button px-4 py-2 text-xs uppercase font-bold" onclick="document.getElementById('load-modal').classList.remove('active')">Cancel</button>
             </div>
@@ -746,559 +694,54 @@
     <div id="auth-modal" class="modal-overlay">
         <div class="modal-box">
             <h2 class="heading text-xl text-gold mb-4 border-b border-[#333] pb-2">Authenticate</h2>
-            
-            <!-- ISOLATED FORM FOR PASSWORD MANAGER CONTROL -->
-            <form action="#" onsubmit="return false;" autocomplete="on">
+            <form onsubmit="return false;" autocomplete="on">
                 <div class="space-y-4">
-                    <div>
-                        <label class="label-text">Email Address</label>
-                        <input type="email" id="auth-email" class="w-full text-sm font-bold bg-[#111] p-2 border border-[#333] focus:border-gold" placeholder="vampire@nod.org" autocomplete="username">
-                    </div>
-                    <div>
-                        <label class="label-text">Password</label>
-                        <input type="password" id="auth-password" class="w-full text-sm font-bold bg-[#111] p-2 border border-[#333] focus:border-gold" placeholder="******" autocomplete="current-password">
-                    </div>
+                    <div><label class="label-text">Email</label><input type="email" id="auth-email" class="w-full bg-[#111] p-2 border border-[#333]" autocomplete="username"></div>
+                    <div><label class="label-text">Password</label><input type="password" id="auth-password" class="w-full bg-[#111] p-2 border border-[#333]" autocomplete="current-password"></div>
                     <div id="auth-error-msg" class="text-red-500 text-xs font-bold hidden"></div>
                 </div>
-                <div class="flex justify-between gap-2 mt-6">
-                      <button type="button" class="standard-button px-4 py-2 text-xs uppercase font-bold" onclick="document.getElementById('auth-modal').classList.remove('active')">Cancel</button>
-                      <div class="flex gap-2">
-                        <button type="button" id="confirm-register-btn" class="border border-[#444] text-gray-300 px-4 py-2 text-xs uppercase font-bold hover:bg-[#222]">Create Account</button>
-                        <button type="button" id="confirm-login-btn" class="bg-[#8b0000] text-white px-6 py-2 text-xs uppercase font-bold hover:bg-red-700 shadow-md">Login</button>
-                      </div>
+                <div class="flex justify-between mt-6">
+                    <button type="button" class="standard-button px-4 py-2" onclick="document.getElementById('auth-modal').classList.remove('active')">Cancel</button>
+                    <div class="flex gap-2">
+                        <button type="button" id="confirm-register-btn" class="border border-[#444] px-4 py-2 text-xs font-bold uppercase hover:bg-[#222]">Create</button>
+                        <button type="button" id="confirm-login-btn" class="bg-[#8b0000] text-white px-6 py-2 text-xs font-bold uppercase hover:bg-red-700">Login</button>
+                    </div>
                 </div>
             </form>
-            
         </div>
     </div>
 
-    <!-- WILLPOWER INFO MODAL -->
-    <div id="willpower-info-modal" class="modal-overlay">
-        <div class="modal-box bg-[#0a0a0a] border border-[#d4af37] w-full max-w-lg shadow-[0_0_40px_rgba(212,175,55,0.2)]">
-            <div class="flex justify-between items-center mb-4 border-b border-[#333] pb-2">
-                <h2 class="text-xl text-[#d4af37] font-cinzel font-bold uppercase tracking-wider">Regaining Willpower</h2>
-                <button onclick="document.getElementById('willpower-info-modal').classList.remove('active')" class="text-gray-500 hover:text-white text-xl">&times;</button>
-            </div>
-            
-            <div class="text-sm text-gray-300 leading-relaxed font-serif space-y-4 max-h-[60vh] overflow-y-auto pr-2">
-                <div id="wp-nature-rule" class="bg-blue-900/20 border border-blue-900/50 p-3 rounded">
-                    <!-- Nature-specific rule injected here -->
-                </div>
-
-                <div>
-                    <h3 class="text-xs font-bold text-gray-400 uppercase mb-1">Standard Methods</h3>
-                    <ul class="list-disc pl-4 space-y-2 text-xs">
-                        <li><strong>End of Story:</strong> Willpower pools typically replenish fully at the end of a story (arc), not necessarily every session.</li>
-                        <li><strong>Extraordinary Success:</strong> Achieving a major objective or motivation may restore a point at Storyteller discretion.</li>
-                        <li><strong>Restful Sleep (Optional):</strong> Some Storytellers allow regaining 1 point each night upon rising.</li>
-                    </ul>
-                </div>
-                
-                <div class="text-[10px] text-gray-500 italic pt-2 border-t border-[#333]">
-                    V20 Core Rules, p. 267
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- HUMANITY INFO MODAL (NEW) -->
-    <div id="humanity-info-modal" class="modal-overlay">
-        <div class="modal-box bg-[#0a0a0a] border border-[#d4af37] w-full max-w-lg shadow-[0_0_40px_rgba(212,175,55,0.2)]">
-            <div class="flex justify-between items-center mb-4 border-b border-[#333] pb-2">
-                <h2 class="text-xl text-[#d4af37] font-cinzel font-bold uppercase tracking-wider">Hierarchy of Sins</h2>
-                <button onclick="document.getElementById('humanity-info-modal').classList.remove('active')" class="text-gray-500 hover:text-white text-xl">&times;</button>
-            </div>
-            
-            <div class="text-sm text-gray-300 leading-relaxed font-serif space-y-4 max-h-[60vh] overflow-y-auto pr-2">
-                
-                <div class="border border-[#333] bg-[#111] p-2 mb-4">
-                    <table class="w-full text-[10px] text-left">
-                        <thead>
-                            <tr class="text-[#d4af37] border-b border-[#333]">
-                                <th class="py-1 w-10 text-center">Rating</th>
-                                <th class="py-1">Moral Guideline</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-[#222]">
-                            <tr><td class="text-center font-bold text-white py-1">10</td><td>Selfish thoughts</td></tr>
-                            <tr><td class="text-center font-bold text-white py-1">9</td><td>Minor selfish acts</td></tr>
-                            <tr><td class="text-center font-bold text-white py-1">8</td><td>Injury to another (accidental or otherwise)</td></tr>
-                            <tr><td class="text-center font-bold text-white py-1">7</td><td>Theft</td></tr>
-                            <tr><td class="text-center font-bold text-white py-1">6</td><td>Accidental violation (drinking a vessel dry out of starvation)</td></tr>
-                            <tr><td class="text-center font-bold text-white py-1">5</td><td>Intentional property damage</td></tr>
-                            <tr><td class="text-center font-bold text-white py-1">4</td><td>Impassioned violation (manslaughter, killing a vessel in frenzy)</td></tr>
-                            <tr><td class="text-center font-bold text-white py-1">3</td><td>Planned violation (outright murder, savored exsanguination)</td></tr>
-                            <tr><td class="text-center font-bold text-white py-1">2</td><td>Casual violation (thoughtless killing, feeding past satiation)</td></tr>
-                            <tr><td class="text-center font-bold text-white py-1">1</td><td>Utter perversion or heinous acts</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-
-                <div>
-                    <h3 class="text-xs font-bold text-gray-400 uppercase mb-1">Concept</h3>
-                    <p class="text-xs">Vampires are predators by nature. Humanity is an internal charade that protects a Kindred from herself. As the centuries wear on, the Beast takes hold, and Kindred become less concerned with the wellbeing of the kine.</p>
-                </div>
-
-                <div>
-                    <h3 class="text-xs font-bold text-gray-400 uppercase mb-1">Effects of Humanity</h3>
-                    <ul class="list-disc pl-4 space-y-2 text-xs">
-                        <li><strong>Daytime Actions:</strong> Max dice pool = Humanity rating.</li>
-                        <li><strong>Virtue Rolls:</strong> Max dice = Humanity rating.</li>
-                        <li><strong>Torpor:</strong> Lower Humanity = longer torpor.</li>
-                        <li><strong>Appearance:</strong> Low Humanity causes bestial features.</li>
-                        <li><strong>Degeneration:</strong> Commit a sin below your rating -> Roll Conscience (Diff 8). Fail = Lose Humanity.</li>
-                    </ul>
-                </div>
-                
-                <div class="text-[10px] text-gray-500 italic pt-2 border-t border-[#333]">
-                    V20 Core Rules, p. 312-313
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- BLOOD INFO MODAL (NEW) -->
-    <div id="blood-info-modal" class="modal-overlay">
-        <div class="modal-box bg-[#0a0a0a] border border-[#af0000] w-full max-w-lg shadow-[0_0_40px_rgba(175,0,0,0.3)]">
-            <div class="flex justify-between items-center mb-4 border-b border-[#333] pb-2">
-                <h2 class="text-xl text-[#af0000] font-cinzel font-bold uppercase tracking-wider">The Blood (Vitae)</h2>
-                <button onclick="document.getElementById('blood-info-modal').classList.remove('active')" class="text-gray-500 hover:text-white text-xl">&times;</button>
-            </div>
-            
-            <div class="text-sm text-gray-300 leading-relaxed font-serif space-y-4 max-h-[60vh] overflow-y-auto pr-2">
-                
-                <!-- 1. Daily Survival -->
-                <div>
-                    <h3 class="text-xs font-bold text-gray-400 uppercase mb-1">1. Daily Survival & Waking</h3>
-                    <p class="text-xs mb-1"><strong>Waking Up:</strong> Subtract 1 BP every night upon rising (mandatory).</p>
-                    <p class="text-xs text-red-400"><strong>Starvation:</strong> If at 0 BP, take 1 Health Level damage/day until Torpor (Incapacitated).</p>
-                </div>
-
-                <!-- 2. Healing -->
-                <div>
-                    <h3 class="text-xs font-bold text-gray-400 uppercase mb-1">2. Healing Wounds</h3>
-                    <ul class="list-disc pl-4 space-y-1 text-xs text-gray-400">
-                        <li><strong>Normal (Bash/Lethal):</strong> 1 BP = 1 Health Level. Takes 1 turn of concentration. (Action while healing: Sta+Surv diff 8). Rate limited by Generation.</li>
-                        <li><strong>Aggravated:</strong> 5 BP = 1 Health Level. Requires full day of rest. Additional levels cost 5 BP + 1 WP.</li>
-                    </ul>
-                </div>
-
-                <!-- 3. Augmenting -->
-                <div>
-                    <h3 class="text-xs font-bold text-gray-400 uppercase mb-1">3. Augmenting Attributes</h3>
-                    <p class="text-xs mb-1">Spend 1 BP to add 1 dot to Strength, Dexterity, or Stamina.</p>
-                    <ul class="list-disc pl-4 space-y-1 text-xs text-gray-400">
-                        <li><strong>Duration:</strong> One Scene.</li>
-                        <li><strong>Limit:</strong> Gen Max + 1. (Buffs above this limit last only 3 turns).</li>
-                    </ul>
-                </div>
-
-                <!-- 4. Mimicking Life -->
-                <div>
-                    <h3 class="text-xs font-bold text-gray-400 uppercase mb-1">4. Mimicking Life</h3>
-                    <p class="text-xs text-gray-400"><strong>Cost:</strong> 8 minus Humanity BP. (e.g. Humanity 8 = 0 BP). <span class="text-red-400">Vampires on a Path cannot do this.</span></p>
-                </div>
-
-                <!-- 5. Fueling Disciplines -->
-                <div>
-                    <h3 class="text-xs font-bold text-gray-400 uppercase mb-1">5. Fueling Disciplines</h3>
-                    <p class="text-xs text-gray-400"><strong>Activation:</strong> Celerity, Thaumaturgy, Necromancy require blood.</p>
-                    <p class="text-xs text-gray-400"><strong>Healing Others:</strong> Obeah (Salubri) or Sanguinus allow healing others with own blood.</p>
-                </div>
-
-                <!-- 6. Creation & Bonds -->
-                <div>
-                    <h3 class="text-xs font-bold text-gray-400 uppercase mb-1">6. Creation & Bonds</h3>
-                    <ul class="list-disc pl-4 space-y-1 text-xs text-gray-400">
-                        <li><strong>The Embrace:</strong> Drain victim, feed them vitae.</li>
-                        <li><strong>Ghouls:</strong> Feed without draining. Grants Potence 1, slows aging, allows healing.</li>
-                        <li><strong>Blood Bond:</strong> Drink from same vampire on 3 separate nights to enslave.</li>
-                    </ul>
-                </div>
-
-                <!-- 7. Frenzy Control -->
-                <div>
-                    <h3 class="text-xs font-bold text-red-500 uppercase mb-1">7. Frenzy Control</h3>
-                    <p class="text-xs text-gray-300 border-l-2 border-red-900 pl-2">
-                        You may never roll more dice for a <strong>Self-Control</strong> (or Instinct) roll than your current <strong>Blood Points</strong>.
-                    </p>
-                </div>
-
-                <!-- 8. The Hunt -->
-                <div class="border-t border-[#222] pt-2">
-                    <h3 class="text-xs font-bold text-[#d4af37] uppercase mb-1">8. The Hunt (Finding a Vessel)</h3>
-                    <p class="text-xs mb-1"><strong>The Roll:</strong> Perception (Diff varies based on area). Represents 1 hour.</p>
-                    <ul class="list-disc pl-4 space-y-1 text-xs text-gray-400">
-                        <li><strong>Success:</strong> Vampire finds prey (1 die's worth or sated).</li>
-                        <li><strong>Failure:</strong> Hour wasted. <strong>Botch:</strong> Complication (Police, Rival, etc).</li>
-                    </ul>
-                    <div class="grid grid-cols-2 gap-2 mt-2 bg-[#111] p-2 border border-[#333]">
-                        <div>
-                            <span class="text-[10px] font-bold text-gray-300 block mb-1">Difficulties</span>
-                            <ul class="text-[9px] text-gray-500 list-none space-y-0.5">
-                                <li>Slum / The Rack: 4</li>
-                                <li>Bohemian / Poor: 5</li>
-                                <li>Downtown / Warehouse: 6</li>
-                                <li>Suburb: 7</li>
-                                <li>Heavily Patrolled: 8</li>
-                            </ul>
-                        </div>
-                        <div>
-                            <span class="text-[10px] font-bold text-gray-300 block mb-1">Modifiers</span>
-                            <ul class="text-[9px] text-gray-500 list-none space-y-0.5">
-                                <li><strong>Fame:</strong> -1 Diff/dot (Min 3).</li>
-                                <li><strong>Herd:</strong> +1 Die/dot.</li>
-                                <li><strong>Inhuman Looks:</strong> Diff increases (Nosferatu).</li>
-                            </ul>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 9. The Kiss -->
-                <div>
-                    <h3 class="text-xs font-bold text-[#d4af37] uppercase mb-1">9. The Kiss</h3>
-                    <ul class="list-disc pl-4 space-y-1 text-xs text-gray-400">
-                        <li><strong>Mortals:</strong> Ecstasy. Stop resisting. Willpower 9+ can resist.</li>
-                        <li><strong>Vampires:</strong> Pleasure, but easier to resist (Self-Control Diff 8).</li>
-                        <li><strong>Combat:</strong> Must Grapple/Clinch first. Bite on following turn.</li>
-                        <li><strong>Aftermath:</strong> Lick closes wound leaving no trace.</li>
-                    </ul>
-                </div>
-
-                <!-- 10. Blood Sources -->
-                <div>
-                    <h3 class="text-xs font-bold text-[#d4af37] uppercase mb-1">10. Blood Sources & Values</h3>
-                    <p class="text-xs mb-1"><strong>Max Intake:</strong> 3 BP per turn. (Impossible to drain faster).</p>
-                    <p class="text-xs mb-1"><strong>Vessel Health:</strong> 20% (2 BP) Safe. 50% (5 BP) Hospital. 100% Death.</p>
-                    
-                    <div class="mt-2 bg-[#111] p-2 border border-[#333]">
-                        <span class="text-[10px] font-bold text-gray-300 block mb-1">Blood Pool Values</span>
-                        <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-[9px] text-gray-500">
-                            <div>Human: 10 BP</div>
-                            <div>Cow: 5 BP</div>
-                            <div>Dog: 2 BP</div>
-                            <div>Cat: 1 BP</div>
-                            <div>Rat: 1/4 BP</div>
-                            <div>Elder: >1 BP/pint</div>
-                            <div>Werewolf: ~25 BP (Frenzy Risk)</div>
-                            <div>Old Blood: Worthless without Merit</div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 11. Hazards -->
-                <div>
-                    <h3 class="text-xs font-bold text-red-500 uppercase mb-1">11. Hazards of Feeding</h3>
-                    <div class="space-y-2">
-                        <div>
-                            <span class="text-[10px] font-bold text-gray-300">Frenzy</span>
-                            <p class="text-[9px] text-gray-500">If Pool < (7 - Self-Control), must roll Self-Control (Diff 3-6) on sighting blood or frenzy.</p>
-                        </div>
-                        <div>
-                            <span class="text-[10px] font-bold text-gray-300">Disease</span>
-                            <p class="text-[9px] text-gray-500">Carrier risk. Detect: Int + Med (Diff 7). Cure: Spend the BP.</p>
-                        </div>
-                        <div class="bg-[#111] p-2 border border-[#333]">
-                            <span class="text-[10px] font-bold text-gray-300 block mb-1">Tainted Blood (Drugs)</span>
-                            <ul class="text-[9px] text-gray-500 list-disc pl-3 space-y-1">
-                                <li><strong>Alcohol:</strong> -1 Dex/Int per 2 drinks.</li>
-                                <li><strong>Marijuana:</strong> -1 Perception. -1 Frenzy Diff.</li>
-                                <li><strong>Cocaine/Speed:</strong> +1 Celerity level (10-Stamina min). +1 Frenzy Diff.</li>
-                                <li><strong>Heroin:</strong> -2 Dex/Abilities (10-Stamina min). -1 Frenzy Diff.</li>
-                                <li><strong>Salmonella:</strong> Nausea, 1 Bashing Dmg.</li>
-                            </ul>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 12. Mechanics -->
-                <div class="border-t border-[#333] pt-2">
-                    <h3 class="text-xs font-bold text-[#af0000] uppercase mb-2">12. Generational Limits</h3>
-                    
-                    <div class="mb-2">
-                         <p class="text-[9px] text-gray-500">Generation determines Max Blood Pool and Blood Points spendable per turn.</p>
-                    </div>
-
-                    <table class="w-full text-[10px] text-left mt-1">
-                        <thead>
-                            <tr class="text-[#d4af37] border-b border-[#333]">
-                                <th class="py-1">Gen</th>
-                                <th class="text-center">Max Trait</th>
-                                <th class="text-center">Pool Max</th>
-                                <th class="text-center">BP/Turn</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-[#222]">
-                            <tr><td>13th+</td><td class="text-center">5</td><td class="text-center">10</td><td class="text-center">1</td></tr>
-                            <tr><td>12th</td><td class="text-center">5</td><td class="text-center">11</td><td class="text-center">1</td></tr>
-                            <tr><td>11th</td><td class="text-center">5</td><td class="text-center">12</td><td class="text-center">1</td></tr>
-                            <tr><td>10th</td><td class="text-center">5</td><td class="text-center">13</td><td class="text-center">1</td></tr>
-                            <tr><td>9th</td><td class="text-center">5</td><td class="text-center">14</td><td class="text-center">2</td></tr>
-                            <tr><td>8th</td><td class="text-center">5</td><td class="text-center">15</td><td class="text-center">3</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-                
-                <div class="text-[10px] text-gray-500 italic pt-2 border-t border-[#333]">
-                    V20 Core Rules
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- TUTORIAL MODAL (DEDICATED OVERLAY) -->
-    <div id="tutorial-overlay" class="tutorial-overlay hidden">
-        <div class="tutorial-box relative">
-            <button onclick="window.closeTutorial()" class="absolute top-2 right-3 text-gray-500 hover:text-white text-xl">&times;</button>
-            <div class="p-0">
-                <h2 id="tut-title" class="text-2xl text-[#d4af37] font-cinzel font-bold mb-4 border-b border-[#333] pb-2 uppercase tracking-wider">Welcome Neonate</h2>
-                <div id="tut-content" class="text-sm text-gray-300 leading-relaxed font-serif min-h-[100px]"></div>
-                
-                <div class="flex justify-between items-center mt-6 pt-4 border-t border-[#333]">
-                    <div class="text-[10px] text-gray-500 italic" id="tut-step-indicator">Step 1 of X</div>
-                    <div class="flex gap-2">
-                        <button id="tut-prev-btn" class="border border-[#444] text-gray-400 px-3 py-1 text-xs uppercase font-bold hover:bg-[#222] hidden" onclick="window.prevTutorialStep()">Back</button>
-                        <button id="tut-next-btn" class="bg-[#8b0000] text-white px-4 py-1 text-xs uppercase font-bold hover:bg-red-700 shadow-md transition-colors" onclick="window.nextTutorialStep()">Next</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- GUEST LOGIN PROMPT -->
-    <div id="guest-prompt-modal" class="modal-overlay">
-        <div class="modal-box bg-[#0a0a0a] border border-red-900 w-full max-w-md shadow-[0_0_30px_rgba(139,0,0,0.5)]">
-            <h2 class="text-xl text-red-500 font-cinzel font-bold mb-4 border-b border-red-900 pb-2 uppercase tracking-wider text-center">Guest Access Detected</h2>
-            <div class="p-4 text-center space-y-4">
-                <p class="text-sm text-gray-300">You are currently using the V20 Character Creator as a <strong class="text-white">Guest</strong>.</p>
-                <p class="text-xs text-gray-400 italic">Your characters will only be saved to this specific browser's local storage.</p>
-                
-                <div class="bg-blue-900/20 border border-blue-900/50 p-2 rounded text-[10px] text-blue-200">
-                    <i class="fas fa-file-export mr-1"></i> <strong>Pro Tip:</strong> You can use the <strong>Export JSON</strong> feature in the top toolbar to save your character file to your device and <strong>Import</strong> it later!
-                </div>
-
-                <div class="flex flex-col gap-3 mt-6">
-                    <button onclick="document.getElementById('guest-prompt-modal').classList.remove('active'); document.getElementById('auth-modal').classList.add('active');" class="bg-[#d4af37] text-black px-6 py-2 text-xs uppercase font-bold hover:bg-[#fcd34d] shadow-lg tracking-widest w-full">
-                        Login / Register (Sync Cloud)
-                    </button>
-                    <button onclick="window.dismissGuestPrompt()" class="border border-[#444] text-gray-400 px-6 py-2 text-xs uppercase font-bold hover:bg-[#222] hover:text-white transition w-full">
-                        Continue as Guest
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div id="print-sheet" class="hidden print:block bg-white text-black p-2 max-w-[210mm] mx-auto">
-        <div class="print-header">
-            <h1 class="font-cinzel text-3xl text-center font-bold uppercase mb-2 tracking-wide">Vampire: The Masquerade</h1>
-            <div class="grid grid-cols-3 gap-x-4 gap-y-1 text-[11px] uppercase font-bold mb-3">
-                <!-- Header Inputs populated by JS -->
-                <div class="border-b border-black flex justify-between"><span>Name:</span><span id="pr-name"></span></div>
-                <div class="border-b border-black flex justify-between"><span>Nature:</span><span id="pr-nature"></span></div>
-                <div class="border-b border-black flex justify-between"><span>Clan:</span><span id="pr-clan"></span></div>
-                <div class="border-b border-black flex justify-between"><span>Player:</span><span id="pr-player"></span></div>
-                <div class="border-b border-black flex justify-between"><span>Demeanor:</span><span id="pr-demeanor"></span></div>
-                <div class="border-b border-black flex justify-between"><span>Generation:</span><span id="pr-gen"></span></div>
-                <div class="border-b border-black flex justify-between"><span>Chronicle:</span><span id="pr-chronicle"></span></div>
-                <div class="border-b border-black flex justify-between"><span>Concept:</span><span id="pr-concept"></span></div>
-                <div class="border-b border-black flex justify-between"><span>Sire:</span><span id="pr-sire"></span></div>
-            </div>
-        </div>
+    <!-- INFO MODALS -->
+    <div id="willpower-info-modal" class="modal-overlay"><div class="modal-box bg-[#0a0a0a] border border-[#d4af37] w-full max-w-lg shadow-[0_0_40px_rgba(212,175,55,0.2)]"><div class="flex justify-between items-center mb-4 border-b border-[#333] pb-2"><h2 class="text-xl text-[#d4af37] font-cinzel font-bold uppercase tracking-wider">Regaining Willpower</h2><button onclick="document.getElementById('willpower-info-modal').classList.remove('active')" class="text-gray-500 hover:text-white text-xl">&times;</button></div><div class="text-sm text-gray-300 leading-relaxed font-serif space-y-4 max-h-[60vh] overflow-y-auto pr-2"><div id="wp-nature-rule" class="bg-blue-900/20 border border-blue-900/50 p-3 rounded"></div><div><h3 class="text-xs font-bold text-gray-400 uppercase mb-1">Standard Methods</h3><ul class="list-disc pl-4 space-y-2 text-xs"><li>End of Story: Willpower pools typically replenish fully at the end of an arc.</li><li>Extraordinary Success: ST discretion for major milestones.</li></ul></div><div class="text-[10px] text-gray-500 italic pt-2 border-t border-[#333]">V20 Core Rules, p. 267</div></div></div></div>
     
-        <div class="print-section mb-2">
-            <h3 class="section-header">Attributes</h3>
-            <div class="grid grid-cols-3 gap-4">
-                <div id="pr-attr-phys">
-                    <h4 class="col-header">Physical</h4>
-                    <!-- Rows injected here -->
-                </div>
-                <div id="pr-attr-soc">
-                    <h4 class="col-header">Social</h4>
-                </div>
-                <div id="pr-attr-men">
-                    <h4 class="col-header">Mental</h4>
-                </div>
-            </div>
-        </div>
+    <div id="humanity-info-modal" class="modal-overlay"><div class="modal-box bg-[#0a0a0a] border border-[#d4af37] w-full max-w-lg shadow-[0_0_40px_rgba(212,175,55,0.2)]"><div class="flex justify-between items-center mb-4 border-b border-[#333] pb-2"><h2 class="text-xl text-[#d4af37] font-cinzel font-bold uppercase tracking-wider">Hierarchy of Sins</h2><button onclick="document.getElementById('humanity-info-modal').classList.remove('active')" class="text-gray-500 hover:text-white text-xl">&times;</button></div><div class="text-sm text-gray-300 font-serif space-y-4 max-h-[60vh] overflow-y-auto pr-2"><div><h3 class="text-xs font-bold text-gray-400 uppercase mb-1">Concept</h3><p class="text-xs">Humanity is the inner charade that protects a Kindred from her Beast.</p></div><div class="text-[10px] text-gray-500 italic pt-2 border-t border-[#333]">V20 Core Rules, p. 312-313</div></div></div></div>
+
+    <div id="blood-info-modal" class="modal-overlay"><div class="modal-box bg-[#0a0a0a] border border-[#af0000] w-full max-w-lg shadow-[0_0_40px_rgba(175,0,0,0.3)]"><div class="flex justify-between items-center mb-4 border-b border-[#333] pb-2"><h2 class="text-xl text-[#af0000] font-cinzel font-bold uppercase tracking-wider">The Blood (Vitae)</h2><button onclick="document.getElementById('blood-info-modal').classList.remove('active')" class="text-gray-500 hover:text-white text-xl">&times;</button></div><div class="text-sm text-gray-300 leading-relaxed font-serif space-y-4 max-h-[60vh] overflow-y-auto pr-2"><div><h3 class="text-xs font-bold text-gray-400 uppercase mb-1">1. Survival</h3><p class="text-xs">Subtract 1 BP every night upon rising (mandatory).</p></div><div class="text-[10px] text-gray-500 italic pt-2 border-t border-[#333]">V20 Core Rules</div></div></div></div>
+
+    <!-- TUTORIAL OVERLAY -->
+    <div id="tutorial-overlay" class="tutorial-overlay hidden"><div class="tutorial-box relative"><button onclick="window.closeTutorial()" class="absolute top-2 right-3 text-gray-500 hover:text-white text-xl">&times;</button><div class="p-0"><h2 id="tut-title" class="text-2xl text-[#d4af37] font-cinzel font-bold mb-4 border-b border-[#333] pb-2 uppercase tracking-wider">Welcome Neonate</h2><div id="tut-content" class="text-sm text-gray-300 leading-relaxed font-serif min-h-[100px]"></div><div class="flex justify-between items-center mt-6 pt-4 border-t border-[#333]"><div class="text-[10px] text-gray-500 italic" id="tut-step-indicator"></div><div class="flex gap-2"><button id="tut-prev-btn" class="border border-[#444] text-gray-400 px-3 py-1 text-xs uppercase font-bold hover:bg-[#222] hidden" onclick="window.prevTutorialStep()">Back</button><button id="tut-next-btn" class="bg-[#8b0000] text-white px-4 py-1 text-xs uppercase font-bold hover:bg-red-700 shadow-md transition-colors" onclick="window.nextTutorialStep()">Next</button></div></div></div></div></div>
+
+    <div id="guest-prompt-modal" class="modal-overlay"><div class="modal-box bg-[#0a0a0a] border border-red-900 w-full max-w-md shadow-[0_0_30px_rgba(139,0,0,0.5)]"><h2 class="text-xl text-red-500 font-cinzel font-bold mb-4 border-b border-red-900 pb-2 uppercase tracking-wider text-center">Guest Access Detected</h2><div class="p-4 text-center space-y-4"><p class="text-sm text-gray-300">Your characters will only be saved to this specific browser's local storage.</p><div class="flex flex-col gap-3 mt-6"><button onclick="document.getElementById('guest-prompt-modal').classList.remove('active'); document.getElementById('auth-modal').classList.add('active');" class="bg-[#d4af37] text-black px-6 py-2 text-xs uppercase font-bold hover:bg-[#fcd34d] shadow-lg tracking-widest w-full">Login / Register</button><button onclick="window.dismissGuestPrompt()" class="border border-[#444] text-gray-400 px-6 py-2 text-xs font-bold uppercase w-full hover:bg-[#222] transition">Continue as Guest</button></div></div></div></div>
     
-        <div class="print-section mb-2">
-            <h3 class="section-header">Abilities</h3>
-            <div class="grid grid-cols-3 gap-4">
-                <div id="pr-abil-tal">
-                    <h4 class="col-header">Talents</h4>
-                </div>
-                <div id="pr-abil-ski">
-                    <h4 class="col-header">Skills</h4>
-                </div>
-                <div id="pr-abil-kno">
-                    <h4 class="col-header">Knowledges</h4>
-                </div>
-            </div>
-        </div>
-    
-        <div class="print-section mb-2">
-            <h3 class="section-header">Advantages</h3>
-            <div class="grid grid-cols-3 gap-4">
-                <div>
-                    <h4 class="col-header">Disciplines</h4>
-                    <div id="pr-disc-list" class="space-y-1"></div>
-                </div>
-                <div>
-                    <h4 class="col-header">Backgrounds</h4>
-                    <div id="pr-back-list" class="space-y-1"></div>
-                </div>
-                <div>
-                    <h4 class="col-header">Virtues</h4>
-                    <div id="pr-virt-list" class="space-y-2 mt-2"></div>
-                </div>
-            </div>
-        </div>
-    
-        <div class="print-section mb-0">
-            <div class="grid grid-cols-3 gap-6"> 
-                
-                <!-- Column 1: Merits & Flaws / Other Traits -->
-                <div class="space-y-4">
-                    <div>
-                        <h3 class="section-header">Merits & Flaws</h3>
-                        <div id="pr-merits-flaws" class="text-[11px] space-y-1"></div>
-                    </div>
-                      <div>
-                        <h3 class="section-header">Other Traits</h3>
-                        <div id="pr-other-traits" class="text-[11px] space-y-1"></div>
-                    </div>
-                </div>
-
-                <!-- Column 2: Humanity / Willpower / Blood Pool -->
-                <div class="space-y-4">
-                    <div>
-                        <h3 class="section-header">Humanity / Path</h3>
-                        <div id="pr-humanity" class="flex justify-center py-1 border-b border-black"></div>
-                        <div class="text-center text-[10px] mt-1 font-bold">Bearing: <span id="pr-bearing"></span></div>
-                    </div>
-                    <div>
-                        <h3 class="section-header">Willpower</h3>
-                        <div id="pr-willpower-dots" class="flex justify-center py-1"></div>
-                        <div id="pr-willpower-boxes" class="flex justify-center gap-1 py-1"></div>
-                    </div>
-                    <div>
-                        <h3 class="section-header">Blood Pool</h3>
-                        <div id="pr-blood-boxes" class="grid grid-cols-10 gap-1 justify-center mt-1 px-2"></div>
-                    </div>
-                </div>
-
-                <!-- Column 3: Health -->
-                <div>
-                    <h3 class="section-header">Health</h3>
-                    <div id="pr-health" class="text-[9px] space-y-1"></div>
-                </div>
-
-            </div>
-        </div>
-
-        <div class="print-page-break" style="page-break-before: always;"></div>
-
-        <div class="print-section mb-4">
-            <h3 class="section-header">Combat & Equipment</h3>
-            <div class="grid grid-cols-2 gap-8">
-                <div>
-                    <h4 class="col-header">Weapons & Attacks</h4>
-                    <table class="w-full text-[11px] text-left mb-2">
-                        <thead><tr class="border-b border-black"><th class="py-1">Name</th><th>Diff</th><th>Dmg</th></tr></thead>
-                        <tbody id="pr-combat-table"></tbody>
-                    </table>
-                    
-                    <h4 class="col-header">Armor</h4>
-                    <div id="pr-armor-info" class="text-[11px] mb-2"></div>
-                </div>
-                <div>
-                    <h4 class="col-header">Gear (Carried)</h4>
-                    <div id="pr-gear-carried" class="text-[11px] mb-2"></div>
-                    
-                    <h4 class="col-header">Equipment (Owned)</h4>
-                    <div id="pr-gear-owned" class="text-[11px] mb-2"></div>
-                    
-                    <h4 class="col-header">Vehicles</h4>
-                    <div id="pr-vehicles" class="text-[11px]"></div>
-                </div>
-            </div>
-        </div>
-
-        <div class="print-section mb-4">
-            <h3 class="section-header">Expanded Backgrounds & Havens</h3>
-            <div class="grid grid-cols-2 gap-8">
-                <div>
-                    <h4 class="col-header">Background Details</h4>
-                    <div id="pr-background-details" class="text-[11px] space-y-2"></div>
-                </div>
-                <div>
-                    <h4 class="col-header">Havens</h4>
-                    <div id="pr-havens" class="text-[11px] space-y-2"></div>
-                    
-                    <h4 class="col-header mt-4">Blood Bonds / Vinculi</h4>
-                    <div id="pr-blood-bonds" class="text-[11px] space-y-1"></div>
-                </div>
-            </div>
-        </div>
-
-        <div class="print-page-break" style="page-break-before: always;"></div>
-
-        <div class="print-section mb-4">
-            <h3 class="section-header">Biography & Psychology</h3>
-            <div class="grid grid-cols-2 gap-8 mb-4">
-                <div>
-                    <h4 class="col-header">Appearance / Description</h4>
-                    <div id="pr-appearance" class="text-[11px] whitespace-pre-wrap"></div>
-                </div>
-                <div>
-                    <h4 class="col-header">Derangements & Languages</h4>
-                    <div class="mb-2 text-[11px]"><strong>Derangements:</strong> <span id="pr-derangements"></span></div>
-                    <div class="text-[11px]"><strong>Languages:</strong> <span id="pr-languages"></span></div>
-                </div>
-            </div>
-            
-            <div class="mb-4">
-                <h4 class="col-header">Goals</h4>
-                <div class="grid grid-cols-2 gap-8">
-                    <div class="text-[11px]"><strong>Short Term:</strong> <span id="pr-goals-st"></span></div>
-                    <div class="text-[11px]"><strong>Long Term:</strong> <span id="pr-goals-lt"></span></div>
-                </div>
-            </div>
-
-            <div>
-                <h4 class="col-header">Character History</h4>
-                <div id="pr-history" class="text-[11px] whitespace-pre-wrap text-justify"></div>
-            </div>
-        </div>
-    </div>
+    <!-- PRINT CONTAINER -->
+    <div id="print-sheet" class="hidden print:block bg-white text-black p-2 max-w-[210mm] mx-auto"></div>
 
     <!-- SCRIPTS CONFIGURATION -->
     <script type="module" src="data.js"></script>
     <script type="module" src="v20-rules.js"></script>
-    
-    <!-- Data Modules -->
     <script type="module" src="disciplines-data.js"></script>
     <script type="module" src="thaumaturgy-data.js"></script>
     <script type="module" src="necromancy-data.js"></script>
-    
-    <!-- UI Core -->
     <script type="module" src="ui-common.js"></script>
     <script type="module" src="ui-renderer.js"></script>
     <script type="module" src="ui-mechanics.js"></script>
-    
-    <!-- Refactored UI Modules -->
     <script type="module" src="ui-advantages.js"></script>
     <script type="module" src="ui-print.js"></script>
     <script type="module" src="ui-play.js"></script>
     <script type="module" src="ui-nav.js"></script>
-
-    <!-- Subsystems -->
     <script type="module" src="ui-journal.js"></script>
     <script type="module" src="firebase-config.js"></script>
     <script type="module" src="firebase-manager.js"></script>
-
-    <!-- NPC SYSTEM -->
     <script type="module" src="npc-logic.js"></script>
     <script type="module" src="npc-mortal.js"></script>
     <script type="module" src="npc-ghoul.js"></script>
@@ -1306,11 +749,7 @@
     <script type="module" src="npc-sheet-play.js"></script>
     <script type="module" src="npc-sheet-edit.js"></script>
     <script type="module" src="npc-creator.js"></script>
-    
-    <!-- STORYTELLER SYSTEM (NEW) -->
     <script type="module" src="ui-storyteller.js"></script>
-
-    <!-- MAIN ENTRY -->
     <script type="module" src="main.js"></script>
 
 </body>
