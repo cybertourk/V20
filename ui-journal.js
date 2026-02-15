@@ -308,13 +308,14 @@ function renderJournalHistoryList() {
         const item = document.createElement('div');
         item.className = "bg-[#111] hover:bg-[#222] p-2 cursor-pointer border-l-2 border-transparent hover:border-gold transition-colors group relative mb-1";
         
+        // Quoted ID for safety against type coercion issues
         item.innerHTML = `
             <div class="text-[10px] text-white font-bold truncate pr-4">${log.title || 'Untitled Session'}</div>
             <div class="flex justify-between text-[8px] text-gray-500 mt-1 uppercase font-bold">
                 <span>Session #${log.sessionNum || '?'}</span>
                 <span>${log.datePlayed || '-'}</span>
             </div>
-            <button class="absolute top-1 right-1 text-gray-600 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity px-1" onclick="event.stopPropagation(); window.deleteSessionLog(${log.id})">
+            <button class="absolute top-1 right-1 text-gray-600 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity px-1" onclick="event.stopPropagation(); window.deleteSessionLog('${log.id}')">
                 &times;
             </button>
         `;
@@ -365,9 +366,13 @@ window.initNewSessionLog = function() {
 
 window.deleteSessionLog = function(id) {
     if(!confirm("Permanently delete this session log?")) return;
-    window.state.sessionLogs = window.state.sessionLogs.filter(l => l.id !== id);
-    renderJournalHistoryList();
-    document.getElementById('journal-content-area').innerHTML = `<div class="flex items-center justify-center h-full text-gray-500 italic text-xs">Log Deleted.</div>`;
+    
+    // Use loose equality (==) to match string ID from HTML (if quoted) to potentially numeric ID in state
+    window.state.sessionLogs = window.state.sessionLogs.filter(l => l.id != id);
+    
+    // Force a full re-render of the Journal Tab to ensure UI state is completely reset and clean
+    renderJournalTab(); 
+    
     if(window.performSave) window.performSave(true);
 };
 
