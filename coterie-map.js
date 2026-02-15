@@ -657,7 +657,13 @@ window.cmapViewCodex = (id) => {
     let exists = false;
     if (targetId) {
         const journalKey = targetId.startsWith('journal_') ? targetId : 'journal_' + targetId;
-        exists = !!stState.journal[journalKey];
+        // Check both ST journal and Player codex
+        if (stState.isStoryteller && stState.journal) {
+            exists = !!stState.journal[journalKey];
+        } else if (window.state && window.state.codex) {
+            // Player codex is array, check by ID
+            exists = window.state.codex.some(c => c.id === targetId);
+        }
     }
 
     const isST = window.stState && window.stState.isStoryteller;
@@ -691,56 +697,88 @@ async function createCodexForMapItem(mapId, type, name) {
     const stState = window.stState;
     if (!stState || !stState.activeChronicleId) return;
 
-    const newId = "cx_" + Date.now();
     const isST = stState.isStoryteller;
     const uid = auth.currentUser?.uid;
-    
-    // Properly detect 'PC' or 'NPC' based on map character data
-    let entryType = 'Lore';
-    if (type === 'char') {
-        const charObj = mapState.characters.find(c => c.id === mapId);
-        entryType = (charObj && charObj.type === 'pc') ? 'PC' : 'NPC';
+
+    // --- CHECK FOR EXISTING ENTRY WITH SIMILAR NAME ---
+    let existingEntry = null;
+    let sourceList = [];
+
+    if (isST) {
+        sourceList = Object.values(stState.journal || {});
+    } else {
+        sourceList = window.state.codex || [];
     }
-    
-    const entry = {
-        id: newId,
-        name: name,
-        type: entryType,
-        tags: ['Map Auto-Gen'],
-        desc: "", 
-        image: null,
-        pushed: true,
-        // Restrict codex entry to the player who created it, unless it's the ST
-        recipients: isST ? null : [uid]
-    };
 
-    try {
-        const safeId = 'journal_' + newId;
-        const docRef = doc(db, 'chronicles', stState.activeChronicleId, 'players', safeId);
+    // Find exact case-insensitive match
+    if (sourceList.length > 0) {
+        existingEntry = sourceList.find(entry => 
+            entry.name && entry.name.toLowerCase().trim() === name.toLowerCase().trim()
+        );
+    }
+
+    let finalId = null;
+
+    if (existingEntry) {
+        // Use existing entry
+        finalId = existingEntry.original_id || existingEntry.id.replace('journal_', '');
+        showNotification(`Linked to existing entry: ${existingEntry.name}`);
+    } else {
+        // Create New Entry
+        const newId = "cx_" + Date.now();
         
-        await setDoc(docRef, { 
-            ...entry, 
-            metadataType: 'journal', 
-            original_id: newId
-        });
+        // Properly detect 'PC' or 'NPC' based on map character data
+        let entryType = 'Lore';
+        if (type === 'char') {
+            const charObj = mapState.characters.find(c => c.id === mapId);
+            entryType = (charObj && charObj.type === 'pc') ? 'PC' : 'NPC';
+        }
+        
+        const entry = {
+            id: newId,
+            name: name,
+            type: entryType,
+            tags: ['Map Auto-Gen'],
+            desc: "", 
+            image: null,
+            pushed: true,
+            // Restrict codex entry to the player who created it, unless it's the ST
+            recipients: isST ? null : [uid]
+        };
 
+        try {
+            const safeId = 'journal_' + newId;
+            const docRef = doc(db, 'chronicles', stState.activeChronicleId, 'players', safeId);
+            
+            await setDoc(docRef, { 
+                ...entry, 
+                metadataType: 'journal', 
+                original_id: newId
+            });
+            
+            finalId = newId;
+            showNotification("Codex Entry Created.");
+
+        } catch (e) {
+            console.error("Codex Creation Failed:", e);
+            showNotification("Failed to create entry.", "error");
+            return;
+        }
+    }
+
+    if (finalId) {
         // Update Map Data with link
         if (type === 'char') {
             const char = mapState.characters.find(c => c.id === mapId);
-            if(char) char.codexId = newId;
+            if(char) char.codexId = finalId;
         } else {
             const rel = mapState.relationships[mapId];
-            if(rel) rel.codexId = newId;
+            if(rel) rel.codexId = finalId;
         }
         
         await saveMapData();
-        showNotification("Codex Entry Created.");
         
-        if (window.viewCodex) window.viewCodex(newId);
-
-    } catch (e) {
-        console.error("Codex Creation Failed:", e);
-        showNotification("Failed to create entry.", "error");
+        if (window.viewCodex) window.viewCodex(finalId);
     }
 }
 
