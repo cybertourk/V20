@@ -47,7 +47,10 @@ export function renderJournalTab() {
 
 export function renderStorytellerJournal(container) {
     // STORYTELLER ENTRY POINT
-    if (!container) return;
+    if (!container) {
+        console.warn("Storyteller Journal: Container not found.");
+        return;
+    }
 
     const stState = window.stState || {};
     // Ensure journal data exists, defaulting to empty object if not found
@@ -116,8 +119,9 @@ function renderJournalInterface(container, activeTab) {
     const showTabs = activeContext.mode === 'player';
 
     // FIX: Added 'h-full' to ensure the container takes up space, enabling scrolling
+    // Added 'flex-1' to main view container
     container.innerHTML = `
-        <div class="flex flex-col h-full relative w-full">
+        <div class="flex flex-col h-full relative w-full overflow-hidden">
             ${showTabs ? `
             <div class="flex gap-6 border-b border-[#333] pb-2 mb-2 px-2 shrink-0">
                 <button id="tab-sessions" class="text-xs uppercase tracking-wider px-2 pb-1 ${activeTab==='sessions'?activeClass:inactiveClass}">Session Logs</button>
@@ -262,9 +266,9 @@ function renderPopupModal() {
 
 function renderSessionView(container) {
     container.innerHTML = `
-        <div class="flex h-full gap-4">
-            <div class="w-1/4 flex flex-col border-r border-[#333] pr-2">
-                <button onclick="window.initNewSessionLog()" class="bg-[#8b0000] hover:bg-red-700 text-white font-bold py-2 px-2 text-[10px] uppercase mb-3 flex items-center justify-center gap-1 shadow-md transition-colors">
+        <div class="flex h-full gap-4 overflow-hidden">
+            <div class="w-1/4 flex flex-col border-r border-[#333] pr-2 h-full">
+                <button onclick="window.initNewSessionLog()" class="bg-[#8b0000] hover:bg-red-700 text-white font-bold py-2 px-2 text-[10px] uppercase mb-3 flex items-center justify-center gap-1 shadow-md transition-colors shrink-0">
                     <i class="fas fa-plus"></i> New Session Log
                 </button>
                 <div id="journal-history-list" class="flex-1 overflow-y-auto space-y-1 pr-1 custom-scrollbar"></div>
