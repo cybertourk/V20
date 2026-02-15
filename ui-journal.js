@@ -542,10 +542,11 @@ function renderCodexView(container) {
     const isST = activeContext.mode === 'storyteller';
     const bgClass = "bg-[#080808]";
     
+    // Updated HTML to include 'overflow-y-auto' and 'max-h' constraints on the list and editor
     container.innerHTML = `
-        <div class="flex h-full gap-4">
+        <div class="flex h-full gap-4 overflow-hidden">
             <!-- Sidebar -->
-            <div class="w-1/4 flex flex-col border-r border-[#333] pr-2">
+            <div class="w-1/4 flex flex-col border-r border-[#333] pr-2 h-full">
                 <input type="text" id="codex-search" class="bg-[#111] border border-[#333] text-xs p-1 mb-2 text-white placeholder-gray-600" placeholder="Search...">
                 <button onclick="window.editCodexEntry()" class="bg-[#d4af37] hover:bg-[#fcd34d] text-black font-bold py-1 px-2 text-[10px] uppercase mb-3 text-center transition-colors">
                     <i class="fas fa-plus mr-1"></i> Add Entry
@@ -554,73 +555,75 @@ function renderCodexView(container) {
             </div>
 
             <!-- Editor / Viewer -->
-            <div class="w-3/4 h-full ${bgClass} border border-[#333] p-6 relative hidden overflow-y-auto no-scrollbar custom-scrollbar" id="codex-editor">
-                <h3 class="text-xl font-cinzel text-[#d4af37] mb-6 border-b border-[#333] pb-2 uppercase tracking-widest">Entry Details</h3>
-                <input type="hidden" id="cx-id">
-                
-                <div class="grid grid-cols-2 gap-4 mb-4">
-                    <div>
-                        <label class="block text-[10px] uppercase text-gray-500 font-bold mb-1">Name (Trigger)</label>
-                        <input type="text" id="cx-name" class="w-full bg-[#111] border-b border-[#444] text-white p-2 font-bold focus:border-[#d4af37] outline-none transition-colors">
-                    </div>
-                    <div>
-                        <label class="block text-[10px] uppercase text-gray-500 font-bold mb-1">Image / Map</label>
-                        <div class="flex flex-col gap-2">
-                            <div id="cx-img-preview" class="w-full h-48 bg-black border border-[#444] flex items-center justify-center overflow-hidden rounded relative group">
-                                <i class="fas fa-image text-gray-700 text-4xl group-hover:text-gray-500 transition-colors"></i>
-                            </div>
-                            <div class="flex gap-2">
-                                <input type="file" id="cx-file" accept="image/*" class="hidden">
-                                <button onclick="document.getElementById('cx-file').click()" class="bg-[#222] border border-[#444] text-gray-300 px-3 py-1 text-[10px] hover:text-white uppercase font-bold flex-1 transition-colors">Upload</button>
-                                <button id="cx-btn-url" class="bg-[#222] border border-[#444] text-gray-300 px-3 py-1 text-[10px] hover:text-white uppercase font-bold flex-1 transition-colors">Link URL</button>
-                                <button id="cx-remove-img" class="text-red-500 hover:text-red-300 text-[10px] border border-red-900/30 px-3 py-1 uppercase font-bold hidden transition-colors">Remove</button>
+            <div class="w-3/4 h-full flex flex-col relative overflow-hidden">
+                <div class="h-full ${bgClass} border border-[#333] p-6 hidden overflow-y-auto no-scrollbar custom-scrollbar" id="codex-editor">
+                    <h3 class="text-xl font-cinzel text-[#d4af37] mb-6 border-b border-[#333] pb-2 uppercase tracking-widest">Entry Details</h3>
+                    <input type="hidden" id="cx-id">
+                    
+                    <div class="grid grid-cols-2 gap-4 mb-4">
+                        <div>
+                            <label class="block text-[10px] uppercase text-gray-500 font-bold mb-1">Name (Trigger)</label>
+                            <input type="text" id="cx-name" class="w-full bg-[#111] border-b border-[#444] text-white p-2 font-bold focus:border-[#d4af37] outline-none transition-colors">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] uppercase text-gray-500 font-bold mb-1">Image / Map</label>
+                            <div class="flex flex-col gap-2">
+                                <div id="cx-img-preview" class="w-full h-48 bg-black border border-[#444] flex items-center justify-center overflow-hidden rounded relative group">
+                                    <i class="fas fa-image text-gray-700 text-4xl group-hover:text-gray-500 transition-colors"></i>
+                                </div>
+                                <div class="flex gap-2">
+                                    <input type="file" id="cx-file" accept="image/*" class="hidden">
+                                    <button onclick="document.getElementById('cx-file').click()" class="bg-[#222] border border-[#444] text-gray-300 px-3 py-1 text-[10px] hover:text-white uppercase font-bold flex-1 transition-colors">Upload</button>
+                                    <button id="cx-btn-url" class="bg-[#222] border border-[#444] text-gray-300 px-3 py-1 text-[10px] hover:text-white uppercase font-bold flex-1 transition-colors">Link URL</button>
+                                    <button id="cx-remove-img" class="text-red-500 hover:text-red-300 text-[10px] border border-red-900/30 px-3 py-1 uppercase font-bold hidden transition-colors">Remove</button>
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
 
-                <div class="grid grid-cols-2 gap-4 mb-4">
-                    <div>
-                        <label class="block text-[10px] uppercase text-gray-500 font-bold mb-1">Type</label>
-                        <select id="cx-type" class="w-full bg-[#111] border-b border-[#444] text-white p-2 outline-none focus:border-[#d4af37] transition-colors">
-                            <option value="NPC">NPC</option>
-                            <option value="PC">PC</option>
-                            <option value="Location">Location</option>
-                            <option value="Faction">Faction</option>
-                            <option value="Item">Item</option>
-                            <option value="Handout">Handout</option>
-                            <option value="Lore">Lore / Rule</option>
-                        </select>
+                    <div class="grid grid-cols-2 gap-4 mb-4">
+                        <div>
+                            <label class="block text-[10px] uppercase text-gray-500 font-bold mb-1">Type</label>
+                            <select id="cx-type" class="w-full bg-[#111] border-b border-[#444] text-white p-2 outline-none focus:border-[#d4af37] transition-colors">
+                                <option value="NPC">NPC</option>
+                                <option value="PC">PC</option>
+                                <option value="Location">Location</option>
+                                <option value="Faction">Faction</option>
+                                <option value="Item">Item</option>
+                                <option value="Handout">Handout</option>
+                                <option value="Lore">Lore / Rule</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] uppercase text-gray-500 font-bold mb-1">Tags</label>
+                            <input type="text" id="cx-tags" class="w-full bg-[#111] border-b border-[#444] text-gray-300 p-2 text-xs focus:border-[#d4af37] outline-none transition-colors" placeholder="e.g. Brujah, Ally, Safehouse">
+                        </div>
                     </div>
-                    <div>
-                        <label class="block text-[10px] uppercase text-gray-500 font-bold mb-1">Tags</label>
-                        <input type="text" id="cx-tags" class="w-full bg-[#111] border-b border-[#444] text-gray-300 p-2 text-xs focus:border-[#d4af37] outline-none transition-colors" placeholder="e.g. Brujah, Ally, Safehouse">
-                    </div>
-                </div>
 
-                <div class="mb-6">
-                    <label class="block text-[10px] uppercase text-gray-500 font-bold mb-1">Description</label>
-                    <textarea id="cx-desc" class="w-full h-64 bg-[#111] border border-[#444] text-gray-300 p-2 text-sm focus:border-[#d4af37] outline-none resize-none leading-relaxed font-serif"></textarea>
-                </div>
+                    <div class="mb-6">
+                        <label class="block text-[10px] uppercase text-gray-500 font-bold mb-1">Description</label>
+                        <textarea id="cx-desc" class="w-full h-64 bg-[#111] border border-[#444] text-gray-300 p-2 text-sm focus:border-[#d4af37] outline-none resize-none leading-relaxed font-serif"></textarea>
+                    </div>
 
-                <div class="flex justify-between mt-auto pt-4 border-t border-[#333]">
-                    <div class="flex gap-2">
-                        <!-- PUSH BUTTON WITH NEW HANDLER -->
-                        ${isST ? `<button onclick="window.handleJournalPush()" class="bg-blue-900/40 border border-blue-500 text-blue-200 px-4 py-2 text-xs uppercase font-bold hover:text-white hover:bg-blue-800 transition-colors"><i class="fas fa-share-alt mr-1"></i> Push to Players</button>` : ''}
-                        <button onclick="window.deleteCodexEntry()" class="text-red-500 text-xs hover:text-red-300 uppercase font-bold transition-colors">Delete Entry</button>
-                    </div>
-                    <div class="flex gap-2">
-                        <button onclick="document.getElementById('codex-editor').classList.add('hidden')" class="border border-[#444] text-gray-400 px-4 py-2 text-xs uppercase font-bold hover:bg-[#222] transition-colors">Close</button>
-                        <!-- SAVE BUTTON -->
-                        <button onclick="window.saveCodexEntry(false)" class="bg-[#d4af37] text-black px-6 py-2 text-xs uppercase font-bold hover:bg-[#fcd34d] shadow-lg transition-colors">Save</button>
+                    <div class="flex justify-between mt-auto pt-4 border-t border-[#333]">
+                        <div class="flex gap-2">
+                            <!-- PUSH BUTTON WITH NEW HANDLER -->
+                            ${isST ? `<button onclick="window.handleJournalPush()" class="bg-blue-900/40 border border-blue-500 text-blue-200 px-4 py-2 text-xs uppercase font-bold hover:text-white hover:bg-blue-800 transition-colors"><i class="fas fa-share-alt mr-1"></i> Push to Players</button>` : ''}
+                            <button onclick="window.deleteCodexEntry()" class="text-red-500 text-xs hover:text-red-300 uppercase font-bold transition-colors">Delete Entry</button>
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="document.getElementById('codex-editor').classList.add('hidden'); document.getElementById('codex-empty-state').classList.remove('hidden');" class="border border-[#444] text-gray-400 px-4 py-2 text-xs uppercase font-bold hover:bg-[#222] transition-colors">Close</button>
+                            <!-- SAVE BUTTON -->
+                            <button onclick="window.saveCodexEntry(false)" class="bg-[#d4af37] text-black px-6 py-2 text-xs uppercase font-bold hover:bg-[#fcd34d] shadow-lg transition-colors">Save</button>
+                        </div>
                     </div>
                 </div>
-            </div>
-            
-            <div id="codex-empty-state" class="w-3/4 flex flex-col items-center justify-center text-gray-600 italic text-xs h-full">
-                <i class="fas fa-search text-4xl mb-4 opacity-30"></i>
-                <p>Select an entry to view details or create a new one.</p>
-                <p class="mt-2 text-[10px] text-gray-700">Entries will auto-link when typed in Journal Logs.</p>
+                
+                <div id="codex-empty-state" class="w-full flex flex-col items-center justify-center text-gray-600 italic text-xs h-full absolute inset-0 pointer-events-none">
+                    <i class="fas fa-search text-4xl mb-4 opacity-30"></i>
+                    <p>Select an entry to view details or create a new one.</p>
+                    <p class="mt-2 text-[10px] text-gray-700">Entries will auto-link when typed in Journal Logs.</p>
+                </div>
             </div>
         </div>
     `;
