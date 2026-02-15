@@ -1,7 +1,7 @@
 import { 
     db, auth, collection, doc, setDoc, getDoc, getDocs, query, where, addDoc, onSnapshot, deleteDoc, updateDoc, appId, arrayUnion, arrayRemove, orderBy, limit, writeBatch
 } from "./firebase-config.js";
-import { showNotification } from "./ui-common.js";
+import { showNotification, notifPrefs, saveNotificationPrefs } from "./ui-common.js";
 import { BESTIARY } from "./bestiary-data.js";
 import { GEN_LIMITS } from "./data.js";
 import { 
@@ -64,6 +64,7 @@ export function initStorytellerSystem() {
     
     // Settings Actions
     window.stSaveSettings = stSaveSettings;
+    window.stSaveLocalPrefs = stSaveLocalPrefs; // Exposed global handler for prefs
 
     // Bestiary Actions
     window.copyStaticNpc = copyStaticNpc;
@@ -1024,7 +1025,7 @@ function switchStorytellerView(view) {
     else if (view === 'settings') renderSettingsView(viewport);
 }
 
-// --- NEW SETTINGS VIEW ---
+// --- NEW SETTINGS VIEW (WITH NOTIFICATION PREFS) ---
 async function renderSettingsView(container) {
     if(!container) return;
     
@@ -1075,13 +1076,61 @@ async function renderSettingsView(container) {
                 </div>
             </div>
 
-            <div class="text-right">
+            <div class="text-right border-b border-[#333] pb-6 mb-6">
                 <button onclick="window.stSaveSettings()" class="bg-[#d4af37] text-black font-bold px-8 py-3 rounded uppercase hover:bg-[#fcd34d] shadow-lg tracking-widest transition-transform hover:scale-105">
                     Save Changes
                 </button>
             </div>
+
+            <!-- NOTIFICATION SETTINGS -->
+            <div class="bg-[#111] p-4 border border-[#333] rounded">
+                <h3 class="text-sm font-bold text-gray-400 uppercase mb-4 tracking-wider"><i class="fas fa-bell mr-2"></i> Local Interface Settings</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-xs text-white font-bold">Sound Effects</span>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="pref-master-sound" class="sr-only peer" ${notifPrefs.masterSound ? 'checked' : ''}>
+                                <div class="w-9 h-5 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-gold"></div>
+                            </label>
+                        </div>
+                        <p class="text-[10px] text-gray-500 mb-3">Master toggle for all notification sounds.</p>
+                        <div class="space-y-2 pl-2 border-l border-[#333]">
+                            <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="pref-sound-chat" class="accent-gold w-3 h-3" ${notifPrefs.chatSound ? 'checked' : ''}><span class="text-xs text-gray-400">Chat Messages</span></label>
+                            <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="pref-sound-combat" class="accent-gold w-3 h-3" ${notifPrefs.combatSound ? 'checked' : ''}><span class="text-xs text-gray-400">Combat & Rolls</span></label>
+                            <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="pref-sound-journal" class="accent-gold w-3 h-3" ${notifPrefs.journalSound ? 'checked' : ''}><span class="text-xs text-gray-400">Journal & Events</span></label>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="text-xs text-white font-bold block mb-2">Audio Cooldown</label>
+                        <select id="pref-cooldown" class="w-full bg-[#050505] border border-[#333] text-gray-300 text-xs p-2 focus:border-gold outline-none">
+                            <option value="0" ${notifPrefs.cooldown === 0 ? 'selected' : ''}>None (Instant)</option>
+                            <option value="5" ${notifPrefs.cooldown === 5 ? 'selected' : ''}>5 Seconds</option>
+                            <option value="20" ${notifPrefs.cooldown === 20 ? 'selected' : ''}>20 Seconds</option>
+                            <option value="30" ${notifPrefs.cooldown === 30 ? 'selected' : ''}>30 Seconds</option>
+                        </select>
+                        <p class="text-[10px] text-gray-500 mt-2">Prevents sound spam during bursts of activity.</p>
+                    </div>
+                </div>
+                <div class="mt-4 pt-4 border-t border-[#333] text-right">
+                    <button onclick="window.stSaveLocalPrefs()" class="text-xs bg-[#222] hover:bg-[#333] text-gray-300 border border-[#444] px-4 py-2 rounded uppercase font-bold transition-colors">Save Preferences</button>
+                </div>
+            </div>
         </div>
     `;
+}
+
+// --- LOCAL PREFS HANDLER ---
+function stSaveLocalPrefs() {
+    const newPrefs = {
+        masterSound: document.getElementById('pref-master-sound').checked,
+        chatSound: document.getElementById('pref-sound-chat').checked,
+        combatSound: document.getElementById('pref-sound-combat').checked,
+        journalSound: document.getElementById('pref-sound-journal').checked,
+        cooldown: parseInt(document.getElementById('pref-cooldown').value) || 0
+    };
+    saveNotificationPrefs(newPrefs);
+    showNotification("Local preferences saved.");
 }
 
 async function stSaveSettings() {
@@ -1861,7 +1910,7 @@ function renderChatView(container) {
             
             sendChronicleMessage('chat', txt, null, options);
             input.value = '';
-            moodInput.value = ''; // Clear mood after send? Usually better UX to keep context, but let's clear to avoid accidents.
+            moodInput.value = ''; 
             dropdown.classList.add('hidden');
         }
     };
