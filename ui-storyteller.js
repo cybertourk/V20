@@ -1,128 +1,132 @@
 import { 
+    notifPrefs, saveNotificationPrefs
+} from "./ui-common.js";
+
     db, auth, collection, doc, setDoc, getDoc, getDocs, query, where, addDoc, onSnapshot, deleteDoc, updateDoc, appId, arrayUnion, arrayRemove, orderBy, limit, writeBatch
-} from "./firebase-config.js";
-import { showNotification } from "./ui-common.js";
-import { BESTIARY } from "./bestiary-data.js";
-import { GEN_LIMITS } from "./data.js";
-import { 
-    initCombatTracker, combatState, startCombat, endCombat, nextTurn, 
-    addCombatant, removeCombatant, updateInitiative, rollNPCInitiative,
-    setCombatantHidden // Import setHidden here
-} from "./combat-tracker.js";
-
-import { renderStorytellerJournal, updateJournalList } from "./ui-journal.js";
-
-import { 
-    initChatSystem, startChatListener, sendChronicleMessage, 
-    stClearChat, stExportChat, stSetWhisperTarget, renderMessageList, refreshChatUI
-} from "./chat-model.js";
-
-import { renderCoterieMap } from "./coterie-map.js";
-
-// --- STATE ---
-export const stState = {
-    activeChronicleId: null,
-    isStoryteller: false,
-    playerRef: null,
-    listeners: [], 
-    players: {},   
-    bestiary: {},  
-    journal: {},
-    settings: {}, 
-    currentView: 'roster', 
-    syncInterval: null,
-    seenHandouts: new Set(),
-    dashboardActive: false,
-    chatUnsub: null,
-    chatHistory: [], 
-    whisperTarget: null 
-};
-
-// Expose state globally
-window.stState = stState;
-
-// --- INITIALIZATION ---
-export function initStorytellerSystem() {
-    console.log("Storyteller System Initializing...");
+// --- NEW SETTINGS VIEW ---
+async function renderSettingsView(container) {
+    if(!container) return;
     
-    // Initialize Chat System (Binds window functions)
-    initChatSystem();
-
-    // Window bindings for Storyteller UI
-    window.openChronicleModal = openChronicleModal;
-    window.closeChronicleModal = closeChronicleModal;
-    window.renderJoinChronicleUI = renderJoinChronicleUI;
-    window.renderCreateChronicleUI = renderCreateChronicleUI;
-    window.handleCreateChronicle = handleCreateChronicle;
-    window.handleJoinChronicle = handleJoinChronicle;
-    window.handleResumeChronicle = handleResumeChronicle;
-    window.handleDeleteChronicle = handleDeleteChronicle;
-    window.disconnectChronicle = disconnectChronicle;
-    window.switchStorytellerView = switchStorytellerView;
-    window.renderStorytellerDashboard = renderStorytellerDashboard;
-    window.exitStorytellerDashboard = exitStorytellerDashboard;
+    const docRef = doc(db, 'chronicles', stState.activeChronicleId);
+    let data = stState.settings || {};
     
-    // Settings Actions
-    window.stSaveSettings = stSaveSettings;
+    try {
+        const snap = await getDoc(docRef);
+        if(snap.exists()) {
+            data = snap.data();
+            stState.settings = data;
+        }
+    } catch(e) { console.error(e); }
 
-    // Bestiary Actions
-    window.copyStaticNpc = copyStaticNpc;
-    window.deleteCloudNpc = deleteCloudNpc;
-    window.editCloudNpc = editCloudNpc;
-    window.previewStaticNpc = previewStaticNpc;
-    
-    // Combat Bindings
-    window.stStartCombat = startCombat;
-    window.stEndCombat = endCombat;
-    window.stNextTurn = nextTurn;
-    window.stUpdateInit = (id, val) => updateInitiative(id, val);
-    window.stRemoveCombatant = removeCombatant;
-    window.stRollInit = rollNPCInitiative;
-    window.stAddToCombat = handleAddToCombat;
-    window.renderCombatView = renderCombatView;
-    window.stViewCombatantSheet = stViewCombatantSheet; 
-    window.stToggleCombatVisibility = stToggleCombatVisibility;
-    window.stOpenCombatVisibilityModal = stOpenCombatVisibilityModal;
+    container.innerHTML = `
+        <div class="p-8 max-w-4xl mx-auto pb-20 overflow-y-auto h-full custom-scrollbar">
+            <h2 class="text-2xl text-[#d4af37] font-cinzel font-bold mb-6 border-b border-[#333] pb-2 uppercase tracking-wider">Chronicle Configuration</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <div>
+                    <label class="label-text text-gray-400">Chronicle Name</label>
+                    <input type="text" id="st-set-name" class="w-full bg-[#111] border border-[#333] text-white p-3 text-sm focus:border-[#d4af37] outline-none" value="${data.name || ''}">
+                </div>
+                <div>
+                    <label class="label-text text-gray-400">Time Period / Setting</label>
+                    <input type="text" id="st-set-time" class="w-full bg-[#111] border border-[#333] text-white p-3 text-sm focus:border-[#d4af37] outline-none" value="${data.timePeriod || ''}">
+                </div>
+            </div>
 
-    // Journal Bindings
-    window.stPushHandout = pushHandoutToPlayers;
-    window.stDeleteJournalEntry = stDeleteJournalEntry;
-    
-    // Roster Management
-    window.stRemovePlayer = stRemovePlayer;
-    window.stViewPlayerSheet = stViewPlayerSheet; 
-    window.returnToStoryteller = returnToStoryteller; 
+            <div class="mb-6">
+                <label class="label-text text-gray-400">Passcode (Leave empty for open access)</label>
+                <input type="text" id="st-set-pass" class="w-full bg-[#111] border border-[#333] text-white p-3 text-sm focus:border-[#d4af37] outline-none" value="${data.passcode || ''}">
+            </div>
 
-    // GLOBAL PUSH API
-    window.stPushNpc = async (npcData) => {
-        if (!stState.activeChronicleId || !stState.isStoryteller) return showNotification("Not in ST Mode", "error");
-        try {
-            const id = npcData.id || "npc_" + Date.now();
-            await setDoc(doc(db, 'chronicles', stState.activeChronicleId, 'bestiary', id), {
-                name: npcData.name || "Unknown",
-                type: "Custom",
-                data: npcData
-            });
-            showNotification(`${npcData.name} sent to Bestiary`);
-        } catch(e) { console.error(e); showNotification("Failed to push NPC", "error"); }
-    };
+            <div class="mb-6">
+                <label class="label-text text-gray-400">Synopsis / Briefing (Public)</label>
+                <textarea id="st-set-synopsis" class="w-full bg-[#111] border border-[#333] text-gray-300 p-3 text-xs focus:border-[#d4af37] outline-none resize-none h-32 leading-relaxed">${data.synopsis || ''}</textarea>
+            </div>
 
-    bindDashboardButton();
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', bindDashboardButton);
-    }
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                <div>
+                    <label class="label-text text-gray-400">House Rules</label>
+                    <textarea id="st-set-rules" class="w-full bg-[#1a0505] border border-red-900/30 text-gray-300 p-3 text-xs focus:border-red-500 outline-none resize-none h-48 leading-relaxed">${data.houseRules || ''}</textarea>
+                </div>
+                <div>
+                    <label class="label-text text-gray-400">Lore / Setting Details</label>
+                    <textarea id="st-set-lore" class="w-full bg-[#0a0a0a] border border-[#d4af37]/30 text-gray-300 p-3 text-xs focus:border-[#d4af37] outline-none resize-none h-48 leading-relaxed">${data.lore || ''}</textarea>
+                </div>
+            </div>
 
-    setTimeout(checkStaleSession, 1000);
+            <div class="text-right border-b border-[#333] pb-6 mb-6">
+                <button onclick="window.stSaveSettings()" class="bg-[#d4af37] text-black font-bold px-8 py-3 rounded uppercase hover:bg-[#fcd34d] shadow-lg tracking-widest transition-transform hover:scale-105">
+                    Save Chronicle
+                </button>
+            </div>
+
+            <!-- LOCAL SETTINGS -->
+            <div class="bg-[#111] p-4 border border-[#333] rounded">
+                <h3 class="text-sm font-bold text-gray-400 uppercase mb-4 tracking-wider"><i class="fas fa-bell mr-2"></i> Local Interface Settings</h3>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-xs text-white font-bold">Sound Effects</span>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="pref-master-sound" class="sr-only peer" ${notifPrefs.masterSound ? 'checked' : ''}>
+                                <div class="w-9 h-5 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-gold"></div>
+                            </label>
+                        </div>
+                        <p class="text-[10px] text-gray-500 mb-3">Master toggle for all notification sounds.</p>
+
+                        <div class="space-y-2 pl-2 border-l border-[#333]">
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" id="pref-sound-chat" class="accent-gold w-3 h-3" ${notifPrefs.chatSound ? 'checked' : ''}>
+                                <span class="text-xs text-gray-400">Chat Messages</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" id="pref-sound-combat" class="accent-gold w-3 h-3" ${notifPrefs.combatSound ? 'checked' : ''}>
+                                <span class="text-xs text-gray-400">Combat & Rolls</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" id="pref-sound-journal" class="accent-gold w-3 h-3" ${notifPrefs.journalSound ? 'checked' : ''}>
+                                <span class="text-xs text-gray-400">Journal & Events</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="text-xs text-white font-bold block mb-2">Audio Cooldown</label>
+                        <select id="pref-cooldown" class="w-full bg-[#050505] border border-[#333] text-gray-300 text-xs p-2 focus:border-gold outline-none">
+                            <option value="0" ${notifPrefs.cooldown === 0 ? 'selected' : ''}>None (Instant)</option>
+                            <option value="5" ${notifPrefs.cooldown === 5 ? 'selected' : ''}>5 Seconds</option>
+                            <option value="20" ${notifPrefs.cooldown === 20 ? 'selected' : ''}>20 Seconds</option>
+                            <option value="30" ${notifPrefs.cooldown === 30 ? 'selected' : ''}>30 Seconds</option>
+                        </select>
+                        <p class="text-[10px] text-gray-500 mt-2">Prevents sound spam during bursts of activity.</p>
+                    </div>
+                </div>
+                
+                <div class="mt-4 pt-4 border-t border-[#333] text-right">
+                    <button onclick="window.stSaveLocalPrefs()" class="text-xs bg-[#222] hover:bg-[#333] text-gray-300 border border-[#444] px-4 py-2 rounded uppercase font-bold transition-colors">
+                        Save Preferences
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
 }
 
-function bindDashboardButton() {
-    const btn = document.getElementById('st-dashboard-btn');
-    if (btn) {
-        btn.onclick = (e) => {
-            e.preventDefault();
-            window.renderStorytellerDashboard();
-        };
-    }
+// Handler for Local Prefs
+window.stSaveLocalPrefs = function() {
+    const newPrefs = {
+        masterSound: document.getElementById('pref-master-sound').checked,
+        chatSound: document.getElementById('pref-sound-chat').checked,
+        combatSound: document.getElementById('pref-sound-combat').checked,
+        journalSound: document.getElementById('pref-sound-journal').checked,
+        cooldown: parseInt(document.getElementById('pref-cooldown').value) || 0
+    };
+    saveNotificationPrefs(newPrefs);
+    showNotification("Local preferences saved.");
+};
+
+async function stSaveSettings() {
 }
 
 // --- SESSION HYGIENE ---
