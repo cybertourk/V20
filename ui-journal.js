@@ -1039,11 +1039,75 @@ function escapeRegExp(string) {
 }
 
 // 3. View Codex Popup
+function ensureJournalContext() {
+    // If we already have data and handlers, we assume it's good
+    if (activeContext.data && activeContext.onSave) return;
+
+    if (window.stState && window.stState.isStoryteller) {
+        // ST Mode Initialization
+        const stState = window.stState;
+        const journalArray = Object.values(stState.journal || {});
+        
+        activeContext = {
+            mode: 'storyteller',
+            data: journalArray,
+            onSave: async (entry) => {
+                if (!stState.activeChronicleId) { showNotification("No Active Chronicle", "error"); return; }
+                try {
+                    const safeId = entry.id.startsWith('journal_') ? entry.id : 'journal_' + entry.id;
+                    const docRef = doc(db, 'chronicles', stState.activeChronicleId, 'players', safeId);
+                    await setDoc(docRef, { ...entry, metadataType: 'journal', original_id: entry.id }, { merge: true });
+                    showNotification("Journal Synced.");
+                } catch(e) { console.error(e); showNotification("Sync Failed", "error"); }
+            },
+            onDelete: async (id) => {
+                if (!stState.activeChronicleId) return;
+                try {
+                    const safeId = id.startsWith('journal_') ? id : 'journal_' + id;
+                    await deleteDoc(doc(db, 'chronicles', stState.activeChronicleId, 'players', safeId));
+                    showNotification("Entry Deleted.");
+                } catch(e) { console.error(e); }
+            }
+        };
+    } else if (window.state) {
+        // Player Mode Initialization
+        activeContext = {
+            mode: 'player',
+            data: window.state.codex || [],
+            onSave: () => { if (window.performSave) window.performSave(true); },
+            onDelete: () => { if (window.performSave) window.performSave(true); }
+        };
+    }
+}
+
 window.viewCodex = function(id) {
-    const entry = (activeContext.data || []).find(c => c.id === id);
-    if (!entry) return;
+    // 1. Ensure Context is initialized (essential for external calls from Map)
+    ensureJournalContext();
     
-    const modal = document.getElementById('codex-popup');
+    // 2. Ensure Modal Exists in DOM
+    let modal = document.getElementById('codex-popup');
+    if (!modal) {
+        const div = document.createElement('div');
+        div.innerHTML = renderPopupModal();
+        modal = div.firstElementChild;
+        document.body.appendChild(modal);
+        bindPopupListeners(); // Rebind listeners for the new modal
+    }
+
+    // 3. Proceed with finding entry
+    const entry = (activeContext.data || []).find(c => c.id === id);
+    if (!entry) {
+        // Fallback: If context didn't have it, try refreshing data from source one last time
+        if (window.stState && window.stState.isStoryteller) {
+             const freshData = Object.values(window.stState.journal || {});
+             activeContext.data = freshData;
+             const retry = freshData.find(c => c.id === id);
+             if (retry) { window.viewCodex(id); return; }
+        }
+        console.warn("Codex entry not found:", id);
+        return;
+    }
+    
     const viewDiv = document.getElementById('codex-popup-view');
     const editDiv = document.getElementById('codex-popup-edit');
     
