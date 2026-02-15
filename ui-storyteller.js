@@ -6,7 +6,8 @@ import { BESTIARY } from "./bestiary-data.js";
 import { GEN_LIMITS } from "./data.js";
 import { 
     initCombatTracker, combatState, startCombat, endCombat, nextTurn, 
-    addCombatant, removeCombatant, updateInitiative, rollNPCInitiative 
+    addCombatant, removeCombatant, updateInitiative, rollNPCInitiative,
+    setCombatantHidden // Import setHidden here
 } from "./combat-tracker.js";
 
 import { renderStorytellerJournal, updateJournalList } from "./ui-journal.js";
