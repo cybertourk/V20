@@ -4,55 +4,14 @@ import {
 } from "./data.js";
 
 // ==========================================================================
-// NOTIFICATION PREFERENCES (LOCAL STORAGE)
-// ==========================================================================
-
-const NOTIF_KEY = 'v20_notification_prefs';
-
-export const notifPrefs = JSON.parse(localStorage.getItem(NOTIF_KEY)) || {
-    masterSound: true,
-    chatSound: true,    // Type: chat
-    combatSound: true,  // Type: roll, system
-    journalSound: true, // Type: event, whisper
-    cooldown: 0         // Seconds (0, 5, 20, 30)
-};
-
-let lastChimeTime = 0;
-
-export function saveNotificationPrefs(newPrefs) {
-    Object.assign(notifPrefs, newPrefs);
-    localStorage.setItem(NOTIF_KEY, JSON.stringify(notifPrefs));
-}
-window.saveNotificationPrefs = saveNotificationPrefs;
-window.notifPrefs = notifPrefs; // Expose for UI checks
-
-// ==========================================================================
 // AUDIO SYSTEM (Church Bell Chime)
 // ==========================================================================
 
 /**
  * Plays the specific church bell chime from the provided URL.
- * Triggers on new incoming notifications, filtered by user preferences.
- * @param {string} type - The type of notification triggering the sound.
+ * Triggers on new incoming notifications.
  */
-function playBellChime(type) {
-    // 1. Master Switch
-    if (!notifPrefs.masterSound) return;
-
-    // 2. Cooldown Check
-    const now = Date.now();
-    if (notifPrefs.cooldown > 0 && (now - lastChimeTime) < (notifPrefs.cooldown * 1000)) {
-        return;
-    }
-
-    // 3. Category Filter
-    let shouldPlay = true;
-    if (type === 'chat' && !notifPrefs.chatSound) shouldPlay = false;
-    if ((type === 'roll' || type === 'system') && !notifPrefs.combatSound) shouldPlay = false;
-    if ((type === 'event' || type === 'whisper') && !notifPrefs.journalSound) shouldPlay = false;
-
-    if (!shouldPlay) return;
-
+function playBellChime() {
     try {
         // Using the specific church bell sound file provided by Zeb
         const bell = new Audio('https://files.catbox.moe/7yeahl.WAV');
@@ -63,13 +22,9 @@ function playBellChime(type) {
         if (playPromise !== undefined) {
             playPromise.catch(error => {
                 // Browsers often block audio until the user interacts with the page once.
-                // console.warn("Audio chime prevented by browser auto-play policy.");
+                console.warn("Audio chime prevented by browser auto-play policy. Interact with the page to enable sounds.");
             });
         }
-        
-        // Update timestamp only on successful trigger intent
-        lastChimeTime = now;
-
     } catch (e) {
         console.error("Audio playback error:", e);
     }
@@ -82,7 +37,6 @@ function playBellChime(type) {
 /**
  * Displays a stackable toast notification on the left side of the screen.
  * REMAIN ON SCREEN: These toasts stay until clicked away by the user.
- * MAX LIMIT: Keeps the 5 most recent toasts.
  * @param {string} msg - The message body.
  * @param {string} type - The toast style ('info', 'roll', 'system', 'chat', 'whisper', 'event').
  * @param {string} header - The small bold text at the top of the toast.
@@ -100,16 +54,8 @@ export function showNotification(msg, type = 'info', header = 'System') {
         return;
     }
 
-    // Play Sound (Filtered by Settings)
-    playBellChime(type);
-
-    // Limit Check (Max 5)
-    // Remove the oldest (top) notifications if we exceed the limit
-    while (container.children.length >= 5) {
-        if (container.firstChild) {
-            container.removeChild(container.firstChild);
-        }
-    }
+    // Play the Church Bell Sound File
+    playBellChime();
 
     // Create Toast Element
     const toast = document.createElement('div');
