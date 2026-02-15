@@ -118,10 +118,18 @@ function renderJournalInterface(container, activeTab) {
     const inactiveClass = "text-gray-500 hover:text-white transition-colors";
     const showTabs = activeContext.mode === 'player';
 
-    // FIX: Added 'h-full' to ensure the container takes up space, enabling scrolling
-    // Added 'flex-1' to main view container
+    // FIX: Apply height constraint to Player Mode to prevent page stretching.
+    // ST Mode uses h-full because it lives in a flex-locked dashboard.
+    const isPlayer = activeContext.mode === 'player';
+    const wrapperClass = isPlayer 
+        ? 'flex flex-col relative w-full overflow-hidden' 
+        : 'flex flex-col h-full relative w-full overflow-hidden';
+    const wrapperStyle = isPlayer 
+        ? 'height: calc(100vh - 240px); min-height: 500px;' 
+        : '';
+
     container.innerHTML = `
-        <div class="flex flex-col h-full relative w-full overflow-hidden">
+        <div class="${wrapperClass}" style="${wrapperStyle}">
             ${showTabs ? `
             <div class="flex gap-6 border-b border-[#333] pb-2 mb-2 px-2 shrink-0">
                 <button id="tab-sessions" class="text-xs uppercase tracking-wider px-2 pb-1 ${activeTab==='sessions'?activeClass:inactiveClass}">Session Logs</button>
