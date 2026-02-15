@@ -47,6 +47,8 @@ export function renderJournalTab() {
 
 export function renderStorytellerJournal(container) {
     // STORYTELLER ENTRY POINT
+    if (!container) return;
+
     const stState = window.stState || {};
     // Ensure journal data exists, defaulting to empty object if not found
     const journalData = stState.journal || {};
@@ -113,8 +115,9 @@ function renderJournalInterface(container, activeTab) {
     const inactiveClass = "text-gray-500 hover:text-white transition-colors";
     const showTabs = activeContext.mode === 'player';
 
+    // FIX: Added 'h-full' to ensure the container takes up space, enabling scrolling
     container.innerHTML = `
-        <div class="flex flex-col h-full relative">
+        <div class="flex flex-col h-full relative w-full">
             ${showTabs ? `
             <div class="flex gap-6 border-b border-[#333] pb-2 mb-2 px-2 shrink-0">
                 <button id="tab-sessions" class="text-xs uppercase tracking-wider px-2 pb-1 ${activeTab==='sessions'?activeClass:inactiveClass}">Session Logs</button>
@@ -123,7 +126,7 @@ function renderJournalInterface(container, activeTab) {
             ` : ''}
             
             <!-- Main Content Area -->
-            <div id="journal-main-view" class="flex-1 overflow-hidden h-full relative"></div>
+            <div id="journal-main-view" class="flex-1 overflow-hidden h-full relative w-full"></div>
             
             <!-- Floating Autocomplete Box -->
             <div id="autocomplete-suggestions" class="autocomplete-box"></div>
@@ -548,7 +551,7 @@ function renderCodexView(container) {
     
     // Updated HTML with overflow classes for scrolling
     container.innerHTML = `
-        <div class="flex h-full gap-4 overflow-hidden">
+        <div class="flex h-full gap-4 overflow-hidden w-full">
             <!-- Sidebar -->
             <div class="w-1/4 flex flex-col border-r border-[#333] pr-2 h-full">
                 <input type="text" id="codex-search" class="bg-[#111] border border-[#333] text-xs p-1 mb-2 text-white placeholder-gray-600" placeholder="Search...">
