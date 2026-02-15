@@ -48,7 +48,9 @@ export function renderJournalTab() {
 export function renderStorytellerJournal(container) {
     // STORYTELLER ENTRY POINT
     const stState = window.stState || {};
-    const journalArray = Object.values(stState.journal || {});
+    // Ensure journal data exists, defaulting to empty object if not found
+    const journalData = stState.journal || {};
+    const journalArray = Object.values(journalData);
 
     // Set Context: CLOUD
     activeContext = {
@@ -94,7 +96,9 @@ export function renderStorytellerJournal(container) {
 export function updateJournalList(newData) {
     activeContext.data = newData || [];
     codexCache = (activeContext.data || []).map(c => c.name);
-    renderCodexList();
+    // Only re-render list if the codex view is active to avoid overwriting editor state unnecessarily
+    const list = document.getElementById('codex-list');
+    if (list) renderCodexList();
 }
 
 // ==========================================================================
@@ -542,7 +546,7 @@ function renderCodexView(container) {
     const isST = activeContext.mode === 'storyteller';
     const bgClass = "bg-[#080808]";
     
-    // Updated HTML to include 'overflow-y-auto' and 'max-h' constraints on the list and editor
+    // Updated HTML with overflow classes for scrolling
     container.innerHTML = `
         <div class="flex h-full gap-4 overflow-hidden">
             <!-- Sidebar -->
