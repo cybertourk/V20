@@ -90,7 +90,7 @@ function renderChronicleInfoView(container, data) {
 }
 
     ARCHETYPE_RULES
- from "./data.js";
+} from "./data.js";
 
 import { DISCIPLINES_DATA } from "./disciplines-data.js";
 
