@@ -86,10 +86,11 @@ function renderChronicleInfoView(container, data) {
                 </div>
             </div>
         </div>
-    `;
+ `;
 }
 
-    ARCHETYPE_RULES
+import {
+   ARCHETYPE_RULES
 } from "./data.js";
 
 import { DISCIPLINES_DATA } from "./disciplines-data.js";
@@ -97,7 +98,6 @@ import { DISCIPLINES_DATA } from "./disciplines-data.js";
 import { 
     renderDots, setSafeText, showNotification 
 } from "./ui-common.js";
-
 import { 
     renderRow, rollCombat, rollFrenzy, rollRotschreck, rollDiscipline, rollInitiative, toggleStat
 } from "./ui-mechanics.js";
