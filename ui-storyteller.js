@@ -2,7 +2,9 @@ import {
     notifPrefs, saveNotificationPrefs
 } from "./ui-common.js";
 
-    db, auth, collection, doc, setDoc, getDoc, getDocs, query, where, addDoc, onSnapshot, deleteDoc, updateDoc, appId, arrayUnion, arrayRemove, orderBy, limit, writeBatch
+// db, auth, collection, doc, setDoc, getDoc, getDocs, query, where, addDoc, onSnapshot, deleteDoc, updateDoc, appId, arrayUnion, arrayRemove, orderBy, limit, writeBatch
+// (Assumed global or previously imported variables)
+
 // --- NEW SETTINGS VIEW ---
 async function renderSettingsView(container) {
     if(!container) return;
@@ -127,6 +129,25 @@ window.stSaveLocalPrefs = function() {
 };
 
 async function stSaveSettings() {
+    if(!stState.activeChronicleId) return;
+    
+    const updates = {
+        name: document.getElementById('st-set-name').value,
+        timePeriod: document.getElementById('st-set-time').value,
+        passcode: document.getElementById('st-set-pass').value,
+        synopsis: document.getElementById('st-set-synopsis').value,
+        houseRules: document.getElementById('st-set-rules').value,
+        lore: document.getElementById('st-set-lore').value
+    };
+    
+    try {
+        await updateDoc(doc(db, 'chronicles', stState.activeChronicleId), updates);
+        stState.settings = { ...stState.settings, ...updates };
+        showNotification("Settings Updated");
+    } catch(e) {
+        console.error(e);
+        showNotification("Update Failed", "error");
+    }
 }
 
 // --- SESSION HYGIENE ---
@@ -1026,88 +1047,6 @@ function switchStorytellerView(view) {
     }
     else if (view === 'chat') renderChatView(viewport);
     else if (view === 'settings') renderSettingsView(viewport);
-}
-
-// --- NEW SETTINGS VIEW ---
-async function renderSettingsView(container) {
-    if(!container) return;
-    
-    const docRef = doc(db, 'chronicles', stState.activeChronicleId);
-    let data = stState.settings || {};
-    
-    try {
-        const snap = await getDoc(docRef);
-        if(snap.exists()) {
-            data = snap.data();
-            stState.settings = data;
-        }
-    } catch(e) { console.error(e); }
-
-    container.innerHTML = `
-        <div class="p-8 max-w-4xl mx-auto pb-20 overflow-y-auto h-full custom-scrollbar">
-            <h2 class="text-2xl text-[#d4af37] font-cinzel font-bold mb-6 border-b border-[#333] pb-2 uppercase tracking-wider">Chronicle Configuration</h2>
-            
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                <div>
-                    <label class="label-text text-gray-400">Chronicle Name</label>
-                    <input type="text" id="st-set-name" class="w-full bg-[#111] border border-[#333] text-white p-3 text-sm focus:border-[#d4af37] outline-none" value="${data.name || ''}">
-                </div>
-                <div>
-                    <label class="label-text text-gray-400">Time Period / Setting</label>
-                    <input type="text" id="st-set-time" class="w-full bg-[#111] border border-[#333] text-white p-3 text-sm focus:border-[#d4af37] outline-none" value="${data.timePeriod || ''}">
-                </div>
-            </div>
-
-            <div class="mb-6">
-                <label class="label-text text-gray-400">Passcode (Leave empty for open access)</label>
-                <input type="text" id="st-set-pass" class="w-full bg-[#111] border border-[#333] text-white p-3 text-sm focus:border-[#d4af37] outline-none" value="${data.passcode || ''}">
-            </div>
-
-            <div class="mb-6">
-                <label class="label-text text-gray-400">Synopsis / Briefing (Public)</label>
-                <textarea id="st-set-synopsis" class="w-full bg-[#111] border border-[#333] text-gray-300 p-3 text-xs focus:border-[#d4af37] outline-none resize-none h-32 leading-relaxed">${data.synopsis || ''}</textarea>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                <div>
-                    <label class="label-text text-gray-400">House Rules</label>
-                    <textarea id="st-set-rules" class="w-full bg-[#1a0505] border border-red-900/30 text-gray-300 p-3 text-xs focus:border-red-500 outline-none resize-none h-48 leading-relaxed">${data.houseRules || ''}</textarea>
-                </div>
-                <div>
-                    <label class="label-text text-gray-400">Lore / Setting Details</label>
-                    <textarea id="st-set-lore" class="w-full bg-[#0a0a0a] border border-[#d4af37]/30 text-gray-300 p-3 text-xs focus:border-[#d4af37] outline-none resize-none h-48 leading-relaxed">${data.lore || ''}</textarea>
-                </div>
-            </div>
-
-            <div class="text-right">
-                <button onclick="window.stSaveSettings()" class="bg-[#d4af37] text-black font-bold px-8 py-3 rounded uppercase hover:bg-[#fcd34d] shadow-lg tracking-widest transition-transform hover:scale-105">
-                    Save Changes
-                </button>
-            </div>
-        </div>
-    `;
-}
-
-async function stSaveSettings() {
-    if(!stState.activeChronicleId) return;
-    
-    const updates = {
-        name: document.getElementById('st-set-name').value,
-        timePeriod: document.getElementById('st-set-time').value,
-        passcode: document.getElementById('st-set-pass').value,
-        synopsis: document.getElementById('st-set-synopsis').value,
-        houseRules: document.getElementById('st-set-rules').value,
-        lore: document.getElementById('st-set-lore').value
-    };
-    
-    try {
-        await updateDoc(doc(db, 'chronicles', stState.activeChronicleId), updates);
-        stState.settings = { ...stState.settings, ...updates };
-        showNotification("Settings Updated");
-    } catch(e) {
-        console.error(e);
-        showNotification("Update Failed", "error");
-    }
 }
 
 // --- REMOVE PLAYER (KICK) ---
