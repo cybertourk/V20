@@ -7,7 +7,7 @@ import {
 import { DISCIPLINES_DATA } from "./disciplines-data.js";
 
 import { 
-    renderDots, setSafeText, showNotification 
+    renderDots, setSafeText, showNotification, notifPrefs, saveNotificationPrefs 
 } from "./ui-common.js";
 
 import { 
@@ -238,7 +238,7 @@ export function applyPlayModeUI() {
         if (['save-filename', 'char-select', 'roll-diff', 'use-specialty', 'c-path-name', 'c-path-name-create', 'c-bearing-name', 'c-bearing-value', 'custom-weakness-input', 'xp-points-input', 'blood-per-turn-input', 'custom-dice-input', 'spend-willpower', 'c-xp-total', 'frenzy-diff', 'rotschreck-diff', 'play-merit-notes', 'dmg-input-val', 'tray-use-armor',
         'log-sess-num', 'log-date', 'log-game-date', 'log-title', 'log-effects', 'log-scene1', 'log-scene2', 'log-scene3', 'log-scene-outcome', 'log-xp-gain',
         'log-obj', 'log-clues', 'log-secrets', 'log-downtime',
-        'chronicle-chat-input', 'pl-chat-mood'
+        'chronicle-chat-input', 'pl-chat-mood', 'pl-pref-master-sound', 'pl-pref-sound-chat', 'pl-pref-sound-combat', 'pl-pref-sound-journal', 'pl-pref-cooldown'
         ].includes(el.id) || el.classList.contains('merit-flaw-desc') || el.closest('#active-log-form')) {
             el.disabled = false;
             return;
@@ -1035,6 +1035,91 @@ export async function renderChronicleTab() {
 }
 window.renderChronicleTab = renderChronicleTab;
 
+// --- PLAYER SETTINGS HANDLER ---
+window.plSaveLocalPrefs = function() {
+    const newPrefs = {
+        masterSound: document.getElementById('pl-pref-master-sound').checked,
+        chatSound: document.getElementById('pl-pref-sound-chat').checked,
+        combatSound: document.getElementById('pl-pref-sound-combat').checked,
+        journalSound: document.getElementById('pl-pref-sound-journal').checked,
+        cooldown: parseInt(document.getElementById('pl-pref-cooldown').value) || 0
+    };
+    saveNotificationPrefs(newPrefs);
+    showNotification("Local preferences saved.");
+};
+
+function renderChronicleInfoView(container, data) {
+    container.innerHTML = `
+        <div class="overflow-y-auto h-full custom-scrollbar pr-2 space-y-6 pb-20">
+            <div class="border-b border-[#af0000] pb-4 text-center">
+                <h2 class="text-3xl font-cinzel text-[#af0000] font-bold tracking-widest uppercase text-shadow-md">${data.name || "Untitled"}</h2>
+                <div class="text-xs text-gold font-serif italic uppercase tracking-widest mt-1">${data.timePeriod || "Modern Nights"}</div>
+            </div>
+            <div class="bg-[#111] p-6 border border-[#333] relative group hover:border-[#af0000] transition-colors shadow-lg">
+                <div class="absolute -top-2 left-4 bg-black px-2 text-[10px] text-gray-500 font-bold uppercase tracking-wider group-hover:text-[#af0000] transition-colors">Synopsis</div>
+                <div class="text-sm text-gray-300 font-serif leading-relaxed whitespace-pre-wrap">${data.synopsis || "No synopsis provided."}</div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="bg-[#1a0505] p-4 border border-red-900/30 relative shadow-lg h-fit">
+                    <div class="absolute -top-2 left-4 bg-black px-2 text-[10px] text-red-500 font-bold uppercase tracking-wider">House Rules</div>
+                    <div class="text-xs text-gray-400 font-serif leading-relaxed whitespace-pre-wrap max-h-96 overflow-y-auto custom-scrollbar">${data.houseRules || "Standard V20 Rules apply."}</div>
+                </div>
+                <div class="bg-[#0a0a0a] p-4 border border-[#d4af37]/30 relative shadow-lg h-fit">
+                    <div class="absolute -top-2 left-4 bg-black px-2 text-[10px] text-[#d4af37] font-bold uppercase tracking-wider">Lore & Setting</div>
+                    <div class="text-xs text-gray-400 font-serif leading-relaxed whitespace-pre-wrap max-h-96 overflow-y-auto custom-scrollbar">${data.lore || "No specific setting details available."}</div>
+                </div>
+            </div>
+
+            <!-- LOCAL SETTINGS (PLAYER) -->
+            <div class="bg-[#111] p-4 border border-[#333] rounded mt-6">
+                <h3 class="text-sm font-bold text-gray-400 uppercase mb-4 tracking-wider"><i class="fas fa-bell mr-2"></i> Notification Settings</h3>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-xs text-white font-bold">Sound Effects</span>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="pl-pref-master-sound" class="sr-only peer" ${notifPrefs.masterSound ? 'checked' : ''}>
+                                <div class="w-9 h-5 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-gold"></div>
+                            </label>
+                        </div>
+                        
+                        <div class="space-y-2 pl-2 border-l border-[#333]">
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" id="pl-pref-sound-chat" class="accent-gold w-3 h-3" ${notifPrefs.chatSound ? 'checked' : ''}>
+                                <span class="text-xs text-gray-400">Chat Messages</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" id="pl-pref-sound-combat" class="accent-gold w-3 h-3" ${notifPrefs.combatSound ? 'checked' : ''}>
+                                <span class="text-xs text-gray-400">Combat & Rolls</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" id="pl-pref-sound-journal" class="accent-gold w-3 h-3" ${notifPrefs.journalSound ? 'checked' : ''}>
+                                <span class="text-xs text-gray-400">Journal & Events</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="text-xs text-white font-bold block mb-2">Audio Cooldown</label>
+                        <select id="pl-pref-cooldown" class="w-full bg-[#050505] border border-[#333] text-gray-300 text-xs p-2 focus:border-gold outline-none">
+                            <option value="0" ${notifPrefs.cooldown === 0 ? 'selected' : ''}>None (Instant)</option>
+                            <option value="5" ${notifPrefs.cooldown === 5 ? 'selected' : ''}>5 Seconds</option>
+                            <option value="20" ${notifPrefs.cooldown === 20 ? 'selected' : ''}>20 Seconds</option>
+                            <option value="30" ${notifPrefs.cooldown === 30 ? 'selected' : ''}>30 Seconds</option>
+                        </select>
+                        <p class="text-[10px] text-gray-500 mt-2">Prevents sound spam during bursts of activity.</p>
+                        
+                        <button onclick="window.plSaveLocalPrefs()" class="mt-4 w-full text-xs bg-[#222] hover:bg-[#333] text-gray-300 border border-[#444] px-4 py-2 rounded uppercase font-bold transition-colors">
+                            Save Preferences
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
 /**
  * Renders the Combat Tracker sub-tab in the player's Chronicle view.
  * @param {HTMLElement} container - Target container for rendering.
@@ -1130,31 +1215,6 @@ function renderChronicleCombatView(container) {
 
     html += `</div></div>`;
     container.innerHTML = html;
-}
-
-function renderChronicleInfoView(container, data) {
-    container.innerHTML = `
-        <div class="overflow-y-auto h-full custom-scrollbar pr-2 space-y-6 pb-20">
-            <div class="border-b border-[#af0000] pb-4 text-center">
-                <h2 class="text-3xl font-cinzel text-[#af0000] font-bold tracking-widest uppercase text-shadow-md">${data.name || "Untitled"}</h2>
-                <div class="text-xs text-gold font-serif italic uppercase tracking-widest mt-1">${data.timePeriod || "Modern Nights"}</div>
-            </div>
-            <div class="bg-[#111] p-6 border border-[#333] relative group hover:border-[#af0000] transition-colors shadow-lg">
-                <div class="absolute -top-2 left-4 bg-black px-2 text-[10px] text-gray-500 font-bold uppercase tracking-wider group-hover:text-[#af0000] transition-colors">Synopsis</div>
-                <div class="text-sm text-gray-300 font-serif leading-relaxed whitespace-pre-wrap">${data.synopsis || "No synopsis provided."}</div>
-            </div>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div class="bg-[#1a0505] p-4 border border-red-900/30 relative shadow-lg h-fit">
-                    <div class="absolute -top-2 left-4 bg-black px-2 text-[10px] text-red-500 font-bold uppercase tracking-wider">House Rules</div>
-                    <div class="text-xs text-gray-400 font-serif leading-relaxed whitespace-pre-wrap max-h-96 overflow-y-auto custom-scrollbar">${data.houseRules || "Standard V20 Rules apply."}</div>
-                </div>
-                <div class="bg-[#0a0a0a] p-4 border border-[#d4af37]/30 relative shadow-lg h-fit">
-                    <div class="absolute -top-2 left-4 bg-black px-2 text-[10px] text-[#d4af37] font-bold uppercase tracking-wider">Lore & Setting</div>
-                    <div class="text-xs text-gray-400 font-serif leading-relaxed whitespace-pre-wrap max-h-96 overflow-y-auto custom-scrollbar">${data.lore || "No specific setting details available."}</div>
-                </div>
-            </div>
-        </div>
-    `;
 }
 
 /**
