@@ -1,5 +1,5 @@
 import { 
-    db, auth, collection, doc, setDoc, getDoc, getDocs, query, where, onSnapshot, deleteDoc, updateDoc
+    db, auth, collection, doc, setDoc, getDoc, getDocs, query, where, onSnapshot, deleteDoc, updateDoc, appId
 } from "./firebase-config.js";
 import { showNotification } from "./ui-common.js";
 import { 
@@ -9,7 +9,7 @@ import {
 
 import { initChatSystem, startChatListener, sendChronicleMessage } from "./chat-model.js";
 
-// --- MISSING IMPORTS ADDED HERE ---
+// --- MISSING IMPORTS ---
 import { renderCoterieMap } from "./coterie-map.js";
 import { renderStorytellerJournal } from "./ui-journal.js";
 
@@ -19,7 +19,7 @@ import {
     stViewPlayerSheet, returnToStoryteller, stViewCombatantSheet, stToggleCombatVisibility,
     stOpenCombatVisibilityModal, handleAddToCombat, copyStaticNpc, deleteCloudNpc, editCloudNpc,
     previewStaticNpc, pushHandoutToPlayers, stDeleteJournalEntry, stSaveSettings, stSaveLocalPrefs,
-    stAnnounceTime // NEW: Import for time tracker
+    stAnnounceTime 
 } from "./st-dashboard-views.js";
 
 // --- STATE ---
@@ -60,6 +60,7 @@ export function initStorytellerSystem() {
     window.handleJoinChronicle = handleJoinChronicle;
     window.handleResumeChronicle = handleResumeChronicle;
     window.handleDeleteChronicle = handleDeleteChronicle;
+    window.handleLeaveChronicle = handleLeaveChronicle; // NEW: Leave participant list
     window.disconnectChronicle = disconnectChronicle;
     window.switchStorytellerView = switchStorytellerView;
     window.renderStorytellerDashboard = renderStorytellerDashboard;
@@ -68,7 +69,7 @@ export function initStorytellerSystem() {
     // Settings Actions (Implemented in views file)
     window.stSaveSettings = stSaveSettings;
     window.stSaveLocalPrefs = stSaveLocalPrefs; 
-    window.stAnnounceTime = stAnnounceTime; // NEW: Global binding for time announcement
+    window.stAnnounceTime = stAnnounceTime; 
 
     // Bestiary Actions (Implemented in views file)
     window.copyStaticNpc = copyStaticNpc;
@@ -95,7 +96,6 @@ export function initStorytellerSystem() {
     
     // Roster Management
     window.stRemovePlayer = (id, name) => {
-        // Find by name if ID is missing (compat)
         const uid = id || Object.keys(stState.players).find(k => stState.players[k].character_name === name);
         if (uid) stRemovePlayer(uid, name);
     };
@@ -245,7 +245,8 @@ async function renderChronicleMenu() {
         <h2 class="heading text-xl text-[#d4af37] mb-4 border-b border-[#333] pb-2">Chronicles</h2>
         ${authWarning}
         <div id="st-resume-block"></div>
-        <div id="st-campaign-list" class="mb-6 hidden"></div>
+        <div id="st-campaign-list" class="mb-4 hidden"></div>
+        <div id="pl-joined-list" class="mb-6 hidden"></div>
         
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div class="bg-[#111] p-6 border border-[#333] hover:border-[#d4af37] transition-all cursor-pointer group relative overflow-hidden" 
@@ -283,6 +284,7 @@ async function renderChronicleMenu() {
 
     if (!user) return;
 
+    // 1. Resume Logic (Last used session)
     const recentId = localStorage.getItem('v20_last_chronicle_id');
     const recentRole = localStorage.getItem('v20_last_chronicle_role'); 
     
@@ -337,16 +339,15 @@ async function renderChronicleMenu() {
         }
     }
 
+    // 2. Storyteller Campaigns
     const listDiv = document.getElementById('st-campaign-list');
     if (listDiv) {
         try {
-            if (!user || !user.uid) return;
-
             const q = query(collection(db, 'chronicles'), where("storyteller_uid", "==", user.uid));
             const querySnapshot = await getDocs(q);
             
             if (!querySnapshot.empty) {
-                let html = `<h4 class="text-[10px] text-gray-500 uppercase font-bold mb-2">My Campaigns</h4><div class="grid grid-cols-1 gap-2 max-h-40 overflow-y-auto pr-2 custom-scrollbar">`;
+                let html = `<h4 class="text-[10px] text-gray-500 uppercase font-bold mb-2">My Campaigns (ST)</h4><div class="grid grid-cols-1 gap-2 max-h-40 overflow-y-auto pr-2 custom-scrollbar">`;
                 querySnapshot.forEach((doc) => {
                     const data = doc.data();
                     html += `
@@ -368,8 +369,39 @@ async function renderChronicleMenu() {
             }
         } catch (e) {
             console.error("Error loading campaigns:", e);
-            listDiv.innerHTML = `<div class="text-red-500 text-xs italic">Failed to load campaigns. Check connection.</div>`;
-            listDiv.classList.remove('hidden');
+        }
+    }
+
+    // 3. Player Joined Chronicles (NEW)
+    const plListDiv = document.getElementById('pl-joined-list');
+    if (plListDiv) {
+        try {
+            // Path: /artifacts/{appId}/users/{userId}/joined_chronicles
+            const q = query(collection(db, 'artifacts', appId, 'users', user.uid, 'joined_chronicles'));
+            const querySnapshot = await getDocs(q);
+            
+            if (!querySnapshot.empty) {
+                let html = `<h4 class="text-[10px] text-gray-500 uppercase font-bold mb-2 mt-4">Joined Stories (Player)</h4><div class="grid grid-cols-1 gap-2 max-h-40 overflow-y-auto pr-2 custom-scrollbar">`;
+                querySnapshot.forEach((doc) => {
+                    const data = doc.data();
+                    html += `
+                        <div class="flex justify-between items-center bg-[#1a1a1a] p-3 border-l-2 border-blue-900 hover:bg-[#222] cursor-pointer group transition-colors relative">
+                            <div class="flex-1" onclick="window.handleResumeChronicle('${doc.id}', 'Player')">
+                                <div class="text-white font-bold text-sm font-cinzel group-hover:text-blue-400 transition-colors">${data.name}</div>
+                                <div class="text-[9px] text-gray-600 font-mono group-hover:text-white">${doc.id}</div>
+                            </div>
+                            <button onclick="event.stopPropagation(); window.handleLeaveChronicle('${doc.id}')" class="text-gray-600 hover:text-red-500 p-2 z-10 transition-colors" title="Remove from list">
+                                <i class="fas fa-trash-alt"></i>
+                            </button>
+                        </div>
+                    `;
+                });
+                html += `</div>`;
+                plListDiv.innerHTML = html;
+                plListDiv.classList.remove('hidden');
+            }
+        } catch (e) {
+            console.error("Error loading joined list:", e);
         }
     }
 }
@@ -386,6 +418,20 @@ async function handleDeleteChronicle(id) {
     } catch (e) {
         console.error("Delete Error:", e);
         showNotification("Failed to delete chronicle.", "error");
+    }
+}
+
+// NEW: Function for players to remove a chronicle from their joined list
+async function handleLeaveChronicle(id) {
+    if (!confirm("Remove this story from your list? (Does not delete character)")) return;
+    const user = auth.currentUser;
+    if (!user) return;
+    try {
+        await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'joined_chronicles', id));
+        showNotification("Removed from list.");
+        renderChronicleMenu();
+    } catch (e) {
+        console.error("Leave Error:", e);
     }
 }
 
@@ -620,6 +666,13 @@ async function handleJoinChronicle() {
             }
         }, { merge: true });
 
+        // NEW: PERSIST STORY TO PLAYER'S LIST
+        const userJoinedRef = doc(db, 'artifacts', appId, 'users', user.uid, 'joined_chronicles', idInput);
+        await setDoc(userJoinedRef, {
+            name: data.name,
+            joined_at: new Date().toISOString()
+        });
+
         localStorage.setItem('v20_last_chronicle_id', idInput);
         localStorage.setItem('v20_last_chronicle_name', data.name);
         localStorage.setItem('v20_last_chronicle_role', 'Player');
@@ -647,7 +700,8 @@ async function handleJoinChronicle() {
 }
 
 async function handleResumeChronicle(id, role) {
-    if (!auth.currentUser) return;
+    const user = auth.currentUser;
+    if (!user) return;
     
     try {
         const docRef = doc(db, 'chronicles', id);
@@ -656,6 +710,8 @@ async function handleResumeChronicle(id, role) {
         if (!docSnap.exists()) {
             showNotification("Chronicle no longer exists.", "error");
             localStorage.removeItem('v20_last_chronicle_id');
+            // Cleanup from user list if dead
+            deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'joined_chronicles', id)).catch(() => {});
             renderChronicleMenu();
             return;
         }
@@ -668,7 +724,7 @@ async function handleResumeChronicle(id, role) {
         localStorage.setItem('v20_last_chronicle_role', role);
 
         if (role === 'ST') {
-            if (data.storyteller_uid !== auth.currentUser.uid) {
+            if (data.storyteller_uid !== user.uid) {
                 showNotification("Permission Denied: You are not the Storyteller.", "error");
                 localStorage.removeItem('v20_last_chronicle_id');
                 return;
@@ -682,7 +738,7 @@ async function handleResumeChronicle(id, role) {
             toggleStorytellerButton(true);
             window.renderStorytellerDashboard(); 
         } else {
-            const playerRef = doc(db, 'chronicles', id, 'players', auth.currentUser.uid);
+            const playerRef = doc(db, 'chronicles', id, 'players', user.uid);
             
             const pSnap = await getDoc(playerRef);
             if (!pSnap.exists()) {
@@ -782,7 +838,6 @@ function startPlayerSync() {
         try {
             await setDoc(stState.playerRef, {
                 character_name: document.getElementById('c-name')?.value || "Unknown",
-                // Sync full sheet state so ST can view it
                 full_sheet: window.state || {}, 
                 live_stats: {
                     health: window.state.status.health_states || [],
@@ -800,7 +855,6 @@ function startPlayerSync() {
 }
 
 function startPlayerListeners(chronicleId) {
-    // 1. Player/Journal entries listener
     const q = query(collection(db, 'chronicles', chronicleId, 'players'));
     const unsub = onSnapshot(q, (snapshot) => {
         let updated = false;
@@ -872,12 +926,10 @@ function startPlayerListeners(chronicleId) {
     
     stState.listeners.push(unsub);
 
-    // 2. NEW: WATCH CHRONICLE DOC FOR SETTINGS/CLOCK SYNC
     const chronRef = doc(db, 'chronicles', chronicleId);
     stState.listeners.push(onSnapshot(chronRef, (snap) => {
         if (snap.exists()) {
             stState.settings = snap.data();
-            // If Storyteller is currently on the settings tab, we should refresh it
             if (stState.dashboardActive && stState.currentView === 'settings') {
                 renderSettingsView(document.getElementById('st-viewport'));
             }
@@ -936,12 +988,10 @@ function startStorytellerSession() {
         console.error("Bestiary Listener Error:", error);
     }));
 
-    // NEW: ALSO WATCH CHRONICLE DOC FOR SETTINGS/CLOCK SYNC (ST MODE)
     const chronRef = doc(db, 'chronicles', stState.activeChronicleId);
     stState.listeners.push(onSnapshot(chronRef, (snap) => {
         if (snap.exists()) {
             stState.settings = snap.data();
-            // Refresh view if active
             if (stState.dashboardActive && stState.currentView === 'settings') {
                 renderSettingsView(document.getElementById('st-viewport'));
             }
@@ -960,10 +1010,8 @@ function renderStorytellerDashboard(container = null) {
     container.classList.remove('hidden');
     container.style.display = 'flex'; 
 
-    // Layout from Original ui-storyteller.js
     container.innerHTML = `
         <div class="flex flex-col w-full h-full bg-[#050505] pt-16">
-            <!-- ST Header -->
             <div class="flex justify-between items-center bg-[#111] p-4 border-b border-[#333] shrink-0">
                 <div>
                     <h2 class="text-xl font-cinzel text-red-500 font-bold tracking-widest uppercase">Storyteller Mode</h2>
@@ -975,7 +1023,6 @@ function renderStorytellerDashboard(container = null) {
                 </div>
             </div>
 
-            <!-- ST Tabs -->
             <div class="flex bg-[#111] border-b border-[#333] px-4 shrink-0 overflow-x-auto no-scrollbar">
                 <button class="st-tab active px-6 py-3 text-xs font-bold uppercase tracking-wider text-[#d4af37] border-b-2 border-[#d4af37] hover:bg-[#222] transition-colors whitespace-nowrap" onclick="window.switchStorytellerView('roster')">
                     <i class="fas fa-users mr-2"></i> Roster
@@ -1000,12 +1047,9 @@ function renderStorytellerDashboard(container = null) {
                 </button>
             </div>
 
-            <!-- ST Viewport -->
             <div id="st-viewport" class="flex-1 overflow-hidden relative bg-[url('https://www.transparenttextures.com/patterns/black-linen.png')]">
-                <!-- Views injected here -->
             </div>
             
-            <!-- ST VISIBILITY MODAL -->
             <div id="st-combat-vis-modal" class="fixed inset-0 bg-black/80 z-[1000] hidden flex items-center justify-center p-4 backdrop-blur-sm">
                 <div class="bg-[#1a1a1a] border border-[#d4af37] p-6 max-w-sm w-full shadow-2xl relative">
                     <h3 class="text-lg text-gold font-cinzel font-bold mb-4 border-b border-[#333] pb-2 uppercase">Targeted Visibility</h3>
@@ -1013,7 +1057,6 @@ function renderStorytellerDashboard(container = null) {
                     
                     <div class="text-[10px] text-gray-500 font-bold uppercase mb-2">Hide from specific players:</div>
                     <div id="st-combat-vis-player-list" class="space-y-1 max-h-48 overflow-y-auto mb-4 custom-scrollbar border border-[#333] bg-[#050505] p-2 rounded">
-                        <!-- Players injected here -->
                     </div>
                     
                     <div class="flex justify-between gap-2 border-t border-[#333] pt-4">
