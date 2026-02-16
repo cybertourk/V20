@@ -2,29 +2,90 @@ import {
     V20_WEAPONS_LIST, V20_ARMOR_LIST, V20_VEHICLES_LIST, HEALTH_STATES,
     VIT
 } from "./data.js";
+import { auth, db, doc, setDoc, onSnapshot, appId } from "./firebase-config.js";
 
 // ==========================================================================
-// NOTIFICATION PREFERENCES (LOCAL STORAGE)
+// NOTIFICATION PREFERENCES (CLOUDSYNC)
 // ==========================================================================
 
-const NOTIF_KEY = 'v20_notification_prefs';
-
-export const notifPrefs = JSON.parse(localStorage.getItem(NOTIF_KEY)) || {
+export const notifPrefs = {
     masterSound: true,
     chatSound: true,    // Type: chat
     combatSound: true,  // Type: roll, system
     journalSound: true, // Type: event, whisper
-    cooldown: 0         // Seconds (0, 5, 20, 30)
+    cooldown: 0,        // Seconds (0, 5, 20, 30)
+    unsub: null
 };
 
 let lastChimeTime = 0;
 
-export function saveNotificationPrefs(newPrefs) {
-    Object.assign(notifPrefs, newPrefs);
-    localStorage.setItem(NOTIF_KEY, JSON.stringify(notifPrefs));
+/**
+ * Initializes the real-time sync for notification settings from Firestore.
+ * This is called automatically when the authentication state changes.
+ */
+export function initNotificationSync(user) {
+    if (notifPrefs.unsub) {
+        notifPrefs.unsub();
+        notifPrefs.unsub = null;
+    }
+
+    if (!user || user.isAnonymous) {
+        console.log("Notification Sync: Guest mode, using defaults.");
+        return;
+    }
+
+    // Path: /artifacts/{appId}/users/{userId}/settings/notifications
+    const docRef = doc(db, 'artifacts', appId, 'users', user.uid, 'settings', 'notifications');
+    
+    notifPrefs.unsub = onSnapshot(docRef, (snap) => {
+        if (snap.exists()) {
+            const data = snap.data();
+            // Update local object without breaking references
+            Object.assign(notifPrefs, data);
+            console.log("Notification Sync: Settings updated from cloud.");
+        } else {
+            // First time setup: Push defaults to cloud
+            saveNotificationPrefs(notifPrefs);
+        }
+    }, (err) => {
+        console.warn("Notification Sync: Permission denied or error.", err);
+    });
 }
+
+/**
+ * Saves preferences to the user's private Firestore profile.
+ */
+export async function saveNotificationPrefs(newPrefs) {
+    Object.assign(notifPrefs, newPrefs);
+    
+    const user = auth.currentUser;
+    if (user && !user.isAnonymous) {
+        try {
+            const docRef = doc(db, 'artifacts', appId, 'users', user.uid, 'settings', 'notifications');
+            await setDoc(docRef, {
+                masterSound: notifPrefs.masterSound,
+                chatSound: notifPrefs.chatSound,
+                combatSound: notifPrefs.combatSound,
+                journalSound: notifPrefs.journalSound,
+                cooldown: notifPrefs.cooldown,
+                updatedAt: new Date().toISOString()
+            }, { merge: true });
+        } catch (e) {
+            console.error("Failed to save settings to cloud:", e);
+        }
+    } else {
+        // Fallback for guests: Save to local storage
+        localStorage.setItem('v20_notification_prefs_fallback', JSON.stringify(notifPrefs));
+    }
+}
+
+// Ensure the sync starts when the user logs in
+auth.onAuthStateChanged((user) => {
+    initNotificationSync(user);
+});
+
 window.saveNotificationPrefs = saveNotificationPrefs;
-window.notifPrefs = notifPrefs; // Expose for UI checks
+window.notifPrefs = notifPrefs;
 
 // ==========================================================================
 // AUDIO SYSTEM (Church Bell Chime)
@@ -54,20 +115,16 @@ function playBellChime(type) {
     if (!shouldPlay) return;
 
     try {
-        // Using the specific church bell sound file provided by Zeb
         const bell = new Audio('https://files.catbox.moe/7yeahl.WAV');
         bell.volume = 0.5;
         
-        // Play and handle potential browser-based auto-play blockages
         const playPromise = bell.play();
         if (playPromise !== undefined) {
             playPromise.catch(error => {
                 // Browsers often block audio until the user interacts with the page once.
-                // console.warn("Audio chime prevented by browser auto-play policy.");
             });
         }
         
-        // Update timestamp only on successful trigger intent
         lastChimeTime = now;
 
     } catch (e) {
@@ -81,8 +138,6 @@ function playBellChime(type) {
 
 /**
  * Displays a stackable toast notification on the left side of the screen.
- * REMAIN ON SCREEN: These toasts stay until clicked away by the user.
- * MAX LIMIT: Keeps the 5 most recent toasts.
  * @param {string} msg - The message body.
  * @param {string} type - The toast style ('info', 'roll', 'system', 'chat', 'whisper', 'event').
  * @param {string} header - The small bold text at the top of the toast.
@@ -90,7 +145,6 @@ function playBellChime(type) {
 export function showNotification(msg, type = 'info', header = 'System') { 
     const container = document.getElementById('toast-container');
     if (!container) {
-        // Fallback to legacy notification if the container element is missing from index.html
         const el = document.getElementById('notification'); 
         if (el) { 
             el.innerText = msg; 
@@ -104,7 +158,6 @@ export function showNotification(msg, type = 'info', header = 'System') {
     playBellChime(type);
 
     // Limit Check (Max 5)
-    // Remove the oldest (top) notifications if we exceed the limit
     while (container.children.length >= 5) {
         if (container.firstChild) {
             container.removeChild(container.firstChild);
@@ -115,7 +168,6 @@ export function showNotification(msg, type = 'info', header = 'System') {
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
     
-    // Map font-awesome icons to message types
     let icon = 'fa-info-circle';
     if (type === 'roll') icon = 'fa-dice-d20';
     if (type === 'system') icon = 'fa-cog';
@@ -132,11 +184,8 @@ export function showNotification(msg, type = 'info', header = 'System') {
         <div class="text-[8px] text-gray-600 mt-1 uppercase font-bold text-right">[ Click to Dismiss ]</div>
     `;
 
-    // Add the toast to the stacking container on the left
     container.appendChild(toast);
 
-    // PERSISTENCE: Toasts remain until clicked.
-    // Click to dismiss logic (Triggers the slide-out animation defined in CSS)
     toast.onclick = () => {
         toast.classList.add('hiding');
         setTimeout(() => { 
@@ -194,7 +243,7 @@ export function renderSocialProfile() {
     if (window.state.dots.back) {
         Object.entries(window.state.dots.back).forEach(([name, val]) => {
             if (val > 0) {
-                const safeId = 'desc-' + name.toLowerCase().replace(/[^a-z0-9]/g, '-');
+                const safeId = 'desc-' + name.toLowerCase().replace(/[^a-zA-Z0-9]/g, '-');
                 const box = document.createElement('div');
                 box.className = 'flex flex-col gap-1';
                 const existingVal = window.state.textFields[safeId] || "";
