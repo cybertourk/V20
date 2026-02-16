@@ -683,12 +683,51 @@ export async function renderSettingsView(container) {
         if(snap.exists()) { data = snap.data(); window.stState.settings = data; }
     } catch(e) { console.error(e); }
 
+    const timeIcon = (timeStr) => {
+        if (!timeStr) return 'fa-moon text-blue-400';
+        const hour = parseInt(timeStr.split(':')[0]);
+        if (hour >= 6 && hour < 18) return 'fa-sun text-yellow-500';
+        return 'fa-moon text-blue-400';
+    };
+
     container.innerHTML = `
         <div class="p-8 max-w-4xl mx-auto pb-20 overflow-y-auto h-full custom-scrollbar">
             <h2 class="text-2xl text-[#d4af37] font-cinzel font-bold mb-6 border-b border-[#333] pb-2 uppercase tracking-wider">Chronicle Configuration</h2>
+            
+            <!-- NEW: IN-GAME TIME TRACKER SECTION -->
+            <div class="bg-[#1a1a1a] border border-[#d4af37]/30 p-6 rounded mb-8 relative overflow-hidden group">
+                <div class="absolute -top-1 -right-1 opacity-10 group-hover:opacity-20 transition-opacity">
+                    <i class="fas fa-clock text-8xl text-gold"></i>
+                </div>
+                <h3 class="text-sm font-bold text-gold uppercase mb-4 tracking-widest flex items-center gap-2">
+                    <i class="fas fa-hourglass-half"></i> Chronicle Time & Date
+                </h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 relative z-10">
+                    <div>
+                        <label class="label-text text-gray-400">In-Game Date</label>
+                        <input type="text" id="st-set-date" class="w-full bg-[#050505] border border-[#333] text-white p-3 text-sm focus:border-gold outline-none rounded font-mono" placeholder="e.g. October 14, 1993" value="${data.inGameDate || ''}">
+                    </div>
+                    <div>
+                        <label class="label-text text-gray-400">Time of Night/Day</label>
+                        <div class="relative">
+                            <input type="time" id="st-set-time" class="w-full bg-[#050505] border border-[#333] text-white p-3 text-sm focus:border-gold outline-none rounded font-mono pr-10" value="${data.inGameTime || '22:00'}" oninput="document.getElementById('st-time-graphic').className = 'fas ' + (parseInt(this.value.split(':')[0]) >= 6 && parseInt(this.value.split(':')[0]) < 18 ? 'fa-sun text-yellow-500' : 'fa-moon text-blue-400')">
+                            <div class="absolute right-3 top-1/2 -translate-y-1/2">
+                                <i id="st-time-graphic" class="fas ${timeIcon(data.inGameTime)}"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex items-end">
+                        <button onclick="window.stAnnounceTime()" class="w-full bg-blue-900 hover:bg-blue-700 text-white font-bold py-3 rounded uppercase text-[10px] tracking-widest border border-blue-500 shadow-lg transition-transform active:scale-95">
+                            <i class="fas fa-bullhorn mr-2"></i> Announce to Chat
+                        </button>
+                    </div>
+                </div>
+                <p class="text-[9px] text-gray-500 mt-3 italic">Use this to track the passage of time. Kindred typically rise at 18:00 and retreat at 06:00.</p>
+            </div>
+
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 <div><label class="label-text text-gray-400">Chronicle Name</label><input type="text" id="st-set-name" class="w-full bg-[#111] border border-[#333] text-white p-3 text-sm focus:border-[#d4af37] outline-none rounded" value="${data.name || ''}"></div>
-                <div><label class="label-text text-gray-400">Time Period / Setting</label><input type="text" id="st-set-time" class="w-full bg-[#111] border border-[#333] text-white p-3 text-sm focus:border-[#d4af37] outline-none rounded" value="${data.timePeriod || ''}"></div>
+                <div><label class="label-text text-gray-400">Time Period / Setting</label><input type="text" id="st-set-time-period" class="w-full bg-[#111] border border-[#333] text-white p-3 text-sm focus:border-[#d4af37] outline-none rounded" value="${data.timePeriod || ''}"></div>
             </div>
             <div class="mb-6"><label class="label-text text-gray-400">Passcode</label><input type="text" id="st-set-pass" class="w-full bg-[#111] border border-[#333] text-white p-3 text-sm focus:border-[#d4af37] outline-none rounded" value="${data.passcode || ''}"></div>
             <div class="mb-6"><label class="label-text text-gray-400">Synopsis</label><textarea id="st-set-synopsis" class="w-full bg-[#111] border border-[#333] text-gray-300 p-3 text-xs focus:border-[#d4af37] outline-none resize-none h-32 leading-relaxed rounded">${data.synopsis || ''}</textarea></div>
@@ -746,17 +785,44 @@ export async function stSaveSettings() {
     if(!window.stState.activeChronicleId) return;
     const updates = {
         name: document.getElementById('st-set-name').value,
-        timePeriod: document.getElementById('st-set-time').value,
+        timePeriod: document.getElementById('st-set-time-period').value,
         passcode: document.getElementById('st-set-pass').value,
         synopsis: document.getElementById('st-set-synopsis').value,
         houseRules: document.getElementById('st-set-rules').value,
-        lore: document.getElementById('st-set-lore').value
+        lore: document.getElementById('st-set-lore').value,
+        // NEW FIELDS
+        inGameDate: document.getElementById('st-set-date').value,
+        inGameTime: document.getElementById('st-set-time').value
     };
     try {
         await updateDoc(doc(db, 'chronicles', window.stState.activeChronicleId), updates);
         window.stState.settings = { ...window.stState.settings, ...updates };
         showNotification("Settings Updated");
     } catch(e) { console.error(e); }
+}
+
+// NEW: TIME ANNOUNCEMENT BROADCASTER
+export function stAnnounceTime() {
+    const date = document.getElementById('st-set-date')?.value || "Current Date";
+    const time = document.getElementById('st-set-time')?.value || "00:00";
+    
+    const hour = parseInt(time.split(':')[0]);
+    const isDay = hour >= 6 && hour < 18;
+    const icon = isDay ? '☀️' : '🌙';
+    const status = isDay ? 'Daylight' : 'Nightfall';
+    const color = isDay ? 'text-yellow-500' : 'text-blue-400';
+
+    const msg = `
+        <div class="flex flex-col items-center py-2 border-t border-b border-[#333] my-2 bg-black/40">
+            <div class="text-4xl mb-1">${icon}</div>
+            <div class="text-[10px] text-gray-500 uppercase font-bold tracking-widest mb-1">In-Game Time Update</div>
+            <div class="text-xl font-cinzel font-bold text-white mb-1">${date}</div>
+            <div class="text-2xl font-mono ${color} font-black">${time} <span class="text-[10px] uppercase font-bold ml-1">(${status})</span></div>
+        </div>
+    `;
+
+    sendChronicleMessage('event', msg);
+    showNotification("Time announced to Chronicle.");
 }
 
 // --- DELEGATED JOURNAL HELPERS ---
@@ -798,3 +864,4 @@ window.pushHandoutToPlayers = pushHandoutToPlayers;
 window.stDeleteJournalEntry = stDeleteJournalEntry;
 window.stSaveSettings = stSaveSettings;
 window.stSaveLocalPrefs = stSaveLocalPrefs;
+window.stAnnounceTime = stAnnounceTime;
