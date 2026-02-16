@@ -11,7 +11,7 @@ import { initChatSystem, startChatListener, sendChronicleMessage } from "./chat-
 
 // --- MISSING IMPORTS ---
 import { renderCoterieMap } from "./coterie-map.js";
-import { renderStorytellerJournal } from "./ui-journal.js";
+import { renderStorytellerJournal, updateJournalList } from "./ui-journal.js"; // ADDED: updateJournalList
 
 // Import view implementations from the companion file
 import {
@@ -316,7 +316,6 @@ async function renderChronicleMenu() {
                 const btnColor = recentRole === 'ST' ? 'text-red-500 border-red-900 hover:bg-red-900/20' : 'text-blue-400 border-blue-900 hover:bg-blue-900/20';
                 const roleLabel = recentRole === 'ST' ? 'Storyteller' : 'Player';
                 
-                // UPDATED: Resume button for player now forces Join UI for password entry
                 const resumeAction = recentRole === 'ST' 
                     ? `window.handleResumeChronicle('${recentId}', 'ST')` 
                     : `window.renderJoinChronicleUI('${recentId}')`;
@@ -391,7 +390,6 @@ async function renderChronicleMenu() {
                     const data = doc.data();
                     html += `
                         <div class="flex justify-between items-center bg-[#1a1a1a] p-3 border-l-2 border-blue-900 hover:bg-[#222] cursor-pointer group transition-colors relative">
-                            <!-- UPDATED: Rejoining from list now opens Join UI to require password -->
                             <div class="flex-1" onclick="window.renderJoinChronicleUI('${doc.id}')">
                                 <div class="text-white font-bold text-sm font-cinzel group-hover:text-blue-400 transition-colors">${data.name}</div>
                                 <div class="text-[9px] text-gray-600 font-mono group-hover:text-white">${doc.id}</div>
@@ -440,7 +438,6 @@ async function handleLeaveChronicle(id) {
     }
 }
 
-// UPDATED: Now accepts an optional chronicleId to pre-fill the form
 function renderJoinChronicleUI(prefillId = "") {
     const container = document.getElementById('chronicle-modal-content');
     if(!container) return;
@@ -745,8 +742,6 @@ async function handleResumeChronicle(id, role) {
             toggleStorytellerButton(true);
             window.renderStorytellerDashboard(); 
         } else {
-            // Note: For rejoining as a player, the UI now redirects to Password entry.
-            // This fallback remains for auto-resume logic on startup.
             const playerRef = doc(db, 'chronicles', id, 'players', user.uid);
             
             const pSnap = await getDoc(playerRef);
