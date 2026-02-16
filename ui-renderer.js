@@ -8,16 +8,11 @@ import {
     renderDots, renderBoxes, setSafeText, showNotification 
 } from "./ui-common.js";
 
-// Import updateClanMechanicsUI from ui-mechanics (it's exported on window, but safer to try import or window check)
-// Since circular dependencies can be tricky, we'll rely on window.updateClanMechanicsUI being available
-// or safe check inside updatePools.
-
 import { 
     setDots 
 } from "./ui-mechanics.js";
 
 import { renderPrintSheet } from "./ui-print.js";
-import { getXpCost } from "./v20-rules.js"; // Import cost calculator
 
 // --- EXPORT HELPERS (Re-exporting for main.js access) ---
 export { renderDots, renderBoxes, setDots };
@@ -29,7 +24,10 @@ export function hydrateInputs() {
     Object.entries(window.state.textFields).forEach(([id, val]) => {
         const el = document.getElementById(id);
         if (el) {
-            el.value = val;
+            // Don't overwrite active element to prevent cursor jumping
+            if (document.activeElement !== el) {
+                el.value = val;
+            }
             if (el.tagName === 'SELECT' && !val) {
                 el.selectedIndex = 0;
             }
@@ -39,6 +37,7 @@ export function hydrateInputs() {
     const gen = window.state.textFields['c-gen'];
     if(gen) {
         const genDots = 13 - parseInt(gen);
+        // Find generation row in Backgrounds if it exists
         const row = document.querySelector(`.dot-row[data-n="Generation"]`);
         if(row) row.innerHTML = renderDots(genDots, 5);
     }
@@ -75,6 +74,9 @@ export function renderSocialProfile() {
                 window.state.textFields[safeId] = e.target.value;
                 if(renderPrintSheet) renderPrintSheet();
             });
+            area.addEventListener('input', (e) => {
+                 window.state.textFields[safeId] = e.target.value;
+            });
         }
     });
 
@@ -89,6 +91,7 @@ window.renderSocialProfile = renderSocialProfile;
 export function refreshTraitRow(label, type, targetEl, minOverride = null) {
     let rowDiv = targetEl;
     if (!rowDiv) {
+        // Match the ID generation logic: Remove non-alphanumeric chars
         const safeId = 'trait-row-' + type + '-' + label.replace(/[^a-zA-Z0-9]/g, '');
         rowDiv = document.getElementById(safeId);
     }
@@ -99,12 +102,8 @@ export function refreshTraitRow(label, type, targetEl, minOverride = null) {
     
     // Determine Minimum Value
     let min = 0;
-    if (minOverride !== null) {
-        min = minOverride;
-    } else {
-        // Default rules: Attributes and Virtues start at 1, Abilities start at 0
-        min = (type === 'attr' || type === 'virt') ? 1 : 0;
-    }
+    // If it's an attribute or virtue, min is 1 (unless overridden)
+    if (type === 'attr' || type === 'virt') min = 1;
     
     if (clan === "Nosferatu" && label === "Appearance") min = 0;
 
@@ -116,24 +115,22 @@ export function refreshTraitRow(label, type, targetEl, minOverride = null) {
         window.state.dots[type][label] = val; 
     }
 
-    const max = 5;
+    const max = (type === 'virt' || type === 'attr' || type === 'abil') ? 5 : 5; 
 
+    // Logic for Specialties (Attributes 4+, Abilities 1+)
     let showSpecialty = false;
-    let warningMsg = "";
-
     if (type !== 'virt') {
         if (type === 'attr') {
             if (val >= 4) showSpecialty = true;
         } else if (type === 'abil') {
-            if (val >= 1) {
-                showSpecialty = true;
-            }
+            if (val >= 1) showSpecialty = true;
         }
     }
 
     let specInputHTML = '';
     if (showSpecialty) {
         const specVal = window.state.specialties[label] || "";
+        // In Play Mode, hide empty specialty boxes
         if (window.state.isPlayMode && !specVal) specInputHTML = '<div class="flex-1"></div>'; 
         else {
             const listId = `list-${label.replace(/[^a-zA-Z0-9]/g, '')}`;
@@ -155,6 +152,7 @@ export function refreshTraitRow(label, type, targetEl, minOverride = null) {
         titleMsg = "Nosferatu Weakness: Appearance 0";
     }
 
+    // Render inner content
     rowDiv.innerHTML = `
         <span class="trait-label font-bold uppercase text-[11px] whitespace-nowrap cursor-pointer hover:text-gold" style="${styleOverride}" title="${titleMsg}">
             ${label}
@@ -164,22 +162,32 @@ export function refreshTraitRow(label, type, targetEl, minOverride = null) {
             ${renderDots(val, max)}
         </div>`;
 
-    rowDiv.querySelector('.trait-label').onclick = () => { 
-        if(window.state.isPlayMode && !(clan === "Nosferatu" && label === "Appearance")) {
-            if(window.handleTraitClick) window.handleTraitClick(label, type);
-        }
-    };
+    // Re-attach listeners
+    const labelSpan = rowDiv.querySelector('.trait-label');
+    if(labelSpan) {
+        labelSpan.onclick = () => { 
+            if(window.state.isPlayMode && !(clan === "Nosferatu" && label === "Appearance")) {
+                if(window.handleTraitClick) window.handleTraitClick(label, type);
+            }
+        };
+    }
     
-    rowDiv.querySelector('.dot-row').onclick = (e) => { 
-        if (e.target.dataset.v) setDots(label, type, parseInt(e.target.dataset.v), min, max); 
-    };
+    const dotRow = rowDiv.querySelector('.dot-row');
+    if(dotRow) {
+        dotRow.onclick = (e) => { 
+            if (e.target.dataset.v) setDots(label, type, parseInt(e.target.dataset.v), min, max); 
+        };
+    }
     
     if(showSpecialty && (!window.state.isPlayMode || (window.state.isPlayMode && window.state.specialties[label]))) {
         const input = rowDiv.querySelector('input');
         if(input) {
-            input.onblur = (e) => { 
+            input.oninput = (e) => { 
                 window.state.specialties[label] = e.target.value; 
-                if(renderPrintSheet) renderPrintSheet(); 
+            };
+            input.onblur = () => {
+                if(renderPrintSheet) renderPrintSheet();
+                if(window.triggerAutoSave) window.triggerAutoSave();
             };
             input.disabled = window.state.isPlayMode;
         }
@@ -191,55 +199,25 @@ export function renderRow(contId, label, type, minOverride = null, max = 5) {
     const cont = typeof contId === 'string' ? document.getElementById(contId) : contId;
     if (!cont) return;
     
-    const divId = 'trait-row-' + type + '-' + label.replace(/[^a-zA-Z0-9]/g, '');
+    // Sanitize label to match HTML IDs (e.g., "Self-Control" -> "SelfControl")
+    const safeLabel = label.replace(/[^a-zA-Z0-9]/g, '');
+    const divId = 'trait-row-' + type + '-' + safeLabel;
     
-    // Prevent duplicate rendering
-    if(cont.querySelector(`div[id="${divId}"]`)) return;
-
-    const div = document.createElement('div'); 
-    div.id = divId;
-    div.className = 'flex items-center justify-between w-full py-1';
-    cont.appendChild(div);
-    refreshTraitRow(label, type, div, minOverride); 
+    // 1. Try to find existing element (Hydration)
+    let div = document.getElementById(divId);
+    
+    // 2. If not found, create it
+    if (!div) {
+        div = document.createElement('div'); 
+        div.id = divId;
+        div.className = 'flex items-center justify-between w-full py-1';
+        cont.appendChild(div);
+    }
+    
+    // 3. Populate it (Important: Even if it existed, we must populate it)
+    refreshTraitRow(label, type, div); 
 }
 window.renderRow = renderRow;
-
-// --- MAIN SHEET SECTIONS RENDERING ---
-
-export function renderAttributes() {
-    Object.keys(ATTRIBUTES).forEach(cat => {
-        const contId = 'col-' + cat.toLowerCase();
-        const container = document.getElementById(contId);
-        if (container && container.children.length === 0) {
-             ATTRIBUTES[cat].forEach(attr => renderRow(container, attr, 'attr'));
-        }
-    });
-}
-window.renderAttributes = renderAttributes;
-
-export function renderAbilities() {
-    Object.keys(ABILITIES).forEach(cat => {
-        const contId = 'col-' + cat.toLowerCase();
-        const container = document.getElementById(contId);
-        if (container && container.children.length === 0) {
-             ABILITIES[cat].forEach(abil => renderRow(container, abil, 'abil'));
-        }
-    });
-}
-window.renderAbilities = renderAbilities;
-
-export function renderVirtues() {
-    const container = document.getElementById('virtues-list');
-    if (!container) return;
-    if (container.children.length > 0) return; // Prevent re-rendering
-
-    VIRTUES.forEach(virt => {
-        // Virtues start at 1 dot min
-        renderRow(container, virt, 'virt', 1);
-    });
-}
-window.renderVirtues = renderVirtues;
-
 
 // --- INVENTORY SYSTEM ---
 
@@ -251,23 +229,29 @@ export function setupInventoryListeners() {
     if (typeSel) {
         typeSel.addEventListener('change', () => {
             const type = typeSel.value;
-            document.getElementById('inv-stats-row').classList.toggle('hidden', type !== 'Weapon');
-            document.getElementById('inv-armor-row').classList.toggle('hidden', type !== 'Armor');
-            document.getElementById('inv-vehicle-row').classList.toggle('hidden', type !== 'Vehicle');
+            const statsRow = document.getElementById('inv-stats-row');
+            const armorRow = document.getElementById('inv-armor-row');
+            const vehicleRow = document.getElementById('inv-vehicle-row');
             
-            baseSel.innerHTML = '<option value="">-- Custom --</option>';
-            let list = [];
-            if (type === 'Weapon') list = V20_WEAPONS_LIST;
-            else if (type === 'Armor') list = V20_ARMOR_LIST;
-            else if (type === 'Vehicle') list = V20_VEHICLES_LIST;
+            if(statsRow) statsRow.classList.toggle('hidden', type !== 'Weapon');
+            if(armorRow) armorRow.classList.toggle('hidden', type !== 'Armor');
+            if(vehicleRow) vehicleRow.classList.toggle('hidden', type !== 'Vehicle');
             
-            if (list.length > 0) {
-                baseWrap.classList.remove('hidden');
-                list.forEach(item => {
-                    baseSel.add(new Option(item.name, item.name));
-                });
-            } else {
-                baseWrap.classList.add('hidden');
+            if (baseSel) {
+                baseSel.innerHTML = '<option value="">-- Custom --</option>';
+                let list = [];
+                if (type === 'Weapon') list = V20_WEAPONS_LIST;
+                else if (type === 'Armor') list = V20_ARMOR_LIST;
+                else if (type === 'Vehicle') list = V20_VEHICLES_LIST;
+                
+                if (list.length > 0) {
+                    baseWrap.classList.remove('hidden');
+                    list.forEach(item => {
+                        baseSel.add(new Option(item.name, item.name));
+                    });
+                } else {
+                    baseWrap.classList.add('hidden');
+                }
             }
         });
     }
@@ -283,20 +267,22 @@ export function setupInventoryListeners() {
             else if (type === 'Vehicle') item = V20_VEHICLES_LIST.find(i => i.name === name);
             
             if (item) {
-                document.getElementById('inv-name').value = item.name;
+                const nameInp = document.getElementById('inv-name');
+                if(nameInp) nameInp.value = item.name;
+                
                 if (type === 'Weapon') {
-                    document.getElementById('inv-diff').value = item.diff;
-                    document.getElementById('inv-dmg').value = item.dmg;
-                    document.getElementById('inv-range').value = item.range || '';
-                    document.getElementById('inv-rate').value = item.rate || '';
-                    document.getElementById('inv-clip').value = item.clip || '';
+                    if(document.getElementById('inv-diff')) document.getElementById('inv-diff').value = item.diff;
+                    if(document.getElementById('inv-dmg')) document.getElementById('inv-dmg').value = item.dmg;
+                    if(document.getElementById('inv-range')) document.getElementById('inv-range').value = item.range || '';
+                    if(document.getElementById('inv-rate')) document.getElementById('inv-rate').value = item.rate || '';
+                    if(document.getElementById('inv-clip')) document.getElementById('inv-clip').value = item.clip || '';
                 } else if (type === 'Armor') {
-                    document.getElementById('inv-rating').value = item.rating;
-                    document.getElementById('inv-penalty').value = item.penalty;
+                    if(document.getElementById('inv-rating')) document.getElementById('inv-rating').value = item.rating;
+                    if(document.getElementById('inv-penalty')) document.getElementById('inv-penalty').value = item.penalty;
                 } else if (type === 'Vehicle') {
-                    document.getElementById('inv-safe').value = item.safe;
-                    document.getElementById('inv-max').value = item.max;
-                    document.getElementById('inv-man').value = item.man;
+                    if(document.getElementById('inv-safe')) document.getElementById('inv-safe').value = item.safe;
+                    if(document.getElementById('inv-max')) document.getElementById('inv-max').value = item.max;
+                    if(document.getElementById('inv-man')) document.getElementById('inv-man').value = item.man;
                 }
             }
         });
@@ -306,7 +292,8 @@ export function setupInventoryListeners() {
     if (addBtn) {
         addBtn.onclick = () => {
             const type = typeSel.value;
-            const name = document.getElementById('inv-name').value || "Unnamed Item";
+            const nameInp = document.getElementById('inv-name');
+            const name = nameInp.value || "Unnamed Item";
             const carried = document.getElementById('inv-carried').checked;
             
             const newItem = {
@@ -319,22 +306,22 @@ export function setupInventoryListeners() {
             
             if (type === 'Weapon') {
                 newItem.stats = {
-                    diff: document.getElementById('inv-diff').value || 6,
-                    dmg: document.getElementById('inv-dmg').value || '',
-                    range: document.getElementById('inv-range').value || '',
-                    rate: document.getElementById('inv-rate').value || '',
-                    clip: document.getElementById('inv-clip').value || ''
+                    diff: document.getElementById('inv-diff')?.value || 6,
+                    dmg: document.getElementById('inv-dmg')?.value || '',
+                    range: document.getElementById('inv-range')?.value || '',
+                    rate: document.getElementById('inv-rate')?.value || '',
+                    clip: document.getElementById('inv-clip')?.value || ''
                 };
             } else if (type === 'Armor') {
                 newItem.stats = {
-                    rating: document.getElementById('inv-rating').value || 0,
-                    penalty: document.getElementById('inv-penalty').value || 0
+                    rating: document.getElementById('inv-rating')?.value || 0,
+                    penalty: document.getElementById('inv-penalty')?.value || 0
                 };
             } else if (type === 'Vehicle') {
                 newItem.stats = {
-                    safe: document.getElementById('inv-safe').value || '',
-                    max: document.getElementById('inv-max').value || '',
-                    man: document.getElementById('inv-man').value || ''
+                    safe: document.getElementById('inv-safe')?.value || '',
+                    max: document.getElementById('inv-max')?.value || '',
+                    man: document.getElementById('inv-man')?.value || ''
                 };
             }
             
@@ -346,7 +333,7 @@ export function setupInventoryListeners() {
             showNotification(`Added ${name}`);
             
             // Clear Inputs
-            document.getElementById('inv-name').value = '';
+            if(nameInp) nameInp.value = '';
         };
     }
 }
@@ -441,7 +428,7 @@ export function handleBoxClick(type, val, element) {
 window.handleBoxClick = handleBoxClick;
 
 
-// --- STATE MANAGEMENT & POOL UPDATES (UPDATED) ---
+// --- STATE MANAGEMENT & POOL UPDATES ---
 
 export function updatePools() {
     if (!window.state.status) window.state.status = { humanity: 7, willpower: 5, tempWillpower: 5, health_states: [0,0,0,0,0,0,0], blood: 0 };
@@ -451,12 +438,8 @@ export function updatePools() {
     // --- CALCULATE XP ADJUSTMENTS (To exclude from Freebie/Creation counts) ---
     const xpAdj = { attr: {}, abil: {}, disc: {}, back: {}, virt: {}, status: {} };
     
-    // DEBUG: Track XP Log processing
-    // console.log("Processing XP Log for Freebie Calc:", window.state.xpLog);
-
     if (window.state.xpLog && Array.isArray(window.state.xpLog)) {
         window.state.xpLog.forEach(l => {
-            // FIX: Force integers to avoid string math issues
             const newVal = parseInt(l.new || 0);
             const oldVal = parseInt(l.old || 0);
             const delta = newVal - oldVal;
@@ -473,9 +456,6 @@ export function updatePools() {
         });
     }
 
-    // DEBUG: See what the app thinks you bought with XP
-    // console.log("XP Adjustments (Points to subtract from Freebie Calc):", xpAdj);
-
     const getEffectiveVal = (type, name, actual) => {
         const adj = (type === 'status') 
             ? (xpAdj.status[name] || 0) 
@@ -483,12 +463,16 @@ export function updatePools() {
         return Math.max(0, actual - adj);
     };
 
+    // Auto-Calculate Base Willpower/Humanity if not in freebie/xp/play modes (i.e. first init)
     const bH = (window.state.dots.virt?.Conscience || 1) + (window.state.dots.virt?.["Self-Control"] || 1);
     const bW = (window.state.dots.virt?.Courage || 1);
 
     if (!window.state.freebieMode && !window.state.xpMode && !window.state.isPlayMode) {
-         if (window.state.status.humanity === 7 && bH === 2) window.state.status.humanity = 2;
-         if (window.state.status.willpower === 5 && bW === 1) { window.state.status.willpower = 1; window.state.status.tempWillpower = 1; }
+         if (window.state.status.humanity === 7 && bH !== 7 && bH >= 2) window.state.status.humanity = bH; // Fix: Only override if changed from default
+         if (window.state.status.willpower === 5 && bW !== 5 && bW >= 1) { 
+             window.state.status.willpower = bW; 
+             window.state.status.tempWillpower = bW; 
+         }
     }
 
     const curH = window.state.status.humanity;
@@ -497,6 +481,7 @@ export function updatePools() {
     const gen = parseInt(document.getElementById('c-gen')?.value) || 13;
     const lim = (window.GEN_LIMITS && window.GEN_LIMITS[gen]) ? window.GEN_LIMITS[gen] : { m: 10, pt: 1 };
 
+    // --- DOT COUNTERS ---
     Object.keys(ATTRIBUTES).forEach(cat => {
         let cs = 0; 
         ATTRIBUTES[cat].forEach(a => cs += (getEffectiveVal('attr', a, window.state.dots.attr[a] || 1) - 1));
@@ -524,17 +509,10 @@ export function updatePools() {
     const virtTotalDots = VIRTUES.reduce((a, v) => a + getEffectiveVal('virt', v, window.state.dots.virt[v] || 1), 0);
     setSafeText('p-virt', `[${Math.max(0, 7 - (virtTotalDots - 3))}]`);
 
+    // --- FREEBIE CALCULATOR ---
     if (window.state.freebieMode) {
          const clan = window.state.textFields['c-clan'] || document.getElementById('c-clan')?.value || "None";
-         if (clan === "Caitiff" && window.state.merits) {
-             const forbiddenIndex = window.state.merits.findIndex(m => m.name === "Additional Discipline");
-             if (forbiddenIndex > -1) {
-                 window.state.merits.splice(forbiddenIndex, 1);
-                 showNotification("Restriction: Caitiff cannot take Additional Discipline.");
-                 if(window.renderMeritsFlaws) window.renderMeritsFlaws(); 
-             }
-         }
-
+         
          const logEntries = [];
          let totalFreebieCost = 0;
          let totalFlawBonus = 0;
@@ -586,7 +564,7 @@ export function updatePools() {
          totalFreebieCost += bgCost;
          if(bgCost > 0) logEntries.push(`Backgrounds (+${bgDiff}): ${bgCost} pts`);
 
-         const vDiff = Math.max(0, virtTotalDots - 10);
+         const vDiff = Math.max(0, virtTotalDots - 10); // 7 points to spend + 3 base dots = 10 total dots
          const vCost = vDiff * 2;
          setSafeText('sb-virt', vCost);
          totalFreebieCost += vCost;
@@ -598,7 +576,7 @@ export function updatePools() {
          const effCurrentH = getEffectiveVal('status', 'Humanity', curH);
          
          const hDiff = Math.max(0, effCurrentH - effBaseH); 
-         const hCost = hDiff * 1;
+         const hCost = hDiff * 1; // Humanity is 1 per dot in freebies? Rules say 1.
          setSafeText('sb-human', hCost);
          totalFreebieCost += hCost;
          if(hCost > 0) logEntries.push(`Humanity (+${hDiff}): ${hCost} pts`);
@@ -608,7 +586,7 @@ export function updatePools() {
          const effCurrentW = getEffectiveVal('status', 'Willpower', curW);
          
          const wDiff = Math.max(0, effCurrentW - effBaseW); 
-         const wCost = wDiff * 1;
+         const wCost = wDiff * 1; // Willpower is 1 per dot
          setSafeText('sb-will', wCost);
          totalFreebieCost += wCost;
          if(wCost > 0) logEntries.push(`Willpower (+${wDiff}): ${wCost} pts`);
@@ -652,13 +630,14 @@ export function updatePools() {
          document.getElementById('freebie-sidebar').classList.remove('active');
     }
 
+    // --- XP MODE SIDEBAR ---
     if (window.state.xpMode) {
         if(window.renderXpSidebar) window.renderXpSidebar();
-        document.getElementById('xp-sidebar').classList.add('active');
-        document.getElementById('xp-sidebar').classList.add('open');
+        document.getElementById('xp-sidebar').classList.remove('hidden');
+        document.getElementById('xp-sidebar').style.left = "0"; 
     } else {
-        document.getElementById('xp-sidebar').classList.remove('active');
-        document.getElementById('xp-sidebar').classList.remove('open');
+        document.getElementById('xp-sidebar').classList.add('hidden');
+        document.getElementById('xp-sidebar').style.left = "-210px";
     }
 
     const fbBtn = document.getElementById('toggle-freebie-btn');
@@ -670,12 +649,17 @@ export function updatePools() {
         }
     }
 
+    // --- RE-RENDER DOTS (Visual Refresh) ---
     document.querySelectorAll('.dot-row').forEach(el => {
         const name = el.dataset.n;
         const type = el.dataset.t;
         if (name && type && window.state.dots[type]) {
             const val = window.state.dots[type][name] || 0; 
-            el.innerHTML = renderDots(val, 5);
+            // Only update if innerHTML is empty (first load) or if we are refreshing logic
+            // Since this runs often, we overwrite to ensure syncing.
+            // Note: renderDots is cheap.
+            const max = (type === 'virt' || type === 'attr' || type === 'abil') ? 5 : 5;
+            el.innerHTML = renderDots(val, max);
         }
     });
 
@@ -696,10 +680,12 @@ export function updatePools() {
         };
     }
 
+    // Play Mode Sync
     document.querySelectorAll('#humanity-dots-play').forEach(el => el.innerHTML = renderDots(curH, 10));
     document.querySelectorAll('#willpower-dots-play').forEach(el => el.innerHTML = renderDots(curW, 10));
     document.querySelectorAll('#willpower-boxes-play').forEach(el => el.innerHTML = renderBoxes(curW, tempW, 'wp'));
     
+    // Play Mode Blood Sync
     const bpContainer = document.querySelectorAll('#blood-boxes-play');
     bpContainer.forEach(el => {
         let h = '';
@@ -714,11 +700,10 @@ export function updatePools() {
         }
         el.innerHTML = h;
     });
-
-    const bptContainer = document.querySelector('#blood-boxes-play + .text-center');
-    if (bptContainer) {
-        bptContainer.innerHTML = `Blood Per Turn: <span class="text-white">${lim.pt}</span>`;
-    }
+    
+    // Sync Blood Per Turn Input
+    const bptInput = document.getElementById('blood-per-turn-input');
+    if (bptInput) bptInput.value = lim.pt;
 
     const healthCont = document.getElementById('health-chart-play');
     if(healthCont && healthCont.children.length === 0) {
@@ -740,21 +725,9 @@ export function updatePools() {
     renderSocialProfile();
     if(window.updateWalkthrough) window.updateWalkthrough();
 
-    let diceBtn = document.getElementById('dice-toggle-btn');
-    if (!diceBtn) {
-        diceBtn = document.createElement('button');
-        diceBtn.id = 'dice-toggle-btn';
-        diceBtn.className = 'fixed bottom-6 right-6 z-[100] bg-[#8b0000] text-white w-12 h-12 rounded-full shadow-[0_0_15px_rgba(212,175,55,0.4)] border border-[#d4af37] hover:bg-[#a00000] flex items-center justify-center transition-all hidden transform hover:scale-110 active:scale-95'; 
-        diceBtn.innerHTML = '<i class="fas fa-dice text-xl"></i>';
-        diceBtn.title = "Open Dice Roller";
-        diceBtn.onclick = window.toggleDiceTray;
-        document.body.appendChild(diceBtn);
-    }
-    
-    if (window.state.isPlayMode) diceBtn.classList.remove('hidden');
-    else diceBtn.classList.add('hidden');
-
     document.querySelectorAll('.box').forEach(b => {
+        // Remove old listeners to prevent stacking? 
+        // Better to rely on onclick defined in HTML or re-assign
         b.onclick = (e) => {
             e.stopPropagation(); 
             const t = b.dataset.type;
@@ -763,8 +736,6 @@ export function updatePools() {
         };
     });
 
-    if(typeof window.updateClanMechanicsUI === 'function') window.updateClanMechanicsUI();
-    
     if(renderPrintSheet) renderPrintSheet();
 }
 window.updatePools = updatePools;
