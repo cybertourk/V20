@@ -896,11 +896,26 @@ export async function stSaveSettings() {
     } catch(e) { console.error(e); }
 }
 
-// --- NEW: REFINED TIME ANNOUNCEMENT BROADCASTER (SEASON AWARE) ---
-export function stAnnounceTime() {
+// --- NEW: REFINED TIME ANNOUNCEMENT BROADCASTER (AUTO-SAVES CLOUD STATE) ---
+export async function stAnnounceTime() {
     const dateStr = document.getElementById('st-set-date')?.value || "Modern Nights";
     const time24 = document.getElementById('st-set-time')?.value || "00:00";
     
+    // PERSIST: Automatically save this as the "last used" state in the cloud so it remains in the form
+    if (window.stState.activeChronicleId) {
+        try {
+            await updateDoc(doc(db, 'chronicles', window.stState.activeChronicleId), {
+                inGameDate: dateStr,
+                inGameTime: time24
+            });
+            // Update local state to match cloud immediately for consistency
+            window.stState.settings.inGameDate = dateStr;
+            window.stState.settings.inGameTime = time24;
+        } catch(e) { 
+            console.error("Auto-save time failed", e); 
+        }
+    }
+
     const time12 = format12h(time24);
     const status = getStatusInfo(time24, dateStr);
 
