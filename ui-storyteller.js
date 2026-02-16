@@ -9,6 +9,10 @@ import {
 
 import { initChatSystem, startChatListener, sendChronicleMessage } from "./chat-model.js";
 
+// --- MISSING IMPORTS ADDED HERE ---
+import { renderCoterieMap } from "./coterie-map.js";
+import { renderStorytellerJournal } from "./ui-journal.js";
+
 // Import view implementations from the companion file
 import {
     renderRosterView, renderCombatView, renderBestiaryView, renderChatView, renderSettingsView,
