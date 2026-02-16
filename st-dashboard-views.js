@@ -799,10 +799,12 @@ export async function renderSettingsView(container) {
             const labelEl = document.getElementById('st-time-preview-label');
             const preview12h = document.getElementById('st-time-preview-12h');
             
-            if (iconEl) iconEl.className = `fas ${s.icon} ${s.color}`;
+            // FIX: Use setAttribute('class', ...) because FontAwesome replaces <i> with <svg>, 
+            // and SVG elements do not support direct .className assignment in modern browsers.
+            if (iconEl) iconEl.setAttribute('class', `fas ${s.icon} ${s.color}`);
             if (labelEl) {
                 labelEl.innerText = s.label;
-                labelEl.className = `text-[10px] ${s.color} font-bold uppercase tracking-widest`;
+                labelEl.setAttribute('class', `text-[10px] ${s.color} font-bold uppercase tracking-widest`);
             }
             if (preview12h) preview12h.innerText = format12h(val);
         };
