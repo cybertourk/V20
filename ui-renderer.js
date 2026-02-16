@@ -84,9 +84,9 @@ export function renderSocialProfile() {
 }
 window.renderSocialProfile = renderSocialProfile;
 
-// --- GENERIC ROW RENDERER (Attributes/Abilities) ---
+// --- GENERIC ROW RENDERER (Attributes/Abilities/Virtues) ---
 
-export function refreshTraitRow(label, type, targetEl) {
+export function refreshTraitRow(label, type, targetEl, minOverride = null) {
     let rowDiv = targetEl;
     if (!rowDiv) {
         const safeId = 'trait-row-' + type + '-' + label.replace(/[^a-zA-Z0-9]/g, '');
@@ -96,7 +96,15 @@ export function refreshTraitRow(label, type, targetEl) {
     if(!rowDiv) return;
 
     const clan = window.state.textFields['c-clan'] || document.getElementById('c-clan')?.value || "None";
-    let min = (type === 'attr') ? 1 : 0;
+    
+    // Determine Minimum Value
+    let min = 0;
+    if (minOverride !== null) {
+        min = minOverride;
+    } else {
+        // Default rules: Attributes and Virtues start at 1, Abilities start at 0
+        min = (type === 'attr' || type === 'virt') ? 1 : 0;
+    }
     
     if (clan === "Nosferatu" && label === "Appearance") min = 0;
 
@@ -179,19 +187,59 @@ export function refreshTraitRow(label, type, targetEl) {
 }
 window.refreshTraitRow = refreshTraitRow;
 
-export function renderRow(contId, label, type, min, max = 5) {
+export function renderRow(contId, label, type, minOverride = null, max = 5) {
     const cont = typeof contId === 'string' ? document.getElementById(contId) : contId;
     if (!cont) return;
     
-    if(cont.querySelector(`div[id^="trait-row-${type}-${label.replace(/[^a-zA-Z0-9]/g, '')}"]`)) return;
+    const divId = 'trait-row-' + type + '-' + label.replace(/[^a-zA-Z0-9]/g, '');
+    
+    // Prevent duplicate rendering
+    if(cont.querySelector(`div[id="${divId}"]`)) return;
 
     const div = document.createElement('div'); 
-    div.id = 'trait-row-' + type + '-' + label.replace(/[^a-zA-Z0-9]/g, '');
+    div.id = divId;
     div.className = 'flex items-center justify-between w-full py-1';
     cont.appendChild(div);
-    refreshTraitRow(label, type, div); 
+    refreshTraitRow(label, type, div, minOverride); 
 }
 window.renderRow = renderRow;
+
+// --- MAIN SHEET SECTIONS RENDERING ---
+
+export function renderAttributes() {
+    Object.keys(ATTRIBUTES).forEach(cat => {
+        const contId = 'col-' + cat.toLowerCase();
+        const container = document.getElementById(contId);
+        if (container && container.children.length === 0) {
+             ATTRIBUTES[cat].forEach(attr => renderRow(container, attr, 'attr'));
+        }
+    });
+}
+window.renderAttributes = renderAttributes;
+
+export function renderAbilities() {
+    Object.keys(ABILITIES).forEach(cat => {
+        const contId = 'col-' + cat.toLowerCase();
+        const container = document.getElementById(contId);
+        if (container && container.children.length === 0) {
+             ABILITIES[cat].forEach(abil => renderRow(container, abil, 'abil'));
+        }
+    });
+}
+window.renderAbilities = renderAbilities;
+
+export function renderVirtues() {
+    const container = document.getElementById('virtues-list');
+    if (!container) return;
+    if (container.children.length > 0) return; // Prevent re-rendering
+
+    VIRTUES.forEach(virt => {
+        // Virtues start at 1 dot min
+        renderRow(container, virt, 'virt', 1);
+    });
+}
+window.renderVirtues = renderVirtues;
+
 
 // --- INVENTORY SYSTEM ---
 
