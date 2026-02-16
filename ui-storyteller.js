@@ -18,7 +18,8 @@ import {
     renderRosterView, renderCombatView, renderBestiaryView, renderChatView, renderSettingsView,
     stViewPlayerSheet, returnToStoryteller, stViewCombatantSheet, stToggleCombatVisibility,
     stOpenCombatVisibilityModal, handleAddToCombat, copyStaticNpc, deleteCloudNpc, editCloudNpc,
-    previewStaticNpc, pushHandoutToPlayers, stDeleteJournalEntry, stSaveSettings, stSaveLocalPrefs
+    previewStaticNpc, pushHandoutToPlayers, stDeleteJournalEntry, stSaveSettings, stSaveLocalPrefs,
+    stAnnounceTime // NEW: Import for time tracker
 } from "./st-dashboard-views.js";
 
 // --- STATE ---
@@ -67,6 +68,7 @@ export function initStorytellerSystem() {
     // Settings Actions (Implemented in views file)
     window.stSaveSettings = stSaveSettings;
     window.stSaveLocalPrefs = stSaveLocalPrefs; 
+    window.stAnnounceTime = stAnnounceTime; // NEW: Global binding for time announcement
 
     // Bestiary Actions (Implemented in views file)
     window.copyStaticNpc = copyStaticNpc;
@@ -798,6 +800,7 @@ function startPlayerSync() {
 }
 
 function startPlayerListeners(chronicleId) {
+    // 1. Player/Journal entries listener
     const q = query(collection(db, 'chronicles', chronicleId, 'players'));
     const unsub = onSnapshot(q, (snapshot) => {
         let updated = false;
@@ -868,6 +871,18 @@ function startPlayerListeners(chronicleId) {
     });
     
     stState.listeners.push(unsub);
+
+    // 2. NEW: WATCH CHRONICLE DOC FOR SETTINGS/CLOCK SYNC
+    const chronRef = doc(db, 'chronicles', chronicleId);
+    stState.listeners.push(onSnapshot(chronRef, (snap) => {
+        if (snap.exists()) {
+            stState.settings = snap.data();
+            // If Storyteller is currently on the settings tab, we should refresh it
+            if (stState.dashboardActive && stState.currentView === 'settings') {
+                renderSettingsView(document.getElementById('st-viewport'));
+            }
+        }
+    }));
 }
 
 // ==========================================================================
@@ -919,6 +934,18 @@ function startStorytellerSession() {
         if (stState.dashboardActive && stState.currentView === 'bestiary') renderBestiaryView();
     }, (error) => {
         console.error("Bestiary Listener Error:", error);
+    }));
+
+    // NEW: ALSO WATCH CHRONICLE DOC FOR SETTINGS/CLOCK SYNC (ST MODE)
+    const chronRef = doc(db, 'chronicles', stState.activeChronicleId);
+    stState.listeners.push(onSnapshot(chronRef, (snap) => {
+        if (snap.exists()) {
+            stState.settings = snap.data();
+            // Refresh view if active
+            if (stState.dashboardActive && stState.currentView === 'settings') {
+                renderSettingsView(document.getElementById('st-viewport'));
+            }
+        }
     }));
 
     initCombatTracker(stState.activeChronicleId);
