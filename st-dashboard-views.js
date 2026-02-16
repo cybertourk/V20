@@ -671,10 +671,10 @@ export function renderChatView(container) {
 }
 
 // ==========================================================================
-// 5. SETTINGS VIEW
+// 5. SETTINGS VIEW (REFINED TIME TRACKER)
 // ==========================================================================
 
-// --- UTILITY: TIME FORMATTERS & STATUS HANDLERS ---
+// --- UTILITY: SEASONAL TIME FORMATTERS & STATUS HANDLERS ---
 function format12h(time24) {
     if (!time24) return "00:00 AM";
     const [h, m] = time24.split(':').map(Number);
@@ -683,15 +683,57 @@ function format12h(time24) {
     return `${h12}:${m.toString().padStart(2, '0')} ${ampm}`;
 }
 
-function getStatusInfo(time24) {
-    if (!time24) return { label: "Midnight", icon: "fa-moon", color: "text-blue-500" };
+function getSeason(dateStr) {
+    if (!dateStr) return "Unknown";
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) {
+        // Fallback for manual string parsing if Date fails
+        const lower = dateStr.toLowerCase();
+        if (lower.includes('jan') || lower.includes('feb') || lower.includes('dec')) return "Winter";
+        if (lower.includes('mar') || lower.includes('apr') || lower.includes('may')) return "Spring";
+        if (lower.includes('jun') || lower.includes('jul') || lower.includes('aug')) return "Summer";
+        if (lower.includes('sep') || lower.includes('oct') || lower.includes('nov')) return "Autumn";
+        return "Unknown";
+    }
+    const m = d.getMonth(); // 0-11
+    if (m >= 2 && m <= 4) return "Spring";
+    if (m >= 5 && m <= 7) return "Summer";
+    if (m >= 8 && m <= 10) return "Autumn";
+    return "Winter";
+}
+
+function getStatusInfo(time24, dateStr) {
+    if (!time24) return { label: "Midnight", icon: "fa-moon", color: "text-blue-500", season: "Unknown" };
+    
     const h = parseInt(time24.split(':')[0]);
-    if (h >= 5 && h < 8) return { label: "Dawn", icon: "fa-cloud-sun", color: "text-orange-400" };
-    if (h >= 8 && h < 12) return { label: "Morning", icon: "fa-sun", color: "text-yellow-400" };
-    if (h >= 12 && h < 17) return { label: "Daylight", icon: "fa-sun", color: "text-yellow-500" };
-    if (h >= 17 && h < 20) return { label: "Dusk", icon: "fa-cloud-moon", color: "text-orange-500" };
-    if (h >= 20 && h < 23) return { label: "Nightfall", icon: "fa-moon", color: "text-blue-300" };
-    return { label: "Deep Night", icon: "fa-moon", color: "text-blue-500" };
+    const m = parseInt(time24.split(':')[1]) || 0;
+    const timeVal = h + (m/60);
+    
+    const season = getSeason(dateStr);
+    
+    // Seasonal Sunlight Thresholds (Approximate)
+    let sunrise = 6;
+    let sunset = 18.5; // 6:30 PM
+    let morning = 9;
+    let evening = 17.5; // 5:30 PM
+
+    if (season === "Winter") { sunrise = 7.5; sunset = 17; morning = 10; evening = 16; }
+    if (season === "Summer") { sunrise = 5; sunset = 21; morning = 8; evening = 19.5; }
+    if (season === "Spring") { sunrise = 6.5; sunset = 19; morning = 9; evening = 18; }
+    if (season === "Autumn") { sunrise = 6.5; sunset = 18.5; morning = 9.5; evening = 17.5; }
+
+    // State mapping
+    if (timeVal >= sunrise - 1 && timeVal < sunrise) return { label: "Dawn", icon: "fa-cloud-sun", color: "text-orange-400", season };
+    if (timeVal >= sunrise && timeVal < morning) return { label: "Morning", icon: "fa-sun", color: "text-yellow-400", season };
+    if (timeVal >= morning && timeVal < evening) return { label: "Daylight", icon: "fa-sun", color: "text-yellow-500", season };
+    if (timeVal >= evening && timeVal < sunset) return { label: "Dusk", icon: "fa-cloud-moon", color: "text-orange-500", season };
+    if (timeVal >= sunset && timeVal < sunset + 2) return { label: "Nightfall", icon: "fa-moon", color: "text-blue-300", season };
+    if (timeVal >= sunset + 2 || timeVal < sunrise - 1) {
+        if (timeVal >= 23 || timeVal < 1) return { label: "Midnight", icon: "fa-moon", color: "text-blue-600", season };
+        return { label: "Deep Night", icon: "fa-moon", color: "text-blue-500", season };
+    }
+    
+    return { label: "Transition", icon: "fa-clock", color: "text-gray-400", season };
 }
 
 export async function renderSettingsView(container) {
@@ -704,7 +746,8 @@ export async function renderSettingsView(container) {
     } catch(e) { console.error(e); }
 
     const curTime = data.inGameTime || '22:00';
-    const status = getStatusInfo(curTime);
+    const curDate = data.inGameDate || '';
+    const status = getStatusInfo(curTime, curDate);
 
     container.innerHTML = `
         <div class="p-8 max-w-4xl mx-auto pb-20 overflow-y-auto h-full custom-scrollbar">
@@ -715,13 +758,17 @@ export async function renderSettingsView(container) {
                 <div class="absolute -top-1 -right-1 opacity-10 group-hover:opacity-20 transition-opacity">
                     <i class="fas fa-hourglass-half text-8xl text-gold"></i>
                 </div>
-                <h3 class="text-sm font-bold text-gold uppercase mb-4 tracking-widest flex items-center gap-2">
-                    <i class="fas fa-calendar-alt"></i> Chronicle Time & Date
-                </h3>
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-sm font-bold text-gold uppercase tracking-widest flex items-center gap-2">
+                        <i class="fas fa-calendar-alt"></i> Chronicle Time & Date
+                    </h3>
+                    <div id="st-season-tag" class="text-[9px] font-black uppercase bg-black px-2 py-1 border border-[#333] text-gray-500 rounded">${status.season}</div>
+                </div>
+                
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6 relative z-10">
                     <div>
                         <label class="label-text text-gray-400">In-Game Date</label>
-                        <input type="text" id="st-set-date" class="w-full bg-[#050505] border border-[#333] text-white p-3 text-sm focus:border-gold outline-none rounded font-mono" placeholder="e.g. Oct 14, 1993" value="${data.inGameDate || ''}">
+                        <input type="text" id="st-set-date" class="w-full bg-[#050505] border border-[#333] text-white p-3 text-sm focus:border-gold outline-none rounded font-mono" placeholder="e.g. Oct 14, 1993" value="${curDate}">
                     </div>
                     <div>
                         <label class="label-text text-gray-400">Clock & Period</label>
@@ -742,7 +789,7 @@ export async function renderSettingsView(container) {
                         </button>
                     </div>
                 </div>
-                <p class="text-[9px] text-gray-500 mt-3 italic">Maintain atmospheric tension. Kindred typical wake around 6 PM and seek shelter by 6 AM.</p>
+                <p class="text-[9px] text-gray-500 mt-3 italic">Maintain atmospheric tension. Sunset and Sunrise adjusted automatically for the <span class="text-white font-bold" id="st-season-text">${status.season}</span> season.</p>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
@@ -791,24 +838,31 @@ export async function renderSettingsView(container) {
 
     // Internal binding for live preview update
     const timeIn = document.getElementById('st-set-time');
-    if (timeIn) {
-        timeIn.oninput = (e) => {
-            const val = e.target.value;
-            const s = getStatusInfo(val);
-            const iconEl = document.getElementById('st-time-preview-icon');
-            const labelEl = document.getElementById('st-time-preview-label');
-            const preview12h = document.getElementById('st-time-preview-12h');
-            
-            // FIX: Use setAttribute('class', ...) because FontAwesome replaces <i> with <svg>, 
-            // and SVG elements do not support direct .className assignment in modern browsers.
-            if (iconEl) iconEl.setAttribute('class', `fas ${s.icon} ${s.color}`);
-            if (labelEl) {
-                labelEl.innerText = s.label;
-                labelEl.setAttribute('class', `text-[10px] ${s.color} font-bold uppercase tracking-widest`);
-            }
-            if (preview12h) preview12h.innerText = format12h(val);
-        };
-    }
+    const dateIn = document.getElementById('st-set-date');
+    
+    const updatePreview = () => {
+        const val = timeIn.value;
+        const dVal = dateIn.value;
+        const s = getStatusInfo(val, dVal);
+        
+        const iconEl = document.getElementById('st-time-preview-icon');
+        const labelEl = document.getElementById('st-time-preview-label');
+        const preview12h = document.getElementById('st-time-preview-12h');
+        const seasonTag = document.getElementById('st-season-tag');
+        const seasonText = document.getElementById('st-season-text');
+        
+        if (iconEl) iconEl.setAttribute('class', `fas ${s.icon} ${s.color}`);
+        if (labelEl) {
+            labelEl.innerText = s.label;
+            labelEl.setAttribute('class', `text-[10px] ${s.color} font-bold uppercase tracking-widest`);
+        }
+        if (preview12h) preview12h.innerText = format12h(val);
+        if (seasonTag) seasonTag.innerText = s.season;
+        if (seasonText) seasonText.innerText = s.season;
+    };
+
+    if (timeIn) timeIn.oninput = updatePreview;
+    if (dateIn) dateIn.oninput = updatePreview;
 }
 
 export function stSaveLocalPrefs() {
@@ -842,17 +896,16 @@ export async function stSaveSettings() {
     } catch(e) { console.error(e); }
 }
 
-// --- NEW: REFINED TIME ANNOUNCEMENT BROADCASTER ---
+// --- NEW: REFINED TIME ANNOUNCEMENT BROADCASTER (SEASON AWARE) ---
 export function stAnnounceTime() {
     const dateStr = document.getElementById('st-set-date')?.value || "Modern Nights";
     const time24 = document.getElementById('st-set-time')?.value || "00:00";
     
     const time12 = format12h(time24);
-    const status = getStatusInfo(time24);
+    const status = getStatusInfo(time24, dateStr);
 
     const msg = `
         <div class="flex flex-col items-center py-4 border-t border-b border-[#333] my-4 bg-black/40 relative overflow-hidden">
-            <!-- Background Watermark Icon -->
             <div class="absolute -top-4 -right-4 opacity-5 pointer-events-none">
                 <i class="fas ${status.icon} text-9xl"></i>
             </div>
@@ -863,7 +916,9 @@ export function stAnnounceTime() {
                 </div>
             </div>
             
-            <div class="text-[9px] text-gray-500 uppercase font-black tracking-[0.3em] mb-2 border-b border-gray-800 pb-1">Chronicle State</div>
+            <div class="text-[9px] text-gray-500 uppercase font-black tracking-[0.3em] mb-2 border-b border-gray-800 pb-1">
+                ${status.season} Chronicles
+            </div>
             
             <div class="text-xl font-cinzel font-bold text-white mb-1 drop-shadow-md">${dateStr}</div>
             
