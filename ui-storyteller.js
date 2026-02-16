@@ -1,30 +1,20 @@
 import { 
-    db, auth, collection, doc, setDoc, getDoc, getDocs, query, where, addDoc, onSnapshot, deleteDoc, updateDoc, appId, arrayUnion, arrayRemove, orderBy, limit, writeBatch
+    db, auth, collection, doc, setDoc, getDoc, getDocs, query, where, onSnapshot, deleteDoc, updateDoc
 } from "./firebase-config.js";
-import { showNotification, notifPrefs, saveNotificationPrefs } from "./ui-common.js";
-import { GEN_LIMITS } from "./data.js";
+import { showNotification } from "./ui-common.js";
 import { 
-    initCombatTracker, combatState, startCombat, endCombat, nextTurn, 
-    addCombatant, removeCombatant, updateInitiative, rollNPCInitiative,
-    setCombatantHidden
+    initCombatTracker, startCombat, endCombat, nextTurn, 
+    removeCombatant, updateInitiative, rollNPCInitiative
 } from "./combat-tracker.js";
 
-import { renderStorytellerJournal, updateJournalList } from "./ui-journal.js";
+import { initChatSystem, startChatListener, sendChronicleMessage } from "./chat-model.js";
 
-import { 
-    initChatSystem, startChatListener, sendChronicleMessage, 
-    stClearChat, stExportChat, stSetWhisperTarget, renderMessageList, refreshChatUI
-} from "./chat-model.js";
-
-import { renderCoterieMap } from "./coterie-map.js";
-
-// IMPORT VIEW IMPLEMENTATIONS FROM NEW FILE
+// Import view implementations from the companion file
 import {
-    renderRosterView, renderCombatView, renderBestiaryView, renderChatView,
-    stRemovePlayer, stViewPlayerSheet, returnToStoryteller,
-    stViewCombatantSheet, stToggleCombatVisibility, stOpenCombatVisibilityModal,
-    handleAddToCombat, copyStaticNpc, deleteCloudNpc, editCloudNpc, previewStaticNpc,
-    pushHandoutToPlayers, stDeleteJournalEntry, initWhisper
+    renderRosterView, renderCombatView, renderBestiaryView, renderChatView, renderSettingsView,
+    stViewPlayerSheet, returnToStoryteller, stViewCombatantSheet, stToggleCombatVisibility,
+    stOpenCombatVisibilityModal, handleAddToCombat, copyStaticNpc, deleteCloudNpc, editCloudNpc,
+    previewStaticNpc, pushHandoutToPlayers, stDeleteJournalEntry, stSaveSettings, stSaveLocalPrefs
 } from "./st-dashboard-views.js";
 
 // --- STATE ---
@@ -43,8 +33,7 @@ export const stState = {
     dashboardActive: false,
     chatUnsub: null,
     chatHistory: [], 
-    whisperTarget: null,
-    tempStorytellerBackup: null // Used for restoring state after viewing player sheets
+    whisperTarget: null 
 };
 
 // Expose state globally
@@ -71,11 +60,11 @@ export function initStorytellerSystem() {
     window.renderStorytellerDashboard = renderStorytellerDashboard;
     window.exitStorytellerDashboard = exitStorytellerDashboard;
     
-    // Settings Actions
+    // Settings Actions (Implemented in views file)
     window.stSaveSettings = stSaveSettings;
     window.stSaveLocalPrefs = stSaveLocalPrefs; 
 
-    // Bestiary Actions
+    // Bestiary Actions (Implemented in views file)
     window.copyStaticNpc = copyStaticNpc;
     window.deleteCloudNpc = deleteCloudNpc;
     window.editCloudNpc = editCloudNpc;
@@ -99,12 +88,15 @@ export function initStorytellerSystem() {
     window.stDeleteJournalEntry = stDeleteJournalEntry;
     
     // Roster Management
-    window.stRemovePlayer = stRemovePlayer;
+    window.stRemovePlayer = (id, name) => {
+        // Find by name if ID is missing (compat)
+        const uid = id || Object.keys(stState.players).find(k => stState.players[k].character_name === name);
+        if (uid) stRemovePlayer(uid, name);
+    };
     window.stViewPlayerSheet = stViewPlayerSheet; 
-    window.returnToStoryteller = returnToStoryteller;
-    window.initWhisper = initWhisper;
+    window.returnToStoryteller = returnToStoryteller; 
 
-    // GLOBAL PUSH API (Kept here as it relies on simple DB writes)
+    // GLOBAL PUSH API
     window.stPushNpc = async (npcData) => {
         if (!stState.activeChronicleId || !stState.isStoryteller) return showNotification("Not in ST Mode", "error");
         try {
@@ -784,7 +776,7 @@ function startPlayerSync() {
         try {
             await setDoc(stState.playerRef, {
                 character_name: document.getElementById('c-name')?.value || "Unknown",
-                // ADDED: Sync full sheet state so ST can view it
+                // Sync full sheet state so ST can view it
                 full_sheet: window.state || {}, 
                 live_stats: {
                     health: window.state.status.health_states || [],
@@ -937,6 +929,7 @@ function renderStorytellerDashboard(container = null) {
     container.classList.remove('hidden');
     container.style.display = 'flex'; 
 
+    // Layout from Original ui-storyteller.js
     container.innerHTML = `
         <div class="flex flex-col w-full h-full bg-[#050505] pt-16">
             <!-- ST Header -->
@@ -981,7 +974,7 @@ function renderStorytellerDashboard(container = null) {
                 <!-- Views injected here -->
             </div>
             
-            <!-- ST VISIBILITY MODAL (REUSED / REPURPOSED FOR COMBAT) -->
+            <!-- ST VISIBILITY MODAL -->
             <div id="st-combat-vis-modal" class="fixed inset-0 bg-black/80 z-[1000] hidden flex items-center justify-center p-4 backdrop-blur-sm">
                 <div class="bg-[#1a1a1a] border border-[#d4af37] p-6 max-w-sm w-full shadow-2xl relative">
                     <h3 class="text-lg text-gold font-cinzel font-bold mb-4 border-b border-[#333] pb-2 uppercase">Targeted Visibility</h3>
@@ -1032,134 +1025,4 @@ function switchStorytellerView(view) {
     }
     else if (view === 'chat') renderChatView(viewport);
     else if (view === 'settings') renderSettingsView(viewport);
-}
-
-// --- NEW SETTINGS VIEW (WITH NOTIFICATION PREFS) ---
-async function renderSettingsView(container) {
-    if(!container) return;
-    
-    const docRef = doc(db, 'chronicles', stState.activeChronicleId);
-    let data = stState.settings || {};
-    
-    try {
-        const snap = await getDoc(docRef);
-        if(snap.exists()) {
-            data = snap.data();
-            stState.settings = data;
-        }
-    } catch(e) { console.error(e); }
-
-    container.innerHTML = `
-        <div class="p-8 max-w-4xl mx-auto pb-20 overflow-y-auto h-full custom-scrollbar">
-            <h2 class="text-2xl text-[#d4af37] font-cinzel font-bold mb-6 border-b border-[#333] pb-2 uppercase tracking-wider">Chronicle Configuration</h2>
-            
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                <div>
-                    <label class="label-text text-gray-400">Chronicle Name</label>
-                    <input type="text" id="st-set-name" class="w-full bg-[#111] border border-[#333] text-white p-3 text-sm focus:border-[#d4af37] outline-none" value="${data.name || ''}">
-                </div>
-                <div>
-                    <label class="label-text text-gray-400">Time Period / Setting</label>
-                    <input type="text" id="st-set-time" class="w-full bg-[#111] border border-[#333] text-white p-3 text-sm focus:border-[#d4af37] outline-none" value="${data.timePeriod || ''}">
-                </div>
-            </div>
-
-            <div class="mb-6">
-                <label class="label-text text-gray-400">Passcode (Leave empty for open access)</label>
-                <input type="text" id="st-set-pass" class="w-full bg-[#111] border border-[#333] text-white p-3 text-sm focus:border-[#d4af37] outline-none" value="${data.passcode || ''}">
-            </div>
-
-            <div class="mb-6">
-                <label class="label-text text-gray-400">Synopsis / Briefing (Public)</label>
-                <textarea id="st-set-synopsis" class="w-full bg-[#111] border border-[#333] text-gray-300 p-3 text-xs focus:border-[#d4af37] outline-none resize-none h-32 leading-relaxed">${data.synopsis || ''}</textarea>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                <div>
-                    <label class="label-text text-gray-400">House Rules</label>
-                    <textarea id="st-set-rules" class="w-full bg-[#1a0505] border border-red-900/30 text-gray-300 p-3 text-xs focus:border-red-500 outline-none resize-none h-48 leading-relaxed">${data.houseRules || ''}</textarea>
-                </div>
-                <div>
-                    <label class="label-text text-gray-400">Lore / Setting Details</label>
-                    <textarea id="st-set-lore" class="w-full bg-[#0a0a0a] border border-[#d4af37]/30 text-gray-300 p-3 text-xs focus:border-[#d4af37] outline-none resize-none h-48 leading-relaxed">${data.lore || ''}</textarea>
-                </div>
-            </div>
-
-            <div class="text-right border-b border-[#333] pb-6 mb-6">
-                <button onclick="window.stSaveSettings()" class="bg-[#d4af37] text-black font-bold px-8 py-3 rounded uppercase hover:bg-[#fcd34d] shadow-lg tracking-widest transition-transform hover:scale-105">
-                    Save Changes
-                </button>
-            </div>
-
-            <!-- NOTIFICATION SETTINGS -->
-            <div class="bg-[#111] p-4 border border-[#333] rounded">
-                <h3 class="text-sm font-bold text-gray-400 uppercase mb-4 tracking-wider"><i class="fas fa-bell mr-2"></i> Local Interface Settings</h3>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                        <div class="flex items-center justify-between mb-2">
-                            <span class="text-xs text-white font-bold">Sound Effects</span>
-                            <label class="relative inline-flex items-center cursor-pointer">
-                                <input type="checkbox" id="pref-master-sound" class="sr-only peer" ${notifPrefs.masterSound ? 'checked' : ''}>
-                                <div class="w-9 h-5 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-gold"></div>
-                            </label>
-                        </div>
-                        <p class="text-[10px] text-gray-500 mb-3">Master toggle for all notification sounds.</p>
-                        <div class="space-y-2 pl-2 border-l border-[#333]">
-                            <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="pref-sound-chat" class="accent-gold w-3 h-3" ${notifPrefs.chatSound ? 'checked' : ''}><span class="text-xs text-gray-400">Chat Messages</span></label>
-                            <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="pref-sound-combat" class="accent-gold w-3 h-3" ${notifPrefs.combatSound ? 'checked' : ''}><span class="text-xs text-gray-400">Combat & Rolls</span></label>
-                            <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="pref-sound-journal" class="accent-gold w-3 h-3" ${notifPrefs.journalSound ? 'checked' : ''}><span class="text-xs text-gray-400">Journal & Events</span></label>
-                        </div>
-                    </div>
-                    <div>
-                        <label class="text-xs text-white font-bold block mb-2">Audio Cooldown</label>
-                        <select id="pref-cooldown" class="w-full bg-[#050505] border border-[#333] text-gray-300 text-xs p-2 focus:border-gold outline-none">
-                            <option value="0" ${notifPrefs.cooldown === 0 ? 'selected' : ''}>None (Instant)</option>
-                            <option value="5" ${notifPrefs.cooldown === 5 ? 'selected' : ''}>5 Seconds</option>
-                            <option value="20" ${notifPrefs.cooldown === 20 ? 'selected' : ''}>20 Seconds</option>
-                            <option value="30" ${notifPrefs.cooldown === 30 ? 'selected' : ''}>30 Seconds</option>
-                        </select>
-                        <p class="text-[10px] text-gray-500 mt-2">Prevents sound spam during bursts of activity.</p>
-                    </div>
-                </div>
-                <div class="mt-4 pt-4 border-t border-[#333] text-right">
-                    <button onclick="window.stSaveLocalPrefs()" class="text-xs bg-[#222] hover:bg-[#333] text-gray-300 border border-[#444] px-4 py-2 rounded uppercase font-bold transition-colors">Save Preferences</button>
-                </div>
-            </div>
-        </div>
-    `;
-}
-
-// --- LOCAL PREFS HANDLER ---
-function stSaveLocalPrefs() {
-    const newPrefs = {
-        masterSound: document.getElementById('pref-master-sound').checked,
-        chatSound: document.getElementById('pref-sound-chat').checked,
-        combatSound: document.getElementById('pref-sound-combat').checked,
-        journalSound: document.getElementById('pref-sound-journal').checked,
-        cooldown: parseInt(document.getElementById('pref-cooldown').value) || 0
-    };
-    saveNotificationPrefs(newPrefs);
-    showNotification("Local preferences saved.");
-}
-
-async function stSaveSettings() {
-    if(!stState.activeChronicleId) return;
-    
-    const updates = {
-        name: document.getElementById('st-set-name').value,
-        timePeriod: document.getElementById('st-set-time').value,
-        passcode: document.getElementById('st-set-pass').value,
-        synopsis: document.getElementById('st-set-synopsis').value,
-        houseRules: document.getElementById('st-set-rules').value,
-        lore: document.getElementById('st-set-lore').value
-    };
-    
-    try {
-        await updateDoc(doc(db, 'chronicles', stState.activeChronicleId), updates);
-        stState.settings = { ...stState.settings, ...updates };
-        showNotification("Settings Updated");
-    } catch(e) {
-        console.error(e);
-        showNotification("Update Failed", "error");
-    }
 }
