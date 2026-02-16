@@ -703,7 +703,7 @@ function getSeason(dateStr) {
 }
 
 function getStatusInfo(time24, dateStr) {
-    if (!time24) return { label: "Midnight", icon: "fa-moon", color: "text-blue-500", season: "Unknown" };
+    if (!time24) return { label: "Midnight", icon: "fa-moon", color: "text-blue-500", emoji: "🌙", season: "Unknown" };
     
     const h = parseInt(time24.split(':')[0]);
     const m = parseInt(time24.split(':')[1]) || 0;
@@ -723,17 +723,17 @@ function getStatusInfo(time24, dateStr) {
     if (season === "Autumn") { sunrise = 6.5; sunset = 18.5; morning = 9.5; evening = 17.5; }
 
     // State mapping
-    if (timeVal >= sunrise - 1 && timeVal < sunrise) return { label: "Dawn", icon: "fa-cloud-sun", color: "text-orange-400", season };
-    if (timeVal >= sunrise && timeVal < morning) return { label: "Morning", icon: "fa-sun", color: "text-yellow-400", season };
-    if (timeVal >= morning && timeVal < evening) return { label: "Daylight", icon: "fa-sun", color: "text-yellow-500", season };
-    if (timeVal >= evening && timeVal < sunset) return { label: "Dusk", icon: "fa-cloud-moon", color: "text-orange-500", season };
-    if (timeVal >= sunset && timeVal < sunset + 2) return { label: "Nightfall", icon: "fa-moon", color: "text-blue-300", season };
+    if (timeVal >= sunrise - 1 && timeVal < sunrise) return { label: "Dawn", icon: "fa-cloud-sun", color: "text-orange-400", emoji: "🌅", season };
+    if (timeVal >= sunrise && timeVal < morning) return { label: "Morning", icon: "fa-sun", color: "text-yellow-400", emoji: "☀️", season };
+    if (timeVal >= morning && timeVal < evening) return { label: "Daylight", icon: "fa-sun", color: "text-yellow-500", emoji: "☀️", season };
+    if (timeVal >= evening && timeVal < sunset) return { label: "Dusk", icon: "fa-cloud-moon", color: "text-orange-500", emoji: "🌇", season };
+    if (timeVal >= sunset && timeVal < sunset + 2) return { label: "Nightfall", icon: "fa-moon", color: "text-blue-300", emoji: "🌙", season };
     if (timeVal >= sunset + 2 || timeVal < sunrise - 1) {
-        if (timeVal >= 23 || timeVal < 1) return { label: "Midnight", icon: "fa-moon", color: "text-blue-600", season };
-        return { label: "Deep Night", icon: "fa-moon", color: "text-blue-500", season };
+        if (timeVal >= 23 || timeVal < 1) return { label: "Midnight", icon: "fa-moon", color: "text-blue-600", emoji: "🌑", season };
+        return { label: "Deep Night", icon: "fa-moon", color: "text-blue-500", emoji: "🌌", season };
     }
     
-    return { label: "Transition", icon: "fa-clock", color: "text-gray-400", season };
+    return { label: "Transition", icon: "fa-clock", color: "text-gray-400", emoji: "🕒", season };
 }
 
 export async function renderSettingsView(container) {
@@ -896,19 +896,18 @@ export async function stSaveSettings() {
     } catch(e) { console.error(e); }
 }
 
-// --- NEW: REFINED TIME ANNOUNCEMENT BROADCASTER (AUTO-SAVES CLOUD STATE) ---
+// --- NEW: REFINED TIME ANNOUNCEMENT BROADCASTER (WITH IMPROVED NOTIFICATIONS) ---
 export async function stAnnounceTime() {
     const dateStr = document.getElementById('st-set-date')?.value || "Modern Nights";
     const time24 = document.getElementById('st-set-time')?.value || "00:00";
     
-    // PERSIST: Automatically save this as the "last used" state in the cloud so it remains in the form
+    // PERSIST: Automatically save this as the "last used" state in the cloud
     if (window.stState.activeChronicleId) {
         try {
             await updateDoc(doc(db, 'chronicles', window.stState.activeChronicleId), {
                 inGameDate: dateStr,
                 inGameTime: time24
             });
-            // Update local state to match cloud immediately for consistency
             window.stState.settings.inGameDate = dateStr;
             window.stState.settings.inGameTime = time24;
         } catch(e) { 
@@ -919,7 +918,10 @@ export async function stAnnounceTime() {
     const time12 = format12h(time24);
     const status = getStatusInfo(time24, dateStr);
 
+    // FIX: Provide descriptive text at start of message so the automatic notification system
+    // for other players picks it up instead of generic HTML tags.
     const msg = `
+        <span style="display:none">${status.emoji} ${status.label}: ${time12} - ${dateStr}</span>
         <div class="flex flex-col items-center py-4 border-t border-b border-[#333] my-4 bg-black/40 relative overflow-hidden">
             <div class="absolute -top-4 -right-4 opacity-5 pointer-events-none">
                 <i class="fas ${status.icon} text-9xl"></i>
@@ -949,7 +951,9 @@ export async function stAnnounceTime() {
     `;
 
     sendChronicleMessage('event', msg);
-    showNotification("Chronicle Time Announced.");
+    
+    // UPDATED: Show detailed notification to the ST sender as well
+    showNotification(`${status.emoji} ${status.label}: ${time12} - ${dateStr}`, 'event', 'Time Update');
 }
 
 // --- DELEGATED JOURNAL HELPERS ---
