@@ -60,7 +60,7 @@ export function initStorytellerSystem() {
     window.handleJoinChronicle = handleJoinChronicle;
     window.handleResumeChronicle = handleResumeChronicle;
     window.handleDeleteChronicle = handleDeleteChronicle;
-    window.handleLeaveChronicle = handleLeaveChronicle; // NEW: Leave participant list
+    window.handleLeaveChronicle = handleLeaveChronicle; 
     window.disconnectChronicle = disconnectChronicle;
     window.switchStorytellerView = switchStorytellerView;
     window.renderStorytellerDashboard = renderStorytellerDashboard;
@@ -315,6 +315,12 @@ async function renderChronicleMenu() {
             if (isValid) {
                 const btnColor = recentRole === 'ST' ? 'text-red-500 border-red-900 hover:bg-red-900/20' : 'text-blue-400 border-blue-900 hover:bg-blue-900/20';
                 const roleLabel = recentRole === 'ST' ? 'Storyteller' : 'Player';
+                
+                // UPDATED: Resume button for player now forces Join UI for password entry
+                const resumeAction = recentRole === 'ST' 
+                    ? `window.handleResumeChronicle('${recentId}', 'ST')` 
+                    : `window.renderJoinChronicleUI('${recentId}')`;
+
                 const resumeHtml = `
                     <div class="mb-6 p-4 bg-[#111] border border-[#333] flex justify-between items-center animate-in fade-in">
                         <div>
@@ -322,7 +328,7 @@ async function renderChronicleMenu() {
                             <div class="text-white font-bold font-cinzel text-lg">${displayName}</div>
                             <div class="text-[9px] text-gray-400">${roleLabel}</div>
                         </div>
-                        <button onclick="window.handleResumeChronicle('${recentId}', '${recentRole}')" class="px-4 py-2 border rounded uppercase font-bold text-xs ${btnColor}">
+                        <button onclick="${resumeAction}" class="px-4 py-2 border rounded uppercase font-bold text-xs ${btnColor}">
                             Resume <i class="fas fa-arrow-right ml-1"></i>
                         </button>
                     </div>
@@ -372,11 +378,10 @@ async function renderChronicleMenu() {
         }
     }
 
-    // 3. Player Joined Chronicles (NEW)
+    // 3. Player Joined Chronicles
     const plListDiv = document.getElementById('pl-joined-list');
     if (plListDiv) {
         try {
-            // Path: /artifacts/{appId}/users/{userId}/joined_chronicles
             const q = query(collection(db, 'artifacts', appId, 'users', user.uid, 'joined_chronicles'));
             const querySnapshot = await getDocs(q);
             
@@ -386,7 +391,8 @@ async function renderChronicleMenu() {
                     const data = doc.data();
                     html += `
                         <div class="flex justify-between items-center bg-[#1a1a1a] p-3 border-l-2 border-blue-900 hover:bg-[#222] cursor-pointer group transition-colors relative">
-                            <div class="flex-1" onclick="window.handleResumeChronicle('${doc.id}', 'Player')">
+                            <!-- UPDATED: Rejoining from list now opens Join UI to require password -->
+                            <div class="flex-1" onclick="window.renderJoinChronicleUI('${doc.id}')">
                                 <div class="text-white font-bold text-sm font-cinzel group-hover:text-blue-400 transition-colors">${data.name}</div>
                                 <div class="text-[9px] text-gray-600 font-mono group-hover:text-white">${doc.id}</div>
                             </div>
@@ -421,7 +427,6 @@ async function handleDeleteChronicle(id) {
     }
 }
 
-// NEW: Function for players to remove a chronicle from their joined list
 async function handleLeaveChronicle(id) {
     if (!confirm("Remove this story from your list? (Does not delete character)")) return;
     const user = auth.currentUser;
@@ -435,7 +440,8 @@ async function handleLeaveChronicle(id) {
     }
 }
 
-function renderJoinChronicleUI() {
+// UPDATED: Now accepts an optional chronicleId to pre-fill the form
+function renderJoinChronicleUI(prefillId = "") {
     const container = document.getElementById('chronicle-modal-content');
     if(!container) return;
 
@@ -444,7 +450,7 @@ function renderJoinChronicleUI() {
         <div class="space-y-4 max-w-md mx-auto">
             <div>
                 <label class="label-text text-gray-400">Chronicle ID (Ask your ST)</label>
-                <input type="text" id="join-id" class="w-full bg-[#050505] border border-[#333] text-white p-3 text-sm focus:border-[#d4af37] outline-none font-mono text-center tracking-widest uppercase" placeholder="XXXX-XXXX">
+                <input type="text" id="join-id" class="w-full bg-[#050505] border border-[#333] text-white p-3 text-sm focus:border-[#d4af37] outline-none font-mono text-center tracking-widest uppercase" placeholder="XXXX-XXXX" value="${prefillId}">
             </div>
             
             <div id="join-preview" class="hidden bg-[#111] p-4 border border-[#d4af37] text-center space-y-2">
@@ -454,7 +460,7 @@ function renderJoinChronicleUI() {
             </div>
 
             <div>
-                <label class="label-text text-gray-400">Passcode (Optional)</label>
+                <label class="label-text text-gray-400">Passcode (Enter to Connect)</label>
                 <input type="password" id="join-pass" class="w-full bg-[#050505] border border-[#333] text-white p-3 text-sm focus:border-[#d4af37] outline-none text-center" placeholder="******">
             </div>
             
@@ -468,8 +474,7 @@ function renderJoinChronicleUI() {
     `;
 
     const input = document.getElementById('join-id');
-    input.addEventListener('input', async (e) => {
-        const val = e.target.value.trim();
+    const triggerPreview = async (val) => {
         if (val.length >= 8) { 
             try {
                 const snap = await getDoc(doc(db, 'chronicles', val));
@@ -482,7 +487,10 @@ function renderJoinChronicleUI() {
                 }
             } catch(e) {}
         }
-    });
+    };
+
+    input.addEventListener('input', (e) => triggerPreview(e.target.value.trim()));
+    if(prefillId) triggerPreview(prefillId);
 }
 
 function renderCreateChronicleUI() {
@@ -666,7 +674,7 @@ async function handleJoinChronicle() {
             }
         }, { merge: true });
 
-        // NEW: PERSIST STORY TO PLAYER'S LIST
+        // PERSIST STORY TO PLAYER'S LIST
         const userJoinedRef = doc(db, 'artifacts', appId, 'users', user.uid, 'joined_chronicles', idInput);
         await setDoc(userJoinedRef, {
             name: data.name,
@@ -710,7 +718,6 @@ async function handleResumeChronicle(id, role) {
         if (!docSnap.exists()) {
             showNotification("Chronicle no longer exists.", "error");
             localStorage.removeItem('v20_last_chronicle_id');
-            // Cleanup from user list if dead
             deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'joined_chronicles', id)).catch(() => {});
             renderChronicleMenu();
             return;
@@ -738,6 +745,8 @@ async function handleResumeChronicle(id, role) {
             toggleStorytellerButton(true);
             window.renderStorytellerDashboard(); 
         } else {
+            // Note: For rejoining as a player, the UI now redirects to Password entry.
+            // This fallback remains for auto-resume logic on startup.
             const playerRef = doc(db, 'chronicles', id, 'players', user.uid);
             
             const pSnap = await getDoc(playerRef);
