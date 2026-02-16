@@ -674,6 +674,26 @@ export function renderChatView(container) {
 // 5. SETTINGS VIEW
 // ==========================================================================
 
+// --- UTILITY: TIME FORMATTERS & STATUS HANDLERS ---
+function format12h(time24) {
+    if (!time24) return "00:00 AM";
+    const [h, m] = time24.split(':').map(Number);
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const h12 = h % 12 || 12;
+    return `${h12}:${m.toString().padStart(2, '0')} ${ampm}`;
+}
+
+function getStatusInfo(time24) {
+    if (!time24) return { label: "Midnight", icon: "fa-moon", color: "text-blue-500" };
+    const h = parseInt(time24.split(':')[0]);
+    if (h >= 5 && h < 8) return { label: "Dawn", icon: "fa-cloud-sun", color: "text-orange-400" };
+    if (h >= 8 && h < 12) return { label: "Morning", icon: "fa-sun", color: "text-yellow-400" };
+    if (h >= 12 && h < 17) return { label: "Daylight", icon: "fa-sun", color: "text-yellow-500" };
+    if (h >= 17 && h < 20) return { label: "Dusk", icon: "fa-cloud-moon", color: "text-orange-500" };
+    if (h >= 20 && h < 23) return { label: "Nightfall", icon: "fa-moon", color: "text-blue-300" };
+    return { label: "Deep Night", icon: "fa-moon", color: "text-blue-500" };
+}
+
 export async function renderSettingsView(container) {
     if(!container) return;
     const docRef = doc(db, 'chronicles', window.stState.activeChronicleId);
@@ -683,46 +703,46 @@ export async function renderSettingsView(container) {
         if(snap.exists()) { data = snap.data(); window.stState.settings = data; }
     } catch(e) { console.error(e); }
 
-    const timeIcon = (timeStr) => {
-        if (!timeStr) return 'fa-moon text-blue-400';
-        const hour = parseInt(timeStr.split(':')[0]);
-        if (hour >= 6 && hour < 18) return 'fa-sun text-yellow-500';
-        return 'fa-moon text-blue-400';
-    };
+    const curTime = data.inGameTime || '22:00';
+    const status = getStatusInfo(curTime);
 
     container.innerHTML = `
         <div class="p-8 max-w-4xl mx-auto pb-20 overflow-y-auto h-full custom-scrollbar">
             <h2 class="text-2xl text-[#d4af37] font-cinzel font-bold mb-6 border-b border-[#333] pb-2 uppercase tracking-wider">Chronicle Configuration</h2>
             
-            <!-- NEW: IN-GAME TIME TRACKER SECTION -->
+            <!-- CHRONICLE TIME & DATE TRACKER -->
             <div class="bg-[#1a1a1a] border border-[#d4af37]/30 p-6 rounded mb-8 relative overflow-hidden group">
                 <div class="absolute -top-1 -right-1 opacity-10 group-hover:opacity-20 transition-opacity">
-                    <i class="fas fa-clock text-8xl text-gold"></i>
+                    <i class="fas fa-hourglass-half text-8xl text-gold"></i>
                 </div>
                 <h3 class="text-sm font-bold text-gold uppercase mb-4 tracking-widest flex items-center gap-2">
-                    <i class="fas fa-hourglass-half"></i> Chronicle Time & Date
+                    <i class="fas fa-calendar-alt"></i> Chronicle Time & Date
                 </h3>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6 relative z-10">
                     <div>
                         <label class="label-text text-gray-400">In-Game Date</label>
-                        <input type="text" id="st-set-date" class="w-full bg-[#050505] border border-[#333] text-white p-3 text-sm focus:border-gold outline-none rounded font-mono" placeholder="e.g. October 14, 1993" value="${data.inGameDate || ''}">
+                        <input type="text" id="st-set-date" class="w-full bg-[#050505] border border-[#333] text-white p-3 text-sm focus:border-gold outline-none rounded font-mono" placeholder="e.g. Oct 14, 1993" value="${data.inGameDate || ''}">
                     </div>
                     <div>
-                        <label class="label-text text-gray-400">Time of Night/Day</label>
+                        <label class="label-text text-gray-400">Clock & Period</label>
                         <div class="relative">
-                            <input type="time" id="st-set-time" class="w-full bg-[#050505] border border-[#333] text-white p-3 text-sm focus:border-gold outline-none rounded font-mono pr-10" value="${data.inGameTime || '22:00'}" oninput="document.getElementById('st-time-graphic').className = 'fas ' + (parseInt(this.value.split(':')[0]) >= 6 && parseInt(this.value.split(':')[0]) < 18 ? 'fa-sun text-yellow-500' : 'fa-moon text-blue-400')">
+                            <input type="time" id="st-set-time" class="w-full bg-[#050505] border border-[#333] text-white p-3 text-sm focus:border-gold outline-none rounded font-mono pr-10" value="${curTime}">
                             <div class="absolute right-3 top-1/2 -translate-y-1/2">
-                                <i id="st-time-graphic" class="fas ${timeIcon(data.inGameTime)}"></i>
+                                <i id="st-time-preview-icon" class="fas ${status.icon} ${status.color}"></i>
                             </div>
                         </div>
+                        <div class="flex justify-between mt-1 px-1">
+                            <span id="st-time-preview-12h" class="text-[10px] text-gray-400 font-bold">${format12h(curTime)}</span>
+                            <span id="st-time-preview-label" class="text-[10px] ${status.color} font-bold uppercase tracking-widest">${status.label}</span>
+                        </div>
                     </div>
-                    <div class="flex items-end">
-                        <button onclick="window.stAnnounceTime()" class="w-full bg-blue-900 hover:bg-blue-700 text-white font-bold py-3 rounded uppercase text-[10px] tracking-widest border border-blue-500 shadow-lg transition-transform active:scale-95">
-                            <i class="fas fa-bullhorn mr-2"></i> Announce to Chat
+                    <div class="flex items-start">
+                        <button onclick="window.stAnnounceTime()" class="w-full bg-blue-900/50 hover:bg-blue-700 text-blue-100 font-bold py-3 rounded uppercase text-[10px] tracking-widest border border-blue-500 shadow-lg transition-transform active:scale-95 flex items-center justify-center gap-2">
+                            <i class="fas fa-bullhorn"></i> Announce Time
                         </button>
                     </div>
                 </div>
-                <p class="text-[9px] text-gray-500 mt-3 italic">Use this to track the passage of time. Kindred typically rise at 18:00 and retreat at 06:00.</p>
+                <p class="text-[9px] text-gray-500 mt-3 italic">Maintain atmospheric tension. Kindred typical wake around 6 PM and seek shelter by 6 AM.</p>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
@@ -736,6 +756,7 @@ export async function renderSettingsView(container) {
                 <div><label class="label-text text-gray-400">Lore / Setting Details</label><textarea id="st-set-lore" class="w-full bg-[#0a0a0a] border border-[#d4af37]/30 text-gray-300 p-3 text-xs focus:border-[#d4af37] outline-none resize-none h-48 leading-relaxed rounded">${data.lore || ''}</textarea></div>
             </div>
             <div class="text-right border-b border-[#333] pb-6 mb-6"><button onclick="window.stSaveSettings()" class="bg-[#d4af37] text-black font-bold px-8 py-3 rounded uppercase hover:bg-[#fcd34d] shadow-lg tracking-widest transition-transform hover:scale-105">Save Changes</button></div>
+            
             <div class="bg-[#111] p-4 border border-[#333] rounded">
                 <h3 class="text-sm font-bold text-gray-400 uppercase mb-4 tracking-wider"><i class="fas fa-bell mr-2"></i> Local Interface Settings</h3>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -767,6 +788,25 @@ export async function renderSettingsView(container) {
             </div>
         </div>
     `;
+
+    // Internal binding for live preview update
+    const timeIn = document.getElementById('st-set-time');
+    if (timeIn) {
+        timeIn.oninput = (e) => {
+            const val = e.target.value;
+            const s = getStatusInfo(val);
+            const iconEl = document.getElementById('st-time-preview-icon');
+            const labelEl = document.getElementById('st-time-preview-label');
+            const preview12h = document.getElementById('st-time-preview-12h');
+            
+            if (iconEl) iconEl.className = `fas ${s.icon} ${s.color}`;
+            if (labelEl) {
+                labelEl.innerText = s.label;
+                labelEl.className = `text-[10px] ${s.color} font-bold uppercase tracking-widest`;
+            }
+            if (preview12h) preview12h.innerText = format12h(val);
+        };
+    }
 }
 
 export function stSaveLocalPrefs() {
@@ -790,7 +830,6 @@ export async function stSaveSettings() {
         synopsis: document.getElementById('st-set-synopsis').value,
         houseRules: document.getElementById('st-set-rules').value,
         lore: document.getElementById('st-set-lore').value,
-        // NEW FIELDS
         inGameDate: document.getElementById('st-set-date').value,
         inGameTime: document.getElementById('st-set-time').value
     };
@@ -801,28 +840,44 @@ export async function stSaveSettings() {
     } catch(e) { console.error(e); }
 }
 
-// NEW: TIME ANNOUNCEMENT BROADCASTER
+// --- NEW: REFINED TIME ANNOUNCEMENT BROADCASTER ---
 export function stAnnounceTime() {
-    const date = document.getElementById('st-set-date')?.value || "Current Date";
-    const time = document.getElementById('st-set-time')?.value || "00:00";
+    const dateStr = document.getElementById('st-set-date')?.value || "Modern Nights";
+    const time24 = document.getElementById('st-set-time')?.value || "00:00";
     
-    const hour = parseInt(time.split(':')[0]);
-    const isDay = hour >= 6 && hour < 18;
-    const icon = isDay ? '☀️' : '🌙';
-    const status = isDay ? 'Daylight' : 'Nightfall';
-    const color = isDay ? 'text-yellow-500' : 'text-blue-400';
+    const time12 = format12h(time24);
+    const status = getStatusInfo(time24);
 
     const msg = `
-        <div class="flex flex-col items-center py-2 border-t border-b border-[#333] my-2 bg-black/40">
-            <div class="text-4xl mb-1">${icon}</div>
-            <div class="text-[10px] text-gray-500 uppercase font-bold tracking-widest mb-1">In-Game Time Update</div>
-            <div class="text-xl font-cinzel font-bold text-white mb-1">${date}</div>
-            <div class="text-2xl font-mono ${color} font-black">${time} <span class="text-[10px] uppercase font-bold ml-1">(${status})</span></div>
+        <div class="flex flex-col items-center py-4 border-t border-b border-[#333] my-4 bg-black/40 relative overflow-hidden">
+            <!-- Background Watermark Icon -->
+            <div class="absolute -top-4 -right-4 opacity-5 pointer-events-none">
+                <i class="fas ${status.icon} text-9xl"></i>
+            </div>
+            
+            <div class="flex items-center gap-3 mb-2">
+                <div class="w-12 h-12 rounded-full border border-[#333] bg-[#050505] flex items-center justify-center shadow-lg">
+                    <i class="fas ${status.icon} text-2xl ${status.color} drop-shadow-[0_0_8px_currentColor]"></i>
+                </div>
+            </div>
+            
+            <div class="text-[9px] text-gray-500 uppercase font-black tracking-[0.3em] mb-2 border-b border-gray-800 pb-1">Chronicle State</div>
+            
+            <div class="text-xl font-cinzel font-bold text-white mb-1 drop-shadow-md">${dateStr}</div>
+            
+            <div class="flex items-center gap-3">
+                <div class="text-3xl font-mono text-white font-black tracking-tighter">${time12}</div>
+                <div class="h-8 w-px bg-gray-800"></div>
+                <div class="flex flex-col items-start">
+                    <span class="${status.color} font-black text-xs uppercase tracking-widest leading-none">${status.label}</span>
+                    <span class="text-[8px] text-gray-600 uppercase font-bold">Atmosphere</span>
+                </div>
+            </div>
         </div>
     `;
 
     sendChronicleMessage('event', msg);
-    showNotification("Time announced to Chronicle.");
+    showNotification("Chronicle Time Announced.");
 }
 
 // --- DELEGATED JOURNAL HELPERS ---
