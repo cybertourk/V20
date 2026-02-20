@@ -823,7 +823,7 @@ export function renderDisciplines() {
     list.innerHTML = Object.entries(ctx.activeNpc.disciplines).map(([k,v]) => `
         <div class="flex justify-between items-center mb-1 dot-interactive" data-type="disciplines" data-key="${k}">
             <div class="flex gap-2 items-center">
-                <i class="fas fa-times text-red-500 cursor-pointer text-xs hover:text-white remove-item-btn" data-type="disciplines" data-key="${k.replace(/"/g, '&quot;')}"></i>
+                <span class="text-red-500 cursor-pointer text-xs hover:text-white remove-item-btn" data-type="disciplines" data-key="${k.replace(/"/g, '&quot;')}"><i class="fas fa-times pointer-events-none"></i></span>
                 <span class="text-[10px] uppercase font-bold text-white">${k}</span>
             </div>
             <div class="dot-row cursor-pointer hover:opacity-80">${renderDots(v, 5)}</div>
@@ -839,7 +839,7 @@ export function renderBackgrounds() {
     list.innerHTML = Object.entries(ctx.activeNpc.backgrounds).map(([k,v]) => `
         <div class="flex justify-between items-center mb-1 dot-interactive" data-type="backgrounds" data-key="${k}">
             <div class="flex gap-2 items-center">
-                <i class="fas fa-times text-red-500 cursor-pointer text-xs hover:text-white remove-item-btn" data-type="backgrounds" data-key="${k.replace(/"/g, '&quot;')}"></i>
+                <span class="text-red-500 cursor-pointer text-xs hover:text-white remove-item-btn" data-type="backgrounds" data-key="${k.replace(/"/g, '&quot;')}"><i class="fas fa-times pointer-events-none"></i></span>
                 <span class="text-[10px] uppercase font-bold text-white">${k}</span>
             </div>
             <div class="dot-row cursor-pointer hover:opacity-80">${renderDots(v, 5)}</div>
@@ -859,12 +859,12 @@ export function renderMeritsFlaws() {
     
     if (mList) {
         mList.innerHTML = Object.entries(ctx.activeNpc.merits || {}).filter(([k,v]) => k !== 'length').map(([k,v]) => 
-            `<div class="flex justify-between text-[9px] text-gray-300 bg-black/50 p-1 rounded"><span>${k}</span><span>${v} pts <i class="fas fa-times text-red-500 ml-2 cursor-pointer remove-item-btn" data-type="merits" data-key="${k.replace(/"/g, '&quot;')}"></i></span></div>`
+            `<div class="flex justify-between text-[9px] text-gray-300 bg-black/50 p-1 rounded"><span>${k}</span><span>${v} pts <span class="text-red-500 ml-2 cursor-pointer hover:text-white remove-item-btn" data-type="merits" data-key="${k.replace(/"/g, '&quot;')}"><i class="fas fa-times pointer-events-none"></i></span></span></div>`
         ).join('');
     }
     if (fList) {
         fList.innerHTML = Object.entries(ctx.activeNpc.flaws || {}).filter(([k,v]) => k !== 'length').map(([k,v]) => 
-            `<div class="flex justify-between text-[9px] text-red-300 bg-black/50 p-1 rounded"><span>${k}</span><span>${v} pts <i class="fas fa-times text-red-500 ml-2 cursor-pointer remove-item-btn" data-type="flaws" data-key="${k.replace(/"/g, '&quot;')}"></i></span></div>`
+            `<div class="flex justify-between text-[9px] text-red-300 bg-black/50 p-1 rounded"><span>${k}</span><span>${v} pts <span class="text-red-500 ml-2 cursor-pointer hover:text-white remove-item-btn" data-type="flaws" data-key="${k.replace(/"/g, '&quot;')}"><i class="fas fa-times pointer-events-none"></i></span></span></div>`
         ).join('');
     }
     bindRemoveBtns();
