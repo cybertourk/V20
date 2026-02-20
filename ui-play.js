@@ -227,10 +227,23 @@ export function applyPlayModeUI() {
         else guideBtn.classList.remove('hidden');
     }
 
-    const diceBtn = document.getElementById('dice-toggle-btn');
-    if (diceBtn) {
-        if (isPlay) diceBtn.classList.remove('hidden');
-        else diceBtn.classList.add('hidden');
+    let diceBtn = document.getElementById('dice-toggle-btn');
+    if (!diceBtn) {
+        diceBtn = document.createElement('button');
+        diceBtn.id = 'dice-toggle-btn';
+        diceBtn.className = 'fixed bottom-6 right-6 z-[100] bg-[#8b0000] text-white w-14 h-14 rounded-full shadow-[0_0_20px_rgba(212,175,55,0.3)] border-2 border-[#d4af37] hover:bg-[#a00000] flex items-center justify-center transition-all transform hover:scale-110 active:scale-95 hidden cursor-pointer'; 
+        diceBtn.innerHTML = '<i class="fas fa-dice text-2xl"></i>';
+        diceBtn.title = "Open Dice Roller";
+        diceBtn.onclick = () => {
+            if (window.toggleDiceTray) window.toggleDiceTray();
+        };
+        document.body.appendChild(diceBtn);
+    }
+    
+    if (isPlay) {
+        diceBtn.classList.remove('hidden');
+    } else {
+        diceBtn.classList.add('hidden');
     }
     
     // Disable inputs that shouldn't be edited during Play Mode
