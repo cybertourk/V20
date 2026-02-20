@@ -115,6 +115,10 @@ export function getFreebiesAvailable(npc) {
 }
 
 export function calculateMarginalFreebieCost(type, key, startVal, endVal, npc, priorities, template, simulatedVal = null) {
+    // Add explicitly handled types for Merits and Flaws
+    if (type === 'merits') return endVal; 
+    if (type === 'flaws') return -endVal; // Flaws subtract from the cost (give bonus points)
+
     let group = null;
     let cap = 0;
     let spent = 0;
@@ -206,6 +210,8 @@ export function calculateMarginalFreebieCost(type, key, startVal, endVal, npc, p
 }
 
 export function validateFreebieRefund(type, key, newVal, npc, priorities, template) {
+    if (type === 'merits' || type === 'flaws') return true;
+
     if (type === 'attributes' || type === 'abilities') {
         let group = null;
         const list = (type === 'attributes') ? ATTRIBUTES : ABILITIES;
