@@ -387,9 +387,10 @@ function handleValueChange(type, key, newVal) {
 
         if (finalVal > currentVal) {
             const cost = Logic.calculateMarginalFreebieCost(type, key, currentVal, finalVal, activeNpc, localPriorities, currentTemplate);
-            if (cost > 0) {
+            if (cost !== 0) { // Changed to allow negative costs for flaws
                 activeNpc.freebieLog.push({
-                    type: type, trait: key || type, from: currentVal, to: finalVal, cost: cost
+                    type: type === 'merits' ? 'merit' : type === 'flaws' ? 'flaw' : type, 
+                    trait: key || type, from: currentVal, to: finalVal, cost: cost
                 });
             }
         } else {
@@ -423,7 +424,10 @@ function handleValueChange(type, key, newVal) {
         if ((type === 'attributes' || type === 'virtues') && newVal < 1) return;
         if (newVal < 0) return;
 
-        const valid = currentTemplate.validateChange(type, key, newVal, currentVal, activeNpc, localPriorities);
+        // Bypassing validation for Merits/Flaws to ensure they are always selectable 
+        // if user hasn't explicitly activated Freebie mode
+        const valid = (type === 'merits' || type === 'flaws') ? true : currentTemplate.validateChange(type, key, newVal, currentVal, activeNpc, localPriorities);
+        
         if (valid === true) {
             applyChange(type, key, newVal);
         } else {
