@@ -121,30 +121,68 @@ export function renderEditorModal() {
 
                     <!-- STEP 4: ADVANTAGES -->
                     <div id="step4" class="npc-step hidden">
-                        <div class="sheet-section !mt-0"><div class="section-title">Advantages</div><div class="flex flex-wrap gap-10 justify-between items-start">${ (f.disciplines || f.backgrounds) ? `<div class="flex-1 min-w-[200px]">${f.disciplines ? `<h3 class="column-title">Disciplines</h3><div id="npc-disc-list" class="space-y-1 mt-2"></div><div class="mt-3"><select id="npc-disc-select" class="w-full bg-transparent border border-[#444] text-[10px] text-gray-300 p-2 uppercase font-bold"><option value="">+ Add Discipline</option>${(DISCIPLINES||[]).map(d=>`<option value="${d}">${d}</option>`).join('')}</select></div>` : ''}${f.backgrounds ? `<h3 class="column-title ${f.disciplines ? 'mt-8' : ''}">Backgrounds</h3><div id="npc-back-list" class="space-y-1 mt-2"></div><div class="mt-3"><select id="npc-back-select" class="w-full bg-transparent border border-[#444] text-[10px] text-gray-300 p-2 uppercase font-bold"><option value="">+ Add Background</option>${(BACKGROUNDS||[]).filter(b => !EXCLUDED_BACKGROUNDS.includes(b)).map(b=>`<option value="${b}">${b}</option>`).join('')}</select></div>` : ''}</div>` : ''}<div class="flex-1 min-w-[200px]">${f.virtues ? `<h3 class="column-title">Virtues <span id="virtue-limit-display" class="text-xs text-gray-500"></span></h3><div id="npc-virtue-list" class="space-y-3 mt-4 mb-4"></div><div class="mt-8 border-t border-[#333] pt-4">${f.humanity ? `<div class="flex justify-between items-center text-xs mb-4"><span class="font-bold text-[#d4af37]">HUMANITY</span><div class="dot-row-direct cursor-pointer" id="npc-humanity-row">${renderDots(ctx.activeNpc.humanity, 10)}</div></div>` : ''}` : '<div class="mt-4"></div>'}<div class="flex justify-between items-center text-xs mb-4"><span class="font-bold text-[#d4af37]">WILLPOWER</span><div class="dot-row-direct cursor-pointer" id="npc-willpower-row">${renderDots(ctx.activeNpc.willpower, 10)}</div></div>${f.bloodPool ? `<div class="flex justify-between items-center text-xs"><span class="font-bold text-[#d4af37]">BLOOD POOL</span><input type="number" id="npc-blood" value="${ctx.activeNpc.bloodPool}" class="w-12 bg-transparent border-b border-[#444] text-center text-white p-1 font-bold text-lg focus:border-[#d4af37] outline-none"></div>` : ''}${f.virtues ? `</div>` : ''} </div>
-                        
-                        <div class="flex-1 min-w-[200px]">
-                            <h3 class="column-title">Merits & Flaws</h3>
-                            <select id="npc-merit-select" class="w-full bg-transparent border-b border-[#444] text-[10px] text-gray-300 p-1 mb-2">
-                                <option value="">Add Merit...</option>
-                                ${(V20_MERITS_LIST||[]).map(m=>{ 
-                                    const n = m.name || m.n || 'Unknown'; 
-                                    const v = m.val !== undefined ? m.val : (m.v !== undefined ? m.v : (m.cost !== undefined ? m.cost : 0)); 
-                                    return `<option value="${n.replace(/"/g, '&quot;')}|${v}">${n} (${v})</option>`; 
-                                }).join('')}
-                            </select>
-                            <div id="npc-merits-list" class="space-y-1"></div>
-                            <select id="npc-flaw-select" class="w-full bg-transparent border-b border-[#444] text-[10px] text-gray-300 p-1 mb-2 mt-4">
-                                <option value="">Add Flaw...</option>
-                                ${(V20_FLAWS_LIST||[]).map(f=>{ 
-                                    const n = f.name || f.n || 'Unknown'; 
-                                    const v = f.val !== undefined ? f.val : (f.v !== undefined ? f.v : (f.cost !== undefined ? f.cost : 0)); 
-                                    return `<option value="${n.replace(/"/g, '&quot;')}|${v}">${n} (${v})</option>`; 
-                                }).join('')}
-                            </select>
-                            <div id="npc-flaws-list" class="space-y-1"></div>
+                        <div class="sheet-section !mt-0">
+                            <div class="section-title">Advantages</div>
+                            <div class="flex flex-wrap gap-10 justify-between items-start">
+                                ${(f.disciplines || f.backgrounds) ? `
+                                <div class="flex-1 min-w-[200px]">
+                                    ${f.disciplines ? `
+                                        <h3 class="column-title">Disciplines</h3>
+                                        <div id="npc-disc-list" class="space-y-1 mt-2"></div>
+                                        <div class="mt-3">
+                                            <select id="npc-disc-select" class="w-full bg-transparent border border-[#444] text-[10px] text-gray-300 p-2 uppercase font-bold">
+                                                <option value="">+ Add Discipline</option>
+                                                ${(DISCIPLINES||[]).map(d=>`<option value="${d.replace(/"/g, '&quot;')}">${d}</option>`).join('')}
+                                            </select>
+                                        </div>
+                                    ` : ''}
+                                    ${f.backgrounds ? `
+                                        <h3 class="column-title ${f.disciplines ? 'mt-8' : ''}">Backgrounds</h3>
+                                        <div id="npc-back-list" class="space-y-1 mt-2"></div>
+                                        <div class="mt-3">
+                                            <select id="npc-back-select" class="w-full bg-transparent border border-[#444] text-[10px] text-gray-300 p-2 uppercase font-bold">
+                                                <option value="">+ Add Background</option>
+                                                ${(BACKGROUNDS||[]).filter(b => !EXCLUDED_BACKGROUNDS.includes(b)).map(b=>`<option value="${b.replace(/"/g, '&quot;')}">${b}</option>`).join('')}
+                                            </select>
+                                        </div>
+                                    ` : ''}
+                                </div>` : ''}
+
+                                <div class="flex-1 min-w-[200px]">
+                                    ${f.virtues ? `
+                                        <h3 class="column-title">Virtues <span id="virtue-limit-display" class="text-xs text-gray-500"></span></h3>
+                                        <div id="npc-virtue-list" class="space-y-3 mt-4 mb-4"></div>
+                                        <div class="mt-8 border-t border-[#333] pt-4">
+                                            ${f.humanity ? `<div class="flex justify-between items-center text-xs mb-4"><span class="font-bold text-[#d4af37]">HUMANITY</span><div class="dot-row-direct cursor-pointer" id="npc-humanity-row">${renderDots(ctx.activeNpc.humanity, 10)}</div></div>` : ''}
+                                    ` : '<div class="mt-4"></div>'}
+                                        <div class="flex justify-between items-center text-xs mb-4"><span class="font-bold text-[#d4af37]">WILLPOWER</span><div class="dot-row-direct cursor-pointer" id="npc-willpower-row">${renderDots(ctx.activeNpc.willpower, 10)}</div></div>
+                                        ${f.bloodPool ? `<div class="flex justify-between items-center text-xs"><span class="font-bold text-[#d4af37]">BLOOD POOL</span><input type="number" id="npc-blood" value="${ctx.activeNpc.bloodPool}" class="w-12 bg-transparent border-b border-[#444] text-center text-white p-1 font-bold text-lg focus:border-[#d4af37] outline-none"></div>` : ''}
+                                    ${f.virtues ? `</div>` : ''} 
+                                </div>
+                                
+                                <div class="flex-1 min-w-[200px]">
+                                    <h3 class="column-title">Merits & Flaws</h3>
+                                    <select id="npc-merit-select" class="w-full bg-transparent border-b border-[#444] text-[10px] text-gray-300 p-1 mb-2">
+                                        <option value="">Add Merit...</option>
+                                        ${(V20_MERITS_LIST||[]).map(m=>{ 
+                                            const n = m.name || m.n || 'Unknown'; 
+                                            const v = m.val !== undefined ? m.val : (m.v !== undefined ? m.v : (m.cost !== undefined ? m.cost : 0)); 
+                                            return `<option value="${n.replace(/"/g, '&quot;')}|${v}">${n} (${v})</option>`; 
+                                        }).join('')}
+                                    </select>
+                                    <div id="npc-merits-list" class="space-y-1"></div>
+                                    <select id="npc-flaw-select" class="w-full bg-transparent border-b border-[#444] text-[10px] text-gray-300 p-1 mb-2 mt-4">
+                                        <option value="">Add Flaw...</option>
+                                        ${(V20_FLAWS_LIST||[]).map(f=>{ 
+                                            const n = f.name || f.n || 'Unknown'; 
+                                            const v = f.val !== undefined ? f.val : (f.v !== undefined ? f.v : (f.cost !== undefined ? f.cost : 0)); 
+                                            return `<option value="${n.replace(/"/g, '&quot;')}|${v}">${n} (${v})</option>`; 
+                                        }).join('')}
+                                    </select>
+                                    <div id="npc-flaws-list" class="space-y-1"></div>
+                                </div>
+                            </div>
                         </div>
-                    </div></div>
                     </div>
 
                     <!-- STEP 5: EQUIPMENT (Matches Main App) -->
@@ -389,9 +427,7 @@ export function renderEditorModal() {
             urlBtn.onclick = () => {
                 let url = prompt("Paste Image URL (e.g. Discord, Imgur, Google Drive):");
                 if (url) {
-                    // Apply Helper for Google Drive if available
                     if (window.convertGoogleDriveLink) url = window.convertGoogleDriveLink(url);
-                    
                     ctx.activeNpc.image = url;
                     imgDisplay.style.backgroundImage = `url('${url}')`;
                     imgDisplay.innerHTML = ''; 
@@ -419,7 +455,6 @@ export function renderEditorModal() {
     if(bxp) bxp.onclick = () => callbacks.toggleMode('xp');
     if(bfb) bfb.onclick = () => callbacks.toggleMode('freebie');
     
-    // Bind Bestiary Badge click
     const badge = document.getElementById('npc-unlimited-badge');
     if (badge) {
         badge.onclick = () => {
@@ -440,13 +475,8 @@ export function renderEditorModal() {
             const val = e.target.value;
             if(val) {
                 if(!ctx.activeNpc[type]) ctx.activeNpc[type] = {};
-                // Force to 0 for unlimited mode so next click makes it 1 (handled in handleValueChange)
-                // Or if regular mode, start at 1. Logic inside handleValueChange will sort it out if we set it directly.
-                // Actually, handleValueChange takes care of incrementing.
-                // Let's set it to 0 initially so it shows up in list but is empty.
                 ctx.activeNpc[type][val] = 0; 
                 if (ctx.modes.unlimited) {
-                    // Pre-fill to 1 for convenience in unlimited mode
                     ctx.activeNpc[type][val] = 1;
                 }
                 renderFn();
@@ -462,11 +492,11 @@ export function renderEditorModal() {
         if(el) el.onchange = (e) => {
             if(!e.target.value) return;
             const parts = e.target.value.split('|');
-            const val = parts.pop(); // Last element is the numeric value
-            const name = parts.join('|'); // Rejoin in case the name contained a pipe
+            const val = parts.pop(); 
+            const name = parts.join('|'); 
             
             callbacks.handleValueChange(type, name, parseInt(val)); 
-            renderMeritsFlaws(); // Explicitly force re-render so it shows up instantly
+            renderMeritsFlaws(); // Force re-render to make sure they show up
             e.target.value = "";
         };
     };
@@ -491,21 +521,19 @@ export function renderEditorModal() {
             const vehicleRow = document.getElementById('npc-inv-vehicle-row');
             if(vehicleRow) vehicleRow.classList.toggle('hidden', t !== 'Vehicle');
             
-            // Rebuild Template Options
             baseSelect.innerHTML = '<option value="">-- Select Template --</option>';
             let list = [];
             
             if (t === 'Weapon') list = [...(WEAPONS||[]), ...(RANGED_WEAPONS||[])];
             else if (t === 'Armor') list = ARMOR || [];
             else if (t === 'Vehicle') list = V20_VEHICLES_LIST || [];
-            // GEAR intentionally left blank so list remains empty and wrapper hides
             
             if(list.length > 0) {
                 baseWrapper.classList.remove('hidden');
                 list.sort((a,b) => a.name.localeCompare(b.name));
                 baseSelect.innerHTML += list.map(i => `<option value="${i.name}">${i.name}</option>`).join('');
             } else {
-                baseWrapper.classList.add('hidden'); // Completely hide for Gear
+                baseWrapper.classList.add('hidden'); 
             }
         };
 
@@ -518,7 +546,7 @@ export function renderEditorModal() {
             
             const t = typeSelect.value;
             let item = null;
-            if (t === 'Weapon') item = [...(WEAPONS||[]), ...(RANGED_WEAPONS||[])].find(x => x.name === name); // Fixed: w.name -> name
+            if (t === 'Weapon') item = [...(WEAPONS||[]), ...(RANGED_WEAPONS||[])].find(x => x.name === name);
             else if (t === 'Armor') item = (ARMOR||[]).find(x => x.name === name);
             else if (t === 'Vehicle') item = (V20_VEHICLES_LIST||[]).find(x => x.name === name);
 
@@ -545,19 +573,13 @@ export function renderEditorModal() {
             let name = document.getElementById('npc-inv-name').value || "Unnamed Item";
             const baseVal = baseSelect.value;
             
-            // Auto-append base name if it's a variant (and not already included)
             if (baseVal && name !== baseVal && !name.includes(baseVal)) {
                 name = `${name} (${baseVal})`;
             }
 
             const carried = document.getElementById('npc-inv-carried').checked;
             
-            const newItem = {
-                name,
-                type,
-                status: carried ? 'carried' : 'owned',
-                stats: {}
-            };
+            const newItem = { name, type, status: carried ? 'carried' : 'owned', stats: {} };
 
             if (type === 'Weapon') {
                 newItem.stats = {
@@ -589,7 +611,6 @@ export function renderEditorModal() {
             showNotification("Item Added.");
         };
         
-        // Initial Trigger
         setTimeout(toggleFields, 100);
     }
 
@@ -638,36 +659,28 @@ export function updateModeUI() {
         else btn.className = "text-[10px] uppercase font-bold px-3 py-1 border border-[#444] rounded transition-all text-gray-500 hover:text-white";
     };
 
-    // --- UNLIMITED / BESTIARY MODE OVERRIDES ---
     if (ctx.modes.unlimited) {
-        // Disable Standard Buttons visual
         if(xpBtn) { xpBtn.disabled = true; xpBtn.style.opacity = '0.2'; }
         if(fbBtn) { fbBtn.disabled = true; fbBtn.style.opacity = '0.2'; }
-        
-        // Hide Standard Ledgers
         if(xpBar) { xpBar.classList.add('hidden'); xpBar.classList.remove('flex'); }
         if(fbBar) { fbBar.classList.add('hidden'); fbBar.classList.remove('flex'); }
 
-        // Inject "Unlimited Mode" visual indicator if missing
         let badge = document.getElementById('npc-unlimited-badge');
         if (!badge) {
-            const container = document.getElementById('npc-mode-toggles'); // Use specific container
+            const container = document.getElementById('npc-mode-toggles');
             if (container) {
                 badge = document.createElement('div');
                 badge.id = 'npc-unlimited-badge';
                 badge.className = "text-[#d4af37] font-bold text-[10px] uppercase border border-[#d4af37] px-2 py-1 bg-[#d4af37]/10 ml-2 animate-pulse rounded select-none cursor-help hover:bg-[#d4af37]/30 transition-colors";
                 badge.title = "Unlimited editing for Official/Bestiary entries";
                 badge.innerHTML = "<i class='fas fa-infinity mr-1'></i> Bestiary Mode";
-                
                 container.appendChild(badge);
             }
         }
         return;
     } else {
-        // Re-enable buttons if not unlimited
         if(xpBtn) { xpBtn.disabled = false; xpBtn.style.opacity = '1'; }
         if(fbBtn) { fbBtn.disabled = false; fbBtn.style.opacity = '1'; }
-        
         const badge = document.getElementById('npc-unlimited-badge');
         if(badge) badge.remove();
     }
@@ -677,23 +690,17 @@ export function updateModeUI() {
 
     if(xpBar) {
         if(ctx.modes.xp) {
-            xpBar.classList.remove('hidden');
-            xpBar.classList.add('flex');
-            updateXpLog();
+            xpBar.classList.remove('hidden'); xpBar.classList.add('flex'); updateXpLog();
         } else {
-            xpBar.classList.add('hidden');
-            xpBar.classList.remove('flex');
+            xpBar.classList.add('hidden'); xpBar.classList.remove('flex');
         }
     }
 
     if(fbBar) {
         if(ctx.modes.freebie) {
-            fbBar.classList.remove('hidden');
-            fbBar.classList.add('flex');
-            updateFreebieCalc();
+            fbBar.classList.remove('hidden'); fbBar.classList.add('flex'); updateFreebieCalc();
         } else {
-            fbBar.classList.add('hidden');
-            fbBar.classList.remove('flex');
+            fbBar.classList.add('hidden'); fbBar.classList.remove('flex');
         }
     }
 }
@@ -715,7 +722,7 @@ export function renderInventoryList() {
             const parts = [];
             if(item.stats.diff) parts.push(`Diff:${item.stats.diff}`);
             if(item.stats.damage || item.stats.dmg) parts.push(`Dmg:${item.stats.damage || item.stats.dmg}`);
-            if(item.stats.rating) parts.push(`Rate:${item.stats.rating}`); // Armor rating
+            if(item.stats.rating) parts.push(`Rate:${item.stats.rating}`);
             if(parts.length > 0) statString = `<span class="text-gray-500 text-[8px] ml-2 font-mono">(${parts.join(', ')})</span>`;
         }
 
@@ -799,7 +806,7 @@ function renderAbilityColumn(group) {
 
 function renderDotRow(type, key, val, group) {
     return `
-        <div class="flex justify-between items-center mb-1 dot-interactive" data-type="${type}" data-key="${key}" data-group="${group}">
+        <div class="flex justify-between items-center mb-1 dot-interactive" data-type="${type}" data-key="${encodeURIComponent(key)}" data-group="${group}">
             <span class="text-[10px] uppercase font-bold text-gray-300 tracking-tight">${key}</span>
             <div class="dot-row cursor-pointer hover:opacity-80">${renderDots(val || 0, 5)}</div>
         </div>
@@ -817,7 +824,7 @@ export function renderAllDots() {
     });
     const vList = document.getElementById('npc-virtue-list');
     if(vList) vList.innerHTML = VIRTUES.map(k => `
-        <div class="flex justify-between items-center mb-1 dot-interactive" data-type="virtues" data-key="${k}">
+        <div class="flex justify-between items-center mb-1 dot-interactive" data-type="virtues" data-key="${encodeURIComponent(k)}">
             <span class="text-[10px] uppercase font-bold text-gray-300 tracking-tight">${k}</span>
             <div class="dot-row cursor-pointer hover:opacity-80">${renderDots(ctx.activeNpc.virtues[k] || 1, 5)}</div>
         </div>
@@ -838,9 +845,11 @@ export function renderDisciplines() {
     const list = document.getElementById('npc-disc-list');
     if(!list) return;
     list.innerHTML = Object.entries(ctx.activeNpc.disciplines).map(([k,v]) => `
-        <div class="flex justify-between items-center mb-1 dot-interactive" data-type="disciplines" data-key="${k.replace(/"/g, '&quot;')}">
+        <div class="flex justify-between items-center mb-1 dot-interactive" data-type="disciplines" data-key="${encodeURIComponent(k)}">
             <div class="flex gap-2 items-center">
-                <i class="fas fa-times text-red-500 cursor-pointer text-xs hover:text-white remove-item-btn" data-type="disciplines" data-key="${k.replace(/"/g, '&quot;')}"></i>
+                <button class="remove-item-btn text-red-500 hover:text-white transition-transform hover:scale-110" data-type="disciplines" data-key="${encodeURIComponent(k)}">
+                    <i class="fas fa-times pointer-events-none"></i>
+                </button>
                 <span class="text-[10px] uppercase font-bold text-white">${k}</span>
             </div>
             <div class="dot-row cursor-pointer hover:opacity-80">${renderDots(v, 5)}</div>
@@ -854,9 +863,11 @@ export function renderBackgrounds() {
     const list = document.getElementById('npc-back-list');
     if(!list) return;
     list.innerHTML = Object.entries(ctx.activeNpc.backgrounds).map(([k,v]) => `
-        <div class="flex justify-between items-center mb-1 dot-interactive" data-type="backgrounds" data-key="${k.replace(/"/g, '&quot;')}">
+        <div class="flex justify-between items-center mb-1 dot-interactive" data-type="backgrounds" data-key="${encodeURIComponent(k)}">
             <div class="flex gap-2 items-center">
-                <i class="fas fa-times text-red-500 cursor-pointer text-xs hover:text-white remove-item-btn" data-type="backgrounds" data-key="${k.replace(/"/g, '&quot;')}"></i>
+                <button class="remove-item-btn text-red-500 hover:text-white transition-transform hover:scale-110" data-type="backgrounds" data-key="${encodeURIComponent(k)}">
+                    <i class="fas fa-times pointer-events-none"></i>
+                </button>
                 <span class="text-[10px] uppercase font-bold text-white">${k}</span>
             </div>
             <div class="dot-row cursor-pointer hover:opacity-80">${renderDots(v, 5)}</div>
@@ -874,7 +885,11 @@ export function renderMeritsFlaws() {
         mList.innerHTML = Object.entries(ctx.activeNpc.merits || {}).map(([k,v]) => 
             `<div class="flex justify-between items-center text-[9px] text-gray-300 bg-black/50 p-1 rounded">
                 <span>${k}</span>
-                <span>${v} pts <i class="fas fa-times text-red-500 ml-2 cursor-pointer remove-item-btn" data-type="merits" data-key="${k.replace(/"/g, '&quot;')}"></i></span>
+                <span>${v} pts 
+                    <button class="remove-item-btn text-red-500 hover:text-white ml-2 transition-transform hover:scale-110" data-type="merits" data-key="${encodeURIComponent(k)}">
+                        <i class="fas fa-times pointer-events-none"></i>
+                    </button>
+                </span>
             </div>`
         ).join('');
     }
@@ -883,7 +898,11 @@ export function renderMeritsFlaws() {
         fList.innerHTML = Object.entries(ctx.activeNpc.flaws || {}).map(([k,v]) => 
             `<div class="flex justify-between items-center text-[9px] text-red-300 bg-black/50 p-1 rounded">
                 <span>${k}</span>
-                <span>${v} pts <i class="fas fa-times text-red-500 ml-2 cursor-pointer remove-item-btn" data-type="flaws" data-key="${k.replace(/"/g, '&quot;')}"></i></span>
+                <span>${v} pts 
+                    <button class="remove-item-btn text-red-500 hover:text-white ml-2 transition-transform hover:scale-110" data-type="flaws" data-key="${encodeURIComponent(k)}">
+                        <i class="fas fa-times pointer-events-none"></i>
+                    </button>
+                </span>
             </div>`
         ).join('');
     }
@@ -894,9 +913,13 @@ function bindDotClicks() {
     document.querySelectorAll('.dot-interactive').forEach(row => {
         row.onclick = (e) => {
             if(!e.target.classList.contains('dot')) return;
-            callbacks.handleValueChange(row.getAttribute('data-type'), row.getAttribute('data-key'), parseInt(e.target.dataset.v));
+            const type = row.getAttribute('data-type');
+            // Decode the string safely when fetching
+            const key = row.getAttribute('data-key') ? decodeURIComponent(row.getAttribute('data-key')) : null;
+            callbacks.handleValueChange(type, key, parseInt(e.target.dataset.v));
         };
     });
+    
     const bindDirect = (id, type) => {
         const el = document.getElementById(id);
         if(el) el.onclick = (e) => {
@@ -910,14 +933,13 @@ function bindDotClicks() {
 
 function bindRemoveBtns() {
     document.querySelectorAll('.remove-item-btn').forEach(b => {
-        // Clear previous listeners just in case to prevent double firing
-        b.onclick = null; 
+        b.onclick = null; // Clear old bindings to prevent duplicates
         b.onclick = (e) => {
             e.preventDefault();
             e.stopPropagation();
-            // Use getAttribute to safely fetch strings that might contain spaces
             const type = b.getAttribute('data-type');
-            const key = b.getAttribute('data-key');
+            // Decode the URI-encoded key back to exactly what it was in the database
+            const key = decodeURIComponent(b.getAttribute('data-key'));
             callbacks.removeNpcItem(type, key);
         };
     });
@@ -944,26 +966,20 @@ export function updatePrioritiesUI() {
 
         btn.className = "npc-prio-btn w-6 h-6 rounded-full border text-[9px] font-bold transition-all mr-1 cursor-pointer ";
         
-        // Define visual states for priorities
         if (current === v) {
-            // Selected by current group
             btn.classList.add('bg-[#d4af37]', 'text-black', 'border-[#d4af37]');
             btn.title = "Click to deselect and reset points";
         } else if (Object.values(ctx.localPriorities[cat]).includes(v)) {
-            // Claimed by another group
             btn.classList.add('border-gray-800', 'text-gray-600', 'opacity-50', 'hover:border-red-500', 'hover:text-red-400');
             btn.title = "Click to steal from current group and reset their points";
         } else {
-            // Available
             btn.classList.add('border-gray-600', 'text-gray-400', 'hover:border-[#d4af37]', 'hover:text-white');
             btn.title = "Select Priority";
         }
 
         btn.onclick = () => {
-            // Priority buttons only work in normal Creation Mode, not Unlimited/XP/Freebie
             if(ctx.modes.xp || ctx.modes.freebie || ctx.modes.unlimited) return;
 
-            // Helper to reset dots when a priority changes
             const resetDots = (c, g) => {
                 const list = (c === 'attr') ? ATTRIBUTES[g] : ABILITIES[g];
                 list.forEach(k => {
@@ -972,18 +988,16 @@ export function updatePrioritiesUI() {
             };
 
             if (current === v) {
-                // Deselect current
                 ctx.localPriorities[cat][group] = null;
                 resetDots(cat, group);
             } else {
-                // Find if it belongs to someone else to steal it
                 const existingOwner = Object.keys(ctx.localPriorities[cat]).find(k => ctx.localPriorities[cat][k] === v);
                 if (existingOwner) {
                     ctx.localPriorities[cat][existingOwner] = null;
-                    resetDots(cat, existingOwner); // Clear stolen group
+                    resetDots(cat, existingOwner); 
                 }
                 ctx.localPriorities[cat][group] = v;
-                resetDots(cat, group); // Reset current group dots to prevent them exceeding the new cap
+                resetDots(cat, group); 
             }
             
             updatePrioritiesUI();
@@ -1008,7 +1022,6 @@ export function updatePrioritiesUI() {
 }
 
 function updateVirtueDisplay() {
-    // Safety check for templates that don't enforce virtue limits (Bestiary/Unlimited)
     const limit = (ctx.currentTemplate && ctx.currentTemplate.getVirtueLimit) ? ctx.currentTemplate.getVirtueLimit(ctx.activeNpc) : 'N/A';
     
     const el = document.getElementById('virtue-limit-display');
