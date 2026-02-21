@@ -121,21 +121,7 @@ export function renderEditorModal() {
 
                     <!-- STEP 4: ADVANTAGES -->
                     <div id="step4" class="npc-step hidden">
-                        <div class="sheet-section !mt-0"><div class="section-title">Advantages</div><div class="flex flex-wrap gap-10 justify-between items-start">${ (f.disciplines || f.backgrounds) ? `<div class="flex-1 min-w-[200px]">${f.disciplines ? `<h3 class="column-title">Disciplines</h3><div id="npc-disc-list" class="space-y-1 mt-2"></div><div class="mt-3"><select id="npc-disc-select" class="w-full bg-transparent border border-[#444] text-[10px] text-gray-300 p-2 uppercase font-bold"><option value="">+ Add Discipline</option>${(DISCIPLINES||[]).map(d=>`<option value="${d}">${d}</option>`).join('')}</select></div>` : ''}${f.backgrounds ? `<h3 class="column-title ${f.disciplines ? 'mt-8' : ''}">Backgrounds</h3><div id="npc-back-list" class="space-y-1 mt-2"></div><div class="mt-3"><select id="npc-back-select" class="w-full bg-transparent border border-[#444] text-[10px] text-gray-300 p-2 uppercase font-bold"><option value="">+ Add Background</option>${(BACKGROUNDS||[]).filter(b => !EXCLUDED_BACKGROUNDS.includes(b)).map(b=>`<option value="${b}">${b}</option>`).join('')}</select></div>` : ''}</div>` : ''}<div class="flex-1 min-w-[200px]">${f.virtues ? `<h3 class="column-title">Virtues <span id="virtue-limit-display" class="text-xs text-gray-500"></span></h3><div id="npc-virtue-list" class="space-y-3 mt-4 mb-4"></div><div class="mt-8 border-t border-[#333] pt-4">${f.humanity ? `<div class="flex justify-between items-center text-xs mb-4"><span class="font-bold text-[#d4af37]">HUMANITY</span><div class="dot-row-direct cursor-pointer" id="npc-humanity-row">${renderDots(ctx.activeNpc.humanity, 10)}</div></div>` : ''}` : '<div class="mt-4"></div>'}<div class="flex justify-between items-center text-xs mb-4"><span class="font-bold text-[#d4af37]">WILLPOWER</span><div class="dot-row-direct cursor-pointer" id="npc-willpower-row">${renderDots(ctx.activeNpc.willpower, 10)}</div></div>${f.bloodPool ? `<div class="flex justify-between items-center text-xs"><span class="font-bold text-[#d4af37]">BLOOD POOL</span><input type="number" id="npc-blood" value="${ctx.activeNpc.bloodPool}" class="w-12 bg-transparent border-b border-[#444] text-center text-white p-1 font-bold text-lg focus:border-[#d4af37] outline-none"></div>` : ''}${f.virtues ? `</div>` : ''} </div><div class="flex-1 min-w-[200px]"><h3 class="column-title">Merits & Flaws</h3><select id="npc-merit-select" class="w-full bg-transparent border-b border-[#444] text-[10px] text-gray-300 p-1 mb-2"><option value="">Add Merit...</option>
-                            ${(V20_MERITS_LIST||[]).map(m=>{
-                                const isStr = typeof m === 'string';
-                                const n = isStr ? m : (m.name || m.n || m.label || "Unknown");
-                                const v = isStr ? 1 : (m.val !== undefined ? m.val : (m.cost !== undefined ? m.cost : (m.v !== undefined ? m.v : 1)));
-                                return `<option value="${n.replace(/"/g, '&quot;')}|${v}">${n} (${v})</option>`;
-                            }).join('')}
-                        </select><div id="npc-merits-list" class="space-y-1"></div><select id="npc-flaw-select" class="w-full bg-transparent border-b border-[#444] text-[10px] text-gray-300 p-1 mb-2 mt-4"><option value="">Add Flaw...</option>
-                            ${(V20_FLAWS_LIST||[]).map(f=>{
-                                const isStr = typeof f === 'string';
-                                const n = isStr ? f : (f.name || f.n || f.label || "Unknown");
-                                const v = isStr ? 1 : (f.val !== undefined ? f.val : (f.cost !== undefined ? f.cost : (f.v !== undefined ? f.v : 1)));
-                                return `<option value="${n.replace(/"/g, '&quot;')}|${v}">${n} (${v})</option>`;
-                            }).join('')}
-                        </select><div id="npc-flaws-list" class="space-y-1"></div></div></div></div>
+                        <div class="sheet-section !mt-0"><div class="section-title">Advantages</div><div class="flex flex-wrap gap-10 justify-between items-start">${ (f.disciplines || f.backgrounds) ? `<div class="flex-1 min-w-[200px]">${f.disciplines ? `<h3 class="column-title">Disciplines</h3><div id="npc-disc-list" class="space-y-1 mt-2"></div><div class="mt-3"><select id="npc-disc-select" class="w-full bg-transparent border border-[#444] text-[10px] text-gray-300 p-2 uppercase font-bold"><option value="">+ Add Discipline</option>${(DISCIPLINES||[]).map(d=>`<option value="${d}">${d}</option>`).join('')}</select></div>` : ''}${f.backgrounds ? `<h3 class="column-title ${f.disciplines ? 'mt-8' : ''}">Backgrounds</h3><div id="npc-back-list" class="space-y-1 mt-2"></div><div class="mt-3"><select id="npc-back-select" class="w-full bg-transparent border border-[#444] text-[10px] text-gray-300 p-2 uppercase font-bold"><option value="">+ Add Background</option>${(BACKGROUNDS||[]).filter(b => !EXCLUDED_BACKGROUNDS.includes(b)).map(b=>`<option value="${b}">${b}</option>`).join('')}</select></div>` : ''}</div>` : ''}<div class="flex-1 min-w-[200px]">${f.virtues ? `<h3 class="column-title">Virtues <span id="virtue-limit-display" class="text-xs text-gray-500"></span></h3><div id="npc-virtue-list" class="space-y-3 mt-4 mb-4"></div><div class="mt-8 border-t border-[#333] pt-4">${f.humanity ? `<div class="flex justify-between items-center text-xs mb-4"><span class="font-bold text-[#d4af37]">HUMANITY</span><div class="dot-row-direct cursor-pointer" id="npc-humanity-row">${renderDots(ctx.activeNpc.humanity, 10)}</div></div>` : ''}` : '<div class="mt-4"></div>'}<div class="flex justify-between items-center text-xs mb-4"><span class="font-bold text-[#d4af37]">WILLPOWER</span><div class="dot-row-direct cursor-pointer" id="npc-willpower-row">${renderDots(ctx.activeNpc.willpower, 10)}</div></div>${f.bloodPool ? `<div class="flex justify-between items-center text-xs"><span class="font-bold text-[#d4af37]">BLOOD POOL</span><input type="number" id="npc-blood" value="${ctx.activeNpc.bloodPool}" class="w-12 bg-transparent border-b border-[#444] text-center text-white p-1 font-bold text-lg focus:border-[#d4af37] outline-none"></div>` : ''}${f.virtues ? `</div>` : ''} </div><div class="flex-1 min-w-[200px]"><h3 class="column-title">Merits & Flaws</h3><select id="npc-merit-select" class="w-full bg-transparent border-b border-[#444] text-[10px] text-gray-300 p-1 mb-2"><option value="">Add Merit...</option>${(V20_MERITS_LIST||[]).map(m=>`<option value="${m.name}|${m.val}">${m.name} (${m.val})</option>`).join('')}</select><div id="npc-merits-list" class="space-y-1"></div><select id="npc-flaw-select" class="w-full bg-transparent border-b border-[#444] text-[10px] text-gray-300 p-1 mb-2 mt-4"><option value="">Add Flaw...</option>${(V20_FLAWS_LIST||[]).map(f=>`<option value="${f.name}|${f.val}">${f.name} (${f.val})</option>`).join('')}</select><div id="npc-flaws-list" class="space-y-1"></div></div></div></div>
                     </div>
 
                     <!-- STEP 5: EQUIPMENT (Matches Main App) -->
@@ -431,8 +417,13 @@ export function renderEditorModal() {
             const val = e.target.value;
             if(val) {
                 if(!ctx.activeNpc[type]) ctx.activeNpc[type] = {};
+                // Force to 0 for unlimited mode so next click makes it 1 (handled in handleValueChange)
+                // Or if regular mode, start at 1. Logic inside handleValueChange will sort it out if we set it directly.
+                // Actually, handleValueChange takes care of incrementing.
+                // Let's set it to 0 initially so it shows up in list but is empty.
                 ctx.activeNpc[type][val] = 0; 
                 if (ctx.modes.unlimited) {
+                    // Pre-fill to 1 for convenience in unlimited mode
                     ctx.activeNpc[type][val] = 1;
                 }
                 renderFn();
@@ -447,17 +438,8 @@ export function renderEditorModal() {
         const el = document.getElementById(id);
         if(el) el.onchange = (e) => {
             if(!e.target.value) return;
-            const parts = e.target.value.split('|');
-            const val = parts.pop(); // Last item is the value
-            const name = parts.join('|'); // The rest is the name
-            
-            // Fix: Guarantee structural integrity in case imported data was an Array
-            if (Array.isArray(ctx.activeNpc[type])) {
-                ctx.activeNpc[type] = Object.assign({}, ctx.activeNpc[type]);
-            }
-            
+            const [name, val] = e.target.value.split('|');
             callbacks.handleValueChange(type, name, parseInt(val)); 
-            renderMeritsFlaws(); // Fix: Force immediate visual UI refresh independent of applyChange
             e.target.value = "";
         };
     };
@@ -489,13 +471,14 @@ export function renderEditorModal() {
             if (t === 'Weapon') list = [...(WEAPONS||[]), ...(RANGED_WEAPONS||[])];
             else if (t === 'Armor') list = ARMOR || [];
             else if (t === 'Vehicle') list = V20_VEHICLES_LIST || [];
+            // GEAR intentionally left blank so list remains empty and wrapper hides
             
             if(list.length > 0) {
                 baseWrapper.classList.remove('hidden');
                 list.sort((a,b) => a.name.localeCompare(b.name));
                 baseSelect.innerHTML += list.map(i => `<option value="${i.name}">${i.name}</option>`).join('');
             } else {
-                baseWrapper.classList.add('hidden'); 
+                baseWrapper.classList.add('hidden'); // Completely hide for Gear
             }
         };
 
@@ -508,7 +491,7 @@ export function renderEditorModal() {
             
             const t = typeSelect.value;
             let item = null;
-            if (t === 'Weapon') item = [...(WEAPONS||[]), ...(RANGED_WEAPONS||[])].find(x => x.name === name);
+            if (t === 'Weapon') item = [...(WEAPONS||[]), ...(RANGED_WEAPONS||[])].find(x => x.name === name); // Fixed: w.name -> name
             else if (t === 'Armor') item = (ARMOR||[]).find(x => x.name === name);
             else if (t === 'Vehicle') item = (V20_VEHICLES_LIST||[]).find(x => x.name === name);
 
@@ -630,27 +613,34 @@ export function updateModeUI() {
 
     // --- UNLIMITED / BESTIARY MODE OVERRIDES ---
     if (ctx.modes.unlimited) {
+        // Disable Standard Buttons visual
         if(xpBtn) { xpBtn.disabled = true; xpBtn.style.opacity = '0.2'; }
         if(fbBtn) { fbBtn.disabled = true; fbBtn.style.opacity = '0.2'; }
+        
+        // Hide Standard Ledgers
         if(xpBar) { xpBar.classList.add('hidden'); xpBar.classList.remove('flex'); }
         if(fbBar) { fbBar.classList.add('hidden'); fbBar.classList.remove('flex'); }
 
+        // Inject "Unlimited Mode" visual indicator if missing
         let badge = document.getElementById('npc-unlimited-badge');
         if (!badge) {
-            const container = document.getElementById('npc-mode-toggles');
+            const container = document.getElementById('npc-mode-toggles'); // Use specific container
             if (container) {
                 badge = document.createElement('div');
                 badge.id = 'npc-unlimited-badge';
                 badge.className = "text-[#d4af37] font-bold text-[10px] uppercase border border-[#d4af37] px-2 py-1 bg-[#d4af37]/10 ml-2 animate-pulse rounded select-none cursor-help hover:bg-[#d4af37]/30 transition-colors";
                 badge.title = "Unlimited editing for Official/Bestiary entries";
                 badge.innerHTML = "<i class='fas fa-infinity mr-1'></i> Bestiary Mode";
+                
                 container.appendChild(badge);
             }
         }
         return;
     } else {
+        // Re-enable buttons if not unlimited
         if(xpBtn) { xpBtn.disabled = false; xpBtn.style.opacity = '1'; }
         if(fbBtn) { fbBtn.disabled = false; fbBtn.style.opacity = '1'; }
+        
         const badge = document.getElementById('npc-unlimited-badge');
         if(badge) badge.remove();
     }
@@ -698,7 +688,7 @@ export function renderInventoryList() {
             const parts = [];
             if(item.stats.diff) parts.push(`Diff:${item.stats.diff}`);
             if(item.stats.damage || item.stats.dmg) parts.push(`Dmg:${item.stats.damage || item.stats.dmg}`);
-            if(item.stats.rating) parts.push(`Rate:${item.stats.rating}`);
+            if(item.stats.rating) parts.push(`Rate:${item.stats.rating}`); // Armor rating
             if(parts.length > 0) statString = `<span class="text-gray-500 text-[8px] ml-2 font-mono">(${parts.join(', ')})</span>`;
         }
 
@@ -823,7 +813,7 @@ export function renderDisciplines() {
     list.innerHTML = Object.entries(ctx.activeNpc.disciplines).map(([k,v]) => `
         <div class="flex justify-between items-center mb-1 dot-interactive" data-type="disciplines" data-key="${k}">
             <div class="flex gap-2 items-center">
-                <span class="text-red-500 cursor-pointer text-xs hover:text-white remove-item-btn" data-type="disciplines" data-key="${k.replace(/"/g, '&quot;')}"><i class="fas fa-times pointer-events-none"></i></span>
+                <i class="fas fa-times text-red-500 cursor-pointer text-xs hover:text-white remove-item-btn" data-type="disciplines" data-key="${k}"></i>
                 <span class="text-[10px] uppercase font-bold text-white">${k}</span>
             </div>
             <div class="dot-row cursor-pointer hover:opacity-80">${renderDots(v, 5)}</div>
@@ -839,7 +829,7 @@ export function renderBackgrounds() {
     list.innerHTML = Object.entries(ctx.activeNpc.backgrounds).map(([k,v]) => `
         <div class="flex justify-between items-center mb-1 dot-interactive" data-type="backgrounds" data-key="${k}">
             <div class="flex gap-2 items-center">
-                <span class="text-red-500 cursor-pointer text-xs hover:text-white remove-item-btn" data-type="backgrounds" data-key="${k.replace(/"/g, '&quot;')}"><i class="fas fa-times pointer-events-none"></i></span>
+                <i class="fas fa-times text-red-500 cursor-pointer text-xs hover:text-white remove-item-btn" data-type="backgrounds" data-key="${k}"></i>
                 <span class="text-[10px] uppercase font-bold text-white">${k}</span>
             </div>
             <div class="dot-row cursor-pointer hover:opacity-80">${renderDots(v, 5)}</div>
@@ -852,21 +842,12 @@ export function renderBackgrounds() {
 export function renderMeritsFlaws() {
     const mList = document.getElementById('npc-merits-list');
     const fList = document.getElementById('npc-flaws-list');
-    
-    // Fix: Force object structure to prevent sparse array rendering issues on delete
-    if (Array.isArray(ctx.activeNpc.merits)) ctx.activeNpc.merits = Object.assign({}, ctx.activeNpc.merits);
-    if (Array.isArray(ctx.activeNpc.flaws)) ctx.activeNpc.flaws = Object.assign({}, ctx.activeNpc.flaws);
-    
-    if (mList) {
-        mList.innerHTML = Object.entries(ctx.activeNpc.merits || {}).filter(([k,v]) => k !== 'length').map(([k,v]) => 
-            `<div class="flex justify-between text-[9px] text-gray-300 bg-black/50 p-1 rounded"><span>${k}</span><span>${v} pts <span class="text-red-500 ml-2 cursor-pointer hover:text-white remove-item-btn" data-type="merits" data-key="${k.replace(/"/g, '&quot;')}"><i class="fas fa-times pointer-events-none"></i></span></span></div>`
-        ).join('');
-    }
-    if (fList) {
-        fList.innerHTML = Object.entries(ctx.activeNpc.flaws || {}).filter(([k,v]) => k !== 'length').map(([k,v]) => 
-            `<div class="flex justify-between text-[9px] text-red-300 bg-black/50 p-1 rounded"><span>${k}</span><span>${v} pts <span class="text-red-500 ml-2 cursor-pointer hover:text-white remove-item-btn" data-type="flaws" data-key="${k.replace(/"/g, '&quot;')}"><i class="fas fa-times pointer-events-none"></i></span></span></div>`
-        ).join('');
-    }
+    mList.innerHTML = Object.entries(ctx.activeNpc.merits).map(([k,v]) => 
+        `<div class="flex justify-between text-[9px] text-gray-300 bg-black/50 p-1 rounded"><span>${k}</span><span>${v} pts <i class="fas fa-times text-red-500 ml-2 cursor-pointer remove-item-btn" data-type="merits" data-key="${k}"></i></span></div>`
+    ).join('');
+    fList.innerHTML = Object.entries(ctx.activeNpc.flaws).map(([k,v]) => 
+        `<div class="flex justify-between text-[9px] text-red-300 bg-black/50 p-1 rounded"><span>${k}</span><span>${v} pts <i class="fas fa-times text-red-500 ml-2 cursor-pointer remove-item-btn" data-type="flaws" data-key="${k}"></i></span></div>`
+    ).join('');
     bindRemoveBtns();
 }
 
@@ -892,15 +873,7 @@ function bindRemoveBtns() {
     document.querySelectorAll('.remove-item-btn').forEach(b => {
         b.onclick = (e) => {
             e.stopPropagation();
-            const type = b.dataset.type;
-            const key = b.dataset.key;
-            
-            callbacks.removeNpcItem(type, key);
-            
-            // Fix: Force re-render just in case logic.js didn't trigger UI refresh correctly
-            if (type === 'merits' || type === 'flaws') {
-                renderMeritsFlaws();
-            }
+            callbacks.removeNpcItem(b.dataset.type, b.dataset.key);
         };
     });
 }
@@ -924,24 +897,53 @@ export function updatePrioritiesUI() {
         const v = parseInt(val);
         const current = ctx.localPriorities[cat][group];
 
-        btn.className = "npc-prio-btn w-6 h-6 rounded-full border text-[9px] font-bold transition-all mr-1 ";
+        btn.className = "npc-prio-btn w-6 h-6 rounded-full border text-[9px] font-bold transition-all mr-1 cursor-pointer ";
+        
+        // Define visual states for priorities
         if (current === v) {
+            // Selected by current group
             btn.classList.add('bg-[#d4af37]', 'text-black', 'border-[#d4af37]');
-            btn.onclick = null;
+            btn.title = "Click to deselect and reset points";
         } else if (Object.values(ctx.localPriorities[cat]).includes(v)) {
-            btn.classList.add('border-gray-800', 'text-gray-600', 'opacity-30', 'cursor-not-allowed');
-            btn.onclick = null;
+            // Claimed by another group
+            btn.classList.add('border-gray-800', 'text-gray-600', 'opacity-50', 'hover:border-red-500', 'hover:text-red-400');
+            btn.title = "Click to steal from current group and reset their points";
         } else {
+            // Available
             btn.classList.add('border-gray-600', 'text-gray-400', 'hover:border-[#d4af37]', 'hover:text-white');
-            btn.onclick = () => {
-                if(ctx.modes.xp || ctx.modes.freebie || ctx.modes.unlimited) return;
-                const existingOwner = Object.keys(ctx.localPriorities[cat]).find(k => ctx.localPriorities[cat][k] === v);
-                if(existingOwner) ctx.localPriorities[cat][existingOwner] = null;
-                ctx.localPriorities[cat][group] = v;
-                updatePrioritiesUI();
-                renderAllDots();
-            };
+            btn.title = "Select Priority";
         }
+
+        btn.onclick = () => {
+            // Priority buttons only work in normal Creation Mode, not Unlimited/XP/Freebie
+            if(ctx.modes.xp || ctx.modes.freebie || ctx.modes.unlimited) return;
+
+            // Helper to reset dots when a priority changes
+            const resetDots = (c, g) => {
+                const list = (c === 'attr') ? ATTRIBUTES[g] : ABILITIES[g];
+                list.forEach(k => {
+                    ctx.activeNpc[(c === 'attr' ? 'attributes' : 'abilities')][k] = (c === 'attr' ? 1 : 0);
+                });
+            };
+
+            if (current === v) {
+                // Deselect current
+                ctx.localPriorities[cat][group] = null;
+                resetDots(cat, group);
+            } else {
+                // Find if it belongs to someone else to steal it
+                const existingOwner = Object.keys(ctx.localPriorities[cat]).find(k => ctx.localPriorities[cat][k] === v);
+                if (existingOwner) {
+                    ctx.localPriorities[cat][existingOwner] = null;
+                    resetDots(cat, existingOwner); // Clear stolen group
+                }
+                ctx.localPriorities[cat][group] = v;
+                resetDots(cat, group); // Reset current group dots to prevent them exceeding the new cap
+            }
+            
+            updatePrioritiesUI();
+            renderAllDots();
+        };
     });
 
     ['attr', 'abil'].forEach(cat => {
@@ -961,6 +963,7 @@ export function updatePrioritiesUI() {
 }
 
 function updateVirtueDisplay() {
+    // Safety check for templates that don't enforce virtue limits (Bestiary/Unlimited)
     const limit = (ctx.currentTemplate && ctx.currentTemplate.getVirtueLimit) ? ctx.currentTemplate.getVirtueLimit(ctx.activeNpc) : 'N/A';
     
     const el = document.getElementById('virtue-limit-display');
