@@ -121,7 +121,30 @@ export function renderEditorModal() {
 
                     <!-- STEP 4: ADVANTAGES -->
                     <div id="step4" class="npc-step hidden">
-                        <div class="sheet-section !mt-0"><div class="section-title">Advantages</div><div class="flex flex-wrap gap-10 justify-between items-start">${ (f.disciplines || f.backgrounds) ? `<div class="flex-1 min-w-[200px]">${f.disciplines ? `<h3 class="column-title">Disciplines</h3><div id="npc-disc-list" class="space-y-1 mt-2"></div><div class="mt-3"><select id="npc-disc-select" class="w-full bg-transparent border border-[#444] text-[10px] text-gray-300 p-2 uppercase font-bold"><option value="">+ Add Discipline</option>${(DISCIPLINES||[]).map(d=>`<option value="${d}">${d}</option>`).join('')}</select></div>` : ''}${f.backgrounds ? `<h3 class="column-title ${f.disciplines ? 'mt-8' : ''}">Backgrounds</h3><div id="npc-back-list" class="space-y-1 mt-2"></div><div class="mt-3"><select id="npc-back-select" class="w-full bg-transparent border border-[#444] text-[10px] text-gray-300 p-2 uppercase font-bold"><option value="">+ Add Background</option>${(BACKGROUNDS||[]).filter(b => !EXCLUDED_BACKGROUNDS.includes(b)).map(b=>`<option value="${b}">${b}</option>`).join('')}</select></div>` : ''}</div>` : ''}<div class="flex-1 min-w-[200px]">${f.virtues ? `<h3 class="column-title">Virtues <span id="virtue-limit-display" class="text-xs text-gray-500"></span></h3><div id="npc-virtue-list" class="space-y-3 mt-4 mb-4"></div><div class="mt-8 border-t border-[#333] pt-4">${f.humanity ? `<div class="flex justify-between items-center text-xs mb-4"><span class="font-bold text-[#d4af37]">HUMANITY</span><div class="dot-row-direct cursor-pointer" id="npc-humanity-row">${renderDots(ctx.activeNpc.humanity, 10)}</div></div>` : ''}` : '<div class="mt-4"></div>'}<div class="flex justify-between items-center text-xs mb-4"><span class="font-bold text-[#d4af37]">WILLPOWER</span><div class="dot-row-direct cursor-pointer" id="npc-willpower-row">${renderDots(ctx.activeNpc.willpower, 10)}</div></div>${f.bloodPool ? `<div class="flex justify-between items-center text-xs"><span class="font-bold text-[#d4af37]">BLOOD POOL</span><input type="number" id="npc-blood" value="${ctx.activeNpc.bloodPool}" class="w-12 bg-transparent border-b border-[#444] text-center text-white p-1 font-bold text-lg focus:border-[#d4af37] outline-none"></div>` : ''}${f.virtues ? `</div>` : ''} </div><div class="flex-1 min-w-[200px]"><h3 class="column-title">Merits & Flaws</h3><select id="npc-merit-select" class="w-full bg-transparent border-b border-[#444] text-[10px] text-gray-300 p-1 mb-2"><option value="">Add Merit...</option>${(V20_MERITS_LIST||[]).map(m=>{ const n = m.name || m.n || 'Unknown'; const v = m.val !== undefined ? m.val : (m.v !== undefined ? m.v : (m.cost !== undefined ? m.cost : 0)); return `<option value="${n}|${v}">${n} (${v})</option>`; }).join('')}</select><div id="npc-merits-list" class="space-y-1"></div><select id="npc-flaw-select" class="w-full bg-transparent border-b border-[#444] text-[10px] text-gray-300 p-1 mb-2 mt-4"><option value="">Add Flaw...</option>${(V20_FLAWS_LIST||[]).map(f=>{ const n = f.name || f.n || 'Unknown'; const v = f.val !== undefined ? f.val : (f.v !== undefined ? f.v : (f.cost !== undefined ? f.cost : 0)); return `<option value="${n}|${v}">${n} (${v})</option>`; }).join('')}</select><div id="npc-flaws-list" class="space-y-1"></div></div></div></div>
+                        <div class="sheet-section !mt-0"><div class="section-title">Advantages</div><div class="flex flex-wrap gap-10 justify-between items-start">${ (f.disciplines || f.backgrounds) ? `<div class="flex-1 min-w-[200px]">${f.disciplines ? `<h3 class="column-title">Disciplines</h3><div id="npc-disc-list" class="space-y-1 mt-2"></div><div class="mt-3"><select id="npc-disc-select" class="w-full bg-transparent border border-[#444] text-[10px] text-gray-300 p-2 uppercase font-bold"><option value="">+ Add Discipline</option>${(DISCIPLINES||[]).map(d=>`<option value="${d}">${d}</option>`).join('')}</select></div>` : ''}${f.backgrounds ? `<h3 class="column-title ${f.disciplines ? 'mt-8' : ''}">Backgrounds</h3><div id="npc-back-list" class="space-y-1 mt-2"></div><div class="mt-3"><select id="npc-back-select" class="w-full bg-transparent border border-[#444] text-[10px] text-gray-300 p-2 uppercase font-bold"><option value="">+ Add Background</option>${(BACKGROUNDS||[]).filter(b => !EXCLUDED_BACKGROUNDS.includes(b)).map(b=>`<option value="${b}">${b}</option>`).join('')}</select></div>` : ''}</div>` : ''}<div class="flex-1 min-w-[200px]">${f.virtues ? `<h3 class="column-title">Virtues <span id="virtue-limit-display" class="text-xs text-gray-500"></span></h3><div id="npc-virtue-list" class="space-y-3 mt-4 mb-4"></div><div class="mt-8 border-t border-[#333] pt-4">${f.humanity ? `<div class="flex justify-between items-center text-xs mb-4"><span class="font-bold text-[#d4af37]">HUMANITY</span><div class="dot-row-direct cursor-pointer" id="npc-humanity-row">${renderDots(ctx.activeNpc.humanity, 10)}</div></div>` : ''}` : '<div class="mt-4"></div>'}<div class="flex justify-between items-center text-xs mb-4"><span class="font-bold text-[#d4af37]">WILLPOWER</span><div class="dot-row-direct cursor-pointer" id="npc-willpower-row">${renderDots(ctx.activeNpc.willpower, 10)}</div></div>${f.bloodPool ? `<div class="flex justify-between items-center text-xs"><span class="font-bold text-[#d4af37]">BLOOD POOL</span><input type="number" id="npc-blood" value="${ctx.activeNpc.bloodPool}" class="w-12 bg-transparent border-b border-[#444] text-center text-white p-1 font-bold text-lg focus:border-[#d4af37] outline-none"></div>` : ''}${f.virtues ? `</div>` : ''} </div>
+                        
+                        <div class="flex-1 min-w-[200px]">
+                            <h3 class="column-title">Merits & Flaws</h3>
+                            <select id="npc-merit-select" class="w-full bg-transparent border-b border-[#444] text-[10px] text-gray-300 p-1 mb-2">
+                                <option value="">Add Merit...</option>
+                                ${(V20_MERITS_LIST||[]).map(m=>{ 
+                                    const n = m.name || m.n || 'Unknown'; 
+                                    const v = m.val !== undefined ? m.val : (m.v !== undefined ? m.v : (m.cost !== undefined ? m.cost : 0)); 
+                                    return `<option value="${n.replace(/"/g, '&quot;')}|${v}">${n} (${v})</option>`; 
+                                }).join('')}
+                            </select>
+                            <div id="npc-merits-list" class="space-y-1"></div>
+                            <select id="npc-flaw-select" class="w-full bg-transparent border-b border-[#444] text-[10px] text-gray-300 p-1 mb-2 mt-4">
+                                <option value="">Add Flaw...</option>
+                                ${(V20_FLAWS_LIST||[]).map(f=>{ 
+                                    const n = f.name || f.n || 'Unknown'; 
+                                    const v = f.val !== undefined ? f.val : (f.v !== undefined ? f.v : (f.cost !== undefined ? f.cost : 0)); 
+                                    return `<option value="${n.replace(/"/g, '&quot;')}|${v}">${n} (${v})</option>`; 
+                                }).join('')}
+                            </select>
+                            <div id="npc-flaws-list" class="space-y-1"></div>
+                        </div>
+                    </div></div>
                     </div>
 
                     <!-- STEP 5: EQUIPMENT (Matches Main App) -->
@@ -438,8 +461,12 @@ export function renderEditorModal() {
         const el = document.getElementById(id);
         if(el) el.onchange = (e) => {
             if(!e.target.value) return;
-            const [name, val] = e.target.value.split('|');
+            const parts = e.target.value.split('|');
+            const val = parts.pop(); // Last element is the numeric value
+            const name = parts.join('|'); // Rejoin in case the name contained a pipe
+            
             callbacks.handleValueChange(type, name, parseInt(val)); 
+            renderMeritsFlaws(); // Explicitly force re-render so it shows up instantly
             e.target.value = "";
         };
     };
@@ -811,9 +838,9 @@ export function renderDisciplines() {
     const list = document.getElementById('npc-disc-list');
     if(!list) return;
     list.innerHTML = Object.entries(ctx.activeNpc.disciplines).map(([k,v]) => `
-        <div class="flex justify-between items-center mb-1 dot-interactive" data-type="disciplines" data-key="${k}">
+        <div class="flex justify-between items-center mb-1 dot-interactive" data-type="disciplines" data-key="${k.replace(/"/g, '&quot;')}">
             <div class="flex gap-2 items-center">
-                <i class="fas fa-times text-red-500 cursor-pointer text-xs hover:text-white remove-item-btn" data-type="disciplines" data-key="${k}"></i>
+                <i class="fas fa-times text-red-500 cursor-pointer text-xs hover:text-white remove-item-btn" data-type="disciplines" data-key="${k.replace(/"/g, '&quot;')}"></i>
                 <span class="text-[10px] uppercase font-bold text-white">${k}</span>
             </div>
             <div class="dot-row cursor-pointer hover:opacity-80">${renderDots(v, 5)}</div>
@@ -827,9 +854,9 @@ export function renderBackgrounds() {
     const list = document.getElementById('npc-back-list');
     if(!list) return;
     list.innerHTML = Object.entries(ctx.activeNpc.backgrounds).map(([k,v]) => `
-        <div class="flex justify-between items-center mb-1 dot-interactive" data-type="backgrounds" data-key="${k}">
+        <div class="flex justify-between items-center mb-1 dot-interactive" data-type="backgrounds" data-key="${k.replace(/"/g, '&quot;')}">
             <div class="flex gap-2 items-center">
-                <i class="fas fa-times text-red-500 cursor-pointer text-xs hover:text-white remove-item-btn" data-type="backgrounds" data-key="${k}"></i>
+                <i class="fas fa-times text-red-500 cursor-pointer text-xs hover:text-white remove-item-btn" data-type="backgrounds" data-key="${k.replace(/"/g, '&quot;')}"></i>
                 <span class="text-[10px] uppercase font-bold text-white">${k}</span>
             </div>
             <div class="dot-row cursor-pointer hover:opacity-80">${renderDots(v, 5)}</div>
@@ -842,12 +869,24 @@ export function renderBackgrounds() {
 export function renderMeritsFlaws() {
     const mList = document.getElementById('npc-merits-list');
     const fList = document.getElementById('npc-flaws-list');
-    mList.innerHTML = Object.entries(ctx.activeNpc.merits).map(([k,v]) => 
-        `<div class="flex justify-between text-[9px] text-gray-300 bg-black/50 p-1 rounded"><span>${k}</span><span>${v} pts <i class="fas fa-times text-red-500 ml-2 cursor-pointer remove-item-btn" data-type="merits" data-key="${k}"></i></span></div>`
-    ).join('');
-    fList.innerHTML = Object.entries(ctx.activeNpc.flaws).map(([k,v]) => 
-        `<div class="flex justify-between text-[9px] text-red-300 bg-black/50 p-1 rounded"><span>${k}</span><span>${v} pts <i class="fas fa-times text-red-500 ml-2 cursor-pointer remove-item-btn" data-type="flaws" data-key="${k}"></i></span></div>`
-    ).join('');
+    
+    if(mList) {
+        mList.innerHTML = Object.entries(ctx.activeNpc.merits || {}).map(([k,v]) => 
+            `<div class="flex justify-between items-center text-[9px] text-gray-300 bg-black/50 p-1 rounded">
+                <span>${k}</span>
+                <span>${v} pts <i class="fas fa-times text-red-500 ml-2 cursor-pointer remove-item-btn" data-type="merits" data-key="${k.replace(/"/g, '&quot;')}"></i></span>
+            </div>`
+        ).join('');
+    }
+    
+    if(fList) {
+        fList.innerHTML = Object.entries(ctx.activeNpc.flaws || {}).map(([k,v]) => 
+            `<div class="flex justify-between items-center text-[9px] text-red-300 bg-black/50 p-1 rounded">
+                <span>${k}</span>
+                <span>${v} pts <i class="fas fa-times text-red-500 ml-2 cursor-pointer remove-item-btn" data-type="flaws" data-key="${k.replace(/"/g, '&quot;')}"></i></span>
+            </div>`
+        ).join('');
+    }
     bindRemoveBtns();
 }
 
@@ -855,7 +894,7 @@ function bindDotClicks() {
     document.querySelectorAll('.dot-interactive').forEach(row => {
         row.onclick = (e) => {
             if(!e.target.classList.contains('dot')) return;
-            callbacks.handleValueChange(row.dataset.type, row.dataset.key, parseInt(e.target.dataset.v));
+            callbacks.handleValueChange(row.getAttribute('data-type'), row.getAttribute('data-key'), parseInt(e.target.dataset.v));
         };
     });
     const bindDirect = (id, type) => {
@@ -871,9 +910,15 @@ function bindDotClicks() {
 
 function bindRemoveBtns() {
     document.querySelectorAll('.remove-item-btn').forEach(b => {
+        // Clear previous listeners just in case to prevent double firing
+        b.onclick = null; 
         b.onclick = (e) => {
+            e.preventDefault();
             e.stopPropagation();
-            callbacks.removeNpcItem(b.dataset.type, b.dataset.key);
+            // Use getAttribute to safely fetch strings that might contain spaces
+            const type = b.getAttribute('data-type');
+            const key = b.getAttribute('data-key');
+            callbacks.removeNpcItem(type, key);
         };
     });
 }
