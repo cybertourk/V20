@@ -745,6 +745,58 @@ function initUI() {
         const printBtn = document.getElementById('print-btn');
         if(printBtn) printBtn.onclick = () => window.print();
 
+        // --- NEW: CLONE PC TO NPC BUTTON ---
+        const convertNpcBtn = document.getElementById('convert-npc-btn');
+        if(convertNpcBtn) {
+            convertNpcBtn.onclick = () => {
+                if (!confirm("Clone this character to your local NPCs/Retainers list?")) return;
+                
+                const genLim = GEN_LIMITS[parseInt(window.state.textFields['c-gen']) || 13] || {m: 10};
+                const npc = {
+                    template: "bestiary",
+                    name: window.state.textFields['c-name'] || "Unnamed Vampire",
+                    concept: window.state.textFields['c-concept'] || "",
+                    nature: window.state.textFields['c-nature'] || "",
+                    demeanor: window.state.textFields['c-demeanor'] || "",
+                    domitorClan: window.state.textFields['c-clan'] || "", 
+                    bloodPool: genLim.m,
+                    currentBlood: window.state.status.blood || genLim.m,
+                    willpower: window.state.status.willpower || 5,
+                    tempWillpower: window.state.status.tempWillpower || 5,
+                    humanity: window.state.status.humanity || 7,
+                    attributes: JSON.parse(JSON.stringify(window.state.dots.attr || {})),
+                    abilities: JSON.parse(JSON.stringify(window.state.dots.abil || {})),
+                    disciplines: JSON.parse(JSON.stringify(window.state.dots.disc || {})),
+                    backgrounds: JSON.parse(JSON.stringify(window.state.dots.back || {})),
+                    virtues: JSON.parse(JSON.stringify(window.state.dots.virt || {})),
+                    merits: {},
+                    flaws: {},
+                    inventory: JSON.parse(JSON.stringify(window.state.inventory || [])),
+                    bio: {
+                        Description: document.getElementById('bio-desc')?.value || ""
+                    },
+                    image: window.state.characterImage || null,
+                    experience: { total: 0, spent: 0, log: [] },
+                    freebieLog: []
+                };
+
+                if (Array.isArray(window.state.merits)) window.state.merits.forEach(m => { npc.merits[m.name] = m.val || m.cost || 0; });
+                if (Array.isArray(window.state.flaws)) window.state.flaws.forEach(f => { npc.flaws[f.name] = f.val || f.cost || 0; });
+
+                if (!window.state.retainers) window.state.retainers = [];
+                window.state.retainers.push(npc);
+                
+                triggerAutoSave();
+                
+                if (window.renderNpcTab) window.renderNpcTab();
+                window.showNotification(npc.name + " cloned to NPCs!");
+                
+                if (window.openNpcCreator) {
+                    window.openNpcCreator('bestiary', npc, window.state.retainers.length - 1);
+                }
+            };
+        }
+
         const topFreebieBtn = document.getElementById('toggle-freebie-btn');
         if(topFreebieBtn) topFreebieBtn.onclick = () => { if(window.toggleFreebieMode) window.toggleFreebieMode(); };
         
