@@ -11,7 +11,8 @@ import * as PlayUI from "./npc-sheet-play.js";
 
 // Import Storyteller State to check permissions
 import { stState } from "./ui-storyteller.js";
-import { db, doc, setDoc, collection } from "./firebase-config.js";
+import { db, doc, setDoc, collection, auth } from "./firebase-config.js";
+import { renderFileBrowser, loadSelectedChar } from "./firebase-manager.js";
 
 // Registry of available templates
 const TEMPLATES = {
@@ -41,21 +42,133 @@ const BestiaryTemplate = {
         bloodPool: 10,
         bio: {}
     },
-    // No validation logic (always true)
     validateChange: () => true,
-    getCost: () => 0, // No costs in unlimited mode
-    // FIXED: Return null for priorities explicitly, handled in sheet-edit
+    getCost: () => 0, 
     getPriorities: () => null, 
     getVirtueLimit: () => 10
 };
 
+// VAMPIRE TEMPLATE (Placeholder for Imported PCs)
+const VampireTemplate = {
+    type: "Vampire",
+    label: "Vampire (Imported)",
+    features: { disciplines: true, bloodPool: true, virtues: true, backgrounds: true, humanity: true },
+    defaults: { template: "vampire" }, // Identity will be overwritten by import
+    validateChange: () => "Imported Vampires cannot be edited here. Use the main Creator to modify them.",
+    getCost: () => 0,
+    getPriorities: () => null,
+    getVirtueLimit: () => 10,
+    
+    // Custom UI for Step 1 to allow importing
+    renderIdentityExtras: (data) => {
+        return `
+            <div class="space-y-4 border-t border-[#333] pt-4 mt-2">
+                <div class="p-4 bg-purple-900/10 border border-purple-900/40 rounded">
+                    <div class="text-[10px] text-purple-400 mb-2 font-bold uppercase"><i class="fas fa-file-import mr-1"></i> Character Import</div>
+                    <p class="text-[10px] text-gray-400 leading-relaxed mb-4">
+                        Load a full Vampire character from your cloud saves or a local JSON file to add them as an NPC.
+                    </p>
+                    <div class="grid grid-cols-1 gap-2">
+                        <button id="npc-load-archive" class="w-full bg-[#222] hover:bg-[#333] border border-[#444] text-white text-[10px] py-2 font-bold uppercase tracking-widest rounded transition-all">
+                            <i class="fas fa-cloud-download-alt mr-2"></i> Load from Archives
+                        </button>
+                        <div class="text-center text-[9px] text-gray-600 uppercase font-bold">Or</div>
+                        <button onclick="document.getElementById('file-import-npc').click()" class="w-full bg-black hover:bg-[#111] border border-[#333] text-gray-400 text-[10px] py-2 font-bold uppercase tracking-widest rounded transition-all">
+                            <i class="fas fa-file-code mr-2"></i> Import JSON File
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    },
+
+    setupListeners: (parent, data, updateCallback) => {
+        const loadBtn = parent.querySelector('#npc-load-archive');
+        if (loadBtn) {
+            loadBtn.onclick = async () => {
+                // Show the file browser to the user
+                const modal = document.getElementById('load-modal');
+                if (modal) {
+                    modal.classList.add('active');
+                    // Override the global load function temporarily to intercept the data
+                    const originalLoad = window.loadSelectedCharFromId;
+                    
+                    window.loadSelectedCharFromId = async (id) => {
+                        // 1. Fetch character data from Firebase manually to avoid corrupting current session
+                        const user = auth.currentUser;
+                        if (!user) return;
+                        try {
+                            const snap = await getDoc(doc(db, 'artifacts', 'v20-neonate-sheet', 'users', user.uid, 'characters', id));
+                            if (snap.exists()) {
+                                const pcData = snap.data();
+                                const converted = convertPcToNpc(pcData);
+                                
+                                // 2. Inject into active creator session
+                                Object.assign(data, converted);
+                                
+                                // 3. Close browser and cleanup
+                                modal.classList.remove('active');
+                                window.loadSelectedCharFromId = originalLoad;
+                                
+                                showNotification(`Imported ${data.name} successfully.`);
+                                updateCallback(); // Force Re-render of current tab
+                            }
+                        } catch (e) { console.error(e); }
+                    };
+                }
+            };
+        }
+    }
+};
+
+/**
+ * Maps a full Vampire PC State object into the flatter NPC data structure.
+ */
+function convertPcToNpc(pc) {
+    const tf = pc.textFields || {};
+    const dots = pc.dots || {};
+    
+    return {
+        name: tf['c-name'] || "Unnamed Vampire",
+        template: "vampire", // Specifically flag as vampire for play sheet logic
+        concept: tf['c-concept'] || "",
+        nature: tf['c-nature'] || "",
+        demeanor: tf['c-demeanor'] || "",
+        attributes: JSON.parse(JSON.stringify(dots.attr || {})),
+        abilities: JSON.parse(JSON.stringify(dots.abil || {})),
+        disciplines: JSON.parse(JSON.stringify(dots.disc || {})),
+        backgrounds: JSON.parse(JSON.stringify(dots.back || {})),
+        virtues: JSON.parse(JSON.stringify(dots.virt || { Conscience: 1, "Self-Control": 1, Courage: 1 })),
+        merits: pc.merits ? pc.merits.reduce((acc, m) => { acc[m.name] = m.val; return acc; }, {}) : {},
+        flaws: pc.flaws ? pc.flaws.reduce((acc, f) => { acc[f.name] = f.val; return acc; }, {}) : {},
+        humanity: pc.status?.humanity || 7,
+        willpower: pc.status?.willpower || 5,
+        tempWillpower: pc.status?.tempWillpower || 5,
+        bloodPool: 10, // Default for converted
+        currentBlood: pc.status?.blood || 0,
+        health: { 
+            track: pc.status?.health_states || [0,0,0,0,0,0,0], 
+            damage: (pc.status?.health_states || []).filter(x => x > 0).length 
+        },
+        inventory: JSON.parse(JSON.stringify(pc.inventory || [])),
+        image: pc.characterImage || null,
+        bio: {
+            Description: tf['bio-desc'] || "",
+            Notes: pc.charHistory || "",
+            Age: tf['bio-Age'] || "",
+            Sex: tf['bio-Sex'] || "",
+            Nationality: tf['bio-Nationality'] || ""
+        },
+        weakness: tf['c-clan-weakness'] || ""
+    };
+}
+
 // Global State
 let activeNpc = null;
 let currentTemplate = null;
-let activeIndex = null; // Index in the global retainer list (Local)
-let activeCloudId = null; // ID for Cloud/Bestiary editing (Storyteller)
+let activeIndex = null; 
+let activeCloudId = null; 
 let currentTab = 'step1';
-// MODES: Added 'unlimited' for Bestiary/ST editing
 let modes = { xp: false, freebie: false, unlimited: false };
 let localPriorities = {
     attr: { Physical: null, Social: null, Mental: null },
@@ -81,20 +194,21 @@ function toggleDiceUI(show, bringToFront = false) {
 // ==========================================================================
 
 export function openNpcCreator(typeKey = 'mortal', dataOrEvent = null, index = null, cloudId = null) {
-    toggleDiceUI(false); // Hide dice in edit mode
+    toggleDiceUI(false); 
 
     // Check if it's bestiary/custom
-    if (!TEMPLATES[typeKey] && (typeKey === 'bestiary' || typeKey === 'custom')) {
+    if (typeKey === 'vampire') {
+        currentTemplate = VampireTemplate;
+    } else if (!TEMPLATES[typeKey] && (typeKey === 'bestiary' || typeKey === 'custom')) {
         currentTemplate = BestiaryTemplate;
     } else if (TEMPLATES[typeKey]) {
         currentTemplate = TEMPLATES[typeKey];
     } else {
-        // Fallback for unknown templates (like 'vampire' if data comes from weird source)
-        // If dataOrEvent has a template property that matches Bestiary, use that.
         if (dataOrEvent && dataOrEvent.template === 'bestiary') {
              currentTemplate = BestiaryTemplate;
+        } else if (dataOrEvent && dataOrEvent.template === 'vampire') {
+             currentTemplate = VampireTemplate;
         } else {
-             // Default fallback if we really don't know
              currentTemplate = BestiaryTemplate; 
         }
     }
@@ -105,7 +219,7 @@ export function openNpcCreator(typeKey = 'mortal', dataOrEvent = null, index = n
     if (dataOrEvent && !isEvent) incomingData = dataOrEvent;
 
     activeIndex = (typeof index === 'number') ? index : null;
-    activeCloudId = cloudId || null; // Capture Cloud ID for Bestiary updates
+    activeCloudId = cloudId || null; 
 
     currentTab = 'step1';
     modes = { xp: false, freebie: false, unlimited: false };
@@ -117,11 +231,11 @@ export function openNpcCreator(typeKey = 'mortal', dataOrEvent = null, index = n
     };
 
     if (incomingData) {
-        // Edit Mode
         activeNpc = JSON.parse(JSON.stringify(incomingData));
         
-        // Ensure template on activeNpc matches logic
-        if (TEMPLATES[activeNpc.template]) {
+        if (activeNpc.template === 'vampire') {
+            currentTemplate = VampireTemplate;
+        } else if (TEMPLATES[activeNpc.template]) {
             currentTemplate = TEMPLATES[activeNpc.template];
         } else {
             currentTemplate = BestiaryTemplate;
@@ -130,31 +244,27 @@ export function openNpcCreator(typeKey = 'mortal', dataOrEvent = null, index = n
 
         activeNpc = Logic.sanitizeNpcData(activeNpc);
         
-        // Only try to auto-detect priorities if the template supports it
         if (activeNpc.priorities) {
             localPriorities = JSON.parse(JSON.stringify(activeNpc.priorities));
         } else if (currentTemplate.getPriorities && currentTemplate.getPriorities()) {
              Logic.autoDetectPriorities(activeNpc, currentTemplate, localPriorities);
         }
 
-        // AUTO-ENABLE UNLIMITED MODE FOR BESTIARY/CLOUD/ANIMAL ENTITIES
-        if (activeCloudId || activeNpc.template === 'animal' || activeNpc.template === 'bestiary') {
+        if (activeCloudId || activeNpc.template === 'animal' || activeNpc.template === 'bestiary' || activeNpc.template === 'vampire') {
             modes.unlimited = true;
         }
 
     } else {
-        // Create Mode
         activeNpc = JSON.parse(JSON.stringify(currentTemplate.defaults));
         activeNpc.template = typeKey === 'custom' ? 'bestiary' : typeKey;
         activeNpc = Logic.sanitizeNpcData(activeNpc);
         Logic.recalcStatus(activeNpc);
         
-        if (typeKey === 'bestiary' || typeKey === 'custom') {
+        if (typeKey === 'bestiary' || typeKey === 'custom' || typeKey === 'vampire') {
             modes.unlimited = true;
         }
     }
 
-    // Initialize Edit UI with Context and Callbacks
     EditUI.initEditSheet(
         { activeNpc, currentTemplate, modes, localPriorities, currentTab },
         getEditCallbacks()
@@ -162,7 +272,6 @@ export function openNpcCreator(typeKey = 'mortal', dataOrEvent = null, index = n
 
     EditUI.renderEditorModal();
     
-    // Inject "Save to Bestiary" button if Storyteller (Visual confirmation)
     if (stState && stState.isStoryteller) {
         injectBestiarySaveButton();
     }
@@ -174,13 +283,10 @@ function injectBestiarySaveButton() {
     if (existing) existing.remove();
 
     if (footer) {
-        // Just a visual badge here, real save logic is in getEditCallbacks
         const btn = document.createElement('div');
         btn.id = 'npc-save-bestiary';
         btn.className = "text-[#d4af37] font-bold text-xs uppercase px-4 py-2 border border-[#d4af37] bg-[#d4af37]/10 rounded mr-2 flex items-center gap-2";
         btn.innerHTML = `<i class="fas fa-crown"></i> ST Mode Active`;
-        
-        // Insert before the Cancel button
         footer.insertBefore(btn, footer.firstChild);
     }
 }
@@ -188,16 +294,15 @@ function injectBestiarySaveButton() {
 export function openNpcSheet(npc, index) {
     if (!npc) return;
     
-    toggleDiceUI(true, true); // Show dice on top
+    toggleDiceUI(true, true); 
 
     activeNpc = npc; 
     activeIndex = index;
     const typeKey = npc.template || 'mortal';
-    currentTemplate = TEMPLATES[typeKey] || BestiaryTemplate;
+    currentTemplate = (typeKey === 'vampire' ? VampireTemplate : (TEMPLATES[typeKey] || BestiaryTemplate));
     
     activeNpc = Logic.sanitizeNpcData(activeNpc);
 
-    // Initialize Play UI with Context and Callbacks
     PlayUI.initPlaySheet(
         { activeNpc, activeIndex },
         getPlayCallbacks()
@@ -216,7 +321,6 @@ function getEditCallbacks() {
             document.getElementById('npc-modal').style.display = 'none'; 
             toggleDiceUI(true); 
         },
-        // CONTEXTUAL SAVE: If Storyteller mode active, force Bestiary save.
         saveNpc: () => {
             const isST = stState && stState.isStoryteller;
             handleSaveNpc(isST); 
@@ -229,7 +333,34 @@ function getEditCallbacks() {
             if(activeNpc.inventory) activeNpc.inventory.splice(idx, 1);
             EditUI.renderInventoryList();
         },
-        importData: importNpcData,
+        importData: (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    // Check if this looks like a full PC state (has dots and textFields)
+                    if (data.dots && data.textFields) {
+                        const converted = convertPcToNpc(data);
+                        Object.assign(activeNpc, converted);
+                        activeNpc.template = 'vampire';
+                        currentTemplate = VampireTemplate;
+                        modes.unlimited = true;
+                        
+                        EditUI.initEditSheet(
+                            { activeNpc, currentTemplate, modes, localPriorities, currentTab },
+                            getEditCallbacks()
+                        );
+                        EditUI.renderEditorModal();
+                        showNotification("Imported PC JSON as NPC.");
+                    } else {
+                        importNpcData(event); // Fallback to standard NPC import
+                    }
+                } catch(err) { console.error(err); }
+            };
+            reader.readAsText(file);
+        },
         exportData: exportNpcData
     };
 }
@@ -238,7 +369,6 @@ function getPlayCallbacks() {
     return {
         closeModal: () => { toggleDiceUI(true); },
         saveNpc: (silent) => {
-             // Only save to local retainers if NOT in ST/Cloud mode
              if (activeIndex !== null && window.state.retainers) {
                 window.state.retainers[activeIndex] = activeNpc;
                 if (!silent && window.performSave) window.performSave(true);
@@ -253,19 +383,19 @@ function getPlayCallbacks() {
 // ==========================================================================
 
 function handleSwitchTemplate(newType) {
-    
-    // Switch to Bestiary/Unlimited if selected
-    if (newType === 'bestiary') {
+    if (newType === 'vampire') {
+        currentTemplate = VampireTemplate;
+        modes.unlimited = true;
+    } else if (newType === 'bestiary') {
         currentTemplate = BestiaryTemplate;
         modes.unlimited = true;
     } else if (TEMPLATES[newType]) {
         currentTemplate = TEMPLATES[newType];
         modes.unlimited = false;
     } else {
-        return; // Unknown
+        return; 
     }
 
-    // Preserve Identity
     const preserved = {
         name: activeNpc.name,
         chronicle: activeNpc.chronicle,
@@ -281,17 +411,14 @@ function handleSwitchTemplate(newType) {
     
     activeNpc = Logic.sanitizeNpcData(activeNpc);
     
-    // Reset State
     modes.xp = false; 
     modes.freebie = false;
     
-    // Keep Unlimited Mode if it was active (e.g. Bestiary edit)
-    if (activeCloudId || newType === 'bestiary') modes.unlimited = true;
+    if (activeCloudId || newType === 'bestiary' || newType === 'vampire') modes.unlimited = true;
 
     localPriorities = { attr: { Physical: null, Social: null, Mental: null }, abil: { Talents: null, Skills: null, Knowledges: null } };
     Logic.recalcStatus(activeNpc);
 
-    // Re-init UI with new context
     EditUI.initEditSheet(
         { activeNpc, currentTemplate, modes, localPriorities, currentTab },
         getEditCallbacks()
@@ -302,9 +429,8 @@ function handleSwitchTemplate(newType) {
 }
 
 function handleToggleMode(mode) {
-    // If Unlimited Mode is active, prevent standard toggles
     if (modes.unlimited) {
-        showNotification("Unlimited Mode Active (Bestiary)", "info");
+        showNotification("Unlimited Mode Active (Bestiary/Vampire)", "info");
         return;
     }
 
@@ -321,23 +447,19 @@ function handleToggleMode(mode) {
 function handleValueChange(type, key, newVal) {
     let currentVal = (key) ? (activeNpc[type][key] || 0) : activeNpc[type];
     
-    // --- UNLIMITED MODE (BYPASS ALL RULES) ---
     if (modes.unlimited) {
         let finalVal = newVal;
-        if (newVal === currentVal) finalVal = newVal - 1; // Toggle down support
+        if (newVal === currentVal) finalVal = newVal - 1; 
         if (finalVal < 0) finalVal = 0;
-        
         applyChange(type, key, finalVal);
         return; 
     }
 
-    // --- XP MODE ---
     if (modes.xp) {
         let finalVal = newVal;
         if (newVal === currentVal) finalVal = newVal - 1; 
 
         if (finalVal > currentVal) {
-            // BUY
             const cost = currentTemplate.getCost('xp', type, key, currentVal, finalVal, activeNpc);
             if (cost <= 0) { showNotification("XP cost invalid/zero."); return; }
             
@@ -351,7 +473,6 @@ function handleValueChange(type, key, newVal) {
             });
             applyChange(type, key, finalVal);
         } else if (finalVal < currentVal) {
-            // REFUND
             let logIdx = -1;
             const targetTrait = key || type;
             for (let i = activeNpc.experience.log.length - 1; i >= 0; i--) {
@@ -370,7 +491,6 @@ function handleValueChange(type, key, newVal) {
             }
         }
     } 
-    // --- FREEBIE MODE ---
     else if (modes.freebie) {
         let finalVal = newVal;
         if (newVal === currentVal) finalVal = newVal - 1; 
@@ -387,7 +507,7 @@ function handleValueChange(type, key, newVal) {
 
         if (finalVal > currentVal) {
             const cost = Logic.calculateMarginalFreebieCost(type, key, currentVal, finalVal, activeNpc, localPriorities, currentTemplate);
-            if (cost !== 0) { // Changed to allow negative costs for flaws
+            if (cost !== 0) { 
                 activeNpc.freebieLog.push({
                     type: type === 'merits' ? 'merit' : type === 'flaws' ? 'flaw' : type, 
                     trait: key || type, from: currentVal, to: finalVal, cost: cost
@@ -413,7 +533,6 @@ function handleValueChange(type, key, newVal) {
         }
         applyChange(type, key, finalVal);
     } 
-    // --- CREATION MODE ---
     else {
         if (type === 'humanity' || type === 'willpower') {
             showNotification("Derived trait. Modify Virtues or use Freebie/XP mode.");
@@ -424,8 +543,6 @@ function handleValueChange(type, key, newVal) {
         if ((type === 'attributes' || type === 'virtues') && newVal < 1) return;
         if (newVal < 0) return;
 
-        // Bypassing validation for Merits/Flaws to ensure they are always selectable 
-        // if user hasn't explicitly activated Freebie mode
         const valid = (type === 'merits' || type === 'flaws') ? true : currentTemplate.validateChange(type, key, newVal, currentVal, activeNpc, localPriorities);
         
         if (valid === true) {
@@ -443,7 +560,6 @@ function handleRemoveItem(type, key) {
     }
     if(activeNpc[type]) delete activeNpc[type][key];
     
-    // UI Refresh
     if(type === 'disciplines') EditUI.renderDisciplines();
     if(type === 'backgrounds') EditUI.renderBackgrounds();
     if(type === 'merits' || type === 'flaws') EditUI.renderMeritsFlaws();
@@ -456,7 +572,6 @@ function applyChange(type, key, val) {
 
     if (type === 'virtues') Logic.recalcStatus(activeNpc);
 
-    // Specific UI Refresh
     EditUI.renderAllDots();
     if (type === 'disciplines') EditUI.renderDisciplines();
     if (type === 'backgrounds') EditUI.renderBackgrounds();
@@ -469,7 +584,6 @@ function applyChange(type, key, val) {
 // ==========================================================================
 
 async function handleSaveNpc(toBestiary = false) {
-    // Scrape DOM inputs
     activeNpc.name = document.getElementById('npc-name').value;
     activeNpc.domitor = document.getElementById('npc-domitor') ? document.getElementById('npc-domitor').value : "";
     activeNpc.concept = document.getElementById('npc-concept').value;
@@ -484,13 +598,10 @@ async function handleSaveNpc(toBestiary = false) {
     const bloodInput = document.getElementById('npc-blood');
     activeNpc.bloodPool = bloodInput ? parseInt(bloodInput.value) || 10 : 10;
     
-    // Sync Pools
     activeNpc.currentBlood = activeNpc.bloodPool;
     activeNpc.tempWillpower = activeNpc.willpower;
-
     activeNpc.priorities = JSON.parse(JSON.stringify(localPriorities));
 
-    // Dynamic Fields
     const getVal = (id) => { const el = document.getElementById(id); return el ? el.value : null; };
     const setIf = (id, prop) => { const v = getVal(id); if(v !== null) activeNpc[prop] = v; };
 
@@ -501,11 +612,9 @@ async function handleSaveNpc(toBestiary = false) {
     setIf('inv-feeding-grounds', 'feedingGrounds');
     setIf('npc-nat-weapons', 'naturalWeapons');
 
-    // Create Clean Copy
     const cleanNpc = JSON.parse(JSON.stringify(activeNpc));
 
     if (toBestiary) {
-        // --- SAVE TO CLOUD BESTIARY (STORYTELLER MODE) ---
         if (!stState.activeChronicleId) {
             showNotification("No Active Chronicle found.", "error");
             return;
@@ -514,9 +623,9 @@ async function handleSaveNpc(toBestiary = false) {
         try {
             let npcId;
             if (activeCloudId) {
-                npcId = activeCloudId; // UPDATE EXISTING
+                npcId = activeCloudId; 
             } else {
-                npcId = cleanNpc.name.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() + "_" + Date.now(); // CREATE NEW
+                npcId = cleanNpc.name.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() + "_" + Date.now(); 
             }
 
             const npcRef = doc(db, 'chronicles', stState.activeChronicleId, 'bestiary', npcId);
@@ -541,20 +650,16 @@ async function handleSaveNpc(toBestiary = false) {
         }
         
     } else {
-        // --- STANDARD LOCAL SAVE (PLAYER MODE) ---
         if (!window.state.retainers) window.state.retainers = [];
         
         if (activeIndex !== null && activeIndex >= 0) window.state.retainers[activeIndex] = cleanNpc;
         else window.state.retainers.push(cleanNpc);
 
         if (window.renderNpcTab) window.renderNpcTab();
-        
-        // Auto-Generate Codex Entry
         generateNpcCodexEntry(cleanNpc);
         
-        // Trigger Cloud Sync if active
         if (window.performSave) {
-            window.performSave(true); // true = silent save
+            window.performSave(true); 
             showNotification(`${currentTemplate.label} Saved & Synced.`);
         } else {
             showNotification(`${currentTemplate.label} Saved locally.`);
@@ -565,24 +670,20 @@ async function handleSaveNpc(toBestiary = false) {
     }
 }
 
-// --- CODEX AUTO-GENERATION HELPER ---
 function generateNpcCodexEntry(npc) {
     if (!window.state.codex) window.state.codex = [];
     
     const name = npc.name ? npc.name.trim() : "";
     if (!name || name === "Unnamed" || name === "Unnamed NPC") return;
 
-    // Avoid duplicates based on exact name match (case-insensitive)
     const exists = window.state.codex.find(c => c.name.toLowerCase() === name.toLowerCase());
     if (exists) return;
 
-    // Generate Tags
     const tags = ["NPC"];
     if (npc.template) tags.push(npc.template.charAt(0).toUpperCase() + npc.template.slice(1));
     if (npc.domitorClan) tags.push(npc.domitorClan);
     if (npc.species) tags.push(npc.species);
     
-    // Generate Description from Concept, Domitor, and Bio
     let descLines = [];
     if (npc.concept) descLines.push(`Concept: ${npc.concept}`);
     if (npc.domitor) descLines.push(`Domitor: ${npc.domitor}`);
@@ -629,6 +730,8 @@ function importNpcData(event) {
                     currentTemplate = TEMPLATES[activeNpc.template];
                 } else if (activeNpc.template === 'bestiary') {
                     currentTemplate = BestiaryTemplate;
+                } else if (activeNpc.template === 'vampire') {
+                    currentTemplate = VampireTemplate;
                 } else {
                     activeNpc.template = 'mortal';
                     currentTemplate = TEMPLATES['mortal'];
@@ -639,13 +742,11 @@ function importNpcData(event) {
                      Logic.autoDetectPriorities(activeNpc, currentTemplate, localPriorities);
                 }
                 
-                // Re-init Edit Mode
                 EditUI.initEditSheet(
                     { activeNpc, currentTemplate, modes, localPriorities, currentTab },
                     getEditCallbacks()
                 );
                 EditUI.renderEditorModal();
-                // Rely on contextual save
                 showNotification("NPC Imported Successfully");
             } else {
                 alert("Invalid JSON structure.");
@@ -659,7 +760,6 @@ function importNpcData(event) {
     event.target.value = '';
 }
 
-// Window Unload Protection (Checking for name input in Edit UI)
 window.addEventListener('beforeunload', (e) => {
     const nameInput = document.getElementById('npc-name');
     if (nameInput && nameInput.value && document.getElementById('npc-modal').style.display !== 'none') {
