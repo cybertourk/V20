@@ -31,7 +31,7 @@ export function renderEditorModal() {
     const clanOptions = (CLANS || []).sort().map(c => `<option value="${c}" ${ctx.activeNpc.domitorClan === c ? 'selected' : ''}>${c}</option>`).join('');
     
     // Check if current template is standard
-    const isStandard = ['mortal', 'ghoul', 'animal'].includes(ctx.activeNpc.template);
+    const isStandard = ['mortal', 'ghoul', 'animal', 'vampire'].includes(ctx.activeNpc.template);
     
     const extrasHtml = (isStandard && ctx.currentTemplate.renderIdentityExtras) ? ctx.currentTemplate.renderIdentityExtras(ctx.activeNpc) : '';
     const f = ctx.currentTemplate.features || { disciplines: true, bloodPool: true, virtues: true, backgrounds: true, humanity: true };
@@ -51,7 +51,7 @@ export function renderEditorModal() {
     // Determine selection state for template dropdown
     const tVal = ctx.activeNpc.template;
     // We treat anything not in the standard list as 'bestiary' for the dropdown selection state
-    const isBestiarySel = !['mortal', 'ghoul', 'animal'].includes(tVal);
+    const isBestiarySel = !['mortal', 'ghoul', 'animal', 'vampire'].includes(tVal);
     
     // STORYTELLER CHECK: Only show Bestiary option if ST or if currently viewing a Bestiary NPC
     const isST = window.stState && window.stState.isStoryteller;
@@ -69,6 +69,7 @@ export function renderEditorModal() {
                             <option value="mortal" ${tVal === 'mortal' ? 'selected' : ''}>Mortal</option>
                             <option value="ghoul" ${tVal === 'ghoul' ? 'selected' : ''}>Ghoul / Revenant</option>
                             <option value="animal" ${tVal === 'animal' ? 'selected' : ''}>Animal</option>
+                            <option value="vampire" ${tVal === 'vampire' ? 'selected' : ''}>Vampire (Imported)</option>
                             ${showBestiaryOption ? `<option value="bestiary" ${isBestiarySel ? 'selected' : ''}>Bestiary / Custom (Unlimited)</option>` : ''}
                         </select>
                         <i class="fas fa-caret-down text-xs ml-2 opacity-50"></i>
@@ -766,7 +767,7 @@ export function renderInventoryList() {
 }
 
 function renderTabButton(id, label) {
-    return `<button class="npc-tab px-6 py-4 hover:bg-[#111] hover:text-[#d4af37] border-r border-[#333] transition-colors" data-tab="${id}">${label}</button>`;
+    return `<button class="npc-tab flex-1 py-3 border-r border-[#333] hover:bg-[#111] hover:text-white transition-colors" data-tab="${id}">${label}</button>`;
 }
 
 function switchTab(id) {
