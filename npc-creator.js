@@ -11,8 +11,8 @@ import * as PlayUI from "./npc-sheet-play.js";
 
 // Import Storyteller State to check permissions
 import { stState } from "./ui-storyteller.js";
-import { db, doc, setDoc, collection, auth } from "./firebase-config.js";
-import { renderFileBrowser, loadSelectedChar } from "./firebase-manager.js";
+// FIX: Added getDoc and appId to the imports so the Cloud fetch works
+import { db, doc, setDoc, getDoc, collection, auth, appId } from "./firebase-config.js";
 
 // Registry of available templates
 const TEMPLATES = {
@@ -86,36 +86,57 @@ const VampireTemplate = {
         const loadBtn = parent.querySelector('#npc-load-archive');
         if (loadBtn) {
             loadBtn.onclick = async () => {
-                // Show the file browser to the user
                 const modal = document.getElementById('load-modal');
-                if (modal) {
+                if (!modal) return;
+
+                // 1. Open the normal load menu properly so it populates the UI
+                if (window.handleLoadClick) {
+                    await window.handleLoadClick();
+                } else {
                     modal.classList.add('active');
-                    // Override the global load function temporarily to intercept the data
-                    const originalLoad = window.loadSelectedCharFromId;
-                    
-                    window.loadSelectedCharFromId = async (id) => {
-                        // 1. Fetch character data from Firebase manually to avoid corrupting current session
-                        const user = auth.currentUser;
-                        if (!user) return;
-                        try {
-                            const snap = await getDoc(doc(db, 'artifacts', 'v20-neonate-sheet', 'users', user.uid, 'characters', id));
-                            if (snap.exists()) {
-                                const pcData = snap.data();
-                                const converted = convertPcToNpc(pcData);
-                                
-                                // 2. Inject into active creator session
-                                Object.assign(data, converted);
-                                
-                                // 3. Close browser and cleanup
-                                modal.classList.remove('active');
-                                window.loadSelectedCharFromId = originalLoad;
-                                
-                                showNotification(`Imported ${data.name} successfully.`);
-                                updateCallback(); // Force Re-render of current tab
-                            }
-                        } catch (e) { console.error(e); }
-                    };
                 }
+
+                // 2. Temporarily intercept the global load function
+                const originalLoad = window.loadSelectedCharFromId;
+                
+                // 3. Setup an observer to restore the original function when the modal is closed
+                // This guarantees the main app doesn't break if the user clicks "Cancel"
+                const observer = new MutationObserver((mutations) => {
+                    mutations.forEach((mutation) => {
+                        if (mutation.attributeName === 'class' && !modal.classList.contains('active')) {
+                            window.loadSelectedCharFromId = originalLoad;
+                            observer.disconnect(); 
+                        }
+                    });
+                });
+                observer.observe(modal, { attributes: true });
+
+                // 4. Overwrite the function to intercept the ID
+                window.loadSelectedCharFromId = async (id) => {
+                    const user = auth.currentUser;
+                    if (!user) return;
+                    
+                    // Close modal immediately (which fires the observer to restore the original logic)
+                    modal.classList.remove('active');
+                    
+                    try {
+                        // FIX: Use the imported appId and getDoc function to safely fetch the data
+                        const snap = await getDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'characters', id));
+                        if (snap.exists()) {
+                            const pcData = snap.data();
+                            const converted = convertPcToNpc(pcData);
+                            
+                            Object.assign(data, converted);
+                            showNotification(`Imported ${data.name} successfully.`);
+                            updateCallback(); 
+                        } else {
+                            showNotification("Save file not found.", "error");
+                        }
+                    } catch (e) { 
+                        console.error("Archive Import Error:", e); 
+                        showNotification("Failed to import PC data.", "error");
+                    } 
+                };
             };
         }
     }
