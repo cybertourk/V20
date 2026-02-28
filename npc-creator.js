@@ -169,6 +169,7 @@ function convertPcToNpc(pc) {
         type: "Vampire", 
         clan: tf['c-clan'] || "",
         generation: tf['c-gen'] || "13",
+        sire: tf['c-sire'] || "",
         concept: tf['c-concept'] || "",
         nature: tf['c-nature'] || "",
         demeanor: tf['c-demeanor'] || "",
@@ -451,6 +452,7 @@ function handleSwitchTemplate(newType) {
         name: activeNpc.name,
         chronicle: activeNpc.chronicle,
         concept: activeNpc.concept,
+        sire: activeNpc.sire,
         nature: activeNpc.nature,
         demeanor: activeNpc.demeanor,
         bio: JSON.parse(JSON.stringify(activeNpc.bio || {}))
@@ -659,6 +661,7 @@ async function handleSaveNpc(toBestiary = false) {
     setIf('npc-extra-clan', 'domitorClan');
     setIf('npc-vamp-clan', 'clan');
     setIf('npc-vamp-gen', 'generation');
+    setIf('npc-sire', 'sire');
     setIf('npc-subtype', 'type');
     setIf('g-weakness', 'weakness'); 
     setIf('npc-bond-level', 'bondLevel');
