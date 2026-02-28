@@ -137,7 +137,6 @@ const VampireTemplate = {
                             Object.assign(data, converted);
                             showNotification(`Imported ${data.name} successfully.`);
                             
-                            // FIX: Force a FULL re-render of the editor so text fields & disciplines appear!
                             EditUI.renderEditorModal(); 
                         } else {
                             showNotification("Save file not found.", "error");
@@ -178,6 +177,7 @@ function convertPcToNpc(pc) {
         disciplines: JSON.parse(JSON.stringify(dots.disc || {})),
         backgrounds: JSON.parse(JSON.stringify(dots.back || {})),
         virtues: JSON.parse(JSON.stringify(dots.virt || { Conscience: 1, "Self-Control": 1, Courage: 1 })),
+        specialties: JSON.parse(JSON.stringify(pc.specialties || {})),
         merits: pc.merits ? pc.merits.reduce((acc, m) => { 
             if (m && (m.name || m.n)) acc[m.name || m.n] = m.val ?? m.cost ?? 0; 
             return acc; 
@@ -196,13 +196,20 @@ function convertPcToNpc(pc) {
             damage: (pc.status?.health_states || []).filter(x => x > 0).length 
         },
         inventory: JSON.parse(JSON.stringify(pc.inventory || [])),
+        feedingGrounds: tf['inv-feeding-grounds'] || "",
         image: pc.characterImage || null,
         bio: {
             Description: tf['bio-desc'] || "",
             Notes: tf['char-history'] || pc.charHistory || "",
-            Age: tf['bio-Age'] || "",
-            Sex: tf['bio-Sex'] || "",
-            Nationality: tf['bio-Nationality'] || ""
+            "Age": tf['bio-Age'] || "",
+            "Date of Birth": tf['bio-Date of Birth'] || "",
+            "Hair": tf['bio-Hair'] || "",
+            "Eyes": tf['bio-Eyes'] || "",
+            "Race": tf['bio-Race'] || "",
+            "Nationality": tf['bio-Nationality'] || "",
+            "Height": tf['bio-Height'] || "",
+            "Weight": tf['bio-Weight'] || "",
+            "Sex": tf['bio-Sex'] || ""
         },
         weakness: tf['c-clan-weakness'] || ""
     };
