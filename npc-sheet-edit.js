@@ -107,7 +107,7 @@ export function renderEditorModal() {
                     
                     <!-- STEP 1: IDENTITY -->
                     <div id="step1" class="npc-step hidden">
-                         <div class="sheet-section !mt-0"><div class="section-title">Concept & Identity</div><div class="grid grid-cols-1 md:grid-cols-3 gap-8"><div class="space-y-6"><div><label class="label-text text-[#d4af37]">Name</label><input type="text" id="npc-name" value="${ctx.activeNpc.name || ''}" class="npc-input w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] outline-none"></div>${isGhoul ? `<div><label class="label-text text-[#d4af37]">Ghoul Type</label><select id="npc-subtype" class="npc-input w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] outline-none"><option value="Vassal" ${ctx.activeNpc.type === 'Vassal' ? 'selected' : ''}>Vassal (Bound)</option><option value="Independent" ${ctx.activeNpc.type === 'Independent' ? 'selected' : ''}>Independent</option><option value="Revenant" ${ctx.activeNpc.type === 'Revenant' ? 'selected' : ''}>Revenant</option></select></div>` : ''}${showDomitor ? `<div><label class="label-text text-[#d4af37]">Domitor Name</label><input type="text" id="npc-domitor" value="${ctx.activeNpc.domitor || ''}" class="npc-input w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] outline-none"></div><div id="div-extra-clan" class="mt-2"><label class="label-text text-[#d4af37]">Domitor's Clan</label><select id="npc-extra-clan" class="w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] focus:outline-none transition-colors"><option value="" class="bg-black">Unknown / None</option>${clanOptions}</select></div>` : ''}</div><div class="space-y-6"><div><label class="label-text text-[#d4af37]">Nature</label><select id="npc-nature" class="npc-input w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] outline-none"><option value="">Select...</option>${archOptions}</select></div><div><label class="label-text text-[#d4af37]">Demeanor</label><select id="npc-demeanor" class="npc-input w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] outline-none"><option value="">Select...</option>${archOptions}</select></div><div><label class="label-text text-[#d4af37]">Concept</label><input type="text" id="npc-concept" value="${ctx.activeNpc.concept || ''}" class="npc-input w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] outline-none"></div>${isGhoul ? `<div id="div-bond-level"><label class="label-text text-[#d4af37]">Blood Bond Level</label><select id="npc-bond-level" class="npc-input w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] outline-none"><option value="1" ${ctx.activeNpc.bondLevel == 1 ? 'selected' : ''}>Step 1 (First Drink)</option><option value="2" ${ctx.activeNpc.bondLevel == 2 ? 'selected' : ''}>Step 2 (Strong Feelings)</option><option value="3" ${ctx.activeNpc.bondLevel == 3 ? 'selected' : ''}>Step 3 (Full Bond)</option></select></div>` : ''}</div><div class="space-y-6">${extrasHtml}</div></div></div>
+                         <div class="sheet-section !mt-0"><div class="section-title">Concept & Identity</div><div class="grid grid-cols-1 md:grid-cols-3 gap-8"><div class="space-y-6"><div><label class="label-text text-[#d4af37]">Name</label><input type="text" id="npc-name" value="${ctx.activeNpc.name || ''}" class="npc-input w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] outline-none"></div>${isGhoul ? `<div><label class="label-text text-[#d4af37]">Ghoul Type</label><select id="npc-subtype" class="npc-input w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] outline-none"><option value="Vassal" ${ctx.activeNpc.type === 'Vassal' ? 'selected' : ''}>Vassal (Bound)</option><option value="Independent" ${ctx.activeNpc.type === 'Independent' ? 'selected' : ''}>Independent</option><option value="Revenant" ${ctx.activeNpc.type === 'Revenant' ? 'selected' : ''}>Revenant</option></select></div>` : ''}${showDomitor ? `<div><label class="label-text text-[#d4af37]">Domitor Name</label><input type="text" id="npc-domitor" value="${ctx.activeNpc.domitor || ''}" class="npc-input w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] outline-none"></div><div id="div-extra-clan" class="mt-2"><label class="label-text text-[#d4af37]">Domitor's Clan</label><select id="npc-extra-clan" class="w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] focus:outline-none transition-colors"><option value="" class="bg-black">Unknown / None</option>${clanOptions}</select></div>` : ''}</div><div class="space-y-6"><div><label class="label-text text-[#d4af37]">Concept</label><input type="text" id="npc-concept" value="${ctx.activeNpc.concept || ''}" class="npc-input w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] outline-none"></div><div><label class="label-text text-[#d4af37]">Sire / Creator</label><input type="text" id="npc-sire" value="${ctx.activeNpc.sire || ''}" class="npc-input w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] outline-none" placeholder="Optional"></div><div><label class="label-text text-[#d4af37]">Nature</label><select id="npc-nature" class="npc-input w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] outline-none"><option value="">Select...</option>${archOptions}</select></div><div><label class="label-text text-[#d4af37]">Demeanor</label><select id="npc-demeanor" class="npc-input w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] outline-none"><option value="">Select...</option>${archOptions}</select></div>${isGhoul ? `<div id="div-bond-level"><label class="label-text text-[#d4af37]">Blood Bond Level</label><select id="npc-bond-level" class="npc-input w-full bg-transparent border-b border-[#444] text-white p-1 text-sm font-bold focus:border-[#d4af37] outline-none"><option value="1" ${ctx.activeNpc.bondLevel == 1 ? 'selected' : ''}>Step 1 (First Drink)</option><option value="2" ${ctx.activeNpc.bondLevel == 2 ? 'selected' : ''}>Step 2 (Strong Feelings)</option><option value="3" ${ctx.activeNpc.bondLevel == 3 ? 'selected' : ''}>Step 3 (Full Bond)</option></select></div>` : ''}</div><div class="space-y-6">${extrasHtml}</div></div></div>
                     </div>
 
                     <!-- STEP 2: ATTRIBUTES -->
@@ -633,6 +633,14 @@ export function renderEditorModal() {
         });
     }
 
+    // Bind Specialty Listeners inside the sheet
+    modal.querySelectorAll('.npc-spec-input').forEach(input => {
+        input.onchange = (e) => {
+            if (!ctx.activeNpc.specialties) ctx.activeNpc.specialties = {};
+            ctx.activeNpc.specialties[e.target.dataset.key] = e.target.value;
+        };
+    });
+
     switchTab(ctx.currentTab || 'step1');
     updateModeUI();
     renderAllDots();
@@ -806,10 +814,18 @@ function renderAbilityColumn(group) {
 }
 
 function renderDotRow(type, key, val, group) {
+    let specHtml = "";
+    const specVal = (ctx.activeNpc.specialties && ctx.activeNpc.specialties[key]) ? ctx.activeNpc.specialties[key] : "";
+    
+    if ((type === 'attributes' && val >= 4) || (type === 'abilities' && val >= 1) || specVal) {
+         specHtml = `<input type="text" class="npc-spec-input w-24 bg-transparent text-[#d4af37] text-[9px] italic border-b border-[#333] outline-none text-right mx-2 px-1 focus:border-gold" placeholder="Specialty..." data-key="${key}" value="${specVal}">`;
+    }
+
     return `
-        <div class="flex justify-between items-center mb-1 dot-interactive" data-type="${type}" data-key="${encodeURIComponent(key)}" data-group="${group}">
-            <span class="text-[10px] uppercase font-bold text-gray-300 tracking-tight">${key}</span>
-            <div class="dot-row cursor-pointer hover:opacity-80">${renderDots(val || 0, 5)}</div>
+        <div class="flex justify-between items-center mb-1 dot-interactive group" data-type="${type}" data-key="${encodeURIComponent(key)}" data-group="${group}">
+            <span class="text-[10px] uppercase font-bold text-gray-300 tracking-tight flex-1 group-hover:text-white transition-colors">${key}</span>
+            ${specHtml}
+            <div class="dot-row cursor-pointer hover:opacity-80 flex-shrink-0">${renderDots(val || 0, 5)}</div>
         </div>
     `;
 }
@@ -921,6 +937,14 @@ function bindDotClicks() {
         };
     });
     
+    // Bind specialty input listeners here since they are re-rendered often
+    document.querySelectorAll('.npc-spec-input').forEach(input => {
+        input.onchange = (e) => {
+            if (!ctx.activeNpc.specialties) ctx.activeNpc.specialties = {};
+            ctx.activeNpc.specialties[e.target.dataset.key] = e.target.value;
+        };
+    });
+
     const bindDirect = (id, type) => {
         const el = document.getElementById(id);
         if(el) el.onclick = (e) => {
