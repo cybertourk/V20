@@ -11,7 +11,6 @@ import * as PlayUI from "./npc-sheet-play.js";
 
 // Import Storyteller State to check permissions
 import { stState } from "./ui-storyteller.js";
-// FIX: Added getDoc and appId to the imports so the Cloud fetch works
 import { db, doc, setDoc, getDoc, collection, auth, appId } from "./firebase-config.js";
 
 // Registry of available templates
@@ -63,7 +62,17 @@ const VampireTemplate = {
     renderIdentityExtras: (data) => {
         return `
             <div class="space-y-4 border-t border-[#333] pt-4 mt-2">
-                <div class="p-4 bg-purple-900/10 border border-purple-900/40 rounded">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="label-text text-[#d4af37]">Clan</label>
+                        <input type="text" id="npc-vamp-clan" value="${data.clan || ''}" class="w-full bg-transparent border-b border-[#444] text-white p-1 text-sm focus:border-[#d4af37] outline-none">
+                    </div>
+                    <div>
+                        <label class="label-text text-[#d4af37]">Generation</label>
+                        <input type="text" id="npc-vamp-gen" value="${data.generation || ''}" class="w-full bg-transparent border-b border-[#444] text-white p-1 text-sm focus:border-[#d4af37] outline-none">
+                    </div>
+                </div>
+                <div class="p-4 bg-purple-900/10 border border-purple-900/40 rounded mt-4">
                     <div class="text-[10px] text-purple-400 mb-2 font-bold uppercase"><i class="fas fa-file-import mr-1"></i> Character Import</div>
                     <p class="text-[10px] text-gray-400 leading-relaxed mb-4">
                         Load a full Vampire character from your cloud saves or a local JSON file to add them as an NPC.
@@ -83,24 +92,26 @@ const VampireTemplate = {
     },
 
     setupListeners: (parent, data, updateCallback) => {
+        const clanEl = parent.querySelector('#npc-vamp-clan');
+        if (clanEl) clanEl.onchange = (e) => data.clan = e.target.value;
+        
+        const genEl = parent.querySelector('#npc-vamp-gen');
+        if (genEl) genEl.onchange = (e) => data.generation = e.target.value;
+
         const loadBtn = parent.querySelector('#npc-load-archive');
         if (loadBtn) {
             loadBtn.onclick = async () => {
                 const modal = document.getElementById('load-modal');
                 if (!modal) return;
 
-                // 1. Open the normal load menu properly so it populates the UI
                 if (window.handleLoadClick) {
                     await window.handleLoadClick();
                 } else {
                     modal.classList.add('active');
                 }
 
-                // 2. Temporarily intercept the global load function
                 const originalLoad = window.loadSelectedCharFromId;
                 
-                // 3. Setup an observer to restore the original function when the modal is closed
-                // This guarantees the main app doesn't break if the user clicks "Cancel"
                 const observer = new MutationObserver((mutations) => {
                     mutations.forEach((mutation) => {
                         if (mutation.attributeName === 'class' && !modal.classList.contains('active')) {
@@ -111,16 +122,13 @@ const VampireTemplate = {
                 });
                 observer.observe(modal, { attributes: true });
 
-                // 4. Overwrite the function to intercept the ID
                 window.loadSelectedCharFromId = async (id) => {
                     const user = auth.currentUser;
                     if (!user) return;
                     
-                    // Close modal immediately (which fires the observer to restore the original logic)
                     modal.classList.remove('active');
                     
                     try {
-                        // FIX: Use the imported appId and getDoc function to safely fetch the data
                         const snap = await getDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'characters', id));
                         if (snap.exists()) {
                             const pcData = snap.data();
@@ -128,7 +136,9 @@ const VampireTemplate = {
                             
                             Object.assign(data, converted);
                             showNotification(`Imported ${data.name} successfully.`);
-                            updateCallback(); 
+                            
+                            // FIX: Force a FULL re-render of the editor so text fields & disciplines appear!
+                            EditUI.renderEditorModal(); 
                         } else {
                             showNotification("Save file not found.", "error");
                         }
@@ -149,9 +159,17 @@ function convertPcToNpc(pc) {
     const tf = pc.textFields || {};
     const dots = pc.dots || {};
     
+    // Calculate blood limit based on Generation
+    const gen = parseInt(tf['c-gen']) || 13;
+    const genLimits = { 15:10, 14:10, 13:10, 12:11, 11:12, 10:13, 9:14, 8:15, 7:20, 6:30, 5:40, 4:50 };
+    const maxBlood = genLimits[gen] || 10;
+    
     return {
         name: tf['c-name'] || "Unnamed Vampire",
-        template: "vampire", // Specifically flag as vampire for play sheet logic
+        template: "vampire", 
+        type: "Vampire", 
+        clan: tf['c-clan'] || "",
+        generation: tf['c-gen'] || "13",
         concept: tf['c-concept'] || "",
         nature: tf['c-nature'] || "",
         demeanor: tf['c-demeanor'] || "",
@@ -160,12 +178,18 @@ function convertPcToNpc(pc) {
         disciplines: JSON.parse(JSON.stringify(dots.disc || {})),
         backgrounds: JSON.parse(JSON.stringify(dots.back || {})),
         virtues: JSON.parse(JSON.stringify(dots.virt || { Conscience: 1, "Self-Control": 1, Courage: 1 })),
-        merits: pc.merits ? pc.merits.reduce((acc, m) => { acc[m.name] = m.val; return acc; }, {}) : {},
-        flaws: pc.flaws ? pc.flaws.reduce((acc, f) => { acc[f.name] = f.val; return acc; }, {}) : {},
-        humanity: pc.status?.humanity || 7,
-        willpower: pc.status?.willpower || 5,
-        tempWillpower: pc.status?.tempWillpower || 5,
-        bloodPool: 10, // Default for converted
+        merits: pc.merits ? pc.merits.reduce((acc, m) => { 
+            if (m && (m.name || m.n)) acc[m.name || m.n] = m.val ?? m.cost ?? 0; 
+            return acc; 
+        }, {}) : {},
+        flaws: pc.flaws ? pc.flaws.reduce((acc, f) => { 
+            if (f && (f.name || f.n)) acc[f.name || f.n] = f.val ?? f.cost ?? 0; 
+            return acc; 
+        }, {}) : {},
+        humanity: pc.status?.humanity ?? 7,
+        willpower: pc.status?.willpower ?? 5,
+        tempWillpower: pc.status?.tempWillpower ?? 5,
+        bloodPool: maxBlood,
         currentBlood: pc.status?.blood || 0,
         health: { 
             track: pc.status?.health_states || [0,0,0,0,0,0,0], 
@@ -175,7 +199,7 @@ function convertPcToNpc(pc) {
         image: pc.characterImage || null,
         bio: {
             Description: tf['bio-desc'] || "",
-            Notes: pc.charHistory || "",
+            Notes: tf['char-history'] || pc.charHistory || "",
             Age: tf['bio-Age'] || "",
             Sex: tf['bio-Sex'] || "",
             Nationality: tf['bio-Nationality'] || ""
@@ -361,7 +385,6 @@ function getEditCallbacks() {
             reader.onload = (e) => {
                 try {
                     const data = JSON.parse(e.target.result);
-                    // Check if this looks like a full PC state (has dots and textFields)
                     if (data.dots && data.textFields) {
                         const converted = convertPcToNpc(data);
                         Object.assign(activeNpc, converted);
@@ -376,7 +399,7 @@ function getEditCallbacks() {
                         EditUI.renderEditorModal();
                         showNotification("Imported PC JSON as NPC.");
                     } else {
-                        importNpcData(event); // Fallback to standard NPC import
+                        importNpcData(event); 
                     }
                 } catch(err) { console.error(err); }
             };
@@ -627,6 +650,8 @@ async function handleSaveNpc(toBestiary = false) {
     const setIf = (id, prop) => { const v = getVal(id); if(v !== null) activeNpc[prop] = v; };
 
     setIf('npc-extra-clan', 'domitorClan');
+    setIf('npc-vamp-clan', 'clan');
+    setIf('npc-vamp-gen', 'generation');
     setIf('npc-subtype', 'type');
     setIf('g-weakness', 'weakness'); 
     setIf('npc-bond-level', 'bondLevel');
@@ -703,6 +728,7 @@ function generateNpcCodexEntry(npc) {
     const tags = ["NPC"];
     if (npc.template) tags.push(npc.template.charAt(0).toUpperCase() + npc.template.slice(1));
     if (npc.domitorClan) tags.push(npc.domitorClan);
+    if (npc.clan) tags.push(npc.clan);
     if (npc.species) tags.push(npc.species);
     
     let descLines = [];
