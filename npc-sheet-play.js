@@ -53,13 +53,20 @@ export function renderPlaySheetModal() {
 
     const npc = ctx.activeNpc;
 
-    const typeLabel = npc.template === 'ghoul' 
-        ? `${npc.type || 'Ghoul'} ${npc.domitorClan ? `(${npc.domitorClan})` : ''}` 
-        : (npc.template === 'animal' ? 'Animal' : 'Mortal');
+    let typeLabel = 'Mortal';
+    if (npc.template === 'vampire') typeLabel = `Vampire ${npc.clan ? `(${npc.clan})` : ''}`;
+    else if (npc.template === 'ghoul') typeLabel = `${npc.type || 'Ghoul'} ${npc.domitorClan ? `(${npc.domitorClan})` : ''}`;
+    else if (npc.template === 'animal') typeLabel = 'Animal';
+    else if (npc.template === 'bestiary') typeLabel = npc.type || 'Bestiary';
+
+    let subtitleStr = typeLabel;
+    if (npc.generation && npc.template === 'vampire') subtitleStr += ` <span class="mx-2 text-gray-600">|</span> ${npc.generation}th Gen`;
+    if (npc.concept) subtitleStr += ` <span class="mx-2 text-gray-600">|</span> ${npc.concept}`;
+    if (npc.sire) subtitleStr += ` <span class="mx-2 text-gray-600">|</span> Sire: ${npc.sire}`;
 
     const showVirtues = npc.template !== 'animal';
     const showHumanity = npc.template !== 'animal';
-    const humanityLabel = npc.template === 'vampire' ? 'Humanity / Road' : 'Humanity';
+    const humanityLabel = npc.template === 'vampire' ? 'Humanity / Path' : 'Humanity';
     
     // Hide Feeding Grounds for Mortals, Ghouls, and Animals
     const showFeedingGrounds = !['mortal', 'ghoul', 'animal'].includes(npc.template);
@@ -242,7 +249,7 @@ export function renderPlaySheetModal() {
             <div class="bg-[#111] p-4 border-b border-[#333] flex justify-between items-center shrink-0">
                 <div>
                     <h2 class="text-3xl font-cinzel font-bold text-[#d4af37] leading-none">${npc.name || "Unnamed NPC"}</h2>
-                    <div class="text-xs text-gray-400 uppercase tracking-widest mt-1 font-bold">${typeLabel}</div>
+                    <div class="text-xs text-gray-400 uppercase tracking-widest mt-1 font-bold">${subtitleStr}</div>
                     <input type="hidden" id="npc-name" value="${npc.name || "Unnamed NPC"}">
                 </div>
                 <div class="flex items-center gap-4">
@@ -257,7 +264,7 @@ export function renderPlaySheetModal() {
                 <div class="sheet-section !mt-0 mb-6">
                     <div class="section-title">Attributes</div>
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-                        ${renderSimpleDots(npc.attributes, ATTRIBUTES, 'attributes')}
+                        ${renderSimpleDots(npc.attributes, ATTRIBUTES, 'attributes', npc.specialties)}
                     </div>
                 </div>
 
@@ -265,7 +272,7 @@ export function renderPlaySheetModal() {
                 <div class="sheet-section mb-6">
                     <div class="section-title">Abilities</div>
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-                        ${renderSimpleDots(npc.abilities, ABILITIES, 'abilities')}
+                        ${renderSimpleDots(npc.abilities, ABILITIES, 'abilities', npc.specialties)}
                     </div>
                 </div>
 
@@ -508,8 +515,6 @@ export function renderPlaySheetModal() {
 
                         <div class="sheet-section">
                             <div class="section-title">Biography</div>
-                            
-                            <!-- PORTRAIT WAS REMOVED FROM HERE -->
 
                             ${npc.bio.Description ? `<div class="text-xs text-gray-300 italic leading-relaxed mb-4 whitespace-pre-wrap">${npc.bio.Description}</div>` : '<div class="text-xs text-gray-600 italic">No description.</div>'}
                             
@@ -552,7 +557,7 @@ export function renderPlaySheetModal() {
     bindPlayInteractions(modal);
 }
 
-function renderSimpleDots(data, structure, type) {
+function renderSimpleDots(data, structure, type, specialties = {}) {
     let html = '';
     const cats = type === 'attributes' ? ['Physical', 'Social', 'Mental'] : ['Talents', 'Skills', 'Knowledges'];
     
@@ -560,16 +565,16 @@ function renderSimpleDots(data, structure, type) {
         const list = structure[cat];
         if(!list) return;
         
-        // This generates the column content for the grid
         html += `<div class="flex flex-col">
             <h3 class="text-[#8b0000] font-cinzel font-bold border-b border-[#444] mb-2 text-center text-xs tracking-widest uppercase">${cat}</h3>`;
         
         list.forEach(k => {
             const val = data[k] || 0;
             if (val > 0 || type === 'attributes') {
+                const specStr = specialties[k] ? ` <span class="text-[#d4af37] italic font-normal normal-case text-[9px]">(${specialties[k]})</span>` : '';
                 html += `<div class="flex justify-between items-center mb-0.5 text-xs group">
-                    <span class="text-gray-300 cursor-pointer hover:text-[#d4af37] transition-colors roll-stat" data-stat="${k}" data-val="${val}" data-type="${type}">${k}</span>
-                    <span>${renderDots(val, 5)}</span>
+                    <span class="text-gray-300 cursor-pointer hover:text-[#d4af37] transition-colors roll-stat truncate flex-1 pr-1" data-stat="${k}" data-val="${val}" data-type="${type}">${k}${specStr}</span>
+                    <span class="flex-shrink-0">${renderDots(val, 5)}</span>
                 </div>`;
             }
         });
