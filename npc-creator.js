@@ -138,6 +138,7 @@ const VampireTemplate = {
                             showNotification(`Imported ${data.name} successfully.`);
                             
                             EditUI.renderEditorModal(); 
+                            if (stState && stState.isStoryteller) injectBestiarySaveButton(); // Re-inject dual buttons
                         } else {
                             showNotification("Save file not found.", "error");
                         }
@@ -331,16 +332,39 @@ export function openNpcCreator(typeKey = 'mortal', dataOrEvent = null, index = n
 }
 
 function injectBestiarySaveButton() {
-    const footer = document.querySelector('#npc-modal .border-t .flex');
-    const existing = document.getElementById('npc-save-bestiary');
-    if (existing) existing.remove();
+    if (!stState || !stState.isStoryteller) return;
 
-    if (footer) {
-        const btn = document.createElement('div');
-        btn.id = 'npc-save-bestiary';
-        btn.className = "text-[#d4af37] font-bold text-xs uppercase px-4 py-2 border border-[#d4af37] bg-[#d4af37]/10 rounded mr-2 flex items-center gap-2";
-        btn.innerHTML = `<i class="fas fa-crown"></i> ST Mode Active`;
-        footer.insertBefore(btn, footer.firstChild);
+    // 1. Sidebar Button Replacement
+    const sidebarBtn = document.getElementById('npc-save-btn');
+    if (sidebarBtn && sidebarBtn.parentNode) {
+        const parent = sidebarBtn.parentNode;
+        parent.innerHTML = `
+            <button id="npc-save-local-side" class="w-full bg-[#222] hover:bg-[#333] text-white font-bold py-3 text-xs uppercase tracking-[0.2em] shadow-lg transition-all border border-[#444] mb-2 flex justify-center items-center gap-2" title="Save to Personal Retainers List"><i class="fas fa-file-alt"></i> Save to Sheet</button>
+            <button id="npc-save-bestiary-side" class="w-full bg-[#8b0000] hover:bg-red-700 text-white font-bold py-3 text-xs uppercase tracking-[0.2em] shadow-lg transition-all flex justify-center items-center gap-2" title="Save to Chronicle Bestiary"><i class="fas fa-dragon"></i> Save to Bestiary</button>
+        `;
+        document.getElementById('npc-save-local-side').onclick = () => handleSaveNpc(false);
+        document.getElementById('npc-save-bestiary-side').onclick = () => handleSaveNpc(true);
+    }
+
+    // 2. Footer Button Replacement
+    const footerSaveBtn = document.getElementById('npc-save');
+    if (footerSaveBtn && footerSaveBtn.parentNode) {
+        const footerDiv = footerSaveBtn.parentNode;
+        footerDiv.innerHTML = `
+            <button id="npc-cancel" class="border border-[#444] text-gray-400 px-6 py-2 uppercase font-bold text-xs hover:bg-[#222] hover:text-white transition">Cancel</button>
+            <button id="npc-save-local-foot" class="bg-[#222] text-white px-4 py-2 uppercase font-bold text-xs hover:bg-[#333] border border-[#444] shadow-lg tracking-widest transition flex items-center gap-2" title="Save to Personal Retainers List">
+                <i class="fas fa-file-alt"></i> Save to Sheet
+            </button>
+            <button id="npc-save-bestiary-foot" class="bg-[#8b0000] text-white px-6 py-2 uppercase font-bold text-xs hover:bg-red-700 shadow-lg tracking-widest transition flex items-center gap-2" title="Save to Chronicle Bestiary">
+                <i class="fas fa-dragon"></i> Save to Bestiary
+            </button>
+        `;
+        document.getElementById('npc-cancel').onclick = () => { 
+            document.getElementById('npc-modal').style.display = 'none'; 
+            toggleDiceUI(true); 
+        };
+        document.getElementById('npc-save-local-foot').onclick = () => handleSaveNpc(false);
+        document.getElementById('npc-save-bestiary-foot').onclick = () => handleSaveNpc(true);
     }
 }
 
@@ -375,8 +399,8 @@ function getEditCallbacks() {
             toggleDiceUI(true); 
         },
         saveNpc: () => {
-            const isST = stState && stState.isStoryteller;
-            handleSaveNpc(isST); 
+            // For Players, it defaults to their personal sheet
+            handleSaveNpc(false); 
         },
         toggleMode: handleToggleMode,
         switchTemplate: handleSwitchTemplate,
@@ -405,6 +429,7 @@ function getEditCallbacks() {
                             getEditCallbacks()
                         );
                         EditUI.renderEditorModal();
+                        if (stState && stState.isStoryteller) injectBestiarySaveButton(); // Re-inject dual buttons
                         showNotification("Imported PC JSON as NPC.");
                     } else {
                         importNpcData(event); 
@@ -716,7 +741,7 @@ async function handleSaveNpc(toBestiary = false) {
         
         if (window.performSave) {
             window.performSave(true); 
-            showNotification(`${currentTemplate.label} Saved & Synced.`);
+            showNotification(`${currentTemplate.label} Saved & Synced to Personal Sheet.`);
         } else {
             showNotification(`${currentTemplate.label} Saved locally.`);
         }
@@ -804,6 +829,7 @@ function importNpcData(event) {
                     getEditCallbacks()
                 );
                 EditUI.renderEditorModal();
+                if (stState && stState.isStoryteller) injectBestiarySaveButton(); // Re-inject dual buttons
                 showNotification("NPC Imported Successfully");
             } else {
                 alert("Invalid JSON structure.");
