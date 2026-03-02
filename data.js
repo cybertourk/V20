@@ -126,7 +126,7 @@ export const VIT = [
 
 export const DERANGEMENTS = [
     "Megalomania", "Sanguinary Animism", "Multiple Personalities", 
-    "Schizophrenia", "Paranoia", "Bulimia", "Hysteria", "Manic-Depression", 
+    "Schizophrenia", "Paranoia", "Bulimia", "Hysteria", "Bipolar Disorder", 
     "Fugue", "Obsessive-Compulsive"
 ];
 
