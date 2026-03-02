@@ -11,7 +11,7 @@ export const CLANS = [
 export const ARCHETYPES = [
     "Architect", "Autocrat", "Bon Vivant", "Bravo", "Capitalist", 
     "Caregiver", "Celebrant", "Chameleon", "Child", "Competitor", 
-    "Conformist", "Conniver", "Creep Show", "Critic", "Curmudgeon", 
+    "Conformist", "Conniver", "Creep Show", "Critic", "Curmudgeon", "Dabbler",
     "Deviant", "Director", "Enigma", "Eye of the Storm", "Fanatic", 
     "Gallant", "Guru", "Idealist", "Judge", "Loner", "Martyr", 
     "Masochist", "Monster", "Pedagogue", "Penitent", "Perfectionist", 
